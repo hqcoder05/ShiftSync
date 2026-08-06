@@ -57,3 +57,5 @@ jobs:
         DB_PASSWORD: postgres
         REDIS_HOST: localhost
         REDIS_PORT: 6379
+        JWT_SECRET: dummy-secret-key-for-testing-in-ci-cd-pipeline-minimum-32-chars
+        JWT_EXPIRATION_MS: 86400000
