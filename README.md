@@ -2,10 +2,11 @@
 
 > **Thực tập tốt nghiệp** | **Nền tảng quản lý ca làm việc thông minh cho chuỗi F&B & Bán lẻ**
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-brightgreen)](https://spring.io/projects/spring-boot)
+[![Java](https://img.shields.io/badge/Java-21-orange)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-18-blue)](https://react.dev/)
 [![React Native](https://img.shields.io/badge/React%20Native-Expo%20SDK%2051-007ACC)](https://expo.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)](https://www.postgresql.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.4-336791)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)](https://www.docker.com/)
 
@@ -54,8 +55,8 @@ Không phải CRUD thuần túy, hệ thống sở hữu thuật toán tự xế
 
 | Layer | Công nghệ | Ghi chú |
 | :--- | :--- | :--- |
-| **Backend** | Spring Boot 3.3, Spring Security, JWT | Monolith, Layered Architecture (Controller-Service-Repo-DTO) |
-| **Database** | PostgreSQL 16 | Flyway Migration, Soft Delete (Audit trail) |
+| **Backend** | Java 21, Spring Boot 4.1.0, Spring Security, JWT | Monolith, Layered Architecture (Controller-Service-Repo-DTO) |
+| **Database** | PostgreSQL 16.4 | Flyway Migration, Soft Delete (Audit trail) |
 | **Cache/Lock** | Redis 7 | Distributed Lock (Marketplace), Session |
 | **Web Frontend**| React 18 (Vite), TailwindCSS | Dashboard cho Manager/Admin |
 | **Mobile** | **React Native (Expo SDK 51)** | App cho Employee (QR, GPS, Swap) |
@@ -81,5 +82,17 @@ Không phải CRUD thuần túy, hệ thống sở hữu thuật toán tự xế
 
 ### 1. Clone dự án
 ```bash
-git clone https://github.com/hqcoder05]/shiftsync.git
+git clone https://github.com/hqcoder05/shiftsync.git
 cd shiftsync
+```
+
+### 2. Khởi chạy Backend
+Tài liệu hướng dẫn chi tiết về cách thiết lập môi trường (Bao gồm Docker, `.env` file, cài đặt PostgreSQL/Redis và chạy Spring Boot):
+👉 [Xem Hướng dẫn cài đặt Backend (SETUP_BACKEND.md)](SETUP_BACKEND.md)
+
+### 3. API Documentation
+Tài liệu liệt kê danh sách các Endpoints và thông số Request/Response để Frontend gọi API:
+👉 [Xem Danh sách API (API_LIST.md)](API_LIST.md)
+
+---
+*Dự án đang trong quá trình phát triển (WIP).*
