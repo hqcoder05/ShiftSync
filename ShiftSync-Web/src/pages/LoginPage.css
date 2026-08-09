@@ -1,0 +1,121 @@
+.login-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.login-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.login-logo-text {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+}
+
+.login-card {
+  background-color: #EAF6EA;
+  border-radius: 16px;
+  padding: 32px;
+  width: 380px;
+}
+
+.login-input {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font-size: 15px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-input:hover {
+  border-color: #51A33D;
+}
+
+.login-input:focus {
+  border-color: #51A33D;
+  box-shadow: 0 0 0 3px rgba(81, 163, 61, 0.15);
+}
+
+/* ===== Nút Login — hiệu ứng nâng cao ===== */
+.login-button {
+  position: relative;
+  overflow: hidden;          /* để giấu dải sáng chạy qua khi chưa hover */
+  width: 100%;
+  padding: 14px;
+  margin-top: 8px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.35s ease;
+}
+
+/* Dải sáng chạy ngang qua nút khi hover */
+.login-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.5),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+
+.login-button:hover::before {
+  left: 125%;
+}
+
+.login-button:hover {
+  background-color: #51A33D;
+  border-color: #51A33D;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(81, 163, 61, 0.35);
+}
+
+.login-button:active {
+  transform: translateY(0) scale(0.97);
+  background-color: #3f8230;
+  box-shadow: 0 3px 8px rgba(81, 163, 61, 0.3);
+}
+
+.login-error {
+  color: #d32f2f;
+  font-size: 13px;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}

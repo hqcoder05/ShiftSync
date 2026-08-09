@@ -3,7 +3,7 @@
 ## [Phase I] - Setup Architecture & Base Layout Routing
 **Ngày thực hiện:** 07/08/2026  
 **Nhánh Git:** `duyen-frontend`  
-**Commit Hash:** `9ebaf787a22bd6c539ef7223279f65da38a1e728`
+**Commit Hash:** `50b2cefc1a1c566265c92749843f88e2f1cf5034`
 
 ---
 
@@ -26,3 +26,16 @@
 ### 3. Kế hoạch tiếp theo
 * Kiểm tra và chốt trạng thái dự án `ShiftSync-Mobile` trên repository nhóm.
 * Chuyển sang **Phase III**: Xây dựng UI & Form Handling cho màn hình Authentication (Login/Register) trên cả 2 nền tảng Web và Mobile.
+------------------------------------------------------------------------
+
+# log 2
+
+Ngày: 08/08/2026
+Việc đã làm: Code hoàn chỉnh màn hình Login Web (form, validate, kết nối API auth thật), thêm
+hiệu ứng hover/focus/active cho input và nút Login, sửa lỗi index.css gây hiển thị đường kẻ
+dọc toàn trang
+Vấn đề gặp phải: index.css mặc định của Vite có border-inline + width cố định trên #root gây
+lỗi hiển thị viền dọc ở mọi trang, đã xóa 2 dòng đó để layout phủ đúng 100% màn hình
+Kế hoạch tiếp theo: Sang Mục IV - Test API Auth đầy đủ bằng Postman, ghi Auth_Test_Report.md
+
+----------------------------------------------------------------------------------------------
