@@ -62,4 +62,4 @@
 6. Phần chấp nhận/chỉnh sửa: Giữ nguyên bản sửa AI đưa
 7. Lý do chỉnh sửa: Không có
 8. Cách kiểm thử: F5 lại trang Dashboard và /login, xác nhận hết đường kẻ dọc ở cả 2 trang
-9. Commit: <điền hash thật sau khi push>
+9. Commit:50b2cefc1a1c566265c92749843f88e2f1cf5034
