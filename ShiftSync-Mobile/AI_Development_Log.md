@@ -47,4 +47,4 @@
 6. Phần chấp nhận/chỉnh sửa: Giữ nguyên toàn bộ, không chỉnh sửa thêm
 7. Lý do chỉnh sửa: Không có
 8. Cách kiểm thử: npx expo start, quét QR Expo Go, xác nhận app mở vào Login trước (không vào thẳng Dashboard nữa), đối chiếu layout với Figma, test hiệu ứng nhấn giữ nút, test đăng nhập chuyển đúng sang MainTabs
-9. Commit: 
+9. Commit: afb1802d4b0ea27d969b3fbf4ca2b9b6daa85231
