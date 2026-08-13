@@ -109,7 +109,7 @@ class PayrollCalculationServiceTest {
         assignment.setShift(shift);
         assignment.setStaff(staff);
 
-        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(staff.getId(), startDate, endDate))
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(assignment));
 
         // Create attendance: 4 hours
@@ -119,7 +119,7 @@ class PayrollCalculationServiceTest {
         att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 8, 0, 0, 0, ZoneOffset.UTC));
         att.setCheckOutTime(OffsetDateTime.of(2023, 10, 2, 12, 0, 0, 0, ZoneOffset.UTC));
 
-        when(attendanceRepository.findByShiftAssignment_Staff_IdAndShiftAssignment_Shift_IdIn(eq(staff.getId()), anyList()))
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(att));
 
         // Act
@@ -164,7 +164,7 @@ class PayrollCalculationServiceTest {
         assignment.setShift(shift);
         assignment.setStaff(staff);
 
-        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(staff.getId(), startDate, endDate))
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(assignment));
 
         // Create attendance: 4 hours
@@ -174,7 +174,7 @@ class PayrollCalculationServiceTest {
         att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 8, 0, 0, 0, ZoneOffset.UTC));
         att.setCheckOutTime(OffsetDateTime.of(2023, 10, 2, 12, 0, 0, 0, ZoneOffset.UTC));
 
-        when(attendanceRepository.findByShiftAssignment_Staff_IdAndShiftAssignment_Shift_IdIn(eq(staff.getId()), anyList()))
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(att));
 
         // Act
@@ -240,10 +240,10 @@ class PayrollCalculationServiceTest {
         att2.setCheckInTime(OffsetDateTime.of(2023, 10, 6, 8, 0, 0, 0, ZoneOffset.UTC));
         att2.setCheckOutTime(OffsetDateTime.of(2023, 10, 6, 14, 0, 0, 0, ZoneOffset.UTC)); // 6 hrs
 
-        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(staff.getId(), startDate, endDate))
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(assignment1, assignment2));
                 
-        when(attendanceRepository.findByShiftAssignment_Staff_IdAndShiftAssignment_Shift_IdIn(eq(staff.getId()), anyList()))
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(att1, att2));
 
         // Act
