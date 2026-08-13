@@ -96,3 +96,8 @@ Tài liệu liệt kê danh sách các Endpoints và thông số Request/Respons
 
 ---
 *Dự án đang trong quá trình phát triển (WIP).*
+
+
+## 6. Figma Design
+
+* 🎨 **UI/UX Design:** [Xem bản thiết kế chi tiết trên Figma](https://www.figma.com/design/Qss4tUQPpPzz6w2hERSSrL/Untitled?node-id=1-104&t=d5LDFGef5zzDwpGX-1)
