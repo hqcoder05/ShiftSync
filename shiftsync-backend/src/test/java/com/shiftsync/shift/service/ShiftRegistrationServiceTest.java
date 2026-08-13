@@ -44,6 +44,9 @@ class ShiftRegistrationServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ShiftValidationService shiftValidationService;
+
     @InjectMocks
     private ShiftRegistrationService shiftRegistrationService;
 
@@ -76,7 +79,7 @@ class ShiftRegistrationServiceTest {
         when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(targetShift));
         when(shiftRegistrationRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
-        when(shiftRepository.findActiveShiftsForStaffInPeriod(eq(staffId), any(), any())).thenReturn(Collections.emptyList());
+
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
         when(shiftRegistrationRepository.save(any())).thenAnswer(i -> {
             com.shiftsync.shift.entity.ShiftRegistration reg = i.getArgument(0);
@@ -89,6 +92,7 @@ class ShiftRegistrationServiceTest {
         assertNotNull(result);
         assertEquals(staffId, result.getStaffId());
         assertEquals(shiftId, result.getShiftId());
+        verify(shiftValidationService).validateNoOverlapAndWeeklyHours(any(), eq(staffId), isNull());
         verify(shiftRegistrationRepository).save(any());
     }
 
@@ -103,8 +107,8 @@ class ShiftRegistrationServiceTest {
                 .endTime(LocalTime.of(20, 0))
                 .build();
 
-        when(shiftRepository.findActiveShiftsForStaffInPeriod(eq(staffId), any(), any()))
-                .thenReturn(Collections.singletonList(overlappingShift));
+        doThrow(new BusinessException("overlaps", HttpStatus.CONFLICT))
+                .when(shiftValidationService).validateNoOverlapAndWeeklyHours(any(), eq(staffId), isNull());
 
         BusinessException ex = assertThrows(BusinessException.class, 
                 () -> shiftRegistrationService.registerForShift(storeId, shiftId, staffId));
@@ -127,8 +131,8 @@ class ShiftRegistrationServiceTest {
         Shift existing5 = Shift.builder().shiftDate(LocalDate.of(2023, 11, 18)).startTime(LocalTime.of(8,0)).endTime(LocalTime.of(16,0)).build();
         Shift existing6 = Shift.builder().shiftDate(LocalDate.of(2023, 11, 19)).startTime(LocalTime.of(8,0)).endTime(LocalTime.of(16,0)).build();
 
-        when(shiftRepository.findActiveShiftsForStaffInPeriod(eq(staffId), any(), any()))
-                .thenReturn(Arrays.asList(existing1, existing2, existing3, existing4, existing5, existing6));
+        doThrow(new BusinessException("exceed the maximum weekly hours", HttpStatus.BAD_REQUEST))
+                .when(shiftValidationService).validateNoOverlapAndWeeklyHours(any(), eq(staffId), isNull());
 
         BusinessException ex = assertThrows(BusinessException.class, 
                 () -> shiftRegistrationService.registerForShift(storeId, shiftId, staffId));
