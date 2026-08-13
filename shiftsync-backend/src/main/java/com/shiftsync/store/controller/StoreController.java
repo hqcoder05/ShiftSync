@@ -51,12 +51,21 @@ public class StoreController {
         @ApiResponse(responseCode = "403", description = "Access forbidden")
     })
     public ResponseEntity<Page<StoreDTO>> getAllStores(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<StoreDTO> stores = storeService.getAllStores(pageable);
-        return ResponseEntity.ok(stores);
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            org.springframework.security.core.Authentication authentication) {
+        
+        com.shiftsync.shared.security.CustomUserDetails details = (com.shiftsync.shared.security.CustomUserDetails) authentication.getPrincipal();
+        
+        if (details.getUser().getSystemRole() == com.shiftsync.shared.security.SystemRole.ADMIN) {
+            return ResponseEntity.ok(storeService.searchStores(search, pageable));
+        } else {
+            return ResponseEntity.ok(storeService.getMyStores(details.getId(), search, pageable));
+        }
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #id)")
     @Operation(summary = "Get store details by ID", description = "Fetches details of a specific store branch by its UUID.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Store found and details retrieved"),
@@ -70,7 +79,7 @@ public class StoreController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #id))")
     @Operation(summary = "Update an existing store branch", description = "Modifies store parameters like location coordinates and operational hours.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Store successfully updated"),
@@ -87,7 +96,7 @@ public class StoreController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a store branch", description = "Permanently removes a store branch from the system.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Store successfully deleted"),

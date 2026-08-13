@@ -48,6 +48,21 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
+    public Page<StoreDTO> searchStores(String search, Pageable pageable) {
+        if (search == null || search.trim().isEmpty()) {
+            return getAllStores(pageable);
+        }
+        return storeRepository.searchStores(search, pageable).map(StoreMapper::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StoreDTO> getMyStores(UUID staffId, String search, Pageable pageable) {
+        String searchQuery = (search == null || search.trim().isEmpty()) ? null : search.trim();
+        return storeRepository.findStoresByStaffId(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, searchQuery, pageable)
+                .map(StoreMapper::toDTO);
+    }
+
+    @Transactional(readOnly = true)
     public StoreDTO getStoreById(UUID id) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Store not found with id: " + id, HttpStatus.NOT_FOUND));
