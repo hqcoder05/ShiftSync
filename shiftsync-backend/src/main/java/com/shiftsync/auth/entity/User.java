@@ -39,6 +39,10 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 

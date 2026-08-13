@@ -47,9 +47,11 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public Page<UserDTO> getAllUsers(Pageable pageable) {
-        return userRepository.findAll(pageable)
-                .map(UserMapper::toDTO);
+    public Page<UserDTO> getAllUsers(String search, Pageable pageable) {
+        if (search == null || search.trim().isEmpty()) {
+            return userRepository.findAll(pageable).map(UserMapper::toDTO);
+        }
+        return userRepository.searchUsers(search.trim(), pageable).map(UserMapper::toDTO);
     }
 
     @Transactional(readOnly = true)

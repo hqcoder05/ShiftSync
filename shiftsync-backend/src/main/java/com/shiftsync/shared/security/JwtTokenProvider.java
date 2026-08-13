@@ -58,6 +58,36 @@ public class JwtTokenProvider {
         }
     }
 
+    public String generateQrToken(String shiftId, long customExpirationMs) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + customExpirationMs);
+
+        return Jwts.builder()
+                .subject(shiftId)
+                .claim("type", "qr_attendance")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public String getShiftIdFromQrToken(String token) {
+        Claims claims = extractAllClaims(token);
+        if (!"qr_attendance".equals(claims.get("type", String.class))) {
+            throw new JwtException("Invalid token type");
+        }
+        return claims.getSubject();
+    }
+
+    public boolean isQrAttendanceToken(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return "qr_attendance".equals(claims.get("type", String.class));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)

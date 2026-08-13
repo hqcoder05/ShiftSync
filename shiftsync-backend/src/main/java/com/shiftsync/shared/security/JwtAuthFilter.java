@@ -51,6 +51,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtTokenProvider.validateToken(jwt)) {
+                if (jwtTokenProvider.isQrAttendanceToken(jwt)) {
+                    log.warn("QR Attendance token cannot be used for authentication");
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 // Check if token is blacklisted (logged out)
                 if (Boolean.TRUE.equals(redisTemplate.hasKey("blacklist:" + jwt))) {
                     log.warn("Token is blacklisted (user logged out)");

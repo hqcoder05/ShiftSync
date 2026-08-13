@@ -13,6 +13,11 @@ import java.util.UUID;
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
+    @Query("SELECT u FROM User u WHERE " +
+           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+    org.springframework.data.domain.Page<User> searchUsers(@Param("search") String search, org.springframework.data.domain.Pageable pageable);
+
     @Query(value = "SELECT EXISTS (" +
                    "SELECT 1 FROM employment WHERE staff_id = :userId " +
                    "UNION ALL " +

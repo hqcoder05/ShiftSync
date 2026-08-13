@@ -67,4 +67,24 @@ public class AuthController {
         AuthResponse response = authService.refresh(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout user", description = "Blacklists the current access token and deletes the refresh token from Redis.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successfully logged out"),
+        @ApiResponse(responseCode = "400", description = "Invalid request payload")
+    })
+    public ResponseEntity<Void> logout(
+            @jakarta.validation.Valid @RequestBody com.shiftsync.auth.dto.LogoutRequest request,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        
+        String authHeader = httpRequest.getHeader("Authorization");
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        }
+        
+        authService.logout(accessToken, request.getRefreshToken());
+        return ResponseEntity.noContent().build();
+    }
 }

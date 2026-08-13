@@ -54,8 +54,9 @@ public class UserController {
         @ApiResponse(responseCode = "403", description = "Access forbidden")
     })
     public ResponseEntity<Page<UserDTO>> getAllUsers(
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<UserDTO> users = userService.getAllUsers(pageable);
+        Page<UserDTO> users = userService.getAllUsers(search, pageable);
         return ResponseEntity.ok(users);
     }
 

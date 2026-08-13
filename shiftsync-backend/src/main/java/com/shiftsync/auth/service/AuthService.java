@@ -114,4 +114,21 @@ public class AuthService {
                 .role(user.getSystemRole().name())
                 .build();
     }
+
+    public void logout(String accessToken, String refreshToken) {
+        try {
+            java.util.Date expiration = jwtTokenProvider.getExpirationFromToken(accessToken);
+            long ttl = expiration.getTime() - System.currentTimeMillis();
+            
+            if (ttl > 0) {
+                redisTemplate.opsForValue().set("blacklist:" + accessToken, "logout", ttl, TimeUnit.MILLISECONDS);
+            }
+        } catch (Exception e) {
+            // Token might be already expired or invalid, still proceed to delete refresh token
+        }
+
+        if (refreshToken != null) {
+            redisTemplate.delete("refresh_token:" + refreshToken);
+        }
+    }
 }
