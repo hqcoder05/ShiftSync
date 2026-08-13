@@ -25,4 +25,13 @@ public class RedisConfig {
         
         return template;
     }
+
+    @Bean
+    public org.redisson.api.RedissonClient redissonClient(
+            @org.springframework.beans.factory.annotation.Value("${spring.data.redis.host:localhost}") String host,
+            @org.springframework.beans.factory.annotation.Value("${spring.data.redis.port:6379}") String port) {
+        org.redisson.config.Config config = new org.redisson.config.Config();
+        config.useSingleServer().setAddress("redis://" + host + ":" + port);
+        return org.redisson.Redisson.create(config);
+    }
 }

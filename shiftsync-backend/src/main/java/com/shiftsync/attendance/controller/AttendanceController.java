@@ -14,9 +14,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Tag(name = "Attendance API", description = "Operations for shift attendance and QR codes")
 public class AttendanceController {
 
     private final AttendanceService attendanceService;

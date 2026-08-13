@@ -31,7 +31,7 @@ public class DashboardService {
 
         if (metrics != null) {
             if (metrics.totalHours() != null) {
-                totalHours = metrics.totalHours();
+                totalHours = metrics.totalHours().doubleValue();
             }
             if (metrics.totalAmount() != null) {
                 totalPayrollCost = metrics.totalAmount();
@@ -54,7 +54,7 @@ public class DashboardService {
         
         for (com.shiftsync.payroll.dto.PayrollChartAggregation agg : aggregations) {
             String label = agg.startDate().format(formatter) + " - " + agg.endDate().format(formatter);
-            double hours = agg.totalHours() != null ? agg.totalHours() : 0.0;
+            double hours = agg.totalHours() != null ? agg.totalHours().doubleValue() : 0.0;
             BigDecimal cost = agg.totalAmount() != null ? agg.totalAmount() : BigDecimal.ZERO;
             
             chartData.add(com.shiftsync.store.dto.ChartDataDTO.builder()
