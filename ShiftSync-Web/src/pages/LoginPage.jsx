@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Thêm useNavigate để chuyển trang
 import { login } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
 import './LoginPage.css';
@@ -18,16 +19,29 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const navigate = useNavigate(); // Hook chuyển trang
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
     const errMsg = validateLoginForm(email, password);
-    if (errMsg) { setError(errMsg); return; }
+    if (errMsg) { 
+      setError(errMsg); 
+      return; 
+    }
 
     try {
-      const res = await login(email, password);
-      localStorage.setItem('accessToken', res.data.accessToken);
-      console.log('Login thành công', res.data);
+      const res = await login(email, password); // res chính là data thật (authService đã unwrap), KHÔNG có res.data
+
+      const token = res.accessToken;
+      localStorage.setItem('token', token);
+      localStorage.setItem('accessToken', token);
+
+      console.log('Login thành công:', res);
+
+      // Route thật trong App.jsx là /employees, không phải /users
+      navigate('/employees'); 
     } catch (err) {
       setError(err.response?.data?.message || 'Sai email hoặc mật khẩu');
     }
