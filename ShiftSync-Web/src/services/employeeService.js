@@ -16,7 +16,7 @@ export const createEmployee = (data) => {
     email: data.email,
     password: data.password,
     phone: data.phone,
-    role: data.role || data.systemRole || 'STAFF'
+    systemRole: data.role || data.systemRole || 'STAFF'
   });
 };
 
