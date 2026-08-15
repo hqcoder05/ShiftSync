@@ -1,0 +1,39 @@
+.store-page-layout { display: flex; font-family: var(--ss-font); }
+.store-page { flex: 1; }
+.store-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.store-header h1 { font-size: 28px; font-weight: 600; color: #333; }
+.store-add-btn { padding: 10px 20px; border: 2px solid var(--ss-accent); background: var(--ss-accent-bg); border-radius: 8px; font-weight: 600; cursor: pointer; }
+.store-add-btn:hover { background: var(--ss-accent); color: #fff; }
+.store-error { color: #c0392b; }
+
+.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.store-card { background: #fff; border: 1px solid var(--ss-border); border-radius: 10px; padding: 20px; }
+.store-card h3 { margin: 0 0 8px; color: #333; }
+.store-card p { color: var(--ss-text-muted); margin: 4px 0; font-size: 14px; }
+.store-hours { color: var(--ss-accent) !important; font-weight: 600; }
+.store-actions { margin-top: 12px; display: flex; gap: 12px; }
+.store-actions button { border: none; background: none; color: var(--ss-accent); cursor: pointer; }
+
+.store-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.store-modal { background: #fff; border-radius: 10px; width: 460px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+
+.store-modal-header { display: flex; justify-content: space-between; align-items: center; }
+.store-modal-header h2 { font-size: 22px; font-weight: 700; color: #222; margin: 0; }
+.store-modal-close {
+  width: 32px; height: 32px; border: 1.5px solid var(--ss-border); border-radius: 6px;
+  background: #fff; color: #333; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.store-modal-close:hover { border-color: var(--ss-accent); color: var(--ss-accent); }
+
+.store-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #a67c73; }
+.store-modal input { border: 1.5px solid var(--ss-border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #333; }
+.store-form-row { display: flex; gap: 12px; }
+.store-form-row label { flex: 1; }
+
+.store-save-btn {
+  align-self: flex-end; padding: 10px 28px; border-radius: 10px;
+  border: 2px solid var(--ss-accent); background: var(--ss-accent-bg);
+  font-weight: 700; cursor: pointer; margin-top: 8px;
+}
+.store-save-btn:hover { background: var(--ss-accent); color: #fff; }
