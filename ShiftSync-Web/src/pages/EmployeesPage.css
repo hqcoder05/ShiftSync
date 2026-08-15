@@ -1,0 +1,36 @@
+.emp-page { display: flex; font-family: var(--ss-font); gap: 24px; }
+.emp-main { flex: 1; }
+.emp-main h1 { font-size: 28px; font-weight: 600; color: #333; margin-bottom: 16px; }
+.emp-error { color: #c0392b; margin-bottom: 12px; }
+
+.emp-table-card { background: #fff; border: 1px solid var(--ss-border); border-radius: 10px; overflow: hidden; }
+.emp-table-header, .emp-row { display: grid; grid-template-columns: 2fr 1fr 2fr 1fr; padding: 16px 24px; align-items: center; }
+.emp-table-header { background: rgba(240,236,236,0.7); font-weight: 500; }
+.emp-row { border-top: 1px solid var(--ss-border); color: var(--ss-text-muted); }
+.emp-name { display: flex; align-items: center; gap: 12px; color: #333; }
+.emp-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.emp-actions button { margin-right: 8px; border: none; background: none; color: var(--ss-accent); cursor: pointer; }
+
+.emp-add-btn { width: 100%; padding: 16px 24px; border: none; background: none; color: var(--ss-accent); font-weight: 500; text-align: left; cursor: pointer; }
+.emp-add-btn:hover { background: var(--ss-accent-bg); }
+.emp-pagination { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+
+.emp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.emp-modal { background: #fff; border-radius: 10px; width: 700px; max-width: 90vw; padding: 24px; position: relative; overflow: hidden; }
+.emp-modal-close { position: absolute; top: 16px; right: 16px; border: none; background: none; font-size: 20px; cursor: pointer; z-index: 2; }
+.emp-modal-body { display: flex; gap: 24px; }
+.emp-tabs { display: flex; flex-direction: column; gap: 8px; width: 160px; border-right: 2px solid #eee; }
+.emp-tabs button { text-align: left; padding: 12px 0; border: none; background: none; cursor: pointer; font-size: 16px; color: rgba(51,51,51,0.5); }
+.emp-tabs button.active { color: #333; border-bottom: 2px solid var(--ss-accent); }
+.emp-tabs button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.emp-tab-content { flex: 1; }
+.emp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.emp-form-grid h2 { grid-column: span 2; font-size: 20px; }
+.emp-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #333; }
+.emp-form-grid input, .emp-form-grid select { border: 1.5px solid var(--ss-border); border-radius: 7px; padding: 10px; }
+.emp-disabled-note input { background: #f5f5f5; color: #999; }
+.emp-save-btn { grid-column: span 2; margin-top: 8px; padding: 14px; border-radius: 10px; border: 2px solid var(--ss-accent); background: var(--ss-accent-bg); font-weight: 600; cursor: pointer; width: fit-content; justify-self: end; }
+.emp-save-btn:hover { background: var(--ss-accent); color: #fff; }
+
+.emp-modal-illustration { width: 100%; display: block; margin-top: 24px; }

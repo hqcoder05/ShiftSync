@@ -94,3 +94,12 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+:root {
+  --ss-topbar: #333333;
+  --ss-accent: #51A33D;
+  --ss-accent-bg: #EEFAEB;
+  --ss-text-muted: #666671;
+  --ss-border: rgba(188,182,183,0.5);
+  --ss-font: 'Inter', system-ui, sans-serif;
+}

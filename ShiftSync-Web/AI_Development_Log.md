@@ -63,3 +63,50 @@
 7. Lý do chỉnh sửa: Không có
 8. Cách kiểm thử: F5 lại trang Dashboard và /login, xác nhận hết đường kẻ dọc ở cả 2 trang
 9. Commit:50b2cefc1a1c566265c92749843f88e2f1cf5034
+
+----------------------------------------------------------------------------
+## [2026-08-13] - Phát triển Module Employee UI (Web) & Availability UI (Mobile)
+
+### 1. Mục tiêu
+* **Employee UI (Web):** Tự thiết kế và lập trình giao diện Quản lý Nhân viên dựa trên Prototype Figma, triển khai các chức năng CRUD, phân trang, tìm kiếm và kết nối trực tiếp với REST API từ Backend.
+* **Availability UI (Mobile):** Lập trình màn hình khai báo khung giờ rảnh theo tuần trên React Native (Expo), xử lý logic chọn slot linh hoạt và kết nối API lưu/hiển thị dữ liệu thật.
+
+### 2. AI Prompt Log (Nhật ký tư vấn & hỗ trợ kĩ thuật từ AI)
+* **Thao tác 1 (Employee UI - Web):**
+  > "Tôi đã phân tích xong luồng Quản lý Nhân viên và chốt cấu trúc UI gồm Bảng danh sách, Ô tìm kiếm và Modal tạo/sửa. Hướng dẫn/gợi ý giúp tôi mẫu khung Component React (`EmployeeListPage`, `EmployeeModal`) kết nối với `employeeService` (Axios) sao cho tối ưu luồng re-render và quản lý State sạch nhất."
+* **Thao tác 2 (Availability UI - Mobile):**
+  > "Tôi đã thiết kế xong giao diện chọn khung giờ rảnh theo tuần trên Figma. Hướng dẫn tôi cách tổ chức State trong React Native để quản lý danh sách slot theo Thứ trong tuần (MON-SUN) và kết nối với API `saveWeeklyAvailability` đảm bảo trải nghiệm mượt mà trên Mobile."
+
+### 3. Kết quả triển khai & Mã nguồn tạo dựng
+* **Dự án Web (`ShiftSync-Web`):**
+  * `src/services/employeeService.js`: Xây dựng các hàm gọi REST API (GET, POST, PUT, DELETE) cho Employee.
+  * `src/components/Employee/EmployeeModal.jsx`: Modal popup xử lý form nhập/chỉnh sửa thông tin nhân viên.
+  * `src/pages/EmployeeListPage.jsx`: Màn hình chính hiển thị danh sách, tích hợp phân trang và tìm kiếm real-time.
+* **Dự án Mobile (`ShiftSync-Mobile`):**
+  * `services/availabilityService.js`: Dịch vụ tích hợp API lịch rảnh theo tuần.
+  * `screens/AvailabilityScreen.js`: Màn hình chọn khung giờ rảnh (Sáng/Chiều/Tối) dạng Tab Bar linh hoạt.
+
+### 4. Checklist Kiểm thử & Ghi nhận Bug (Chuẩn bị test)
+| ID Bug / Testcase | Mô tả kịch bản test | Mức độ | Trạng thái | Ghi chú / Kết quả thực tế |
+| :--- | :--- | :--- | :--- | :--- |
+| TC-EMP-01 | Kiểm tra tải danh sách nhân viên từ API thật (Web) | Normal | ⏳ Pending | Chờ kiểm thử khi Backend bật server |
+| TC-EMP-02 | Tìm kiếm nhân viên theo tên/email (Web) | Normal | ⏳ Pending | Chờ test phản hồi ô tìm kiếm |
+| TC-EMP-03 | Tạo/Sửa nhân viên qua Modal (Web) | High | ⏳ Pending | Chờ test submit form gửi dữ liệu lên DB |
+| TC-AVL-01 | Tải lịch rảnh đã đăng ký theo tuần (Mobile) | Normal | ⏳ Pending | Chờ test hiển thị UI trên app Expo |
+| TC-AVL-02 | Chọn ca rảnh & bấm Lưu thay đổi (Mobile) | High | ⏳ Pending | Chờ test gọi API lưu lịch rảnh |
+-------------------------------------------------------------------------------------------------------
+## [2026-08-13] - Feature: Role & Store Management UI (Web)
+
+### 1. Mục tiêu công việc
+* Xây dựng trang Quản lý Cửa hàng (`StoreListPage.jsx`): Thêm/Sửa/Xóa cửa hàng, hiển thị số lượng nhân viên.
+* Xây dựng trang Quản lý Vai trò & Phân quyền (`RoleListPage.jsx`): Danh sách vai trò và ma trận gán quyền.
+
+### 2. AI Prompt Log (Tư vấn cấu trúc & Tối ưu hóa code)
+* **Prompt:**
+  > "Tôi đã xây dựng xong cấu trúc trang StoreListPage và RoleListPage. Hướng dẫn tôi viết các API service (`storeService.js`, `roleService.js`) và xử lý UI checklist toggle permission cho từng vai trò trên Web sao cho chuẩn React Hooks best practices."
+
+### 3. Các file đã tạo / cập nhật
+* `src/services/storeService.js` & `src/services/roleService.js`: Các dịch vụ gọi API quản lý Store và Role.
+* `src/pages/StoreListPage.jsx`: Màn hình quản lý thông tin cửa hàng.
+* `src/pages/RoleListPage.jsx`: Màn hình quản lý danh sách vai trò và tích chọn phân quyền.
+

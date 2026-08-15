@@ -1,0 +1,45 @@
+.ss-sidebar { width: 260px; display: flex; flex-direction: column; gap: 16px; padding: 24px 24px 24px 0; flex-shrink: 0; }
+
+.ss-box {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  border: 1.5px solid var(--ss-border); border-radius: 10px;
+  padding: 12px 16px; background: #fff;
+  font-family: var(--ss-font); font-size: 14px; color: #333;
+  cursor: pointer; text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ss-box:hover { border-color: #ccc; }
+.ss-box-open,
+.ss-box:focus-within { border-color: var(--ss-accent); box-shadow: 0 0 0 3px var(--ss-accent-bg); }
+
+.ss-box-icon { color: #999; display: flex; flex-shrink: 0; }
+.ss-box-value { flex: 1; text-align: left; color: #333; }
+.ss-box-input {
+  border: none; outline: none; background: transparent; flex: 1; min-width: 0;
+  font-size: 14px; color: #333; font-family: var(--ss-font); cursor: text;
+}
+.ss-box-input::placeholder { color: #999; }
+
+.ss-box-arrow { color: #b3b3b3; flex-shrink: 0; display: flex; transition: transform 0.15s ease, color 0.15s ease; }
+.ss-box-arrow-open { transform: rotate(180deg); color: var(--ss-accent); }
+
+/* Dropdown tự dựng thay cho <select> mặc định */
+.ss-dropdown { position: relative; }
+.ss-dropdown-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  background: #fff; border: 1.5px solid var(--ss-accent); border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08); overflow: hidden;
+}
+.ss-dropdown-option {
+  padding: 12px 16px; font-size: 14px; color: #333; cursor: pointer;
+  transition: background 0.1s ease;
+}
+.ss-dropdown-option:not(:last-child) { border-bottom: 1px solid #f0f0f0; }
+.ss-dropdown-option:hover { background: var(--ss-accent-bg); }
+.ss-dropdown-option.selected { background: #ececec; font-weight: 600; }
+
+/* Box phụ (subSelect) - nhỏ hơn, cách box chính 1 khoảng để biết nó là lựa chọn phụ thuộc trang */
+.ss-dropdown-small { margin-top: 4px; }
+.ss-dropdown-small .ss-box { padding: 9px 14px; border-radius: 8px; font-size: 13px; border-color: #ddd; }
+.ss-dropdown-small .ss-box-icon svg { width: 15px; height: 15px; }
+.ss-dropdown-small .ss-box-arrow svg { width: 13px; height: 13px; }
