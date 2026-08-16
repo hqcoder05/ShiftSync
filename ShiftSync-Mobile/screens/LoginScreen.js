@@ -27,14 +27,18 @@ export default function LoginScreen({ navigation }) {
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
-    const errMsg = validateLoginForm(email, password);
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    const errMsg = validateLoginForm(trimmedEmail, trimmedPassword);
     if (errMsg) { setError(errMsg); return; }
 
     try {
-      const res = await login(email, password);
+      const res = await login(trimmedEmail, trimmedPassword);
       await AsyncStorage.setItem('accessToken', res.data.accessToken);
       navigation.replace('MainTabs');
     } catch (err) {
+      console.error("Login Error:", err.response?.data || err.message);
       setError('Sai email hoặc mật khẩu');
     }
   };
