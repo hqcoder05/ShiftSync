@@ -35,3 +35,19 @@ bọc ngoài để kiểm soát đúng thứ tự Login → MainTabs
 Kế hoạch tiếp theo: Sang Mục IV - Test API Auth đầy đủ bằng Postman, ghi Auth_Test_Report.md
 
 ----------------------------------------------------------------------------------------------
+## [2026-08-13] - Nhật ký Phát triển Frontend Mobile (Tuần 4)
+
+### 📌 Tính năng: Availability Registration UI (Khai báo Lịch Rảnh)
+* **Người thực hiện:** Duyên (Frontend & UX/UI)
+* **Mục tiêu:** Dựng màn hình khai báo khung giờ rảnh theo tuần cho nhân viên trên React Native (Expo), lưu/hiển thị qua API thật.
+
+#### 🔨 Danh sách công việc đã hoàn thành:
+1. **Khởi tạo API Service (`services/availabilityService.js`):**
+   * Tích hợp 2 API endpoint: `getWeeklyAvailability` (Lấy lịch rảnh) và `saveWeeklyAvailability` (Lưu lịch rảnh).
+2. **Xây dựng Màn hình Đăng ký (`screens/AvailabilityScreen.js`):**
+   * Thiết kế Tab Bar chọn ngày trong tuần (Thứ 2 đến Chủ Nhật).
+   * Tạo các Slot Card chọn khung giờ (Sáng: 07-12h, Chiều: 12-17h, Tối: 17-22h) dạng toggle bật/tắt linh hoạt.
+   * Xử lý State lưu trữ khung giờ rảnh theo dạng Map object.
+   * Thêm nút "Lưu Đăng Ký" kèm hiệu ứng loading và thông báo `Alert`.
+3. **Cấu hình Điều hướng (`AppNavigator.js`):**
+   * Đăng ký `AvailabilityScreen` vào danh sách màn hình ứng dụng Mobile.

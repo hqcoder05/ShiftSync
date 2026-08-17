@@ -8,7 +8,7 @@ import ScheduleScreen from '../screens/ScheduleScreen';
 import AttendanceScreen from '../screens/AttendanceScreen';
 import PayrollScreen from '../screens/PayrollScreen';
 import RequestScreen from '../screens/RequestScreen';
-
+import AvailabilityScreen from '../screens/AvailabilityScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -29,9 +29,16 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Login" component={AvailabilityScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+// Thêm vào Stack/Tab Navigator của Mobile
+<Stack.Screen 
+  name="Availability" 
+  component={AvailabilityScreen} 
+  options={{ title: 'Khai Báo Lịch Rảnh' }} 
+/>

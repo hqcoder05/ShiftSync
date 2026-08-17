@@ -48,3 +48,48 @@
 7. Lý do chỉnh sửa: Không có
 8. Cách kiểm thử: npx expo start, quét QR Expo Go, xác nhận app mở vào Login trước (không vào thẳng Dashboard nữa), đối chiếu layout với Figma, test hiệu ứng nhấn giữ nút, test đăng nhập chuyển đúng sang MainTabs
 9. Commit: afb1802d4b0ea27d969b3fbf4ca2b9b6daa85231
+
+----------------------------------------------------------------------------------------------------------------------
+## [2026-08-13] - Phát triển Module Employee UI (Web) & Availability UI (Mobile)
+
+### 1. Mục tiêu
+* **Employee UI (Web):** Thiết kế và lập trình giao diện Quản lý Nhân viên theo mockup Figma, kết nối API xử lý CRUD, phân trang và tìm kiếm.
+* **Availability UI (Mobile):** Lập trình màn hình khai báo khung giờ rảnh theo tuần trên React Native (Expo), kết nối API lưu/hiển thị dữ liệu thật.
+
+### 2. AI Prompt Log (Nhật ký tham khảo & tư vấn AI)
+* **Thao tác 1 (Employee UI - Web):**
+  > "Tôi đã thiết kế xong Luồng Quản lý Nhân viên gồm Bảng dữ liệu, Thanh tìm kiếm và Modal chỉnh sửa. Hướng dẫn giúp tôi cấu hình khung Component React cho `EmployeeListPage` và `EmployeeModal` kết nối qua `employeeService` (Axios) để tối ưu luồng re-render khi bấm Save."
+* **Thao tác 2 (Availability UI - Mobile):**
+  > "Tôi đã thiết kế xong UI/UX luồng khai báo ca rảnh theo tuần trên Figma. Nhờ AI tư vấn giúp đoạn code React Native (StyleSheet) tổ chức State lưu trữ dữ liệu dạng danh sách theo Thứ (MON-SUN) và gọi API `saveWeeklyAvailability` đảm bảo trải nghiệm mượt mà trên Mobile."
+
+### 3. Kết quả triển khai & Mã nguồn tạo dựng
+* **Dự án Web (`ShiftSync-Web`):**
+  * `src/services/employeeService.js`: Xây dựng các hàm gọi REST API CRUD Employee.
+  * `src/components/Employee/EmployeeModal.jsx`: Modal form nhập thông tin nhân viên.
+  * `src/pages/EmployeeListPage.jsx`: Màn hình hiển thị danh sách, phân trang và tìm kiếm.
+* **Dự án Mobile (`ShiftSync-Mobile`):**
+  * `services/availabilityService.js`: Khởi tạo dịch vụ tích hợp API lịch rảnh.
+  * `screens/AvailabilityScreen.js`: Màn hình chọn khung giờ rảnh theo tuần (Sáng/Chiều/Tối) dạng Tab Bar linh hoạt.
+
+### 4. Ghi nhận Bug & Kiểm thử (Checklist)
+| ID Bug / Testcase | Mô tả | Mức độ | Trạng thái | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- |
+| TC-EMP-01 | Kiểm tra tải danh sách nhân viên từ API thật (Web) | Normal | Passed | Hiển thị đúng dữ liệu phân trang từ Server |
+| TC-EMP-02 | Tìm kiếm nhân viên theo tên/email (Web) | Normal | Passed | Bảng tự động reload theo từ khóa tìm kiếm |
+| TC-EMP-03 | Tạo/Sửa nhân viên qua Modal (Web) | High | Passed | Dữ liệu lưu thành công vào DB và tự làm mới |
+| TC-AVL-01 | Tải lịch rảnh đã đăng ký theo tuần (Mobile) | Normal | Passed | Hiển thị đúng trạng thái khung giờ rảnh của tuần hiện tại |
+| TC-AVL-02 | Chọn ca rảnh & bấm Lưu thay đổi (Mobile) | High | Passed | Gọi API thành công, reload app vẫn giữ nguyên trạng thái đã lưu |
+----------------------------------------------------------------------------------------------------
+## [2026-08-13] - Task: Testing 4 Modules & Bug Reporting
+
+### 1. Mục tiêu công việc
+* Thực hiện kiểm thử nhanh 5-10 phút/API cho cả 4 module: Employee, Availability, Store, Role.
+* Ghi nhận và tổng hợp toàn bộ danh sách Bug phát sinh vào file `Test_Report_W4.md`.
+
+### 2. AI Prompt Log (Tư vấn cấu trúc & Tối ưu hóa code)
+* **Prompt:**
+  > "Hướng dẫn tôi lập template báo cáo kiểm thử `Test_Report_W4.md` chuẩn đồ án bao gồm Checklist từng module và Bảng tổng hợp Bug phân loại theo mức độ Critical/High/Low kèm các bước tái hiện lỗi."
+
+### 3. Các file đã tạo / cập nhật
+* `docs/Test_Report_W4.md`: Báo cáo chi tiết kiểm thử thời gian thực cho Tuần 4.
+

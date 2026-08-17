@@ -34,9 +34,10 @@ export default function LoginScreen({ navigation }) {
       const res = await login(email, password);
       await AsyncStorage.setItem('accessToken', res.data.accessToken);
       navigation.replace('MainTabs');
-    } catch (err) {
-      setError('Sai email hoặc mật khẩu');
-    }
+} catch (err) {
+  console.log('LOGIN ERROR:', err.message, JSON.stringify(err.response?.data || {}));
+  setError('Sai email hoặc mật khẩu');
+}
   };
 
   return (
