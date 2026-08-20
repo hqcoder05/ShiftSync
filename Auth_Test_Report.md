@@ -104,4 +104,3 @@ Người test: Duyên | Ngày: 09/08/2026 | Công cụ: Postman
 | **Tổng** | **19** | **0** | **3** | **22** |
 
 - **Số bug phát hiện: 2** (1 mức High, 1 ghi chú cần xác nhận)
-- **Việc còn thiếu:** E3 (test trùng email), A7 (kiểm tra đồng bộ Mobile), toàn bộ module Role (chưa có UI/API)

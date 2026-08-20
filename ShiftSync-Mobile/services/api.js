@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Cách tìm IP: mở cmd/PowerShell gõ ipconfig, tìm IPv4 Address ở mục Wireless LAN adapter Wi-Fi
 // Điện thoại và máy tính phải cùng 1 mạng wifi khi dùng Expo Go
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: 'http://localhost:8081/api',
 });
 
 api.interceptors.request.use(async (config) => {
