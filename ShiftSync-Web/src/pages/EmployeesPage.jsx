@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import { assignStaffToStore } from '../services/employmentService';
+import { getSkillsByStore } from '../services/skillService';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
@@ -40,7 +41,8 @@ export default function EmployeesPage() {
   const [savedUserId, setSavedUserId] = useState(null);
 
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
-  const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '' });
+  const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
+  const [skills, setSkills] = useState([]);
 
   const fetchEmployees = async () => {
     setLoading(true); 
@@ -82,7 +84,8 @@ export default function EmployeesPage() {
     setActiveTab('hoso');
     setError('');
     setForm({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
-    setAssignForm({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '' });
+    setAssignForm({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
+    setSkills([]);
     setShowModal(true);
   };
 
@@ -279,9 +282,28 @@ export default function EmployeesPage() {
                   <form className="emp-form-grid" onSubmit={handleSaveAssignment}>
                     <h2>Phân công & Tiền lương</h2>
                     <label>Chi nhánh
-                      <select required value={assignForm.storeId} onChange={e => setAssignForm({...assignForm, storeId: e.target.value})}>
+                      <select required value={assignForm.storeId} onChange={e => {
+                        const sid = e.target.value;
+                        setAssignForm({...assignForm, storeId: sid, skillId: ''});
+                        if (sid) {
+                          getSkillsByStore(sid)
+                            .then(res => {
+                              const d = res.data;
+                              setSkills(Array.isArray(d) ? d : (d.content || []));
+                            })
+                            .catch(() => setSkills([]));
+                        } else {
+                          setSkills([]);
+                        }
+                      }}>
                         <option value="">-- Chọn chi nhánh --</option>
                         {stores.map(s => <option key={s.id} value={s.id}>{s.name || s.storeName}</option>)}
+                      </select>
+                    </label>
+                    <label>Vị trí công việc
+                      <select value={assignForm.skillId} onChange={e => setAssignForm({...assignForm, skillId: e.target.value})}>
+                        <option value="">-- Chọn vị trí --</option>
+                        {skills.map(sk => <option key={sk.id} value={sk.id}>{sk.name}</option>)}
                       </select>
                     </label>
                     <label>Loại hình
