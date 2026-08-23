@@ -31,14 +31,12 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen 
+          name="Availability" 
+          component={AvailabilityScreen} 
+          options={{ title: 'Khai Báo Lịch Rảnh', headerShown: true }} 
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
-
-// Thêm vào Stack/Tab Navigator của Mobile
-<Stack.Screen 
-  name="Availability" 
-  component={AvailabilityScreen} 
-  options={{ title: 'Khai Báo Lịch Rảnh' }} 
-/>
