@@ -80,16 +80,49 @@
 | TC-AVL-01 | Tải lịch rảnh đã đăng ký theo tuần (Mobile) | Normal | Passed | Hiển thị đúng trạng thái khung giờ rảnh của tuần hiện tại |
 | TC-AVL-02 | Chọn ca rảnh & bấm Lưu thay đổi (Mobile) | High | Passed | Gọi API thành công, reload app vẫn giữ nguyên trạng thái đã lưu |
 ----------------------------------------------------------------------------------------------------
-## [2026-08-13] - Task: Testing 4 Modules & Bug Reporting
+## [2026-08-23] - Hoàn thiện Màn hình Lịch làm việc (ScheduleScreen) & Đồng bộ màu ca trực với Web (Tuần 5)
 
-### 1. Mục tiêu công việc
-* Thực hiện kiểm thử nhanh 5-10 phút/API cho cả 4 module: Employee, Availability, Store, Role.
-* Ghi nhận và tổng hợp toàn bộ danh sách Bug phát sinh vào file `Test_Report_W4.md`.
+1. **Công cụ & Mô hình:**
+   * Google Antigravity / Gemini (Google) & Claude 3.5 Sonnet.
 
-### 2. AI Prompt Log (Tư vấn cấu trúc & Tối ưu hóa code)
-* **Prompt:**
-  > "Hướng dẫn tôi lập template báo cáo kiểm thử `Test_Report_W4.md` chuẩn đồ án bao gồm Checklist từng module và Bảng tổng hợp Bug phân loại theo mức độ Critical/High/Low kèm các bước tái hiện lỗi."
+2. **Ngày - Mục tiêu - Ngữ cảnh:**
+   * **Ngày:** 23/08/2026.
+   * **Mục tiêu:** Lập trình hoàn thiện màn hình Lịch làm việc (`screens/ScheduleScreen.js`) trên React Native (Expo) theo tài liệu thiết kế `Lịch.docx` (Ảnh 1 & Ảnh 2); đồng bộ 100% bảng mã màu ca trực với bản Web (`SHIFT_COLORS`); tạo tầng dịch vụ `services/shiftService.js` và tối ưu điều hướng `AppNavigator.js`.
+   * **Ngữ cảnh:** Ứng dụng Mobile cần giao diện xem lịch cá nhân (`My shifts`) và lịch tổng thể quán (`Schedule`), hỗ trợ chuyển đổi tuần linh hoạt, chọn ngày xem chi tiết ca trực hoặc xem toàn tuần, hiển thị vị trí ca (Barista, Cashier, Kitchen...) kèm màu sắc trực quan.
 
-### 3. Các file đã tạo / cập nhật
-* `docs/Test_Report_W4.md`: Báo cáo chi tiết kiểm thử thời gian thực cho Tuần 4.
+3. **Prompt gốc & Prompt hiệu chỉnh:**
+   * **Prompt gốc:** *"làm tiếp phần mobile chỗ lịch đi, đọc fiel lịch.docx của t á làm đi t đã làm sẵn 1 trang rồi làm tiếp phần còn lại nha lưu ý cái màu của nó tương ứng với màu mà trweb đã xếp lịch cho nha ScheduleScreen.js làm tiếp trong file này của thư mục ShiftSync_Mobile thư mục con screens á nha"*
+   * **Prompt hiệu chỉnh:** *"Xây dựng ScheduleScreen.js bằng React Native StyleSheet bám sát mockup Lịch.docx: Header tháng có nút điều hướng tuần ‹ ›; Tab Switcher My shifts (xanh nhạt #ECF9E8) / Schedule; Thanh 7 ngày trong tuần dạng ô bấm; Danh sách ca làm việc với hiệu ứng toggle xem cả tuần (Ảnh 1) / xem 1 ngày (Ảnh 2); Ánh xạ màu ca trực (Barista xanh ngọc #5BC8B8 nền #F0FAF6, Cashier hồng #D97FB2 nền #FDF2F7, Kitchen #D98080, Service #C8C84A, Supervisor #7AA8D9); cấu hình chạy mượt mà trên Expo Web."*
+
+4. **Tệp / Thành phần mã nguồn liên quan:**
+   * `screens/ScheduleScreen.js`: Toàn bộ logic giao diện, state điều hướng tuần, chuyển tab, toggle chọn ngày, hiển thị thẻ ca làm việc và ngày trống.
+   * `services/shiftService.js`: Tầng dịch vụ gọi REST API (`getMyShifts`, `getShiftsForStore`, `registerShift`).
+   * `screens/LoginScreen.js`: Tích hợp fallback truy cập nhanh chế độ Demo khi backend offline.
+   * `navigation/AppNavigator.js`: Đăng ký `ScheduleScreen` trong Bottom Tab Navigator và Stack Navigator.
+
+5. **Kết quả AI trả về:**
+   * Mã nguồn hoàn chỉnh cho `ScheduleScreen.js` bám sát pixel-perfect tài liệu `Lịch.docx`.
+   * Tầng service `shiftService.js` chuẩn Axios instance có gắn JWT Token.
+   * Bộ màu `ROLE_THEMES` đồng bộ hoàn toàn với bản Web.
+
+6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
+   * **Chấp nhận:** Layout Tab Switcher, cấu trúc 7 ngày trong tuần, định dạng thẻ ca trực theo vai trò, thuật toán tính ngày trong tuần Monday-first.
+   * **Chỉnh sửa:** Bổ sung cơ chế toggle thông minh: Bấm vào 1 ngày để lọc ca ngày đó (Ảnh 2), bấm lại lần nữa để xem toàn bộ 7 ngày trong tuần (Ảnh 1); tinh chỉnh padding và font chữ hiển thị chuẩn xác trên cả màn hình điện thoại thật và Expo Web.
+   * **Loại bỏ:** Lược bỏ các thư viện Datepicker bên thứ 3 để tự dựng Custom Week Strip thuần React Native nhằm đảm bảo hiệu năng và bám sát Figma.
+
+7. **Lý do chỉnh sửa:**
+   * Đảm bảo tính nhất quán giao diện và màu sắc giữa 2 nền tảng Web và Mobile.
+   * Tránh xung đột phụ thuộc và đảm bảo ứng dụng chạy mượt mà trên Expo Web (`http://localhost:8081`) và Expo Go.
+
+8. **Phương pháp kiểm thử & Xác minh:**
+   * **Kiểm thử trên Expo Web:** Chạy `npx expo start --web`, mở `http://localhost:8081` trên trình duyệt:
+     * Chuyển đổi qua lại giữa Tab `My shifts` và `Schedule`.
+     * Bấm nút `‹` và `›` kiểm tra chuyển đổi tuần/tháng.
+     * Bấm vào ô `Thứ 4 (05)` kiểm tra kích hoạt highlight xanh và lọc hiển thị ca Barista (Ảnh 2).
+     * Bấm lại vào ô `Thứ 4 (05)` kiểm tra quay về hiển thị toàn bộ 7 ngày (Ảnh 1).
+   * **Kiểm thử dữ liệu:** Đối chiếu màu sắc thẻ ca trực (Barista `#5BC8B8`, Cashier `#D97FB2`) khớp 100% với Web Schedule.
+
+9. **Commit tương ứng:**
+   * **Commit Hash:** `dabeabc`
+   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/dabeabc
 
