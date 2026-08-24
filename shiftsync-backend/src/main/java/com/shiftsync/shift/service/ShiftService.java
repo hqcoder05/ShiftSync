@@ -94,7 +94,7 @@ public class ShiftService {
                     .orElseThrow(() -> new BusinessException("Shift template not found in this store", HttpStatus.NOT_FOUND));
         }
 
-        java.time.ZonedDateTime deadline = request.getRegistrationDeadline();
+        java.time.ZonedDateTime deadline = request.getAvailabilityDeadline();
         if (deadline == null) {
             com.shiftsync.store.entity.StoreConfiguration config = storeConfigRepository.findByStoreId(storeId).orElse(null);
             int deadlineHours = config != null ? config.getAvailabilityDeadlineHours() : 24;
@@ -108,7 +108,7 @@ public class ShiftService {
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .status(ShiftStatus.DRAFT)
-                .registrationDeadline(deadline)
+                .availabilityDeadline(deadline)
                 .build();
 
         Shift savedShift = shiftRepository.save(shift);
@@ -195,8 +195,8 @@ public class ShiftService {
         if (request.getShiftDate() != null) {
             shift.setShiftDate(request.getShiftDate());
         }
-        if (request.getRegistrationDeadline() != null) {
-            shift.setRegistrationDeadline(request.getRegistrationDeadline());
+        if (request.getAvailabilityDeadline() != null) {
+            shift.setAvailabilityDeadline(request.getAvailabilityDeadline());
         }
 
         Shift saved = shiftRepository.save(shift);
@@ -263,7 +263,7 @@ public class ShiftService {
                 .startTime(entity.getStartTime())
                 .endTime(entity.getEndTime())
                 .status(entity.getStatus())
-                .registrationDeadline(entity.getRegistrationDeadline())
+                .availabilityDeadline(entity.getAvailabilityDeadline())
                 .requirements(reqDTOs)
                 .staffId(assignedStaffId)
                 .staffName(assignedStaffName)
