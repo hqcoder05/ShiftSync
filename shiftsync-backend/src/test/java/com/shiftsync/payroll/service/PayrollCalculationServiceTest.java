@@ -91,7 +91,7 @@ class PayrollCalculationServiceTest {
     @Test
     void testStandardShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.existsByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(false);
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
         when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
 
@@ -143,7 +143,7 @@ class PayrollCalculationServiceTest {
     @Test
     void testHolidayShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.existsByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(false);
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
         when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
         
@@ -198,7 +198,7 @@ class PayrollCalculationServiceTest {
     @Test
     void testOvertimeShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.existsByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(false);
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
         when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
         

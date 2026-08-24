@@ -14,7 +14,9 @@ Trong mô hình bán lẻ/logistics có nhiều cửa hàng, việc xếp lịch
 * Manager không có cái nhìn tổng quan (dashboard) về chi phí nhân sự, số giờ làm theo thời gian thực để ra quyết định vận hành.
 * Khi một cửa hàng thiếu nhân sự đột xuất, không có cơ chế điều phối nhân viên hỗ trợ từ cửa hàng khác một cách có kiểm soát.
 
-Đối tượng gặp phải vấn đề này chủ yếu là Quản lý cửa hàng (Manager) — người chịu trách nhiệm xếp lịch và giám sát nhân sự, và Nhân viên (Employee/Staff) — người cần biết lịch làm việc, đăng ký ca, và được tính lương chính xác. Ứng dụng Employee Scheduling App được xây dựng nhằm số hóa toàn bộ quy trình trên: từ khai báo lịch rảnh, xếp ca (thủ công và tự động), trao đổi ca, điều phối nhân sự liên cửa hàng, chấm công bằng QR + định vị, đến tính lương và thống kê — giúp giảm sai sót, tiết kiệm thời gian quản lý và tăng tính minh bạch cho cả hai phía.
+Đối tượng gặp phải vấn đề này chủ yếu là Quản lý cửa hàng (Manager) — người chịu trách nhiệm xếp lịch và giám sát nhân sự, và Nhân viên (Employee/Staff) — người cần khai báo khung giờ rảnh, biết lịch làm việc được xếp, và được tính lương chính xác. Ứng dụng Employee Scheduling App được xây dựng nhằm số hóa toàn bộ quy trình trên: từ khai báo lịch rảnh (Availability), xếp ca dựa trên lịch rảnh đó (thủ công bởi Manager và tự động bởi hệ thống), trao đổi ca, điều phối nhân sự liên cửa hàng, chấm công bằng QR + định vị, đến tính lương và thống kê — giúp giảm sai sót, tiết kiệm thời gian quản lý và tăng tính minh bạch cho cả hai phía.
+
+**Lưu ý quan trọng về mô hình xếp ca:** Nhân viên **không tự chọn ca làm việc cụ thể**. Nhân viên chỉ đăng ký/khai báo khung giờ rảnh (Availability) trong tuần. Dựa trên Availability đã khai báo, Manager có thể xếp ca thủ công cho từng nhân viên, hoặc hệ thống có thể tự động xếp ca (Auto Scheduling). Việc "chọn ca" chỉ diễn ra gián tiếp thông qua Marketplace (nhận ca trống/đổi ca) sau khi lịch đã được xếp, không phải ở bước đăng ký ban đầu.
 
 # 2. Scope (Phạm vi)
 
@@ -23,10 +25,10 @@ Trong mô hình bán lẻ/logistics có nhiều cửa hàng, việc xếp lịch
 * Quản lý nhân viên, cửa hàng (Employee, Store), với hệ thống phân quyền System Role (Admin/Manager/Staff). [Must]
 * Employment Management: quản lý quan hệ làm việc Staff–Store (loại hình, ngày bắt đầu/kết thúc, mức lương, trạng thái). [Must]
 * Skill Management: định nghĩa danh mục kỹ năng (Skill) riêng theo từng cửa hàng, gán Skill kèm cấp độ thành thạo và hạn sử dụng (Skill Expiration) cho từng nhân viên. [Must — phần Skill Expiration là Should]
-* Khai báo lịch rảnh và Blackout Date (Availability) của nhân viên. [Must]
+* Khai báo lịch rảnh và Blackout Date (Availability) của nhân viên — nhân viên chỉ đăng ký khung giờ rảnh, không tự chọn ca làm việc cụ thể. [Must]
 * Leave Management: xin nghỉ (nghỉ bệnh/nghỉ phép/nghỉ đột xuất), quy trình duyệt, tự động cập nhật Availability. [Should]
-* Quản lý ca làm việc: tạo mẫu ca, yêu cầu nhân sự theo Skill, đăng ký ca, phát hiện xung đột, chốt lịch (Shift Management). [Must]
-* Store Configuration: giờ mở/đóng cửa, giờ làm tối đa, thời gian nghỉ tối thiểu, bán kính Geofence, hạn đăng ký ca — không hardcode. [Should]
+* Quản lý ca làm việc: tạo mẫu ca, yêu cầu nhân sự theo Skill, xếp ca (thủ công bởi Manager và/hoặc tự động bởi hệ thống dựa trên Availability), phát hiện xung đột, chốt lịch (Shift Management). [Must]
+* Store Configuration: giờ mở/đóng cửa, giờ làm tối đa, thời gian nghỉ tối thiểu, bán kính Geofence, hạn khai báo Availability (Availability Deadline) — không hardcode. [Should]
 * Tự động xếp lịch làm việc (Auto Scheduling) dựa trên availability, skill, giờ làm tối đa, khoảng nghỉ tối thiểu, với mô hình chấm điểm (scoring) có trọng số cấu hình được (Scheduler Configuration). [Must — phần Scheduler Configuration linh hoạt là Should]
 * Marketplace trao đổi ca: đăng ca trống, đổi ca, phê duyệt. [Must]
 * Inter-Store Workforce Sharing: điều phối nhân sự hỗ trợ giữa các cửa hàng khi thiếu người. [Should]
@@ -69,8 +71,9 @@ Tổng cộng 40 yêu cầu chức năng, chia theo module (đã cập nhật th
 | FR-05 | Availability | Nhân viên có thể khai báo, chỉnh sửa khung giờ rảnh (availability) theo từng ngày trong tuần, bao gồm cả khai báo Blackout Date (ngày không thể làm việc). |
 | FR-06 | Shift | Manager có thể tạo mẫu ca làm việc (shift template) gồm tên ca, giờ bắt đầu và kết thúc. |
 | FR-07 | Shift | Manager có thể khai báo số lượng nhân sự cần thiết cho từng ca theo Skill (Shift Requirement theo Skill, không còn theo Role). |
-| FR-08 | Shift | Nhân viên có thể đăng ký nhận ca làm việc dựa trên availability, skill phù hợp và requirement đang mở, trước Registration Deadline. |
-| FR-09 | Shift | Hệ thống tự động phát hiện và từ chối đăng ký ca bị trùng giờ hoặc vượt quá số giờ làm tối đa cho phép. |
+| FR-08 | Shift | Nhân viên đăng ký khung giờ rảnh (Availability) trước Availability Deadline; nhân viên không tự chọn ca làm việc cụ thể — việc xếp ca do Manager thực hiện thủ công hoặc do hệ thống thực hiện tự động (Auto Scheduling) dựa trên Availability đã đăng ký. |
+| FR-08b | Shift | Manager có thể xếp ca thủ công cho từng nhân viên vào Shift dựa trên Availability, Skill phù hợp và Requirement đang mở của ca đó. |
+| FR-09 | Shift | Hệ thống tự động phát hiện và từ chối việc xếp ca (thủ công hoặc tự động) bị trùng giờ hoặc vượt quá số giờ làm tối đa cho phép. |
 | FR-10 | Shift | Manager có thể chốt (publish) lịch làm việc của tuần, sau đó lịch chuyển sang trạng thái chính thức. |
 | FR-11 | Auto Scheduling | Hệ thống có thể tự động sinh lịch làm việc dựa trên availability, skill phù hợp, giới hạn giờ làm và khoảng nghỉ tối thiểu (rest time), đảm bảo phân bổ công bằng giữa các nhân viên. |
 | FR-12 | Marketplace | Nhân viên đã được Assigned có thể gửi yêu cầu đổi ca (swap) với đồng nghiệp đủ điều kiện, hoặc đăng ca lên marketplace nếu ca đó chưa đủ Requirement (open shift). |
@@ -93,7 +96,7 @@ Tổng cộng 40 yêu cầu chức năng, chia theo module (đã cập nhật th
 | FR-29 | Contract (mở rộng) | Hệ thống định nghĩa các loại hợp đồng (Contract Type: Part-time/Full-time/Seasonal/Intern), mỗi loại có cấu hình riêng về Max Hour, hệ số OT và mức lương cơ bản. |
 | FR-30 | Leave Management | Staff có thể tạo yêu cầu nghỉ (Leave Request) với loại nghỉ: nghỉ bệnh, nghỉ phép, nghỉ đột xuất, kèm khoảng thời gian nghỉ. |
 | FR-31 | Leave Management | Manager phê duyệt hoặc từ chối Leave Request; khi được duyệt, hệ thống tự động cập nhật Availability của Staff (đánh dấu không khả dụng) trong khoảng thời gian nghỉ. |
-| FR-32 | Store Configuration | Admin/Manager cấu hình theo từng Store: giờ mở/đóng cửa, giờ làm tối đa/tuần, thời gian nghỉ tối thiểu giữa 2 ca, bán kính Geofence, và hạn đăng ký ca (Registration Deadline) — không hardcode trong code. |
+| FR-32 | Store Configuration | Admin/Manager cấu hình theo từng Store: giờ mở/đóng cửa, giờ làm tối đa/tuần, thời gian nghỉ tối thiểu giữa 2 ca, bán kính Geofence, và hạn khai báo Availability (Availability Deadline) — không hardcode trong code. |
 | FR-33 | Scheduler Configuration | Admin/Manager cấu hình trọng số (weight) cho thuật toán Auto Scheduling: Fairness Weight, Skill Weight, Hour Weight, Priority Weight, dùng cho mô hình chấm điểm (scoring) khi xếp lịch. |
 | FR-34 | Holiday | Admin định nghĩa danh sách ngày lễ (Holiday) và hệ số lương ngày lễ tương ứng (Holiday Rate, VD: 300%/200%) — không hardcode; Payroll tự động áp dụng khi tính lương rơi vào ngày lễ. |
 | FR-35 | Skill Expiration | Hệ thống hỗ trợ gán hạn sử dụng (expiration date) cho một số Skill có tính chứng chỉ (VD: Food Safety); Skill hết hạn sẽ không được xét khi Auto Scheduling phân công ca. |
@@ -134,16 +137,16 @@ Tổng cộng 57 quy tắc nghiệp vụ (BR-01 đến BR-57), chia theo 22 nhó
 
 ## 3. Availability
 
-* BR-08: Employee phải khai báo Availability trước hạn — Employee chỉ được đăng ký Shift sau khi đã khai báo Availability.
-* BR-09: Không được đăng ký ngoài Availability — Employee không thể đăng ký Shift nằm ngoài khoảng thời gian Availability.
+* BR-08: Employee phải khai báo Availability trước hạn — Employee chỉ được xếp vào Shift sau khi đã khai báo Availability trước Availability Deadline.
+* BR-09: Không được xếp ca ngoài Availability — Employee không thể được Manager xếp thủ công hoặc được Auto Scheduling xếp vào Shift nằm ngoài khoảng thời gian Availability đã khai báo.
 * BR-10: Blackout Date luôn được ưu tiên — Nếu Employee khai báo Blackout Date thì hệ thống không được phân công bất kỳ Shift nào trong ngày đó.
 
-## 4. Shift Registration
+## 4. Shift Assignment (Xếp ca — do Manager hoặc hệ thống thực hiện)
 
-* BR-11: Chỉ được đăng ký trước hạn — Employee chỉ được đăng ký Shift trước Registration Deadline.
-* BR-12: Không được đăng ký trùng ca — Employee không được đăng ký hai Shift có thời gian giao nhau.
-* BR-13: Không được vượt giới hạn giờ làm — Tổng số giờ làm sau khi đăng ký không được vượt giới hạn do Store quy định.
-* BR-14: Shift phải còn chỗ — Employee chỉ được đăng ký khi Shift còn Slot phù hợp với Skill của mình.
+* BR-11: Availability chỉ được khai báo trước hạn — Employee chỉ được khai báo/chỉnh sửa Availability trước Availability Deadline; nhân viên không tự đăng ký hay tự chọn Shift cụ thể.
+* BR-12: Không được xếp trùng ca — Employee không được Manager hoặc Auto Scheduling xếp vào hai Shift có thời gian giao nhau.
+* BR-13: Không được vượt giới hạn giờ làm — Tổng số giờ làm sau khi được xếp ca không được vượt giới hạn do Store quy định.
+* BR-14: Shift phải còn chỗ — Employee chỉ được xếp vào Shift khi Shift còn Slot phù hợp với Skill của mình.
 
 ## 5. Shift Requirement
 
@@ -213,24 +216,24 @@ Tổng cộng 57 quy tắc nghiệp vụ (BR-01 đến BR-57), chia theo 22 nhó
 ## 17. Employment Management (module mới)
 
 * BR-44: Một Staff có thể có nhiều Employment — Một Staff có thể có nhiều bản ghi Employment ở các Store và giai đoạn (joined\_date/left\_date) khác nhau, nhưng không được có 2 Employment cùng Store trùng khoảng thời gian hiệu lực.
-* BR-45: Chỉ Employment ở trạng thái Active mới được xếp lịch — Auto Scheduling và Shift Registration chỉ xét Staff có Employment Active tại Store tương ứng.
-* BR-46: Employment Suspended/Inactive không được đăng ký ca mới — Staff có Employment ở trạng thái Suspended hoặc Inactive không được đăng ký hoặc được phân công Shift mới, nhưng lịch sử Shift cũ vẫn được giữ nguyên.
+* BR-45: Chỉ Employment ở trạng thái Active mới được xếp lịch — Auto Scheduling và Manager xếp ca thủ công chỉ xét Staff có Employment Active tại Store tương ứng.
+* BR-46: Employment Suspended/Inactive không được khai báo Availability hoặc xếp ca mới — Staff có Employment ở trạng thái Suspended hoặc Inactive không được khai báo Availability mới và không được phân công Shift mới, nhưng lịch sử Shift cũ vẫn được giữ nguyên.
 
 ## 18. Leave Management (module mới)
 
 * BR-47: Leave Request phải được Manager phê duyệt — Yêu cầu nghỉ chỉ có hiệu lực (cập nhật Availability) sau khi Manager Approve; trạng thái ban đầu là Pending.
-* BR-48: Leave đã duyệt tự động chặn Auto Scheduling — Trong khoảng thời gian Leave đã Approved, Auto Scheduling và Shift Registration phải loại Staff đó ra khỏi danh sách hợp lệ, tương tự Blackout Date (BR-10).
+* BR-48: Leave đã duyệt tự động chặn Auto Scheduling — Trong khoảng thời gian Leave đã Approved, Auto Scheduling và Manager xếp ca thủ công phải loại Staff đó ra khỏi danh sách hợp lệ, tương tự Blackout Date (BR-10).
 * BR-49: Không được xin nghỉ chồng lên ca đã Publish mà không qua Swap — Nếu Staff đã được Assigned vào Shift đã Publish trong khoảng thời gian xin nghỉ, hệ thống phải cảnh báo Manager để xử lý song song với luồng Shift Swap/Open Shift.
 
 ## 19. Store Configuration & Scheduler Configuration (module mới)
 
-* BR-50: Mọi tham số vận hành phải cấu hình được theo từng Store — Giờ mở/đóng cửa, Max Hour, Rest Time tối thiểu, bán kính Geofence, Registration Deadline không được hardcode; thay đổi cấu hình chỉ áp dụng cho lịch chưa Publish.
+* BR-50: Mọi tham số vận hành phải cấu hình được theo từng Store — Giờ mở/đóng cửa, Max Hour, Rest Time tối thiểu, bán kính Geofence, Availability Deadline không được hardcode; thay đổi cấu hình chỉ áp dụng cho lịch chưa Publish.
 * BR-51: Trọng số Scheduler Configuration phải có tổng hợp lệ — Fairness Weight, Skill Weight, Hour Weight, Priority Weight dùng trong mô hình chấm điểm Auto Scheduling phải được validate (VD: tổng = 100%) trước khi lưu.
 
 ## 20. Holiday & Skill Expiration (module mới)
 
 * BR-52: Ngày lễ áp dụng Holiday Rate tự động — Nếu một Shift rơi vào ngày trong danh sách Holiday, Payroll phải áp dụng Holiday Rate cấu hình sẵn (VD: 300%/200%) thay cho mức lương giờ thông thường.
-* BR-53: Skill hết hạn không được xét khi phân công — Nếu Skill của Staff có Expiration Date và đã qua hạn, Auto Scheduling và Shift Registration không được xét Skill đó khi kiểm tra điều kiện phù hợp.
+* BR-53: Skill hết hạn không được xét khi phân công — Nếu Skill của Staff có Expiration Date và đã qua hạn, Auto Scheduling và Manager xếp ca thủ công không được xét Skill đó khi kiểm tra điều kiện phù hợp.
 
 ## 21. Attendance Adjustment (module mới)
 
