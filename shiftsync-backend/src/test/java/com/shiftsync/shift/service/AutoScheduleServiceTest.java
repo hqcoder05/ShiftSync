@@ -181,13 +181,22 @@ class AutoScheduleServiceTest {
     }
 
     @Test
-    void testGetAvailabilityScore_AvailabilityLimitation() {
+    void testGetAvailabilityScore() {
         AutoScheduleService.StaffData empData = new AutoScheduleService.StaffData();
-        Shift shift = Shift.builder().shiftDate(LocalDate.now()).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).build();
+        // Shift is Wednesday (Day 3), 09:00 - 17:00 (8 hours)
+        LocalDate wednesday = LocalDate.of(2026, 8, 26);
+        Shift shift = Shift.builder().shiftDate(wednesday).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).build();
         
-        double score = service.getAvailabilityScore(empData, shift);
-        
-        // LIMITATION-Availability-Score: Score is hardcoded to 1.0
-        assertEquals(1.0, score, "Limitation: Availability score must always be 1.0 currently. If you changed the logic, update this test!");
+        // Staff A: Available 09:00 - 17:00 (8 hours) -> exact match
+        Availability a1 = Availability.builder().dayOfWeek((short)3).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).build();
+        empData.setAvailabilities(List.of(a1));
+        double scoreA = service.getAvailabilityScore(empData, shift);
+        assertEquals(1.0, scoreA, 0.001);
+
+        // Staff B: Available 00:00 - 24:00 (24 hours) -> wide match
+        Availability a2 = Availability.builder().dayOfWeek((short)3).startTime(LocalTime.of(0,0)).endTime(LocalTime.of(23,59)).build();
+        empData.setAvailabilities(List.of(a2));
+        double scoreB = service.getAvailabilityScore(empData, shift);
+        assertEquals(8.0 / 23.983, scoreB, 0.05); // approximately 0.33
     }
 }

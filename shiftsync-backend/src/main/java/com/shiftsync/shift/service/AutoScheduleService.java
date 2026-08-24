@@ -346,7 +346,26 @@ public class AutoScheduleService {
     }
 
     double getAvailabilityScore(StaffData empData, Shift newShift) {
-        return 1.0; // Simplified logic, assume covered = 1.0 as HC already checked covering.
+        short shiftDayOfWeek = (short) (newShift.getShiftDate().getDayOfWeek().getValue() % 7);
+        long shiftMinutes = java.time.Duration.between(newShift.getStartTime(), newShift.getEndTime()).toMinutes();
+        if (shiftMinutes <= 0) shiftMinutes += 24 * 60; // Handle overnight
+
+        double maxScore = 0.0;
+        for (Availability a : empData.getAvailabilities()) {
+            if (a.getDayOfWeek() == shiftDayOfWeek 
+                && !a.getStartTime().isAfter(newShift.getStartTime()) 
+                && !a.getEndTime().isBefore(newShift.getEndTime())) {
+                
+                long availMinutes = java.time.Duration.between(a.getStartTime(), a.getEndTime()).toMinutes();
+                if (availMinutes <= 0) availMinutes += 24 * 60;
+                
+                double score = (double) shiftMinutes / availMinutes;
+                if (score > maxScore) {
+                    maxScore = score;
+                }
+            }
+        }
+        return maxScore > 0 ? maxScore : 1.0;
     }
 
     double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {

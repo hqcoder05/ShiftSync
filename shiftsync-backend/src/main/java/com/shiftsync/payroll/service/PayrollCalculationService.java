@@ -125,40 +125,26 @@ public class PayrollCalculationService {
         int maxWeeklyHours = getMaxWeeklyHours(emp);
         BigDecimal hourlyRate = emp.getHourlyRate();
 
-        BigDecimal totalBaseAmt = BigDecimal.ZERO;
-        BigDecimal totalOtAmt = BigDecimal.ZERO;
-        BigDecimal totalHolidayAmt = BigDecimal.ZERO;
+        class PayrollAccumulator {
+            BigDecimal totalBaseAmt = BigDecimal.ZERO;
+            BigDecimal totalOtAmt = BigDecimal.ZERO;
+            BigDecimal totalHolidayAmt = BigDecimal.ZERO;
 
-        BigDecimal totalBaseHrs = BigDecimal.ZERO;
-        BigDecimal totalOtHrs = BigDecimal.ZERO;
-        BigDecimal totalHolidayHrs = BigDecimal.ZERO;
-
-        for (List<ShiftAssignment> weekShifts : weeklyAssignments.values()) {
-            // Sort chronologically to accumulate hours
-            weekShifts.sort(Comparator.comparing(a -> a.getShift().getShiftDate()));
-
+            BigDecimal totalBaseHrs = BigDecimal.ZERO;
+            BigDecimal totalOtHrs = BigDecimal.ZERO;
+            BigDecimal totalHolidayHrs = BigDecimal.ZERO;
+            
             double hoursWorkedThisWeek = 0.0;
 
-            for (ShiftAssignment assignment : weekShifts) {
-                Attendance att = attendanceMap.get(assignment.getId());
-                // MUST have check-out time
-                if (att == null || att.getCheckInTime() == null || att.getCheckOutTime() == null) {
-                    continue;
-                }
+            void addSegment(double segmentHours, LocalDate date, int maxWeeklyHours, BigDecimal hourlyRate, Map<LocalDate, BigDecimal> holidayMap) {
+                if (segmentHours <= 0) return;
+                boolean isHoliday = holidayMap.containsKey(date);
+                BigDecimal holidayMultiplier = isHoliday ? holidayMap.get(date) : BigDecimal.ONE;
 
-                double durationHours = Duration.between(att.getCheckInTime(), att.getCheckOutTime()).toMinutes() / 60.0;
-                if (durationHours <= 0) continue;
-
-                LocalDate shiftDate = assignment.getShift().getShiftDate();
-                boolean isHoliday = holidayMap.containsKey(shiftDate);
-                BigDecimal holidayMultiplier = isHoliday ? holidayMap.get(shiftDate) : BigDecimal.ONE;
-
-                // Split into Standard and OT
                 double remainingStandard = Math.max(0, maxWeeklyHours - hoursWorkedThisWeek);
-                double stdHours = Math.min(durationHours, remainingStandard);
-                double otHours = durationHours - stdHours;
+                double stdHours = Math.min(segmentHours, remainingStandard);
+                double otHours = segmentHours - stdHours;
 
-                // Calculate Standard Segment
                 if (stdHours > 0) {
                     BigDecimal hrs = BigDecimal.valueOf(stdHours);
                     if (isHoliday) {
@@ -170,7 +156,6 @@ public class PayrollCalculationService {
                     }
                 }
 
-                // Calculate OT Segment
                 if (otHours > 0) {
                     BigDecimal hrs = BigDecimal.valueOf(otHours);
                     BigDecimal effectiveMultiplier = isHoliday ? OT_MULTIPLIER.max(holidayMultiplier) : OT_MULTIPLIER;
@@ -183,23 +168,53 @@ public class PayrollCalculationService {
                         totalOtAmt = totalOtAmt.add(hrs.multiply(hourlyRate).multiply(effectiveMultiplier));
                     }
                 }
-
-                hoursWorkedThisWeek += durationHours;
+                hoursWorkedThisWeek += segmentHours;
             }
         }
 
-        BigDecimal totalHours = totalBaseHrs.add(totalOtHrs).add(totalHolidayHrs);
-        BigDecimal totalAmt = totalBaseAmt.add(totalOtAmt).add(totalHolidayAmt);
+        PayrollAccumulator totalAcc = new PayrollAccumulator();
+
+        for (List<ShiftAssignment> weekShifts : weeklyAssignments.values()) {
+            weekShifts.sort(Comparator.comparing(a -> a.getShift().getShiftDate()));
+            totalAcc.hoursWorkedThisWeek = 0.0; // Reset weekly hours
+
+            for (ShiftAssignment assignment : weekShifts) {
+                Attendance att = attendanceMap.get(assignment.getId());
+                if (att == null || att.getCheckInTime() == null || att.getCheckOutTime() == null) {
+                    continue;
+                }
+
+                java.time.OffsetDateTime checkIn = att.getCheckInTime();
+                java.time.OffsetDateTime checkOut = att.getCheckOutTime();
+                LocalDate day1 = checkIn.toLocalDate();
+                LocalDate day2 = checkOut.toLocalDate();
+
+                if (day1.equals(day2)) {
+                    double durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
+                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap);
+                } else {
+                    java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
+                    double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
+                    double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
+                    
+                    totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap);
+                    totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap);
+                }
+            }
+        }
+
+        BigDecimal totalHours = totalAcc.totalBaseHrs.add(totalAcc.totalOtHrs).add(totalAcc.totalHolidayHrs);
+        BigDecimal totalAmt = totalAcc.totalBaseAmt.add(totalAcc.totalOtAmt).add(totalAcc.totalHolidayAmt);
 
         return Payroll.builder()
                 .payrollPeriod(period)
                 .staff(emp.getUser())
                 .totalHours(totalHours.setScale(2, RoundingMode.HALF_UP))
-                .otHours(totalOtHrs.setScale(2, RoundingMode.HALF_UP))
-                .holidayHours(totalHolidayHrs.setScale(2, RoundingMode.HALF_UP))
-                .baseAmount(totalBaseAmt.setScale(2, RoundingMode.HALF_UP))
-                .otAmount(totalOtAmt.setScale(2, RoundingMode.HALF_UP))
-                .holidayAmount(totalHolidayAmt.setScale(2, RoundingMode.HALF_UP))
+                .otHours(totalAcc.totalOtHrs.setScale(2, RoundingMode.HALF_UP))
+                .holidayHours(totalAcc.totalHolidayHrs.setScale(2, RoundingMode.HALF_UP))
+                .baseAmount(totalAcc.totalBaseAmt.setScale(2, RoundingMode.HALF_UP))
+                .otAmount(totalAcc.totalOtAmt.setScale(2, RoundingMode.HALF_UP))
+                .holidayAmount(totalAcc.totalHolidayAmt.setScale(2, RoundingMode.HALF_UP))
                 .totalAmount(totalAmt.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }

@@ -28,4 +28,15 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
             @Param("staffId") UUID staffId, 
             @Param("startDate") LocalDate startDate, 
             @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT SUM(req.requiredCount) FROM Shift s JOIN s.requirements req " +
+           "WHERE s.store.id = :storeId AND s.shiftDate >= :startDate AND s.shiftDate <= :endDate")
+    Long sumRequiredStaffByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                             @Param("startDate") LocalDate startDate, 
+                                             @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT COUNT(s) FROM Shift s WHERE s.store.id = :storeId AND s.shiftDate >= :startDate AND s.shiftDate <= :endDate AND s.isOpen = true")
+    long countOpenShiftsByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                            @Param("startDate") LocalDate startDate, 
+                                            @Param("endDate") LocalDate endDate);
 }

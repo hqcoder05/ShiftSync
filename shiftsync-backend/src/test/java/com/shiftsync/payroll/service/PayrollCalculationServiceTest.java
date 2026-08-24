@@ -280,4 +280,62 @@ class PayrollCalculationServiceTest {
         );
         org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("Cannot regenerate payroll. Period is already"));
     }
+
+    @Test
+    void testHolidayOvernightShift() {
+        when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        
+        // Day 1: Holiday (Rate 3.0), Day 2: Normal (Rate 1.0)
+        Holiday holiday = new Holiday();
+        holiday.setHolidayDate(LocalDate.of(2023, 10, 2));
+        holiday.setRateMultiplier(new BigDecimal("3.00"));
+        when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of(holiday));
+
+        // Create an overnight shift (22:00 to 06:00) starting on holiday
+        Shift shift = new Shift();
+        shift.setId(UUID.randomUUID());
+        shift.setShiftDate(LocalDate.of(2023, 10, 2)); 
+        shift.setStatus(ShiftStatus.COMPLETED);
+
+        ShiftAssignment assignment = new ShiftAssignment();
+        assignment.setId(UUID.randomUUID());
+        assignment.setShift(shift);
+        assignment.setStaff(employment.getUser());
+
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(
+                store.getId(), startDate, endDate)).thenReturn(List.of(assignment));
+
+        Attendance att = new Attendance();
+        att.setId(UUID.randomUUID());
+        att.setShiftAssignment(assignment);
+        // 22:00 to 06:00
+        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 22, 0, 0, 0, ZoneOffset.UTC));
+        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 3, 6, 0, 0, 0, ZoneOffset.UTC));
+
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
+                .thenReturn(List.of(att));
+
+        payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
+
+        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass((Class) List.class);
+        verify(payrollRepository).saveAll(captor.capture());
+        
+        List<Payroll> payrolls = captor.getValue();
+        assertEquals(1, payrolls.size());
+        Payroll p = payrolls.get(0);
+        
+        // Total 8 hours. 2 hours on Holiday (22:00 - 00:00). 6 hours on Normal (00:00 - 06:00)
+        assertEquals(new BigDecimal("8.00"), p.getTotalHours());
+        assertEquals(new BigDecimal("2.00"), p.getHolidayHours()); // 2 hours holiday
+        
+        // Base Amount = 6 hours * 20 = 120.00
+        assertEquals(new BigDecimal("120.00"), p.getBaseAmount()); 
+        // Holiday Amount = 2 hours * 20 * 3.0 = 120.00
+        assertEquals(new BigDecimal("120.00"), p.getHolidayAmount()); 
+        // Total Amount = 120 + 120 = 240.00
+        assertEquals(new BigDecimal("240.00"), p.getTotalAmount());
+    }
 }
