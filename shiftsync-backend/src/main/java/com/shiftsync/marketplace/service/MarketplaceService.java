@@ -79,7 +79,7 @@ public class MarketplaceService {
         List<Shift> openShifts = shiftRepository.findByStoreIdAndStatusAndIsOpenTrue(storeId, ShiftStatus.PUBLISHED);
         
         return openShifts.stream()
-                .filter(s -> s.getRegistrationDeadline().isAfter(now))
+                .filter(s -> s.getAvailabilityDeadline().isAfter(now))
                 .collect(Collectors.toList());
     }
 

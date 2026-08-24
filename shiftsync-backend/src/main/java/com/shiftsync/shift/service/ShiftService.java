@@ -30,6 +30,7 @@ public class ShiftService {
 
     private final ShiftRepository shiftRepository;
     private final StoreRepository storeRepository;
+    private final com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository;
     private final ShiftTemplateRepository shiftTemplateRepository;
     private final SkillRepository skillRepository;
 
@@ -58,11 +59,26 @@ public class ShiftService {
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
         }
+        
+        if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
+            throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
+        }
+        
+        if (store.getCloseTime() != null && request.getEndTime().isAfter(store.getCloseTime())) {
+            throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
+        }
 
         ShiftTemplate template = null;
         if (request.getShiftTemplateId() != null) {
             template = shiftTemplateRepository.findByIdAndStoreId(request.getShiftTemplateId(), storeId)
                     .orElseThrow(() -> new BusinessException("Shift template not found in this store", HttpStatus.NOT_FOUND));
+        }
+
+        java.time.ZonedDateTime deadline = request.getAvailabilityDeadline();
+        if (deadline == null) {
+            com.shiftsync.store.entity.StoreConfiguration config = storeConfigRepository.findByStoreId(storeId).orElse(null);
+            int deadlineHours = config != null ? config.getAvailabilityDeadlineHours() : 24;
+            deadline = java.time.ZonedDateTime.of(request.getShiftDate(), request.getStartTime(), java.time.ZoneId.of("UTC")).minusHours(deadlineHours);
         }
 
         Shift shift = Shift.builder()
@@ -72,7 +88,7 @@ public class ShiftService {
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .status(ShiftStatus.DRAFT)
-                .registrationDeadline(request.getRegistrationDeadline())
+                .availabilityDeadline(deadline)
                 .build();
 
         return mapToDTO(shiftRepository.save(shift));
@@ -105,12 +121,19 @@ public class ShiftService {
 
     @Transactional
     public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        verifyStoreExists(storeId);
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
         
         int publishedCount = 0;
         for (Shift shift : shifts) {
             if (shift.getStatus() == ShiftStatus.DRAFT) {
+                if (store.getOpenTime() != null && shift.getStartTime().isBefore(store.getOpenTime())) {
+                    throw new BusinessException("Shift " + shift.getId() + " start time is before store open time", HttpStatus.BAD_REQUEST);
+                }
+                if (store.getCloseTime() != null && shift.getEndTime().isAfter(store.getCloseTime())) {
+                    throw new BusinessException("Shift " + shift.getId() + " end time is after store close time", HttpStatus.BAD_REQUEST);
+                }
                 shift.setStatus(ShiftStatus.PUBLISHED);
                 publishedCount++;
             }
@@ -145,7 +168,7 @@ public class ShiftService {
                 .startTime(entity.getStartTime())
                 .endTime(entity.getEndTime())
                 .status(entity.getStatus())
-                .registrationDeadline(entity.getRegistrationDeadline())
+                .availabilityDeadline(entity.getAvailabilityDeadline())
                 .requirements(reqDTOs)
                 .build();
     }

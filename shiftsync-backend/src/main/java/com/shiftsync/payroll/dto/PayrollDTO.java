@@ -1,0 +1,23 @@
+package com.shiftsync.payroll.dto;
+
+import lombok.Builder;
+import lombok.Data;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Data
+@Builder
+public class PayrollDTO {
+    private UUID id;
+    private UUID periodId;
+    private UUID staffId;
+    private BigDecimal totalHours;
+    private BigDecimal otHours;
+    private BigDecimal holidayHours;
+    private BigDecimal baseAmount;
+    private BigDecimal otAmount;
+    private BigDecimal holidayAmount;
+    private BigDecimal totalAmount;
+    private OffsetDateTime generatedAt;
+}

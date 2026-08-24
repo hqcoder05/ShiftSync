@@ -36,7 +36,7 @@ public class ShiftDTO {
     private ShiftStatus status;
 
     @Schema(description = "Registration Deadline")
-    private ZonedDateTime registrationDeadline;
+    private ZonedDateTime availabilityDeadline;
     
     @Schema(description = "Requirements by Skill/Role")
     private List<ShiftSkillRequirementDTO> requirements;

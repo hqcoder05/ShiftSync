@@ -28,4 +28,14 @@ public interface AvailabilityRepository extends JpaRepository<Availability, UUID
                                @Param("startTime") LocalTime startTime, 
                                @Param("endTime") LocalTime endTime, 
                                @Param("excludeId") UUID excludeId);
+
+    @Query("SELECT COUNT(a) > 0 FROM Availability a " +
+           "WHERE a.user.id = :staffId " +
+           "AND a.dayOfWeek = :dayOfWeek " +
+           "AND a.startTime <= :startTime " +
+           "AND a.endTime >= :endTime")
+    boolean coversShiftTime(@Param("staffId") UUID staffId, 
+                               @Param("dayOfWeek") Short dayOfWeek, 
+                               @Param("startTime") LocalTime startTime, 
+                               @Param("endTime") LocalTime endTime);
 }

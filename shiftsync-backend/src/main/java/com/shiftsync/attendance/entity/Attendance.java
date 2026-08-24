@@ -4,6 +4,8 @@ import com.shiftsync.attendance.enums.AttendanceStatus;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -17,7 +19,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE attendance SET deleted = true WHERE id = ?")
+@SQLRestriction("deleted = false")
 public class Attendance {
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Id
     @GeneratedValue

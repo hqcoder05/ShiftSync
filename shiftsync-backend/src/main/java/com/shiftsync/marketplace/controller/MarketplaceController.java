@@ -2,6 +2,9 @@ package com.shiftsync.marketplace.controller;
 
 import com.shiftsync.marketplace.service.MarketplaceService;
 import com.shiftsync.shift.entity.Shift;
+import com.shiftsync.shift.dto.ShiftDTO;
+import com.shiftsync.shift.dto.ShiftSkillRequirementDTO;
+import java.util.stream.Collectors;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -43,9 +46,27 @@ public class MarketplaceController {
     @Operation(summary = "Get list of active Open Shifts in a store")
     @PreAuthorize("isAuthenticated()") // Any authenticated user can view marketplace
     @GetMapping("/stores/{storeId}/marketplace/shifts")
-    public ResponseEntity<List<Shift>> getOpenShifts(@PathVariable UUID storeId) {
-        List<Shift> shifts = marketplaceService.getOpenShifts(storeId);
-        return ResponseEntity.ok(shifts);
+    public ResponseEntity<List<ShiftDTO>> getOpenShifts(@PathVariable UUID storeId) {
+        List<ShiftDTO> openShifts = marketplaceService.getOpenShifts(storeId).stream()
+                .map(shift -> ShiftDTO.builder()
+                        .id(shift.getId())
+                        .storeId(shift.getStore().getId())
+                        .shiftDate(shift.getShiftDate())
+                        .startTime(shift.getStartTime())
+                        .endTime(shift.getEndTime())
+                        .status(shift.getStatus())
+                        .availabilityDeadline(shift.getAvailabilityDeadline())
+                        .requirements(shift.getRequirements() != null ? shift.getRequirements().stream()
+                                .map(r -> ShiftSkillRequirementDTO.builder()
+                                        .id(r.getId())
+                                        .skillName(r.getSkill().getName())
+                                        .skillId(r.getSkill().getId())
+                                        .requiredCount(r.getRequiredCount())
+                                        .build())
+                                .collect(Collectors.toList()) : (java.util.List<ShiftSkillRequirementDTO>) null)
+                        .build())
+                .toList();
+        return ResponseEntity.ok(openShifts);
     }
 
     @Operation(summary = "Claim an Open Shift (Employee)")

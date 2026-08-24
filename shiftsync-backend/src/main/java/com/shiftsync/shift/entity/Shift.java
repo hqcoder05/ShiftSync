@@ -52,8 +52,8 @@ public class Shift {
     @Builder.Default
     private ShiftStatus status = ShiftStatus.DRAFT;
 
-    @Column(name = "registration_deadline", nullable = false)
-    private ZonedDateTime registrationDeadline;
+    @Column(name = "availability_deadline", nullable = false)
+    private ZonedDateTime availabilityDeadline;
 
     @Column(name = "is_open", nullable = false)
     @Builder.Default

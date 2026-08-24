@@ -2,6 +2,8 @@ package com.shiftsync.store.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
@@ -15,7 +17,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE store SET deleted = true WHERE id = ?")
+@SQLRestriction("deleted = false")
 public class Store {
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

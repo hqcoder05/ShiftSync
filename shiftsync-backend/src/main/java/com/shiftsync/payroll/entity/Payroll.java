@@ -3,6 +3,8 @@ package com.shiftsync.payroll.entity;
 import com.shiftsync.auth.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -15,7 +17,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE payroll SET deleted = true WHERE id = ?")
+@SQLRestriction("deleted = false")
 public class Payroll {
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Id
     @GeneratedValue

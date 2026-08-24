@@ -90,12 +90,15 @@ public class StoreService {
     @Transactional
     public void deleteStore(UUID id) {
         Store store = storeRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Store not found with id: " + id, HttpStatus.NOT_FOUND));
-        
-        if (storeRepository.hasRelatedRecords(id)) {
-            throw new BusinessException("Cannot delete Store because it has related records (employment, shifts, etc.)", HttpStatus.CONFLICT);
+                .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
+
+        if (storeRepository.hasActiveEmployees(id)) {
+            throw new BusinessException("Cannot delete Store: Store has active employees.", HttpStatus.CONFLICT);
         }
-        
+        if (storeRepository.hasFuturePublishedShifts(id)) {
+            throw new BusinessException("Cannot delete Store: Store has future published shifts.", HttpStatus.CONFLICT);
+        }
+
         storeRepository.delete(store);
     }
 

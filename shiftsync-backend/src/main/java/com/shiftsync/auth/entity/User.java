@@ -3,6 +3,8 @@ package com.shiftsync.auth.entity;
 import com.shiftsync.shared.security.SystemRole;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -13,7 +15,14 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE staff SET deleted = true WHERE id = ? and version = ?")
+
+@SQLRestriction("deleted = false")
 public class User {
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

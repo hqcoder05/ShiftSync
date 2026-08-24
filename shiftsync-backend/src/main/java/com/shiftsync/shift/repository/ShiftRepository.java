@@ -22,9 +22,8 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
 
     List<Shift> findByStoreIdAndStatusAndIsOpenTrue(UUID storeId, com.shiftsync.shift.enums.ShiftStatus status);
 
-    @Query("SELECT s FROM Shift s WHERE s.shiftDate >= :startDate AND s.shiftDate <= :endDate AND (" +
-           "s.id IN (SELECT a.shift.id FROM ShiftAssignment a WHERE a.staff.id = :staffId) " +
-           "OR s.id IN (SELECT r.shift.id FROM ShiftRegistration r WHERE r.staff.id = :staffId AND r.status != 'REJECTED'))")
+    @Query("SELECT s FROM Shift s WHERE s.shiftDate >= :startDate AND s.shiftDate <= :endDate AND " +
+           "s.id IN (SELECT a.shift.id FROM ShiftAssignment a WHERE a.staff.id = :staffId)")
     List<Shift> findActiveShiftsForStaffInPeriod(
             @Param("staffId") UUID staffId, 
             @Param("startDate") LocalDate startDate, 

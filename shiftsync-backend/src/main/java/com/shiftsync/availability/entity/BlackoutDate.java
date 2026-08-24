@@ -29,4 +29,7 @@ public class BlackoutDate {
 
     @Column(name = "reason")
     private String reason;
+
+    @Column(name = "leave_request_id")
+    private UUID leaveRequestId;
 }

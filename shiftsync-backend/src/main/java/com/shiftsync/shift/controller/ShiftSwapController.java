@@ -3,6 +3,7 @@ package com.shiftsync.shift.controller;
 import com.shiftsync.shared.security.CustomUserDetails;
 import com.shiftsync.shift.dto.SwapCreateRequest;
 import com.shiftsync.shift.dto.SwapRespondRequest;
+import com.shiftsync.shift.dto.ShiftSwapRequestDTO;
 import com.shiftsync.shift.entity.ShiftSwapRequest;
 import com.shiftsync.shift.service.ShiftSwapService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +28,7 @@ public class ShiftSwapController {
     @Operation(summary = "Create a swap request")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/users/me/swaps")
-    public ResponseEntity<ShiftSwapRequest> createSwapRequest(
+    public ResponseEntity<ShiftSwapRequestDTO> createSwapRequest(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody SwapCreateRequest request) {
         
@@ -37,7 +38,17 @@ public class ShiftSwapController {
                 request.getToStaffId(),
                 request.getToShiftId()
         );
-        return ResponseEntity.ok(swap);
+        ShiftSwapRequestDTO dto = ShiftSwapRequestDTO.builder()
+                .id(swap.getId())
+                .fromStaffId(swap.getFromStaff().getId())
+                .fromShiftId(swap.getFromShift().getId())
+                .toStaffId(swap.getToStaff().getId())
+                .toShiftId(swap.getToShift() != null ? swap.getToShift().getId() : null)
+                .status(swap.getStatus())
+                .approvedById(swap.getApprovedBy() != null ? swap.getApprovedBy().getId() : null)
+                .employeeAccepted(swap.isEmployeeAccepted())
+                .build();
+        return ResponseEntity.ok(dto);
     }
 
     @Operation(summary = "Respond to a swap request (accept/reject)")
