@@ -55,9 +55,16 @@ public class PayrollCalculationService {
             throw new BusinessException("End date cannot be before start date.", HttpStatus.BAD_REQUEST);
         }
 
-        if (payrollPeriodRepository.existsByStoreIdAndStartDateAndEndDate(storeId, startDate, endDate)) {
-            throw new BusinessException("Payroll period already exists for this date range.", HttpStatus.CONFLICT);
+        
+        java.util.Optional<PayrollPeriod> existingOpt = payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(storeId, startDate, endDate);
+        if (existingOpt.isPresent()) {
+            if (existingOpt.get().getStatus() != com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
+                throw new BusinessException("Cannot regenerate payroll. Period is already " + existingOpt.get().getStatus(), HttpStatus.CONFLICT);
+            }
+            // Delete old payrolls for this period so we can regenerate
+            payrollRepository.deleteByPayrollPeriod(existingOpt.get());
         }
+
 
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found.", HttpStatus.NOT_FOUND));
@@ -219,4 +226,36 @@ public class PayrollCalculationService {
             case SEASONAL -> 40;
         };
     }
+
+    @Transactional
+    public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus) {
+        PayrollPeriod period = payrollPeriodRepository.findById(periodId)
+                .orElseThrow(() -> new BusinessException("Payroll period not found.", HttpStatus.NOT_FOUND));
+
+        if (!period.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Payroll period does not belong to this store.", HttpStatus.FORBIDDEN);
+        }
+
+        // Validate One-way state transition: DRAFT -> CONFIRMED -> PAID
+        if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
+            throw new BusinessException("Cannot change status of a PAID payroll period.", HttpStatus.BAD_REQUEST);
+        }
+        if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
+            throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT.", HttpStatus.BAD_REQUEST);
+        }
+        if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
+            throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);
+        }
+
+        period.setStatus(newStatus);
+        payrollPeriodRepository.save(period);
+    }
+
+
+    @Transactional(readOnly = true)
+    public boolean isDateLocked(java.util.UUID storeId, java.time.LocalDate date) {
+        return payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                storeId, date, date, java.util.Arrays.asList(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED, com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID));
+    }
+
 }

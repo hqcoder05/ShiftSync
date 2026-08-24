@@ -2,6 +2,7 @@ package com.shiftsync.attendance.controller;
 
 import com.shiftsync.attendance.dto.QrResponseDTO;
 import com.shiftsync.attendance.dto.QrScanRequestDTO;
+import com.shiftsync.attendance.dto.AttendanceDTO;
 import com.shiftsync.attendance.entity.Attendance;
 import com.shiftsync.attendance.service.AttendanceService;
 import com.shiftsync.shared.security.CustomUserDetails;
@@ -34,10 +35,17 @@ public class AttendanceController {
     }
 
     @PostMapping("/attendance/scan")
-    public ResponseEntity<Attendance> scanQr(
+    public ResponseEntity<AttendanceDTO> scanQr(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody QrScanRequestDTO request) {
         Attendance attendance = attendanceService.scanQr(userDetails.getId(), request);
-        return ResponseEntity.ok(attendance);
+        AttendanceDTO dto = AttendanceDTO.builder()
+                .id(attendance.getId())
+                .shiftAssignmentId(attendance.getShiftAssignment().getId())
+                .checkInTime(attendance.getCheckInTime())
+                .checkOutTime(attendance.getCheckOutTime())
+                .status(attendance.getStatus())
+                .build();
+        return ResponseEntity.ok(dto);
     }
 }

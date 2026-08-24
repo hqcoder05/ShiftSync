@@ -12,6 +12,7 @@ import java.util.UUID;
 @Repository
 public interface PayrollRepository extends JpaRepository<Payroll, UUID> {
     List<Payroll> findByPayrollPeriodId(UUID payrollPeriodId);
+    void deleteByPayrollPeriod(com.shiftsync.payroll.entity.PayrollPeriod payrollPeriod);
     List<Payroll> findByStaffIdOrderByPayrollPeriod_StartDateDesc(UUID staffId);
     Optional<Payroll> findByIdAndStaffId(UUID id, UUID staffId);
 

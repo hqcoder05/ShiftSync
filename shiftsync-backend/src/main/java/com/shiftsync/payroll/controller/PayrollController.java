@@ -1,5 +1,9 @@
 package com.shiftsync.payroll.controller;
 
+import com.shiftsync.payroll.dto.PayrollPeriodDTO;
+import com.shiftsync.payroll.dto.PayrollDTO;
+import com.shiftsync.payroll.dto.PayrollPeriodStatusUpdateRequest;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import com.shiftsync.payroll.dto.PayrollGenerateRequest;
 import com.shiftsync.payroll.entity.Payroll;
 import com.shiftsync.payroll.entity.PayrollPeriod;
@@ -44,26 +48,62 @@ public class PayrollController {
     @Operation(summary = "Get all payroll periods for a store")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping("/stores/{storeId}/payroll")
-    public ResponseEntity<List<PayrollPeriod>> getPayrollPeriods(@PathVariable UUID storeId) {
-        List<PayrollPeriod> periods = payrollPeriodRepository.findByStoreIdOrderByStartDateDesc(storeId);
+    public ResponseEntity<List<PayrollPeriodDTO>> getPayrollPeriods(@PathVariable UUID storeId) {
+        List<PayrollPeriodDTO> periods = payrollPeriodRepository.findByStoreIdOrderByStartDateDesc(storeId).stream()
+                .map(p -> PayrollPeriodDTO.builder()
+                        .id(p.getId())
+                        .storeId(p.getStore().getId())
+                        .startDate(p.getStartDate())
+                        .endDate(p.getEndDate())
+                        .status(p.getStatus())
+                        .build())
+                .toList();
         return ResponseEntity.ok(periods);
     }
 
     @Operation(summary = "Get payslips for a specific payroll period")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping("/stores/{storeId}/payroll/{periodId}/payslips")
-    public ResponseEntity<List<Payroll>> getPayslips(
+    public ResponseEntity<List<PayrollDTO>> getPayslips(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId) {
-        List<Payroll> payslips = payrollRepository.findByPayrollPeriodId(periodId);
+        List<PayrollDTO> payslips = payrollRepository.findByPayrollPeriodId(periodId).stream()
+                .map(p -> PayrollDTO.builder()
+                        .id(p.getId())
+                        .periodId(p.getPayrollPeriod().getId())
+                        .staffId(p.getStaff().getId())
+                        .totalHours(p.getTotalHours())
+                        .otHours(p.getOtHours())
+                        .holidayHours(p.getHolidayHours())
+                        .baseAmount(p.getBaseAmount())
+                        .otAmount(p.getOtAmount())
+                        .holidayAmount(p.getHolidayAmount())
+                        .totalAmount(p.getTotalAmount())
+                        .generatedAt(p.getGeneratedAt())
+                        .build())
+                .toList();
         return ResponseEntity.ok(payslips);
     }
 
     @Operation(summary = "Get my payslips (STAFF)")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/users/me/payslips")
-    public ResponseEntity<List<Payroll>> getMyPayslips(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<Payroll> myPayslips = payrollRepository.findByStaffIdOrderByPayrollPeriod_StartDateDesc(userDetails.getId());
+    public ResponseEntity<List<PayrollDTO>> getMyPayslips(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        List<PayrollDTO> myPayslips = payrollRepository.findByStaffIdOrderByPayrollPeriod_StartDateDesc(userDetails.getId()).stream()
+                .map(p -> PayrollDTO.builder()
+                        .id(p.getId())
+                        .periodId(p.getPayrollPeriod().getId())
+                        .staffId(p.getStaff().getId())
+                        .totalHours(p.getTotalHours())
+                        .otHours(p.getOtHours())
+                        .holidayHours(p.getHolidayHours())
+                        .baseAmount(p.getBaseAmount())
+                        .otAmount(p.getOtAmount())
+                        .holidayAmount(p.getHolidayAmount())
+                        .totalAmount(p.getTotalAmount())
+                        .generatedAt(p.getGeneratedAt())
+                        .build())
+                .toList();
         return ResponseEntity.ok(myPayslips);
     }
 
@@ -94,4 +134,16 @@ public class PayrollController {
                 .header("Content-Disposition", "attachment; filename=\"payroll_report_" + periodId + ".xlsx\"")
                 .body(excelBytes);
     }
+
+    @Operation(summary = "Update payroll period status")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PutMapping("/stores/{storeId}/payroll/{periodId}/status")
+    public ResponseEntity<Void> updatePayrollPeriodStatus(
+            @PathVariable UUID storeId,
+            @PathVariable UUID periodId,
+            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request) {
+        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus());
+        return ResponseEntity.ok().build();
+    }
+
 }

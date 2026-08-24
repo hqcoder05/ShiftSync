@@ -4,6 +4,8 @@ import com.shiftsync.auth.entity.User;
 import com.shiftsync.shift.enums.AssignmentSource;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -21,7 +23,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE shift_assignment SET deleted = true WHERE id = ?")
+@SQLRestriction("deleted = false")
 public class ShiftAssignment {
+
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Id
     @GeneratedValue

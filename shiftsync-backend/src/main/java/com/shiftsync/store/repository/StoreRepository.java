@@ -12,22 +12,14 @@ import java.util.UUID;
 
 @Repository
 public interface StoreRepository extends JpaRepository<Store, UUID> {
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM employment WHERE store_id = :storeId AND status = 'ACTIVE')", nativeQuery = true)
+    boolean hasActiveEmployees(@Param("storeId") UUID storeId);
+
     @Query(value = "SELECT EXISTS (" +
-                   "SELECT 1 FROM employment WHERE store_id = :storeId AND status = 'ACTIVE' " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM shift WHERE store_id = :storeId " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM payroll_period WHERE store_id = :storeId " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM skill WHERE store_id = :storeId " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM shift_template WHERE store_id = :storeId " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM store_configuration WHERE store_id = :storeId " +
-                   "UNION ALL " +
-                   "SELECT 1 FROM scheduler_configuration WHERE store_id = :storeId" +
-                   ")", nativeQuery = true)
-    boolean hasRelatedRecords(@Param("storeId") UUID storeId);
+            "SELECT 1 FROM shift WHERE store_id = :storeId AND status = 'PUBLISHED' " +
+            "AND shift_date >= CURRENT_DATE" +
+            ")", nativeQuery = true)
+    boolean hasFuturePublishedShifts(@Param("storeId") UUID storeId);
 
     @Query("SELECT s FROM Store s WHERE " +
            "LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

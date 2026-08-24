@@ -74,6 +74,7 @@ public class AutoScheduleService {
         List<BlackoutDate> blackoutDates;
         List<Shift> currentSchedule; // both existing assignments and newly assigned
         double assignedHours = 0;
+        int monthlyShiftCount = 0; // TỔNG SỐ CA TRONG THÁNG (BA Fairness)
         
         int getMaxWeeklyHours() {
             return switch (employment.getEmploymentType()) {
@@ -124,6 +125,11 @@ public class AutoScheduleService {
         Map<UUID, List<ShiftAssignment>> assignmentsMap = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, request.getStartDate(), request.getEndDate()).stream()
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId()));
 
+        LocalDate monthStart = request.getStartDate().withDayOfMonth(1);
+        LocalDate monthEnd = request.getStartDate().withDayOfMonth(request.getStartDate().lengthOfMonth());
+        Map<UUID, Long> monthlyShiftCountMap = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, monthStart, monthEnd).stream()
+                .collect(Collectors.groupingBy(a -> a.getStaff().getId(), Collectors.counting()));
+
         Map<UUID, StaffData> staffMap = new HashMap<>();
         
         for (Employment emp : activeEmployments) {
@@ -138,6 +144,7 @@ public class AutoScheduleService {
             
             data.setCurrentSchedule(existingAssignments.stream().map(ShiftAssignment::getShift).collect(Collectors.toList()));
             data.setAssignedHours(calculateTotalHours(data.getCurrentSchedule()));
+            data.setMonthlyShiftCount(monthlyShiftCountMap.getOrDefault(sid, 0L).intValue());
             
             staffMap.put(sid, data);
         }
@@ -202,7 +209,7 @@ public class AutoScheduleService {
 
             // 7. Calculate Weighted Score
             StaffData bestEmp = validCandidates.stream()
-                    .max(Comparator.comparingDouble((StaffData empData) -> calculateScore(empData, slot, schedConfig))
+                    .max(Comparator.comparingDouble((StaffData empData) -> calculateScore(empData, slot, schedConfig, storeConfig.getMinRestHours()))
                             .thenComparing(empData -> empData.getEmployment().getUser().getId().toString().hashCode() * -1)) // Deterministic tie-break
                     .orElse(validCandidates.get(0));
 
@@ -238,11 +245,15 @@ public class AutoScheduleService {
                 .anyMatch(b -> b.getDate().equals(shift.getShiftDate()));
         if (isBlackout) return true;
         
-        // Simplified: check Availability if it strictly says UNAVAILABLE. 
-        // In this schema, Availability tracks when they ARE available. If day is not in Availability, they might not be available.
-        // Assuming if there are Availability records, they must match.
-        // For standard implementation, let's just say not unavailable if not blackout.
-        return false;
+        // Availability Check: Staff MUST have an availability slot covering the shift
+        short shiftDayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
+        
+        boolean isCovered = empData.getAvailabilities().stream()
+                .anyMatch(a -> a.getDayOfWeek() == shiftDayOfWeek 
+                        && !a.getStartTime().isAfter(shift.getStartTime()) 
+                        && !a.getEndTime().isBefore(shift.getEndTime()));
+        
+        return !isCovered;
     }
 
     private boolean hasOverlap(List<Shift> schedule, Shift newShift) {
@@ -280,19 +291,102 @@ public class AutoScheduleService {
         return true;
     }
 
-    private double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config) {
-        // Fairness Score: 1 - (Assigned / Max)
-        double fairness = 1.0 - (empData.getAssignedHours() / empData.getMaxWeeklyHours());
+    private double getSkillScore(StaffData empData, UUID skillId) {
+        String level = empData.getSkills().stream()
+                .filter(s -> s.getSkillId().equals(skillId))
+                .map(s -> s.getLevel().trim().toUpperCase())
+                .findFirst()
+                .orElse("BEGINNER");
+
+        switch (level) {
+            case "EXPERT": return 1.0;
+            case "ADVANCED": return 0.75;
+            case "INTERMEDIATE": return 0.5;
+            case "BEGINNER": return 0.25;
+            default:
+                log.warn("Invalid skill level found: '{}' for staff: {}", level, empData.getEmployment().getUser().getId());
+                throw new IllegalStateException("Unknown skill level: " + level);
+        }
+    }
+
+    private double getRestTimeScore(StaffData empData, Shift newShift, int minRestHours) {
+        if (empData.getCurrentSchedule().isEmpty()) {
+            return 1.0;
+        }
+
+        LocalDateTime newStart = LocalDateTime.of(newShift.getShiftDate(), newShift.getStartTime());
+        LocalDateTime newEnd = LocalDateTime.of(newShift.getShiftDate(), newShift.getEndTime());
+
+        double minGap = Double.MAX_VALUE;
+
+        for (Shift s : empData.getCurrentSchedule()) {
+            LocalDateTime sStart = LocalDateTime.of(s.getShiftDate(), s.getStartTime());
+            LocalDateTime sEnd = LocalDateTime.of(s.getShiftDate(), s.getEndTime());
+
+            double hoursBetween = Double.MAX_VALUE;
+            if (sEnd.isBefore(newStart) || sEnd.isEqual(newStart)) {
+                hoursBetween = Duration.between(sEnd, newStart).toMinutes() / 60.0;
+            } else if (newEnd.isBefore(sStart) || newEnd.isEqual(sStart)) {
+                hoursBetween = Duration.between(newEnd, sStart).toMinutes() / 60.0;
+            }
+
+            if (hoursBetween < minGap) {
+                minGap = hoursBetween;
+            }
+        }
+
+        if (minGap == Double.MAX_VALUE) {
+            return 1.0;
+        }
+
+        if (minGap <= minRestHours) return 0.0;
+        if (minGap >= 24.0) return 1.0;
         
-        // Preference Score (simplified to 0.5 default)
-        double preference = 0.5;
+        return Math.min(1.0, (minGap - minRestHours) / (24.0 - minRestHours));
+    }
+
+    private double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
+        if (empData.getMaxWeeklyHours() <= 0) {
+            log.warn("Invalid MaxWeeklyHours: {} for staff: {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
+            throw new IllegalStateException("Max weekly hours must be strictly positive to avoid division by zero.");
+        }
+
+        double skillScore = getSkillScore(empData, slot.getSkillId());
         
-        // Skill Score (simplified to 1.0 since HC1 already validated)
-        double skill = 1.0;
+        double hourScore = Math.max(0.0, 1.0 - (empData.getAssignedHours() / empData.getMaxWeeklyHours()));
         
-        return (config.getFairnessWeight().doubleValue() * fairness) +
-               (config.getAvailabilityWeight().doubleValue() * preference) +
-               (config.getSkillWeight().doubleValue() * skill);
+        // BA Fairness is based on "Tổng số ca trong THÁNG" (Total shifts in month).
+        // Normalize against max possible shifts in a month (assuming 8h standard shift * 4 weeks)
+        double maxMonthlyShifts = (empData.getMaxWeeklyHours() / 8.0) * 4.0;
+        int monthlyShifts = empData.getMonthlyShiftCount();
+        double fairnessScore = Math.max(0.0, 1.0 - (monthlyShifts / maxMonthlyShifts));
+        
+        double restTimeScore = getRestTimeScore(empData, slot.getShift(), minRestHours);
+        
+        double availScore = 1.0; // Simplified logic, assume covered = 1.0 as HC already checked covering.
+        
+        double skillW = config.getSkillWeight().doubleValue();
+        double hourW = config.getHourWeight().doubleValue();
+        double fairnessW = config.getFairnessWeight().doubleValue();
+        double restTimeW = config.getRestTimeWeight().doubleValue(); 
+        double availW = config.getAvailabilityWeight().doubleValue();
+
+        double totalScore = (skillW * skillScore) +
+                            (hourW * hourScore) +
+                            (fairnessW * fairnessScore) +
+                            (restTimeW * restTimeScore) +
+                            (availW * availScore);
+
+        log.info("Staff {} -> Total: {} | Skill: {}*{} | Hour: {}*{} | Rest: {}*{} | Fair: {}*{} | Avail: {}*{}",
+                empData.getEmployment().getUser().getId(),
+                String.format("%.3f", totalScore),
+                String.format("%.2f", skillW), String.format("%.2f", skillScore),
+                String.format("%.2f", hourW), String.format("%.2f", hourScore),
+                String.format("%.2f", restTimeW), String.format("%.2f", restTimeScore),
+                String.format("%.2f", fairnessW), String.format("%.2f", fairnessScore),
+                String.format("%.2f", availW), String.format("%.2f", availScore));
+
+        return totalScore;
     }
 
     private double getDurationInHours(Shift shift) {
