@@ -1,0 +1,23 @@
+﻿    @Transactional
+    public void updatePayrollPeriodStatus(UUID storeId, UUID periodId, PayrollPeriodStatus newStatus) {
+        PayrollPeriod period = payrollPeriodRepository.findById(periodId)
+                .orElseThrow(() -> new BusinessException("Payroll period not found.", HttpStatus.NOT_FOUND));
+
+        if (!period.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Payroll period does not belong to this store.", HttpStatus.FORBIDDEN);
+        }
+
+        // Validate One-way state transition: DRAFT -> CONFIRMED -> PAID
+        if (period.getStatus() == PayrollPeriodStatus.PAID) {
+            throw new BusinessException("Cannot change status of a PAID payroll period.", HttpStatus.BAD_REQUEST);
+        }
+        if (period.getStatus() == PayrollPeriodStatus.CONFIRMED && newStatus == PayrollPeriodStatus.DRAFT) {
+            throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT.", HttpStatus.BAD_REQUEST);
+        }
+        if (period.getStatus() == PayrollPeriodStatus.DRAFT && newStatus == PayrollPeriodStatus.PAID) {
+            throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);
+        }
+
+        period.setStatus(newStatus);
+        payrollPeriodRepository.save(period);
+    }

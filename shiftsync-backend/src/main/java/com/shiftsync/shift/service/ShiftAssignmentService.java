@@ -5,6 +5,9 @@ import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.payroll.repository.PayrollPeriodRepository;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
+import java.util.Arrays;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
 import com.shiftsync.shift.entity.Shift;
@@ -33,9 +36,18 @@ public class ShiftAssignmentService {
     private final BlackoutDateRepository blackoutDateRepository;
     private final EmploymentRepository employmentRepository;
     private final UserRepository userRepository;
+    private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
 
     @Transactional
+    
+    private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
+        if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
+            throw new BusinessException("Cannot modify assignment because its date falls in a LOCKED/PAID payroll period.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
     public ShiftAssignmentResponseDTO assignStaffToShift(UUID storeId, UUID shiftId, UUID staffId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));

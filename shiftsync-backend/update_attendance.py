@@ -1,19 +1,27 @@
-import re
-with open('src/main/java/com/shiftsync/attendance/entity/Attendance.java', 'r') as f:
+﻿import sys
+
+file_path = 'src/main/java/com/shiftsync/attendance/service/AttendanceService.java'
+with open(file_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
-content = content.replace('import jakarta.persistence.*;\nimport lombok.*;',
-'import jakarta.persistence.*;\nimport lombok.*;\nimport org.hibernate.annotations.SQLDelete;\nimport org.hibernate.annotations.SQLRestriction;')
+if "import com.shiftsync.payroll.repository.PayrollPeriodRepository;" not in content:
+    content = content.replace("import com.shiftsync.shared.exception.BusinessException;", "import com.shiftsync.shared.exception.BusinessException;\nimport com.shiftsync.payroll.repository.PayrollPeriodRepository;\nimport com.shiftsync.payroll.enums.PayrollPeriodStatus;\nimport java.util.Arrays;")
 
-content = content.replace('@Builder\npublic class Attendance',
-'@Builder\n@SQLDelete(sql = "UPDATE attendance SET deleted = true WHERE id = ?")\n@SQLRestriction("deleted = false")\npublic class Attendance')
+if "private final PayrollPeriodRepository payrollPeriodRepository;" not in content:
+    content = content.replace("private final QRCodeService qrCodeService;", "private final QRCodeService qrCodeService;\n    private final PayrollPeriodRepository payrollPeriodRepository;")
 
-content = content.replace('public class Attendance {',
-'''public class Attendance {
+check_method = '''
+    private void checkDateNotLocked(java.util.UUID storeId, java.time.LocalDate date) {
+        if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
+            throw new BusinessException("Cannot modify attendance because its date falls in a LOCKED/PAID payroll period.", org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+    }
+'''
 
-    @Column(name = "deleted", nullable = false)
-    @Builder.Default
-    private boolean deleted = false;''')
+if "checkDateNotLocked" not in content:
+    content = content.replace("public QrResponseDTO processQrCode", check_method + "\n    public QrResponseDTO processQrCode")
+    content = content.replace("Shift shift = shiftAssignment.getShift();", "Shift shift = shiftAssignment.getShift();\n        checkDateNotLocked(shift.getStore().getId(), shift.getShiftDate());")
 
-with open('src/main/java/com/shiftsync/attendance/entity/Attendance.java', 'w') as f:
+with open(file_path, 'w', encoding='utf-8') as f:
     f.write(content)

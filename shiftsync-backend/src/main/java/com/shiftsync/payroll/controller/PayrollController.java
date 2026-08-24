@@ -2,6 +2,8 @@ package com.shiftsync.payroll.controller;
 
 import com.shiftsync.payroll.dto.PayrollPeriodDTO;
 import com.shiftsync.payroll.dto.PayrollDTO;
+import com.shiftsync.payroll.dto.PayrollPeriodStatusUpdateRequest;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import com.shiftsync.payroll.dto.PayrollGenerateRequest;
 import com.shiftsync.payroll.entity.Payroll;
 import com.shiftsync.payroll.entity.PayrollPeriod;
@@ -132,4 +134,16 @@ public class PayrollController {
                 .header("Content-Disposition", "attachment; filename=\"payroll_report_" + periodId + ".xlsx\"")
                 .body(excelBytes);
     }
+
+    @Operation(summary = "Update payroll period status")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PutMapping("/stores/{storeId}/payroll/{periodId}/status")
+    public ResponseEntity<Void> updatePayrollPeriodStatus(
+            @PathVariable UUID storeId,
+            @PathVariable UUID periodId,
+            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request) {
+        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus());
+        return ResponseEntity.ok().build();
+    }
+
 }

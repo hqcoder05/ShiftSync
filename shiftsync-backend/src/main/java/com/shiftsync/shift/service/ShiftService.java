@@ -1,5 +1,8 @@
 package com.shiftsync.shift.service;
 
+import com.shiftsync.payroll.repository.PayrollPeriodRepository;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
+import java.util.Arrays;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftCreateRequest;
 import com.shiftsync.shift.dto.ShiftDTO;
@@ -33,8 +36,17 @@ public class ShiftService {
     private final com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository;
     private final ShiftTemplateRepository shiftTemplateRepository;
     private final SkillRepository skillRepository;
+    private final PayrollPeriodRepository payrollPeriodRepository;
 
     @Transactional(readOnly = true)
+    
+    private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
+        if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
+            throw new BusinessException("Cannot modify shift because its date falls in a LOCKED/PAID payroll period.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
     public List<ShiftDTO> getShiftsByStoreId(UUID storeId, ShiftStatus statusFilter, boolean isStaff) {
         verifyStoreExists(storeId);
         return shiftRepository.findByStoreId(storeId).stream()
@@ -53,6 +65,7 @@ public class ShiftService {
 
     @Transactional
     public ShiftDTO createShift(UUID storeId, ShiftCreateRequest request) {
+        checkDateNotLocked(storeId, request.getShiftDate());
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
@@ -127,7 +140,10 @@ public class ShiftService {
         
         int publishedCount = 0;
         for (Shift shift : shifts) {
+            
+            checkDateNotLocked(storeId, shift.getShiftDate());
             if (shift.getStatus() == ShiftStatus.DRAFT) {
+
                 if (store.getOpenTime() != null && shift.getStartTime().isBefore(store.getOpenTime())) {
                     throw new BusinessException("Shift " + shift.getId() + " start time is before store open time", HttpStatus.BAD_REQUEST);
                 }
