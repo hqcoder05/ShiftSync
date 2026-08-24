@@ -88,12 +88,18 @@ public class UserService {
     @Transactional
     public void deleteUser(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("User not found with id: " + id, HttpStatus.NOT_FOUND));
-        
-        if (userRepository.hasRelatedRecords(id)) {
-            throw new BusinessException("Cannot delete User because they have related records (employment, shifts, etc.)", HttpStatus.CONFLICT);
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
+
+        if (userRepository.isSoleManagerOfAnyStore(id)) {
+            throw new BusinessException("Cannot delete User: User is the sole Manager of a Store.", HttpStatus.CONFLICT);
         }
-        
+        if (userRepository.hasActiveEmployment(id)) {
+            throw new BusinessException("Cannot delete User: User has active employments.", HttpStatus.CONFLICT);
+        }
+        if (userRepository.hasFuturePublishedShifts(id)) {
+            throw new BusinessException("Cannot delete User: User is assigned to future published shifts.", HttpStatus.CONFLICT);
+        }
+
         userRepository.delete(user);
     }
 }

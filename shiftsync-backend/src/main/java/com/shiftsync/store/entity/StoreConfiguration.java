@@ -33,9 +33,9 @@ public class StoreConfiguration {
     @Builder.Default
     private Integer geofenceRadiusM = 100;
 
-    @Column(name = "registration_deadline_hours", nullable = false)
+    @Column(name = "availability_deadline_hours", nullable = false)
     @Builder.Default
-    private Integer registrationDeadlineHours = 24;
+    private Integer availabilityDeadlineHours = 24;
 
     @Column(name = "allowed_check_in_minutes", nullable = false)
     @Builder.Default

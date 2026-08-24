@@ -34,9 +34,9 @@ public class SchedulerConfiguration {
     @Builder.Default
     private BigDecimal hourWeight = new BigDecimal("0.200");
 
-    @Column(name = "priority_weight", nullable = false, precision = 4, scale = 3)
+    @Column(name = "rest_time_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
-    private BigDecimal priorityWeight = new BigDecimal("0.100");
+    private BigDecimal restTimeWeight = new BigDecimal("0.100");
 
     @Column(name = "availability_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default

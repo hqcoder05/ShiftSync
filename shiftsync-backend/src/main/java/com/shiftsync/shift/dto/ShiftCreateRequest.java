@@ -27,9 +27,8 @@ public class ShiftCreateRequest {
     @Schema(description = "End Time", example = "16:00:00")
     private LocalTime endTime;
 
-    @NotNull(message = "Registration deadline is required")
     @Schema(description = "Registration Deadline (ISO-8601)", example = "2023-11-25T23:59:59Z")
-    private ZonedDateTime registrationDeadline;
+    private ZonedDateTime availabilityDeadline;
 
     @Schema(description = "Assigned Staff ID (Optional)")
     private UUID staffId;
