@@ -45,6 +45,7 @@ class ShiftAssignmentServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private PayrollPeriodRepository payrollPeriodRepository;
     @Mock private ShiftValidationService shiftValidationService;
+    @Mock private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @InjectMocks
     private ShiftAssignmentService service;
@@ -55,11 +56,14 @@ class ShiftAssignmentServiceTest {
     private Shift shift;
     private User staff;
 
+    private UUID skillId;
+
     @BeforeEach
     void setup() {
         storeId = UUID.randomUUID();
         shiftId = UUID.randomUUID();
         staffId = UUID.randomUUID();
+        skillId = UUID.randomUUID();
 
         Store store = Store.builder().id(storeId).build();
         shift = Shift.builder()
@@ -69,7 +73,7 @@ class ShiftAssignmentServiceTest {
                 .startTime(LocalTime.of(9, 0))
                 .endTime(LocalTime.of(17, 0))
                 .requirements(List.of(
-                        ShiftSkillRequirement.builder().requiredCount(2).build()
+                        com.shiftsync.shift.entity.ShiftSkillRequirement.builder().skill(com.shiftsync.skill.entity.Skill.builder().id(skillId).build()).requiredCount(2).build()
                 ))
                 .build();
         staff = User.builder().id(staffId).build();
@@ -91,11 +95,15 @@ class ShiftAssignmentServiceTest {
         
         when(shiftAssignmentRepository.countByShiftId(shiftId)).thenReturn(1L); // 1 assigned, 2 max
 
+        com.shiftsync.skill.entity.StaffSkill skill = com.shiftsync.skill.entity.StaffSkill.builder().skillId(skillId).expirationDate(null).build();
+        when(staffSkillRepository.findByStaffId(staffId)).thenReturn(List.of(skill));
+        
         ShiftAssignment savedAssignment = ShiftAssignment.builder()
                 .id(UUID.randomUUID())
                 .shift(shift)
                 .staff(staff)
                 .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
                 .build();
         when(shiftAssignmentRepository.save(any(ShiftAssignment.class))).thenReturn(savedAssignment);
 
@@ -104,6 +112,44 @@ class ShiftAssignmentServiceTest {
         assertNotNull(result);
         assertEquals(savedAssignment.getId(), result.getId());
         assertEquals(AssignmentSource.MANUAL, result.getSource());
+    }
+
+    @Test
+    void assignStaffToShift_MissingRequiredSkill_ThrowsException() {
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
+        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
+        
+        // Return empty skill list
+        when(staffSkillRepository.findByStaffId(staffId)).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.assignStaffToShift(storeId, shiftId, staffId));
+        assertTrue(ex.getMessage().contains("Staff does not have required skill"));
+    }
+
+    @Test
+    void assignStaffToShift_RequiredSkillExpired_ThrowsException() {
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
+        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
+        
+        // Return expired skill
+        com.shiftsync.skill.entity.StaffSkill expiredSkill = com.shiftsync.skill.entity.StaffSkill.builder()
+                .skillId(skillId)
+                .expirationDate(LocalDate.now().minusDays(1)) // expired yesterday
+                .build();
+        when(staffSkillRepository.findByStaffId(staffId)).thenReturn(List.of(expiredSkill));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.assignStaffToShift(storeId, shiftId, staffId));
+        assertTrue(ex.getMessage().contains("Staff's required skill has expired"));
     }
 
     @Test

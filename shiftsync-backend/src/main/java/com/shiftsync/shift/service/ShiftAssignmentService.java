@@ -38,6 +38,7 @@ public class ShiftAssignmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
+    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Transactional
     
@@ -84,10 +85,38 @@ public class ShiftAssignmentService {
 
         // BR-14/15: Check Slot capacity
         int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
-        int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
+        int maxSlots = shift.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum();
         
         if (currentAssignedCount >= maxSlots) {
             throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
+        }
+
+        // BR-06 & BR-53: Skill Checking
+        if (!shift.getRequirements().isEmpty()) {
+            java.util.List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
+            
+            boolean hasAnyRequiredSkill = false;
+            boolean hasValidUnexpiredSkill = false;
+
+            for (com.shiftsync.shift.entity.ShiftSkillRequirement req : shift.getRequirements()) {
+                for (com.shiftsync.skill.entity.StaffSkill staffSkill : staffSkills) {
+                    if (staffSkill.getSkillId().equals(req.getSkill().getId())) {
+                        hasAnyRequiredSkill = true; // Level 1 passed
+                        
+                        if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
+                            hasValidUnexpiredSkill = true; // Level 2 passed
+                        }
+                    }
+                }
+            }
+
+            if (!hasAnyRequiredSkill) {
+                throw new BusinessException("Staff does not have required skill for this shift", HttpStatus.BAD_REQUEST);
+            }
+            
+            if (!hasValidUnexpiredSkill) {
+                throw new BusinessException("Staff's required skill has expired", HttpStatus.BAD_REQUEST);
+            }
         }
 
         ShiftAssignment assignment = ShiftAssignment.builder()
