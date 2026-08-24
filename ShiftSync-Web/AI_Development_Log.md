@@ -95,18 +95,118 @@
 | TC-AVL-01 | Tải lịch rảnh đã đăng ký theo tuần (Mobile) | Normal | ⏳ Pending | Chờ test hiển thị UI trên app Expo |
 | TC-AVL-02 | Chọn ca rảnh & bấm Lưu thay đổi (Mobile) | High | ⏳ Pending | Chờ test gọi API lưu lịch rảnh |
 -------------------------------------------------------------------------------------------------------
-## [2026-08-13] - Feature: Role & Store Management UI (Web)
+-------------------------------------------------------------------------------------------------------
+## [2026-08-23] - Hoàn thiện Module Quản lý Lịch làm việc (Schedule UI) & Tích hợp API Phân ca (Tuần 5)
 
-### 1. Mục tiêu công việc
-* Xây dựng trang Quản lý Cửa hàng (`StoreListPage.jsx`): Thêm/Sửa/Xóa cửa hàng, hiển thị số lượng nhân viên.
-* Xây dựng trang Quản lý Vai trò & Phân quyền (`RoleListPage.jsx`): Danh sách vai trò và ma trận gán quyền.
+1. **Công cụ & Mô hình:**
+   * Google Antigravity / Gemini (Google) & Claude 3.5 Sonnet.
 
-### 2. AI Prompt Log (Tư vấn cấu trúc & Tối ưu hóa code)
-* **Prompt:**
-  > "Tôi đã xây dựng xong cấu trúc trang StoreListPage và RoleListPage. Hướng dẫn tôi viết các API service (`storeService.js`, `roleService.js`) và xử lý UI checklist toggle permission cho từng vai trò trên Web sao cho chuẩn React Hooks best practices."
+2. **Ngày - Mục tiêu - Ngữ cảnh:**
+   * **Ngày:** 23/08/2026.
+   * **Mục tiêu:** Phát triển toàn diện giao diện Quản lý Lịch làm việc (`SchedulePage.jsx`, `SchedulePage.css`) chuẩn theo Prototype Figma, xây dựng tầng API `shiftService.js`, và hoàn thiện endpoint xử lý nghiệp vụ phân ca tại Spring Boot Backend (`ShiftController.java`, `ShiftService.java`).
+   * **Ngữ cảnh:** Dự án bước vào giai đoạn then chốt (Tuần 5) cần màn hình phân ca trực quan (Timeline Grid), hỗ trợ xem theo Ngày/Tuần/Tháng, Mini Calendar chọn ngày nhanh, bộ lọc nhân viên theo cửa hàng/kỹ năng, và modal tạo/sửa/xóa ca làm việc trực tiếp.
 
-### 3. Các file đã tạo / cập nhật
-* `src/services/storeService.js` & `src/services/roleService.js`: Các dịch vụ gọi API quản lý Store và Role.
-* `src/pages/StoreListPage.jsx`: Màn hình quản lý thông tin cửa hàng.
-* `src/pages/RoleListPage.jsx`: Màn hình quản lý danh sách vai trò và tích chọn phân quyền.
+3. **Prompt gốc & Prompt hiệu chỉnh:**
+   * **Prompt gốc:** *"Hướng dẫn xây dựng giao diện SchedulePage bằng React hiển thị bảng lịch phân ca theo nhân viên theo bản thiết kế Figma, có thanh timeline các ngày trong tuần, hiển thị ca trực theo màu sắc, modal thêm ca trực và tích hợp API với Spring Boot backend."*
+   * **Prompt hiệu chỉnh:** *"Yêu cầu bổ sung Mini Calendar dropdown dạng popup chọn nhanh tuần/tháng, xử lý tính toán ngày bắt đầu/kết thúc tuần chuẩn ISO, xử lý phân quyền xem theo từng Store, và cập nhật DTO/Service phía Spring Boot backend để hỗ trợ CRUD ca trực đầy đủ các trường (startTime, endTime, storeId, employeeId, skillId, notes, color)."*
+
+4. **Tệp / Thành phần mã nguồn liên quan:**
+   * **Frontend (`ShiftSync-Web`):**
+     * `src/pages/SchedulePage.jsx`: Toàn bộ logic giao diện, quản lý state lịch, timeline phân ca, mini calendar và modal thêm/sửa ca trực.
+     * `src/pages/SchedulePage.css`: Bộ styling chi tiết, responsive timeline grid, màu sắc thẻ ca trực theo mã màu chuẩn Figma.
+     * `src/services/shiftService.js`: Xây dựng các hàm gọi REST API (`getShiftsForStore`, `createShift`, `updateShift`, `deleteShift`).
+     * `src/pages/EmployeesPage.jsx` & `SkillsPage.jsx`: Đồng bộ dữ liệu nhân viên và kỹ năng.
+     * `src/assets/icons/`: Bổ sung các icon (`icon-ai.png`, `icon-credit-card.png`, `icon-user.png`, `location_on.png`).
+   * **Backend (`shiftsync-backend`):**
+     * `controller/ShiftController.java`: Cung cấp RESTful endpoints cho Shift CRUD.
+     * `service/ShiftService.java`: Xử lý nghiệp vụ kiểm tra trùng ca, lưu trữ và mapping DTO.
+     * `dto/ShiftCreateRequest.java` & `dto/ShiftDTO.java`: Định nghĩa cấu trúc dữ liệu truyền nhận.
+
+5. **Kết quả AI trả về:**
+   * Cung cấp giải pháp tính toán ngày/tuần theo chuẩn Monday-first (`getWeekDates`).
+   * Mã nguồn hoàn chỉnh cho `SchedulePage.jsx` kết hợp bảng Timeline phân ca trực quan và Mini Calendar picker.
+   * File `SchedulePage.css` chứa toàn bộ rules layout grid, flexbox, tooltip, badge trạng thái và hiệu ứng hover.
+   * Module `shiftService.js` tương thích với Axios instance của dự án.
+   * Mã nguồn backend xử lý logic nghiệp vụ phân ca tại `ShiftService.java`.
+
+6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
+   * **Chấp nhận:** Thuật toán tính tuần, logic lọc ca trực theo nhân viên/cửa hàng, bảng mã màu pastel cho từng loại ca (`SHIFT_COLORS`), cấu trúc REST API backend.
+   * **Chỉnh sửa:** Điều chỉnh định dạng hiển thị ngày sang tiếng Việt (`DOW_VI`), ánh xạ avatar nhân viên (`AVATAR_MAP`) tương thích với `EmployeesPage`, đồng bộ tên trường dữ liệu giữa Java DTO (`startTime`, `endTime`, `employeeName`) và React state.
+   * **Loại bỏ:** Lược bỏ các thư viện lịch bên thứ 3 cồng kềnh (FullCalendar, React-Big-Calendar) để tự xây dựng Custom Calendar Grid thuần túy nhằm bám sát 100% UI Figma và tối ưu hiệu năng.
+
+7. **Lý do chỉnh sửa:**
+   * Đảm bảo tính nhất quán dữ liệu giữa Frontend và Backend DTO.
+   * Tránh xung đột phụ thuộc (dependency conflict) khi sử dụng các thư viện ngoài không khớp với thiết kế giao diện của dự án.
+   * Đảm bảo trải nghiệm người dùng (UX) mượt mà, ngôn ngữ hiển thị thuần Việt phù hợp với bài toán thực tế.
+
+8. **Phương pháp kiểm thử & Xác minh:**
+   * **Kiểm thử giao diện (UI/UX):** Khởi chạy `npm run dev`, truy cập `/schedule`, đối chiếu pixel-by-pixel từng thành phần (Header, Mini Calendar, Timeline Grid, Modal) với bản thiết kế Figma.
+   * **Kiểm thử luồng tương tác:**
+     * Thử nghiệm chuyển đổi qua lại giữa các tuần (Prev/Next/Today).
+     * Bấm chọn ngày bất kỳ trên Mini Calendar dropdown để nhảy đến tuần tương ứng.
+     * Mở modal thêm ca trực mới, nhập thông tin và kiểm tra hiển thị thẻ ca trên lưới timeline.
+     * Chuyển đổi bộ lọc Store/Chi nhánh để kiểm tra lọc danh sách nhân viên tương ứng.
+   * **Kiểm thử Console & Network:** Mở F12 kiểm tra không phát sinh React Warning/Error, các request API gửi đi đúng payload JSON.
+
+9. **Commit tương ứng:**
+   * **Commit Hash:** `28765c2b5dab17df199e5f2c517660e008e13a8e`
+   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/28765c2b5dab17df199e5f2c517660e008e13a8e
+
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+## [2026-08-23] - Hoàn thiện Module Quản lý Yêu cầu & Duyệt Chợ ca (Reports / Requests) & Xây dựng Backend API CSDL PostgreSQL
+
+1. **Công cụ & Mô hình:**
+   * Google Antigravity / Gemini (Google) & Claude 3.5 Sonnet.
+
+2. **Ngày - Mục tiêu - Ngữ cảnh:**
+   * **Ngày:** 23/08/2026.
+   * **Mục tiêu:** Phát triển toàn diện giao diện Quản lý Yêu cầu & Duyệt Chợ ca (`RequestPage.jsx`, `RequestPage.css`) chuẩn theo tài liệu đặc tả `Duyệt Chợ ca.docx` và thiết kế Figma; tinh chỉnh Navbar (`Header.jsx`, `Header.css`) với box active màu đen `#1E1E1E` và icon Reports phóng to; thiết kế thanh công cụ Capsule bo tròn liền mạch tích hợp Mini-Calendar và nút Tạo yêu cầu tone màu vàng hổ phách cao cấp; phát triển hoàn chỉnh Module Backend Spring Boot (`com.shiftsync.request`) kết nối CSDL PostgreSQL qua Flyway Migration V10.
+   * **Ngữ cảnh:** Đáp ứng yêu cầu nghiệp vụ quản lý các loại đơn (xin nghỉ phép, đổi ca làm việc, vắng mặt, mượn/hỗ trợ nhân sự liên chi nhánh); hỗ trợ quản lý xem chi tiết và phê duyệt/từ chối đơn trực tiếp với cơ chế đồng bộ API thật kết hợp sao lưu dữ liệu đệm an toàn.
+
+3. **Prompt gốc & Prompt hiệu chỉnh:**
+   * **Prompt gốc:** *"tiếp theo thực hiện xây dựng web trang duyêt chợ ca đi bạn đọc file docx duyệt chợ ca rồi làm theo nha lưu ý ở trên thanh menu thì bấm report là ra trang đó với chỉnh lại icon report cho to ra xíu iii nó quá nhỏ so với mấy cái kia với sửa thêm là khi mà chọn muc nào á cái đó sẽ có box den như ảnh t gửi bạn"*
+   * **Prompt hiệu chỉnh:** *"bỏ mấy cái chấm màu đi với mấy cái box màu á bỏ đi; làm lịch popover giống hệt SchedulePage; tạo yêu cầu người nhận có thể là quản lý chi nhánh/store khác; thêm bộ lọc trạng thái và smart search; đổi nút thao tác thành thanh Capsule bo tròn kèm nút Tạo yêu cầu tone vàng hổ phách và kết nối Backend API (/api/requests) lưu trực tiếp vào CSDL PostgreSQL."*
+
+4. **Tệp / Thành phần mã nguồn liên quan:**
+   * **Frontend (`ShiftSync-Web`):**
+     * `src/pages/RequestPage.jsx`: Quản lý toàn bộ logic giao diện, bảng danh sách yêu cầu, Smart Search, bộ lọc trạng thái & loại đơn, Mini-Calendar Popover chọn ngày/tuần, Modal chi tiết/phê duyệt đơn, Modal tạo yêu cầu hỗ trợ đa chi nhánh.
+     * `src/pages/RequestPage.css`: Toàn bộ CSS phong cách Capsule, layout bảng không viền bao/chấm màu, sidebar thẻ trắng kiểu Scheduler và hệ thống hiệu ứng chuyển động mượt mà (micro-animations).
+     * `src/components/Header.jsx` & `Header.css`: Cập nhật active indicator màu đen `#1E1E1E`, phóng to icon Reports `26px x 26px`, định tuyến `/reports`, `/request`, `/requests`.
+     * `src/services/requestService.js`: Tầng dịch vụ kết nối REST API `/api/requests` với cơ chế sao lưu `localStorage` fallback thông minh khi offline.
+     * `src/App.jsx`: Khai báo và cấu hình Route cho trang `/reports`, `/request`, `/requests`.
+   * **Backend (`shiftsync-backend`):**
+     * `src/main/resources/db/migration/V10__create_staff_requests_table.sql`: Flyway migration tạo bảng `staff_requests` trong PostgreSQL và 3 Indexes tối ưu tốc độ tìm kiếm.
+     * `com/shiftsync/request/entity/StaffRequest.java`: JPA Entity ánh xạ bảng `staff_requests`.
+     * `com/shiftsync/request/dto/`: Các DTO `StaffRequestDTO`, `StaffRequestCreateDTO`, `StaffRequestStatusUpdateDTO`.
+     * `com/shiftsync/request/repository/StaffRequestRepository.java`: JPA Repository hỗ trợ truy vấn sắp xếp theo thời gian tạo.
+     * `com/shiftsync/request/service/StaffRequestService.java`: Xử lý nghiệp vụ CRUD, tự động seed 4 yêu cầu mẫu chuẩn Figma khi bảng CSDL trống.
+     * `com/shiftsync/request/controller/StaffRequestController.java`: Cung cấp 4 RESTful endpoints (`GET /api/requests`, `POST /api/requests`, `PUT /api/requests/{id}/status`, `GET /api/requests/{id}`).
+
+5. **Kết quả AI trả về:**
+   * Thiết kế giao diện RequestPage bám sát 100% tài liệu `Duyệt Chợ ca.docx` và các mockup đính kèm.
+   * Triển khai thanh công cụ Capsule bo tròn chứa Mini-Calendar và nút Tạo yêu cầu tone vàng hổ phách hài hòa.
+   * Thuật toán Smart Search tìm kiếm thông minh theo từ khóa trạng thái, tên nhân viên, loại đơn.
+   * Mã nguồn Backend Spring Boot chuẩn RESTful và script migration PostgreSQL.
+
+6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
+   * **Chấp nhận:** Cấu trúc dữ liệu yêu cầu, thuật toán bộ lọc, logic phê duyệt/từ chối, kiến trúc Spring Boot REST API.
+   * **Chỉnh sửa:** Loại bỏ các khung badge và chấm tròn màu sắc thừa ở cột trạng thái để bảng dữ liệu sạch sẽ, đổi màu nút Tạo yêu cầu sang tone vàng hổ phách phối cùng màu xanh ngọc của nút Lịch, tích hợp cơ chế fallback localStorage khi backend offline.
+   * **Loại bỏ:** Bỏ các icon avatar tròn cồng kềnh trước đây, thay thế emoji lịch cũ bằng icon vector SVG sắc nét.
+
+7. **Lý do chỉnh sửa:**
+   * Đáp ứng chính xác phản hồi thị giác của người dùng theo ảnh minh họa thực tế.
+   * Tối ưu tính thẩm mỹ và độ tương phản màu sắc trong thanh Capsule.
+   * Đảm bảo ứng dụng Web hoạt động liên tục (zero downtime) cả khi chạy độc lập hoặc kết nối máy chủ CSDL.
+
+8. **Phương pháp kiểm thử & Xác minh:**
+   * **Kiểm thử UI/UX:** Truy cập `/reports`, kiểm tra hiển thị bảng yêu cầu, thanh Capsule, Mini-Calendar popover.
+   * **Kiểm thử tương tác:** Tạo yêu cầu mới gửi đến Store khác -> kiểm tra hiển thị; bấm xem chi tiết -> bấm Phê duyệt/Từ chối -> kiểm tra cập nhật trạng thái tức thì.
+   * **Kiểm thử tìm kiếm & lọc:** Tìm kiếm từ khóa `"chờ duyệt"`, `"từ chối"`, tick chọn các ô lọc loại yêu cầu/trạng thái.
+   * **Kiểm thử Build:** `mvn compile` thành công 100% trên Backend; `npm run build` thành công trong 381ms trên Frontend.
+
+9. **Commit tương ứng:**
+   * **Commit Hash:** `1956e82`
+   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/1956e82
+
 

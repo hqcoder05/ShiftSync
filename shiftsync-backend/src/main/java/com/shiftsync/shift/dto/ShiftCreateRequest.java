@@ -28,5 +28,17 @@ public class ShiftCreateRequest {
     private LocalTime endTime;
 
     @Schema(description = "Registration Deadline (ISO-8601)", example = "2023-11-25T23:59:59Z")
-    private ZonedDateTime availabilityDeadline;
+    private ZonedDateTime registrationDeadline;
+
+    @Schema(description = "Assigned Staff ID (Optional)")
+    private UUID staffId;
+
+    @Schema(description = "Shift Note (Optional)")
+    private String note;
+
+    @Schema(description = "Shift Color (Optional)")
+    private String color;
+
+    @Schema(description = "Skill / Role ID (Optional)")
+    private UUID skillId;
 }

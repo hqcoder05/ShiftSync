@@ -1,5 +1,7 @@
 package com.shiftsync.shift.service;
 
+import com.shiftsync.auth.entity.User;
+import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import java.util.Arrays;
@@ -9,9 +11,12 @@ import com.shiftsync.shift.dto.ShiftDTO;
 import com.shiftsync.shift.dto.ShiftRequirementRequest;
 import com.shiftsync.shift.dto.ShiftSkillRequirementDTO;
 import com.shiftsync.shift.entity.Shift;
+import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.entity.ShiftTemplate;
+import com.shiftsync.shift.enums.AssignmentSource;
 import com.shiftsync.shift.enums.ShiftStatus;
+import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shift.repository.ShiftTemplateRepository;
 import com.shiftsync.skill.entity.Skill;
@@ -36,6 +41,8 @@ public class ShiftService {
     private final com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository;
     private final ShiftTemplateRepository shiftTemplateRepository;
     private final SkillRepository skillRepository;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
 
     @Transactional(readOnly = true)
@@ -87,7 +94,7 @@ public class ShiftService {
                     .orElseThrow(() -> new BusinessException("Shift template not found in this store", HttpStatus.NOT_FOUND));
         }
 
-        java.time.ZonedDateTime deadline = request.getAvailabilityDeadline();
+        java.time.ZonedDateTime deadline = request.getRegistrationDeadline();
         if (deadline == null) {
             com.shiftsync.store.entity.StoreConfiguration config = storeConfigRepository.findByStoreId(storeId).orElse(null);
             int deadlineHours = config != null ? config.getAvailabilityDeadlineHours() : 24;
@@ -101,10 +108,23 @@ public class ShiftService {
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .status(ShiftStatus.DRAFT)
-                .availabilityDeadline(deadline)
+                .registrationDeadline(deadline)
                 .build();
 
-        return mapToDTO(shiftRepository.save(shift));
+        Shift savedShift = shiftRepository.save(shift);
+
+        if (request.getStaffId() != null) {
+            userRepository.findById(request.getStaffId()).ifPresent(staff -> {
+                ShiftAssignment assignment = ShiftAssignment.builder()
+                        .shift(savedShift)
+                        .staff(staff)
+                        .source(AssignmentSource.MANUAL)
+                        .build();
+                shiftAssignmentRepository.save(assignment);
+            });
+        }
+
+        return mapToDTO(savedShift);
     }
 
     @Transactional
@@ -160,6 +180,56 @@ public class ShiftService {
         }
     }
 
+    @Transactional
+    public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
+        Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+
+        if (request.getStartTime() != null && request.getEndTime() != null) {
+            if (!request.getStartTime().isBefore(request.getEndTime())) {
+                throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
+            }
+            shift.setStartTime(request.getStartTime());
+            shift.setEndTime(request.getEndTime());
+        }
+        if (request.getShiftDate() != null) {
+            shift.setShiftDate(request.getShiftDate());
+        }
+        if (request.getRegistrationDeadline() != null) {
+            shift.setRegistrationDeadline(request.getRegistrationDeadline());
+        }
+
+        Shift saved = shiftRepository.save(shift);
+
+        if (request.getStaffId() != null) {
+            List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
+            if (existing.isEmpty() || !existing.get(0).getStaff().getId().equals(request.getStaffId())) {
+                shiftAssignmentRepository.deleteAll(existing);
+                userRepository.findById(request.getStaffId()).ifPresent(staff -> {
+                    ShiftAssignment assignment = ShiftAssignment.builder()
+                            .shift(saved)
+                            .staff(staff)
+                            .source(AssignmentSource.MANUAL)
+                            .build();
+                    shiftAssignmentRepository.save(assignment);
+                });
+            }
+        }
+
+        return mapToDTO(saved);
+    }
+
+    @Transactional
+    public void deleteShift(UUID storeId, UUID shiftId) {
+        Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
+        if (!assignments.isEmpty()) {
+            shiftAssignmentRepository.deleteAll(assignments);
+        }
+        shiftRepository.delete(shift);
+    }
+
     private void verifyStoreExists(UUID storeId) {
         if (!storeRepository.existsById(storeId)) {
             throw new BusinessException("Store not found", HttpStatus.NOT_FOUND);
@@ -176,6 +246,15 @@ public class ShiftService {
                         .build())
                 .collect(Collectors.toList());
 
+        UUID assignedStaffId = null;
+        String assignedStaffName = null;
+        List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(entity.getId());
+        if (!assignments.isEmpty()) {
+            User staff = assignments.get(0).getStaff();
+            assignedStaffId = staff.getId();
+            assignedStaffName = staff.getFullName();
+        }
+
         return ShiftDTO.builder()
                 .id(entity.getId())
                 .storeId(entity.getStore().getId())
@@ -184,8 +263,10 @@ public class ShiftService {
                 .startTime(entity.getStartTime())
                 .endTime(entity.getEndTime())
                 .status(entity.getStatus())
-                .availabilityDeadline(entity.getAvailabilityDeadline())
+                .registrationDeadline(entity.getRegistrationDeadline())
                 .requirements(reqDTOs)
+                .staffId(assignedStaffId)
+                .staffName(assignedStaffName)
                 .build();
     }
 }

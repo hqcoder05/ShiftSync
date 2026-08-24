@@ -82,4 +82,24 @@ public class ShiftController {
         autoScheduleService.autoSchedule(storeId, request);
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "Update an existing shift")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PutMapping("/{shiftId}")
+    public ResponseEntity<ShiftDTO> updateShift(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId,
+            @RequestBody ShiftCreateRequest request) {
+        return ResponseEntity.ok(shiftService.updateShift(storeId, shiftId, request));
+    }
+
+    @Operation(summary = "Delete a shift")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @DeleteMapping("/{shiftId}")
+    public ResponseEntity<Void> deleteShift(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId) {
+        shiftService.deleteShift(storeId, shiftId);
+        return ResponseEntity.noContent().build();
+    }
 }

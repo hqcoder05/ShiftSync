@@ -40,4 +40,19 @@ public class ShiftDTO {
     
     @Schema(description = "Requirements by Skill/Role")
     private List<ShiftSkillRequirementDTO> requirements;
+
+    @Schema(description = "Assigned Staff ID")
+    private UUID staffId;
+
+    @Schema(description = "Assigned Staff Name")
+    private String staffName;
+
+    @Schema(description = "Shift Note")
+    private String note;
+
+    @Schema(description = "Shift Color")
+    private String color;
+
+    @Schema(description = "Skill / Role ID")
+    private UUID skillId;
 }
