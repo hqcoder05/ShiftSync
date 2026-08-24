@@ -10,6 +10,7 @@ import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.entity.Holiday;
 import com.shiftsync.payroll.entity.Payroll;
 import com.shiftsync.payroll.entity.PayrollPeriod;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import com.shiftsync.payroll.repository.HolidayRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.repository.PayrollRepository;
@@ -263,5 +264,20 @@ class PayrollCalculationServiceTest {
         assertEquals(new BigDecimal("480.00"), p.getBaseAmount()); // 24 * 20
         assertEquals(new BigDecimal("60.00"), p.getOtAmount());    // 2 * 20 * 1.5
         assertEquals(new BigDecimal("540.00"), p.getTotalAmount());
+    }
+
+    @Test
+    void testGeneratePayroll_WhenPeriodIsLocked() {
+        PayrollPeriod lockedPeriod = new PayrollPeriod();
+        lockedPeriod.setStatus(PayrollPeriodStatus.CONFIRMED);
+        
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate))
+                .thenReturn(Optional.of(lockedPeriod));
+                
+        com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.shiftsync.shared.exception.BusinessException.class, 
+                () -> payrollCalculationService.generatePayroll(store.getId(), startDate, endDate)
+        );
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("Cannot regenerate payroll. Period is already"));
     }
 }

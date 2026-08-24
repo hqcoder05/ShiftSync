@@ -345,7 +345,11 @@ public class AutoScheduleService {
         return Math.min(1.0, (minGap - minRestHours) / (24.0 - minRestHours));
     }
 
-    private double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
+    double getAvailabilityScore(StaffData empData, Shift newShift) {
+        return 1.0; // Simplified logic, assume covered = 1.0 as HC already checked covering.
+    }
+
+    double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
         if (empData.getMaxWeeklyHours() <= 0) {
             log.warn("Invalid MaxWeeklyHours: {} for staff: {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
             throw new IllegalStateException("Max weekly hours must be strictly positive to avoid division by zero.");
@@ -363,7 +367,7 @@ public class AutoScheduleService {
         
         double restTimeScore = getRestTimeScore(empData, slot.getShift(), minRestHours);
         
-        double availScore = 1.0; // Simplified logic, assume covered = 1.0 as HC already checked covering.
+        double availScore = getAvailabilityScore(empData, slot.getShift());
         
         double skillW = config.getSkillWeight().doubleValue();
         double hourW = config.getHourWeight().doubleValue();
