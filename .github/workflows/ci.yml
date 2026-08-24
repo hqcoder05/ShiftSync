@@ -2,7 +2,7 @@ name: Java CI with Maven
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, quoc-backend, duyen-frontend ]
   pull_request:
     branches: [ main, master ]
 
