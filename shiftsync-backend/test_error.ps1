@@ -1,5 +1,4 @@
-$ErrorActionPreference = 'Stop'
-
+﻿$ErrorActionPreference = 'Stop'
 function Get-Token {
     param ($email)
     $body = @{ email = $email; password = 'password123' } | ConvertTo-Json
@@ -8,18 +7,14 @@ function Get-Token {
 }
 
 $adminToken = Get-Token "admin@shiftsync.com"
-
-$holidayBody = @{
-    holidayDate = "2026-09-01"
-    name = "National Day"
-    rateMultiplier = 3.0
-} | ConvertTo-Json
+$headers = @{ Authorization = "Bearer $adminToken"; "Content-Type" = "application/json" }
+$storeId = "11111111-1111-1111-1111-111111111111"
 
 try {
-    Invoke-RestMethod -Uri "http://localhost:8080/api/holidays" -Method Post -Headers @{Authorization="Bearer $adminToken"} -Body $holidayBody -ContentType "application/json"
+    $shiftId = "7cb2f9a9-3a37-4995-acc1-c7945d75f5f7"
+    $staffId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    $assignBody = @{ staffId = $staffId } | ConvertTo-Json
+    $assignment = Invoke-RestMethod -Uri "http://localhost:8080/api/stores/$storeId/shifts/$shiftId/assignments" -Method Post -Body $assignBody -Headers $headers
 } catch {
-    Write-Host "Status: $($_.Exception.Response.StatusCode)"
-    $stream = $_.Exception.Response.GetResponseStream()
-    $reader = New-Object System.IO.StreamReader($stream)
-    Write-Host "Response: $($reader.ReadToEnd())"
+    Write-Host "Response: $( [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream()).ReadToEnd() )"
 }

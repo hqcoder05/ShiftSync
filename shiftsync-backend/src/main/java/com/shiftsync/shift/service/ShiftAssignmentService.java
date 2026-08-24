@@ -51,6 +51,7 @@ public class ShiftAssignmentService {
     public ShiftAssignmentResponseDTO assignStaffToShift(UUID storeId, UUID shiftId, UUID staffId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
 
         User staff = userRepository.findById(staffId)
                 .orElseThrow(() -> new BusinessException("Staff not found", HttpStatus.NOT_FOUND));
