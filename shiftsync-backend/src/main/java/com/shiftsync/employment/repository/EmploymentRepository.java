@@ -15,6 +15,8 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     List<Employment> findByUserIdAndStatus(UUID staffId, EmploymentStatus status);
 
+    List<Employment> findByUserIdAndStoreIdAndStatus(UUID userId, UUID storeId, EmploymentStatus status);
+
     Page<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status, Pageable pageable);
 
     List<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status);

@@ -13,6 +13,12 @@ TRUNCATE TABLE store CASCADE;
 
 -- STORE
 INSERT INTO store (id, name, address, created_at) VALUES ('11111111-1111-1111-1111-111111111111', 'Store Auto', 'Address', NOW());
+
+INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (gen_random_uuid(), (SELECT id FROM store LIMIT 1), (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 48, 1.5, 20.0) ON CONFLICT DO NOTHING;
+INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (gen_random_uuid(), (SELECT id FROM store LIMIT 1), (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='PART_TIME' LIMIT 1) LIMIT 1), 24, 1.5, 15.0) ON CONFLICT DO NOTHING;
+INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (gen_random_uuid(), (SELECT id FROM store LIMIT 1), (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='SEASONAL' LIMIT 1) LIMIT 1), 40, 1.5, 18.0) ON CONFLICT DO NOTHING;
+INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (gen_random_uuid(), (SELECT id FROM store LIMIT 1), (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='INTERN' LIMIT 1) LIMIT 1), 20, 1.5, 10.0) ON CONFLICT DO NOTHING;
+
 INSERT INTO store_configuration (store_id, max_hour_per_week, min_rest_hours, availability_deadline_hours) VALUES ('11111111-1111-1111-1111-111111111111', 48, 8, 24);
 INSERT INTO scheduler_configuration (store_id, fairness_weight, skill_weight, hour_weight, rest_time_weight, availability_weight)
 VALUES ('11111111-1111-1111-1111-111111111111', 0.1, 0.3, 0.2, 0.1, 0.3);
@@ -29,12 +35,12 @@ INSERT INTO staff (id, email, password_hash, full_name, phone, system_role, crea
 ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'manager@shiftsync.com', '$2a$10$z2PtiuOy.zWQxGGLMH19..UU5tnwXcGJoxs9EpsSwYfZZCkSh0hNC', 'Manager', '0005', 'MANAGER', NOW(), NOW(), 0);
 
 -- EMPLOYMENT
-INSERT INTO employment (id, staff_id, store_id, employment_type, hourly_rate, status, joined_date) VALUES 
-(gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'FULL_TIME', 20, 'ACTIVE', '2023-01-01'),
-(gen_random_uuid(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'FULL_TIME', 20, 'ACTIVE', '2023-01-01'),
-(gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'FULL_TIME', 20, 'ACTIVE', '2023-01-01'),
-(gen_random_uuid(), 'dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'FULL_TIME', 20, 'ACTIVE', '2023-01-01'),
-(gen_random_uuid(), 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', 'FULL_TIME', 20, 'ACTIVE', '2023-01-01');
+INSERT INTO employment (id, staff_id, store_id, contract_type_id, hourly_rate, status, joined_date) VALUES 
+(gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 20, 'ACTIVE', '2023-01-01'),
+(gen_random_uuid(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 20, 'ACTIVE', '2023-01-01'),
+(gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 20, 'ACTIVE', '2023-01-01'),
+(gen_random_uuid(), 'dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 20, 'ACTIVE', '2023-01-01'),
+(gen_random_uuid(), 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', (SELECT id FROM contract_type WHERE name=(SELECT id FROM contract_type WHERE name='FULL_TIME' LIMIT 1) LIMIT 1), 20, 'ACTIVE', '2023-01-01');
 
 -- STAFF SKILL
 INSERT INTO staff_skill (id, staff_id, skill_id, level) VALUES

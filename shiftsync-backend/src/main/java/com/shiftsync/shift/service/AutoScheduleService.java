@@ -73,12 +73,7 @@ public class AutoScheduleService {
         int monthlyShiftCount = 0; // TỔNG SỐ CA TRONG THÁNG (BA Fairness)
         
         int getMaxWeeklyHours() {
-            return switch (employment.getEmploymentType()) {
-                case FULL_TIME -> 48;
-                case PART_TIME -> 24;
-                case INTERN -> 20;
-                case SEASONAL -> 40;
-            };
+            return employment.getContractType().getMaxWeeklyHours();
         }
     }
 

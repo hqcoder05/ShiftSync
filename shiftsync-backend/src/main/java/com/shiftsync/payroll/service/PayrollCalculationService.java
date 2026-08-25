@@ -48,7 +48,7 @@ public class PayrollCalculationService {
     private final StoreRepository storeRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
 
-    private static final BigDecimal OT_MULTIPLIER = new BigDecimal("1.50");
+    
 
     @Transactional(rollbackFor = Exception.class)
     public void generatePayroll(UUID storeId, LocalDate startDate, LocalDate endDate) {
@@ -156,7 +156,7 @@ public class PayrollCalculationService {
         Map<Integer, List<ShiftAssignment>> weeklyAssignments = assignments.stream()
                 .collect(Collectors.groupingBy(a -> a.getShift().getShiftDate().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
 
-        int maxWeeklyHours = getMaxWeeklyHours(emp);
+        int maxWeeklyHours = emp.getContractType().getMaxWeeklyHours();
         BigDecimal hourlyRate = emp.getHourlyRate();
 
         class PayrollAccumulator {
@@ -170,7 +170,7 @@ public class PayrollCalculationService {
             
             double hoursWorkedThisWeek = 0.0;
 
-            void addSegment(double segmentHours, LocalDate date, int maxWeeklyHours, BigDecimal hourlyRate, Map<LocalDate, BigDecimal> holidayMap) {
+            void addSegment(double segmentHours, LocalDate date, int maxWeeklyHours, BigDecimal hourlyRate, Map<LocalDate, BigDecimal> holidayMap, BigDecimal OT_MULTIPLIER) {
                 if (segmentHours <= 0) return;
                 boolean isHoliday = holidayMap.containsKey(date);
                 BigDecimal holidayMultiplier = isHoliday ? holidayMap.get(date) : BigDecimal.ONE;
@@ -225,14 +225,14 @@ public class PayrollCalculationService {
 
                 if (day1.equals(day2)) {
                     double durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
-                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap);
+                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                 } else {
                     java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
                     double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
                     double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
                     
-                    totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap);
-                    totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap);
+                    totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                 }
             }
         }
@@ -267,14 +267,7 @@ public class PayrollCalculationService {
                 .build();
     }
 
-    private int getMaxWeeklyHours(Employment employment) {
-        return switch (employment.getEmploymentType()) {
-            case FULL_TIME -> 48;
-            case PART_TIME -> 24;
-            case INTERN -> 20;
-            case SEASONAL -> 40;
-        };
-    }
+    
 
     @Transactional
     public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus, java.util.UUID actorId) {

@@ -6,7 +6,7 @@ import com.shiftsync.attendance.repository.AttendanceRepository;
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
+import com.shiftsync.employment.entity.ContractType;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.entity.Holiday;
 import com.shiftsync.payroll.entity.Payroll;
@@ -87,7 +87,7 @@ class PayrollCalculationServiceTest {
         employment = new Employment();
         employment.setUser(staff);
         employment.setStore(store);
-        employment.setEmploymentType(EmploymentType.PART_TIME); // 24 hours max
+        employment.setContractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("PART_TIME").maxWeeklyHours(24).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()); // 24 hours max
         employment.setHourlyRate(new BigDecimal("20.00"));
         employment.setStatus(EmploymentStatus.ACTIVE);
 

@@ -6,7 +6,7 @@ import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
+import com.shiftsync.employment.entity.ContractType;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shift.dto.AutoScheduleRequest;
 import com.shiftsync.shift.entity.Shift;
@@ -122,10 +122,10 @@ class AutoScheduleServiceTest {
         User userC = User.builder().id(UUID.randomUUID()).fullName("C").build(); // Filtered: Exceeds hours
         User userD = User.builder().id(UUID.randomUUID()).fullName("D").build(); // Filtered: Skill missing
 
-        Employment empA = Employment.builder().user(userA).employmentType(EmploymentType.FULL_TIME).build();
-        Employment empB = Employment.builder().user(userB).employmentType(EmploymentType.FULL_TIME).build();
-        Employment empC = Employment.builder().user(userC).employmentType(EmploymentType.PART_TIME).build(); 
-        Employment empD = Employment.builder().user(userD).employmentType(EmploymentType.FULL_TIME).build();
+        Employment empA = Employment.builder().user(userA).contractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("FULL_TIME").maxWeeklyHours(48).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()).build();
+        Employment empB = Employment.builder().user(userB).contractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("FULL_TIME").maxWeeklyHours(48).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()).build();
+        Employment empC = Employment.builder().user(userC).contractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("PART_TIME").maxWeeklyHours(24).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()).build(); 
+        Employment empD = Employment.builder().user(userD).contractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("FULL_TIME").maxWeeklyHours(48).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()).build();
         
         when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE))
                 .thenReturn(List.of(empA, empB, empC, empD));
