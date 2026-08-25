@@ -14,6 +14,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -34,6 +35,7 @@ public class MarketplaceService {
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional(rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
@@ -118,7 +120,6 @@ public class MarketplaceService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void claimOpenShift(UUID storeId, UUID shiftId, UUID staffId) {
         RLock lock = redissonClient.getLock("shift_claim_lock:" + shiftId);
         try {
@@ -128,7 +129,8 @@ public class MarketplaceService {
             }
 
             // Inside lock
-            Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+            transactionTemplate.executeWithoutResult(status -> {
+                Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                     .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
             if (!shift.isOpen()) {
@@ -168,7 +170,7 @@ public class MarketplaceService {
                 shift.setOpen(false);
                 shiftRepository.save(shift);
             }
-
+            });
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Lỗi hệ thống khi lấy lock", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -179,3 +181,5 @@ public class MarketplaceService {
         }
     }
 }
+
+
