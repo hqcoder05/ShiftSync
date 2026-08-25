@@ -18,9 +18,21 @@ public class AuditLogIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+
+    @Autowired
+    private com.shiftsync.auth.repository.UserRepository userRepository;
+
     @Test
     public void testAuditLog() throws Exception {
-        UUID actorId = UUID.fromString("90f57be2-04db-4b95-a50d-cb63162b1660"); // manager1
+        com.shiftsync.auth.entity.User user = new com.shiftsync.auth.entity.User();
+        user.setEmail("test_audit_" + UUID.randomUUID() + "@test.com");
+        user.setPasswordHash("hash");
+        user.setFullName("Test User");
+        user.setSystemRole(com.shiftsync.shared.security.SystemRole.STAFF);
+        user = userRepository.save(user);
+        
+        UUID actorId = user.getId();
+
         UUID entityId = UUID.randomUUID();
         
         auditLogService.log(
