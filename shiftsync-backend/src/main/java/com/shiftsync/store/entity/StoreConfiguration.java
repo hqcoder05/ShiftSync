@@ -52,4 +52,8 @@ public class StoreConfiguration {
     @Column(name = "early_leave_grace_minutes", nullable = false)
     @Builder.Default
     private Integer earlyLeaveGraceMinutes = 5;
+
+    @Column(name = "shift_reminder_hours", nullable = false)
+    @Builder.Default
+    private Integer shiftReminderHours = 2;
 }

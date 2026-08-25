@@ -31,6 +31,9 @@ public class MarketplaceService {
     private final RedissonClient redissonClient;
     private final com.shiftsync.shift.service.ShiftValidationService shiftValidationService;
     private final com.shiftsync.auth.repository.UserRepository userRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional(rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
@@ -57,6 +60,38 @@ public class MarketplaceService {
 
         shift.setOpen(true);
         shiftRepository.save(shift);
+
+        // Hook FR-19: OPEN_SHIFT_AVAILABLE
+        // Find all ACTIVE employments in store
+        List<com.shiftsync.employment.entity.Employment> activeEmployments = 
+            employmentRepository.findByStoreIdAndStatus(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+            
+        java.util.Set<UUID> requiredSkillIds = shift.getRequirements().stream()
+                .map(r -> r.getSkill().getId())
+                .collect(java.util.stream.Collectors.toSet());
+                
+        for (com.shiftsync.employment.entity.Employment emp : activeEmployments) {
+            boolean eligible = true;
+            if (!requiredSkillIds.isEmpty()) {
+                List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(emp.getUser().getId());
+                boolean hasAnyRequired = staffSkills.stream()
+                        .anyMatch(ss -> requiredSkillIds.contains(ss.getSkillId()) && 
+                                       (ss.getExpirationDate() == null || !ss.getExpirationDate().isBefore(shift.getShiftDate())));
+                if (!hasAnyRequired) {
+                    eligible = false;
+                }
+            }
+            
+            if (eligible) {
+                notificationService.sendNotification(
+                    emp.getUser().getId(),
+                    com.shiftsync.notification.entity.NotificationType.OPEN_SHIFT_AVAILABLE,
+                    "New Open Shift",
+                    "A new open shift on " + shift.getShiftDate() + " is available.",
+                    null
+                );
+            }
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)

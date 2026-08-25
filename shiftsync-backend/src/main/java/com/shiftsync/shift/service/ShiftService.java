@@ -44,6 +44,7 @@ public class ShiftService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional(readOnly = true)
     
@@ -177,6 +178,21 @@ public class ShiftService {
         
         if (publishedCount > 0) {
             shiftRepository.saveAll(shifts);
+            
+            // Hook: FR-19 SCHEDULE_PUBLISHED
+            java.util.List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
+            java.util.Set<java.util.UUID> notifiedStaffIds = new java.util.HashSet<>();
+            for (ShiftAssignment sa : assignments) {
+                if (notifiedStaffIds.add(sa.getStaff().getId())) {
+                    notificationService.sendNotification(
+                        sa.getStaff().getId(),
+                        com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
+                        "Schedule Published",
+                        "The schedule from " + startDate + " to " + endDate + " has been published.",
+                        null
+                    );
+                }
+            }
         }
     }
 

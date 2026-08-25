@@ -33,6 +33,7 @@ public class LeaveRequestService {
     private final StoreRepository storeRepository;
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
@@ -115,6 +116,14 @@ public class LeaveRequestService {
             warning = "Staff has " + conflictingShifts.size() + " published shifts conflicting with this leave: " + conflictingShifts.toString();
         }
 
+        notificationService.sendNotification(
+            leaveRequest.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
+            "Leave Request Approved",
+            "Your leave request has been approved.",
+            null
+        );
+
         return LeaveApproveResponse.builder()
                 .leaveRequest(mapToDTO(leaveRequest))
                 .warning(warning)
@@ -140,7 +149,17 @@ public class LeaveRequestService {
         leaveRequest.setStatus(LeaveStatus.REJECTED);
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
-        return mapToDTO(leaveRequestRepository.save(leaveRequest));
+        leaveRequest = leaveRequestRepository.save(leaveRequest);
+
+        notificationService.sendNotification(
+            leaveRequest.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
+            "Leave Request Rejected",
+            "Your leave request has been rejected.",
+            null
+        );
+
+        return mapToDTO(leaveRequest);
     }
 
     private LeaveRequestDTO mapToDTO(LeaveRequest request) {

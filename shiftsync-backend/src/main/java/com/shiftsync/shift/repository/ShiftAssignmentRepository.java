@@ -47,4 +47,7 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
     long countAbsentAssignmentsByStoreAndDateRange(@Param("storeId") UUID storeId, 
                                                    @Param("startDate") LocalDate startDate, 
                                                    @Param("endDate") LocalDate endDate);
+
+    List<ShiftAssignment> findByShift_Store_IdAndShift_ShiftDateAndShift_StartTimeBetween(
+            UUID storeId, LocalDate shiftDate, java.time.LocalTime startTimeStart, java.time.LocalTime startTimeEnd);
 }

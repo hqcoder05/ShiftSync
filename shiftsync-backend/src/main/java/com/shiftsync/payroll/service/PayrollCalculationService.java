@@ -44,6 +44,7 @@ public class PayrollCalculationService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final AttendanceRepository attendanceRepository;
     private final StoreRepository storeRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     private static final BigDecimal OT_MULTIPLIER = new BigDecimal("1.50");
 
@@ -111,6 +112,17 @@ public class PayrollCalculationService {
         
         long endTime = System.currentTimeMillis(); // Profiling end
         log.info("generatePayroll completed in {} ms for {} employees.", (endTime - startTime), employments.size());
+
+        // Hook FR-19: PAYROLL_COMPLETED
+        for (Payroll p : payrolls) {
+            notificationService.sendNotification(
+                p.getStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.PAYROLL_COMPLETED,
+                "Payroll Generated",
+                "Your payroll for the period " + startDate + " to " + endDate + " has been generated.",
+                null
+            );
+        }
     }
 
     private Payroll calculateForEmployee(Employment emp, PayrollPeriod period, List<ShiftAssignment> assignments, Map<UUID, Attendance> attendanceMap, Map<LocalDate, BigDecimal> holidayMap) {

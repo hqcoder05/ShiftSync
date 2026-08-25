@@ -1,0 +1,11 @@
+package com.shiftsync.notification.entity;
+
+public enum NotificationType {
+    SCHEDULE_PUBLISHED,
+    SHIFT_SWAP_UPDATED,
+    OPEN_SHIFT_AVAILABLE,
+    SHIFT_REMINDER,
+    PAYROLL_COMPLETED,
+    LEAVE_REQUEST_UPDATED,
+    ATTENDANCE_ADJUSTMENT_UPDATED
+}

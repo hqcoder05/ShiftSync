@@ -13,20 +13,37 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.scheduling.annotation.Async;
+import com.shiftsync.notification.entity.NotificationPreference;
+import com.shiftsync.notification.entity.NotificationType;
+import com.shiftsync.notification.repository.NotificationPreferenceRepository;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
     private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationPreferenceRepository preferenceRepository;
 
-    public void sendNotification(UUID userId, String title, String body, Map<String, String> data) {
-        List<UserDeviceToken> tokens = userDeviceTokenRepository.findByUserId(userId);
-        
-        if (tokens.isEmpty()) {
-            log.info("No device tokens found for user: {}", userId);
-            return;
-        }
+    @Async
+    public void sendNotification(UUID userId, NotificationType type, String title, String body, Map<String, String> data) {
+        try {
+            // Check preference
+            if (type != null) {
+                NotificationPreference pref = preferenceRepository.findByStaffIdAndNotificationType(userId, type).orElse(null);
+                if (pref != null && !pref.isEnabled()) {
+                    log.info("User {} disabled notification for type {}. Skipping.", userId, type);
+                    return;
+                }
+            }
+
+            List<UserDeviceToken> tokens = userDeviceTokenRepository.findByUserId(userId);
+            
+            if (tokens.isEmpty()) {
+                log.info("No device tokens found for user: {}", userId);
+                return;
+            }
 
         List<String> fcmTokens = tokens.stream()
                 .map(UserDeviceToken::getFcmToken)
@@ -46,16 +63,15 @@ public class NotificationService {
         MulticastMessage message = messageBuilder.build();
 
         try {
-            BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
+            BatchResponse response = com.google.firebase.messaging.FirebaseMessaging.getInstance().sendMulticast(message);
             log.info("Sent {} messages to user {}. Success: {}, Failure: {}", 
                     fcmTokens.size(), userId, response.getSuccessCount(), response.getFailureCount());
             
-            // Handle failures (e.g., remove invalid tokens)
             if (response.getFailureCount() > 0) {
-                List<SendResponse> responses = response.getResponses();
-                for (int i = 0; i < responses.size(); i++) {
-                    if (!responses.get(i).isSuccessful()) {
-                        String errorCode = responses.get(i).getException().getMessagingErrorCode().name();
+                for (int i = 0; i < response.getResponses().size(); i++) {
+                    com.google.firebase.messaging.SendResponse sendResponse = response.getResponses().get(i);
+                    if (!sendResponse.isSuccessful()) {
+                        String errorCode = sendResponse.getException().getMessagingErrorCode().name();
                         String failedToken = fcmTokens.get(i);
                         log.warn("Failed to send to token {}: {}", failedToken, errorCode);
                         
@@ -66,10 +82,13 @@ public class NotificationService {
                     }
                 }
             }
-        } catch (FirebaseMessagingException e) {
+        } catch (com.google.firebase.messaging.FirebaseMessagingException e) {
             log.error("Error sending Firebase notification to user {}", userId, e);
         } catch (Exception e) {
             log.error("Unexpected error when sending notification", e);
+        }
+        } catch (Exception e) {
+            log.error("Async execution error in sendNotification for user {}", userId, e);
         }
     }
 

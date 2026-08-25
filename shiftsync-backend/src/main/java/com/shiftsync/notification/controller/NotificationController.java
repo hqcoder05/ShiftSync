@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
+import com.shiftsync.notification.service.NotificationPreferenceService;
 
 @RestController
 @RequestMapping("/api")
@@ -29,6 +31,7 @@ public class NotificationController {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final NotificationPreferenceService preferenceService;
 
     @Operation(summary = "Register FCM token for current user")
     @PostMapping("/users/me/fcm-token")
@@ -64,10 +67,28 @@ public class NotificationController {
         
         notificationService.sendNotification(
                 userDetails.getId(), 
+                null,
                 request.getTitle() != null ? request.getTitle() : "Test Notification", 
                 request.getBody() != null ? request.getBody() : "This is a test notification from ShiftSync", 
                 request.getData());
 
         return ResponseEntity.ok().body(Map.of("message", "Test notification triggered"));
+    }
+
+    @Operation(summary = "Get notification preferences")
+    @GetMapping("/users/me/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<com.shiftsync.notification.dto.NotificationPreferenceDTO>> getPreferences(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(preferenceService.getPreferences(userDetails.getId()));
+    }
+
+    @Operation(summary = "Update a notification preference")
+    @PutMapping("/users/me/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<com.shiftsync.notification.dto.NotificationPreferenceDTO> updatePreference(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody com.shiftsync.notification.dto.UpdatePreferenceRequest request) {
+        return ResponseEntity.ok(preferenceService.updatePreference(userDetails.getId(), request));
     }
 }

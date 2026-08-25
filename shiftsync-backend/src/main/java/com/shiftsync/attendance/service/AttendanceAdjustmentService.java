@@ -41,6 +41,7 @@ public class AttendanceAdjustmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final StoreConfigurationRepository storeConfigurationRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date, String action) {
         if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
@@ -154,8 +155,18 @@ public class AttendanceAdjustmentService {
         request.setStatus(AdjustmentStatus.APPROVED);
         request.setApprovedBy(manager);
         request.setApprovedAt(OffsetDateTime.now());
+        
+        request = requestRepository.save(request);
 
-        return mapToDTO(requestRepository.save(request));
+        notificationService.sendNotification(
+            request.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.ATTENDANCE_ADJUSTMENT_UPDATED,
+            "Attendance Adjustment Approved",
+            "Your attendance adjustment request has been approved.",
+            null
+        );
+
+        return mapToDTO(request);
     }
 
     @Transactional
@@ -180,7 +191,17 @@ public class AttendanceAdjustmentService {
         request.setApprovedBy(manager);
         request.setApprovedAt(OffsetDateTime.now());
 
-        return mapToDTO(requestRepository.save(request));
+        request = requestRepository.save(request);
+
+        notificationService.sendNotification(
+            request.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.ATTENDANCE_ADJUSTMENT_UPDATED,
+            "Attendance Adjustment Rejected",
+            "Your attendance adjustment request has been rejected.",
+            null
+        );
+
+        return mapToDTO(request);
     }
 
     private AdjustmentResponseDTO mapToDTO(AttendanceAdjustmentRequest request) {
