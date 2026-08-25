@@ -6,11 +6,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
 
-@Repository
 public interface StoreRepository extends JpaRepository<Store, UUID> {
     @Query(value = "SELECT EXISTS (SELECT 1 FROM employment WHERE store_id = :storeId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveEmployees(@Param("storeId") UUID storeId);
