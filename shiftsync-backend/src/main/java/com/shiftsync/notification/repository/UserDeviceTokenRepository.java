@@ -10,5 +10,7 @@ import java.util.UUID;
 public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken, UUID> {
     List<UserDeviceToken> findByUserId(UUID userId);
     Optional<UserDeviceToken> findByUserIdAndFcmToken(UUID userId, String fcmToken);
+    @org.springframework.transaction.annotation.Transactional
     void deleteByFcmToken(String fcmToken);
 }
+

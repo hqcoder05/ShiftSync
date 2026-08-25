@@ -35,6 +35,7 @@ public class ShiftAssignmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
+    private final ShiftAssignmentValidator shiftAssignmentValidator;
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Transactional
@@ -60,61 +61,7 @@ public class ShiftAssignmentService {
             throw new BusinessException("Employment Inactive: Staff does not work at this store or is suspended", HttpStatus.BAD_REQUEST);
         }
 
-        // Check if already assigned
-        if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)) {
-            throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);
-        }
-
-        // BR-09: Overlap and Max Weekly Hours Check
-        shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
-
-        // Availability Check
-        short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
-        boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
-        if (!covers) {
-            throw new BusinessException("Staff not available: Shift time is outside registered availability", HttpStatus.BAD_REQUEST);
-        }
-
-        boolean hasBlackout = blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate());
-        if (hasBlackout) {
-            throw new BusinessException("Staff not available: Has blackout date on shift day", HttpStatus.BAD_REQUEST);
-        }
-
-        // BR-14/15: Check Slot capacity
-        int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
-        int maxSlots = shift.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum();
-        
-        if (currentAssignedCount >= maxSlots) {
-            throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
-        }
-
-        // BR-06 & BR-53: Skill Checking
-        if (!shift.getRequirements().isEmpty()) {
-            java.util.List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
-            
-            boolean hasAnyRequiredSkill = false;
-            boolean hasValidUnexpiredSkill = false;
-
-            for (com.shiftsync.shift.entity.ShiftSkillRequirement req : shift.getRequirements()) {
-                for (com.shiftsync.skill.entity.StaffSkill staffSkill : staffSkills) {
-                    if (staffSkill.getSkillId().equals(req.getSkill().getId())) {
-                        hasAnyRequiredSkill = true; // Level 1 passed
-                        
-                        if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
-                            hasValidUnexpiredSkill = true; // Level 2 passed
-                        }
-                    }
-                }
-            }
-
-            if (!hasAnyRequiredSkill) {
-                throw new BusinessException("Staff does not have required skill for this shift", HttpStatus.BAD_REQUEST);
-            }
-            
-            if (!hasValidUnexpiredSkill) {
-                throw new BusinessException("Staff's required skill has expired", HttpStatus.BAD_REQUEST);
-            }
-        }
+        shiftAssignmentValidator.validateEligibility(shift, staffId);
 
         ShiftAssignment assignment = ShiftAssignment.builder()
                 .shift(shift)
