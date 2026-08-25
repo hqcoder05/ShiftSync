@@ -46,7 +46,7 @@ class ShiftAssignmentServiceTest {
     @Mock private ShiftValidationService shiftValidationService;
     @Mock private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
-    @InjectMocks
+    private ShiftAssignmentValidator shiftAssignmentValidator;
     private ShiftAssignmentService service;
 
     private UUID storeId;
@@ -59,6 +59,14 @@ class ShiftAssignmentServiceTest {
 
     @BeforeEach
     void setup() {
+        shiftAssignmentValidator = new ShiftAssignmentValidator(
+            availabilityRepository, blackoutDateRepository, shiftAssignmentRepository, staffSkillRepository, shiftValidationService
+        );
+        service = new ShiftAssignmentService(
+            shiftRepository, shiftAssignmentRepository, availabilityRepository, blackoutDateRepository, employmentRepository, userRepository,
+            payrollPeriodRepository, shiftValidationService, shiftAssignmentValidator, staffSkillRepository
+        );
+
         storeId = UUID.randomUUID();
         shiftId = UUID.randomUUID();
         staffId = UUID.randomUUID();

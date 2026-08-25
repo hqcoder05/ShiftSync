@@ -61,8 +61,28 @@ public class PayrollCalculationService {
         
         java.util.Optional<PayrollPeriod> existingOpt = payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(storeId, startDate, endDate);
         if (existingOpt.isPresent()) {
-            if (existingOpt.get().getStatus() != com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
-                throw new BusinessException("Cannot regenerate payroll. Period is already " + existingOpt.get().getStatus(), HttpStatus.CONFLICT);
+            com.shiftsync.payroll.enums.PayrollPeriodStatus currentStatus = existingOpt.get().getStatus();
+            if (currentStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
+                throw new BusinessException("Cannot regenerate payroll. Period is already PAID.", HttpStatus.BAD_REQUEST);
+            }
+            if (currentStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED) {
+                boolean isAdmin = false;
+                org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null) {
+                    isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                }
+                if (!isAdmin) {
+                    throw new BusinessException("Cannot regenerate payroll. Period is already CONFIRMED. Only ADMIN can do this.", HttpStatus.FORBIDDEN);
+                }
+                java.util.UUID authUserId = null;
+                if (auth != null && auth.getPrincipal() instanceof com.shiftsync.shared.security.CustomUserDetails) {
+                    authUserId = ((com.shiftsync.shared.security.CustomUserDetails) auth.getPrincipal()).getId();
+                }
+                if (authUserId != null) {
+                    auditLogService.log(authUserId, "UPDATE_PAYROLL_STATUS", "PayrollPeriod", existingOpt.get().getId(), 
+                        java.util.Map.of("status", "CONFIRMED"), 
+                        java.util.Map.of("status", "DRAFT (Regenerated)"));
+                }
             }
             // Delete old payrolls for this period so we can regenerate
             payrollRepository.deleteByPayrollPeriod(existingOpt.get());
@@ -265,12 +285,21 @@ public class PayrollCalculationService {
             throw new BusinessException("Payroll period does not belong to this store.", HttpStatus.FORBIDDEN);
         }
 
+        // Fetch user roles
+        boolean isAdmin = false;
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        }
+
         // Validate One-way state transition: DRAFT -> CONFIRMED -> PAID
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot change status of a PAID payroll period.", HttpStatus.BAD_REQUEST);
         }
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
-            throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT.", HttpStatus.BAD_REQUEST);
+            if (!isAdmin) {
+                throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT. Only ADMIN can do this.", HttpStatus.FORBIDDEN);
+            }
         }
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);

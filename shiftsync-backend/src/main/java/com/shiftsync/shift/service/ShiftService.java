@@ -205,6 +205,10 @@ public class ShiftService {
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
+        if (request.getShiftDate() != null && !request.getShiftDate().equals(shift.getShiftDate())) {
+            checkDateNotLocked(storeId, request.getShiftDate());
+        }
 
         if (request.getStartTime() != null && request.getEndTime() != null) {
             if (!request.getStartTime().isBefore(request.getEndTime())) {
@@ -244,6 +248,7 @@ public class ShiftService {
     public void deleteShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
         if (!assignments.isEmpty()) {
             shiftAssignmentRepository.deleteAll(assignments);
