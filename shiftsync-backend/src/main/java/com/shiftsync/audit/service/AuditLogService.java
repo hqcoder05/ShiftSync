@@ -4,20 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.shiftsync.audit.entity.AuditLog;
 import com.shiftsync.audit.repository.AuditLogRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
 
 @Service
-@lombok.RequiredArgsConstructor
+@RequiredArgsConstructor
 @Slf4j
 public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+    private final ObjectMapper objectMapper;
 
     @Async
     public void log(UUID actorId, String action, String entityType, UUID entityId, Object beforeData, Object afterData) {

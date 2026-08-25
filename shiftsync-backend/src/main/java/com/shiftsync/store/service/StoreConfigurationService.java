@@ -44,6 +44,9 @@ public class StoreConfigurationService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
+        // Get before data
+        StoreConfigurationDTO beforeData = getStoreConfiguration(storeId);
+
         // Update Store open/close times
         store.setOpenTime(request.getOpenTime());
         store.setCloseTime(request.getCloseTime());
@@ -65,7 +68,9 @@ public class StoreConfigurationService {
 
         StoreConfiguration savedConfig = storeConfigurationRepository.save(config);
 
-        return mapToDTO(store, savedConfig);
+        StoreConfigurationDTO afterData = mapToDTO(store, savedConfig);
+        auditLogService.log(actorId, "UPDATE_STORE_CONFIG", "StoreConfiguration", storeId, beforeData, afterData);
+        return afterData;
     }
 
     private StoreConfigurationDTO mapToDTO(Store store, StoreConfiguration config) {
