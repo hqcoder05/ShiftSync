@@ -1,13 +1,11 @@
 package com.shiftsync.shift.service;
 
-import com.shiftsync.auth.entity.User;
 import com.shiftsync.availability.entity.Availability;
 import com.shiftsync.availability.entity.BlackoutDate;
 import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.AutoScheduleRequest;
@@ -30,8 +28,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

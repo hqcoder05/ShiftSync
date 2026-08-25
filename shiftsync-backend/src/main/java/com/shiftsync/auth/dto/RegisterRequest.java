@@ -1,6 +1,5 @@
 package com.shiftsync.auth.dto;
 
-import com.shiftsync.shared.security.SystemRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

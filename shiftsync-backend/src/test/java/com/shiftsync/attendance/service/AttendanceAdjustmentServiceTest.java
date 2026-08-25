@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import com.shiftsync.notification.service.NotificationService;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
@@ -50,6 +51,9 @@ public class AttendanceAdjustmentServiceTest {
     private PayrollPeriodRepository payrollPeriodRepository;
     @Mock
     private StoreConfigurationRepository storeConfigurationRepository;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private AttendanceAdjustmentService service;

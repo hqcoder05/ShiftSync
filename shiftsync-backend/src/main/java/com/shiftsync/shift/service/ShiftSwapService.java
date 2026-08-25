@@ -3,7 +3,6 @@ package com.shiftsync.shift.service;
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shared.exception.BusinessException;
-import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSwapRequest;
 import com.shiftsync.shift.enums.AssignmentSource;
@@ -17,7 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j

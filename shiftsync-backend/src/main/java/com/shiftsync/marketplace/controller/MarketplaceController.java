@@ -1,7 +1,6 @@
 package com.shiftsync.marketplace.controller;
 
 import com.shiftsync.marketplace.service.MarketplaceService;
-import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.dto.ShiftDTO;
 import com.shiftsync.shift.dto.ShiftSkillRequirementDTO;
 import java.util.stream.Collectors;

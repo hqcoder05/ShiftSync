@@ -2,7 +2,6 @@ package com.shiftsync.shift.service;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.availability.entity.Availability;
-import com.shiftsync.availability.entity.BlackoutDate;
 import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.Employment;
@@ -27,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,13 +34,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -59,6 +57,9 @@ class AutoScheduleServiceTest {
 
     @InjectMocks
     private AutoScheduleService service;
+
+    @Captor
+    private ArgumentCaptor<List<ShiftAssignment>> assignmentsCaptor;
 
     private UUID storeId;
     private UUID skillId;
@@ -167,7 +168,6 @@ class AutoScheduleServiceTest {
         service.autoSchedule(storeId, request);
         
         // Assert
-        ArgumentCaptor<List<ShiftAssignment>> assignmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(shiftAssignmentRepository).saveAll(assignmentsCaptor.capture());
         
         List<ShiftAssignment> assignments = assignmentsCaptor.getValue();

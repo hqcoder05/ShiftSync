@@ -72,7 +72,7 @@ public class AuthService {
             String refreshToken = UUID.randomUUID().toString();
 
             // Store refresh token in Redis with a TTL of 7 days
-            redisTemplate.opsForValue().set("refresh_token:" + refreshToken, user.getEmail(), 7, TimeUnit.DAYS);
+            redisTemplate.opsForValue().set("refresh_token:" + refreshToken, user.getEmail(), java.time.Duration.ofDays(7));
 
             return AuthResponse.builder()
                     .accessToken(accessToken)
@@ -105,7 +105,7 @@ public class AuthService {
         String newRefreshToken = UUID.randomUUID().toString();
 
         // Store new refresh token in Redis
-        redisTemplate.opsForValue().set("refresh_token:" + newRefreshToken, user.getEmail(), 7, TimeUnit.DAYS);
+        redisTemplate.opsForValue().set("refresh_token:" + newRefreshToken, user.getEmail(), java.time.Duration.ofDays(7));
 
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
@@ -121,7 +121,7 @@ public class AuthService {
             long ttl = expiration.getTime() - System.currentTimeMillis();
             
             if (ttl > 0) {
-                redisTemplate.opsForValue().set("blacklist:" + accessToken, "logout", ttl, TimeUnit.MILLISECONDS);
+                redisTemplate.opsForValue().set("blacklist:" + accessToken, "logout", java.time.Duration.ofMillis(ttl));
             }
         } catch (Exception e) {
             // Token might be already expired or invalid, still proceed to delete refresh token

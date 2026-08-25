@@ -63,7 +63,7 @@ public class NotificationService {
         MulticastMessage message = messageBuilder.build();
 
         try {
-            BatchResponse response = com.google.firebase.messaging.FirebaseMessaging.getInstance().sendMulticast(message);
+            BatchResponse response = com.google.firebase.messaging.FirebaseMessaging.getInstance().sendEachForMulticast(message);
             log.info("Sent {} messages to user {}. Success: {}, Failure: {}", 
                     fcmTokens.size(), userId, response.getSuccessCount(), response.getFailureCount());
             

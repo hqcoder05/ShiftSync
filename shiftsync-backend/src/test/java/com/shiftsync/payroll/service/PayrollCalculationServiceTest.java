@@ -24,8 +24,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import com.shiftsync.notification.service.NotificationService;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -58,8 +60,14 @@ class PayrollCalculationServiceTest {
     @Mock
     private StoreRepository storeRepository;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
+
+    @Captor
+    private ArgumentCaptor<List<Payroll>> captor;
 
     private Store store;
     private User staff;
@@ -124,7 +132,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -179,7 +186,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -248,7 +254,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -316,8 +321,6 @@ class PayrollCalculationServiceTest {
                 .thenReturn(List.of(att));
 
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
-
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass((Class) List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();

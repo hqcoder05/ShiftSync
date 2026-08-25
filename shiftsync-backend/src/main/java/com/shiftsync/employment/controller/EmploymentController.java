@@ -3,7 +3,6 @@ package com.shiftsync.employment.controller;
 import com.shiftsync.employment.dto.EmploymentCreateRequest;
 import com.shiftsync.employment.dto.EmploymentDTO;
 import com.shiftsync.employment.service.EmploymentService;
-import com.shiftsync.shared.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
