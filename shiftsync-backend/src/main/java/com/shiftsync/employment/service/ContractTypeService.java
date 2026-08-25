@@ -4,6 +4,7 @@ import com.shiftsync.employment.dto.ContractTypeCreateRequest;
 import com.shiftsync.employment.dto.ContractTypeDTO;
 import com.shiftsync.employment.entity.ContractType;
 import com.shiftsync.employment.repository.ContractTypeRepository;
+import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
@@ -22,6 +23,7 @@ public class ContractTypeService {
 
     private final ContractTypeRepository contractTypeRepository;
     private final StoreRepository storeRepository;
+    private final EmploymentRepository employmentRepository;
 
     @Transactional(readOnly = true)
     public List<ContractTypeDTO> getContractTypes(UUID storeId) {
@@ -65,6 +67,20 @@ public class ContractTypeService {
         contractType.setDefaultHourlyRate(request.getDefaultHourlyRate());
 
         return toDTO(contractTypeRepository.save(contractType));
+    }
+
+    
+    @Transactional
+    public void deleteContractType(UUID storeId, UUID contractTypeId) {
+        ContractType contractType = contractTypeRepository.findByIdAndStoreId(contractTypeId, storeId)
+                .orElseThrow(() -> new BusinessException("Contract type not found", HttpStatus.NOT_FOUND));
+
+        // Check if in use
+        if (employmentRepository.countByStoreIdAndContractTypeId(storeId, contractTypeId) > 0) {
+            throw new BusinessException("Cannot delete contract type that is in use by employees", HttpStatus.BAD_REQUEST);
+        }
+
+        contractTypeRepository.delete(contractType);
     }
 
     private ContractTypeDTO toDTO(ContractType entity) {

@@ -58,10 +58,13 @@ public class EmploymentService {
             throw new BusinessException("Staff is already assigned to this store", HttpStatus.CONFLICT);
         }
 
+        ContractType ct = contractTypeRepository.findById(request.getContractTypeId())
+                .orElseThrow(() -> new BusinessException("Contract type not found", HttpStatus.NOT_FOUND));
+
         Employment employment = Employment.builder()
                 .user(user)
                 .store(store)
-                
+                .contractType(ct)
                 .hourlyRate(request.getHourlyRate())
                 .joinedDate(request.getJoinedDate())
                 .status(EmploymentStatus.ACTIVE)

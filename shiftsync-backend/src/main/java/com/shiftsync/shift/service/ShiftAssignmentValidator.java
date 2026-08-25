@@ -51,11 +51,13 @@ public class ShiftAssignmentValidator {
         }
 
         // Slot capacity Check
-        int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shift.getId());
-        int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
-        
-        if (currentAssignedCount >= maxSlots) {
-            throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
+        if (!shift.getRequirements().isEmpty()) {
+            int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shift.getId());
+            int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
+            
+            if (currentAssignedCount >= maxSlots) {
+                throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
+            }
         }
 
         // Skill Checking

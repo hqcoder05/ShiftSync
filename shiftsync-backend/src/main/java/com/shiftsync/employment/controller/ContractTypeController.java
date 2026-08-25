@@ -46,4 +46,13 @@ public class ContractTypeController {
             @Valid @RequestBody ContractTypeCreateRequest request) {
         return ResponseEntity.ok(contractTypeService.updateContractType(storeId, contractTypeId, request));
     }
+
+    @Operation(summary = "Delete a contract type")
+    @DeleteMapping("/{contractTypeId}")
+    public ResponseEntity<Void> deleteContractType(
+            @PathVariable UUID storeId,
+            @PathVariable UUID contractTypeId) {
+        contractTypeService.deleteContractType(storeId, contractTypeId);
+        return ResponseEntity.noContent().build();
+    }
 }

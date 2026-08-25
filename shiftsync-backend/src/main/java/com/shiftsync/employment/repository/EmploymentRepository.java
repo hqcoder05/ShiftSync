@@ -21,6 +21,8 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     List<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status);
 
+    long countByStoreIdAndContractTypeId(UUID storeId, UUID contractTypeId);
+
     long countByStoreIdAndStatus(UUID storeId, EmploymentStatus status);
 
     boolean existsByUserIdAndStoreIdAndStatus(UUID staffId, UUID storeId, EmploymentStatus status);
