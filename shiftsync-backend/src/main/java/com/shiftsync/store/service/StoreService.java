@@ -1,4 +1,5 @@
 package com.shiftsync.store.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.dto.StoreCreateRequest;
@@ -17,11 +18,13 @@ import java.util.UUID;
 
 @Service
 public class StoreService {
+    private final AuditLogService auditLogService;
 
     private final StoreRepository storeRepository;
 
-    public StoreService(StoreRepository storeRepository) {
+    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService) {
         this.storeRepository = storeRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -88,7 +91,7 @@ public class StoreService {
     }
 
     @Transactional
-    public void deleteStore(UUID id) {
+    public void deleteStore(UUID id, UUID actorId) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
@@ -100,6 +103,10 @@ public class StoreService {
         }
 
         storeRepository.delete(store);
+        auditLogService.log(actorId, "SOFT_DELETE", "Store", id, 
+                java.util.Map.of("name", store.getName(), "address", store.getAddress()), 
+                java.util.Map.of("deleted", true));
+
     }
 
     private void validateStoreBusinessRules(StoreCreateRequest request) {

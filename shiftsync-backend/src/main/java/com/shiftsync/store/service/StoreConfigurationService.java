@@ -1,4 +1,5 @@
 package com.shiftsync.store.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.dto.StoreConfigurationDTO;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class StoreConfigurationService {
+    private final AuditLogService auditLogService;
 
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final StoreRepository storeRepository;
@@ -38,7 +40,7 @@ public class StoreConfigurationService {
     }
 
     @Transactional
-    public StoreConfigurationDTO updateStoreConfiguration(UUID storeId, StoreConfigurationUpdateRequest request) {
+    public StoreConfigurationDTO updateStoreConfiguration(UUID storeId, StoreConfigurationUpdateRequest request, UUID actorId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 

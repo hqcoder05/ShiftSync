@@ -1,4 +1,5 @@
 package com.shiftsync.leave.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class LeaveRequestService {
+    private final AuditLogService auditLogService;
     private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
@@ -57,6 +59,7 @@ public class LeaveRequestService {
                 .build();
 
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+
         return mapToDTO(leaveRequest);
     }
 
@@ -90,6 +93,9 @@ public class LeaveRequestService {
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+        auditLogService.log(managerId, "APPROVE_LEAVE", "LeaveRequest", leaveId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "APPROVED"));
 
         // Generate Blackout Dates for each day
         LocalDate currentDate = leaveRequest.getStartDate();
@@ -150,6 +156,10 @@ public class LeaveRequestService {
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+
+        auditLogService.log(managerId, "REJECT_LEAVE", "LeaveRequest", leaveId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "REJECTED"));
 
         notificationService.sendNotification(
             leaveRequest.getStaff().getId(),

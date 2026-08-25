@@ -1,4 +1,5 @@
 package com.shiftsync.store.controller;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.dto.SchedulerConfigUpdateDTO;
@@ -22,6 +23,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Scheduler Configuration API", description = "Operations for scheduler configuration")
 public class SchedulerConfigurationController {
+    private final AuditLogService auditLogService;
 
     private final SchedulerConfigurationRepository repository;
 
@@ -30,7 +32,7 @@ public class SchedulerConfigurationController {
     @PutMapping
     public ResponseEntity<SchedulerConfigurationDTO> updateConfig(
             @PathVariable UUID storeId,
-            @Valid @RequestBody SchedulerConfigUpdateDTO dto) {
+            @Valid @RequestBody SchedulerConfigUpdateDTO dto, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
         
         BigDecimal sum = dto.getFairnessWeight()
                 .add(dto.getSkillWeight())
@@ -44,6 +46,14 @@ public class SchedulerConfigurationController {
 
         SchedulerConfiguration config = repository.findByStoreId(storeId)
                 .orElseThrow(() -> new BusinessException("Config not found", HttpStatus.NOT_FOUND));
+
+        
+        java.util.Map<String, Object> beforeData = new java.util.HashMap<>();
+        beforeData.put("fairnessWeight", config.getFairnessWeight());
+        beforeData.put("skillWeight", config.getSkillWeight());
+        beforeData.put("hourWeight", config.getHourWeight());
+        beforeData.put("restTimeWeight", config.getRestTimeWeight());
+        beforeData.put("availabilityWeight", config.getAvailabilityWeight());
 
         config.setFairnessWeight(dto.getFairnessWeight());
         config.setSkillWeight(dto.getSkillWeight());
@@ -63,6 +73,11 @@ public class SchedulerConfigurationController {
                 .availabilityWeight(config.getAvailabilityWeight())
                 .build();
                 
+        
+        auditLogService.log(userDetails != null ? userDetails.getId() : null, "UPDATE_SCHEDULER_CONFIG", "SchedulerConfiguration", storeId, 
+                beforeData, 
+                responseDto);
+
         return ResponseEntity.ok(responseDto);
     }
 }

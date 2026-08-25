@@ -11,7 +11,6 @@ import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
-import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.enums.AssignmentSource;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
@@ -22,7 +21,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service

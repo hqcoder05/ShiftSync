@@ -1,4 +1,5 @@
 package com.shiftsync.auth.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.dto.UserCreateRequest;
 import com.shiftsync.auth.dto.UserDTO;
@@ -19,13 +20,15 @@ import java.util.UUID;
 
 @Service
 public class UserService {
+    private final AuditLogService auditLogService;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -86,7 +89,7 @@ public class UserService {
     }
 
     @Transactional
-    public void deleteUser(UUID id) {
+    public void deleteUser(UUID id, UUID actorId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
@@ -101,5 +104,9 @@ public class UserService {
         }
 
         userRepository.delete(user);
+        auditLogService.log(actorId, "SOFT_DELETE", "User", id, 
+                java.util.Map.of("email", user.getEmail(), "role", user.getSystemRole().name()), 
+                java.util.Map.of("deleted", true));
+
     }
 }

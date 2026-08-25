@@ -1,4 +1,5 @@
 package com.shiftsync.payroll.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.attendance.entity.Attendance;
 import com.shiftsync.attendance.repository.AttendanceRepository;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PayrollCalculationService {
+    private final AuditLogService auditLogService;
 
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final PayrollRepository payrollRepository;
@@ -255,7 +257,7 @@ public class PayrollCalculationService {
     }
 
     @Transactional
-    public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus) {
+    public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus, java.util.UUID actorId) {
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new BusinessException("Payroll period not found.", HttpStatus.NOT_FOUND));
 
@@ -273,6 +275,10 @@ public class PayrollCalculationService {
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);
         }
+
+                auditLogService.log(actorId, "UPDATE_PAYROLL_STATUS", "PayrollPeriod", periodId, 
+                java.util.Map.of("status", period.getStatus().name()), 
+                java.util.Map.of("status", newStatus.name()));
 
         period.setStatus(newStatus);
         payrollPeriodRepository.save(period);

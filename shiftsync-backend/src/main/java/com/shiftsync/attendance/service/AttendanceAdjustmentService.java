@@ -1,4 +1,5 @@
 package com.shiftsync.attendance.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.attendance.dto.AdjustmentCreateRequest;
 import com.shiftsync.attendance.dto.AdjustmentResponseDTO;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AttendanceAdjustmentService {
+    private final AuditLogService auditLogService;
 
     private final AttendanceAdjustmentRequestRepository requestRepository;
     private final AttendanceRepository attendanceRepository;
@@ -157,6 +159,9 @@ public class AttendanceAdjustmentService {
         request.setApprovedAt(OffsetDateTime.now());
         
         request = requestRepository.save(request);
+        auditLogService.log(managerId, "APPROVE_ATTENDANCE_ADJ", "AttendanceAdjustmentRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "APPROVED"));
 
         notificationService.sendNotification(
             request.getStaff().getId(),
@@ -192,6 +197,9 @@ public class AttendanceAdjustmentService {
         request.setApprovedAt(OffsetDateTime.now());
 
         request = requestRepository.save(request);
+        auditLogService.log(managerId, "REJECT_ATTENDANCE_ADJ", "AttendanceAdjustmentRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "REJECTED"));
 
         notificationService.sendNotification(
             request.getStaff().getId(),

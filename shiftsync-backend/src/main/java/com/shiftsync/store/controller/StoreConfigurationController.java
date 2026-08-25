@@ -33,7 +33,7 @@ public class StoreConfigurationController {
     @PutMapping
     public ResponseEntity<StoreConfigurationDTO> updateConfiguration(
             @PathVariable UUID storeId,
-            @Valid @RequestBody StoreConfigurationUpdateRequest request) {
-        return ResponseEntity.ok(storeConfigurationService.updateStoreConfiguration(storeId, request));
+            @Valid @RequestBody StoreConfigurationUpdateRequest request, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        return ResponseEntity.ok(storeConfigurationService.updateStoreConfiguration(storeId, request, userDetails != null ? userDetails.getId() : null));
     }
 }

@@ -1,4 +1,5 @@
 package com.shiftsync.shift.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ShiftService {
+    private final AuditLogService auditLogService;
 
     private final ShiftRepository shiftRepository;
     private final StoreRepository storeRepository;
@@ -154,7 +156,7 @@ public class ShiftService {
     }
 
     @Transactional
-    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
@@ -176,7 +178,10 @@ public class ShiftService {
             }
         }
         
-        if (publishedCount > 0) {
+                if (publishedCount > 0) {
+            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null, 
+                java.util.Map.of("startDate", startDate.toString(), "endDate", endDate.toString(), "publishedCount", publishedCount));
+
             shiftRepository.saveAll(shifts);
             
             // Hook: FR-19 SCHEDULE_PUBLISHED

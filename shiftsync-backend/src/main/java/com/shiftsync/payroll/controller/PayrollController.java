@@ -138,8 +138,8 @@ public class PayrollController {
     public ResponseEntity<Void> updatePayrollPeriodStatus(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId,
-            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request) {
-        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus());
+            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.ok().build();
     }
 

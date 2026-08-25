@@ -104,8 +104,8 @@ public class StoreController {
         @ApiResponse(responseCode = "403", description = "Access forbidden"),
         @ApiResponse(responseCode = "404", description = "Store not found")
     })
-    public ResponseEntity<Void> deleteStore(@PathVariable UUID id) {
-        storeService.deleteStore(id);
+    public ResponseEntity<Void> deleteStore(@PathVariable UUID id, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        storeService.deleteStore(id, userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.noContent().build();
     }
 }

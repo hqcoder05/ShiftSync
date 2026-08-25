@@ -99,8 +99,8 @@ public class UserController {
         @ApiResponse(responseCode = "403", description = "Access forbidden"),
         @ApiResponse(responseCode = "404", description = "User not found")
     })
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
-        userService.deleteUser(id);
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID id, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        userService.deleteUser(id, userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.noContent().build();
     }
 }

@@ -1,4 +1,5 @@
 package com.shiftsync.shift.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
@@ -22,6 +23,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ShiftSwapService {
+    private final AuditLogService auditLogService;
 
     private final ShiftSwapRequestRepository shiftSwapRequestRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
@@ -58,6 +60,7 @@ public class ShiftSwapService {
                 .build();
 
         return shiftSwapRequestRepository.save(request);
+
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -132,6 +135,10 @@ public class ShiftSwapService {
         request.setStatus(SwapStatus.APPROVED);
         request.setApprovedBy(manager);
         shiftSwapRequestRepository.save(request);
+        auditLogService.log(managerId, "APPROVE_SWAP", "ShiftSwapRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "APPROVED"));
+
 
         notificationService.sendNotification(
             request.getFromStaff().getId(),

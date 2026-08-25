@@ -1,4 +1,5 @@
 package com.shiftsync.attendance.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.attendance.dto.AdjustmentCreateRequest;
 import com.shiftsync.attendance.dto.AdjustmentResponseDTO;
@@ -36,6 +37,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class AttendanceAdjustmentServiceTest {
+    @org.mockito.Mock
+    private AuditLogService auditLogService;
 
     @Mock
     private AttendanceAdjustmentRequestRepository requestRepository;
