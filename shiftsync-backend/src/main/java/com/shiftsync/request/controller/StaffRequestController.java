@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 @RequestMapping("/api/requests")
 @RequiredArgsConstructor
 @Tag(name = "Requests", description = "Staff Requests & Shift Marketplace Approval APIs")
