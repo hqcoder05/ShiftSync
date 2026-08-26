@@ -44,6 +44,7 @@ public class StoreController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get list of all store branches", description = "Retrieves a paginated list of all registered stores. Use ?page=0&size=20&sort=createdAt,desc for pagination.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Successfully retrieved stores list"),
