@@ -26,7 +26,9 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      ["expo-camera", { "cameraPermission": "Cho phép ShiftSync dùng camera để chụp ảnh xác thực chấm công." }],
+      ["expo-location", { "locationWhenInUsePermission": "Cho phép ShiftSync dùng vị trí khi chấm công để xác thực bạn đang ở cửa hàng." }]
     ]
   }
 }

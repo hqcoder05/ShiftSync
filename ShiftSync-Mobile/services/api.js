@@ -1,18 +1,32 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
-// Dev qua trình duyệt (bấm phím "w" trong Expo) -> dùng 'http://localhost:8080/api'
-// Dev qua điện thoại thật bằng Expo Go -> đổi thành IP LAN máy tính, ví dụ 'http://192.168.1.8:8080/api'
-// Cách tìm IP: mở cmd/PowerShell gõ ipconfig, tìm IPv4 Address ở mục Wireless LAN adapter Wi-Fi
-// Điện thoại và máy tính phải cùng 1 mạng wifi khi dùng Expo Go
+// Tự động nhận diện môi trường:
+// - Web trình duyệt: http://localhost:8080/api
+// - Điện thoại thật (Expo Go): http://172.20.10.7:8080/api
+const DEV_MACHINE_IP = '172.20.10.7';
+
+const getBaseUrl = () => {
+  if (Platform.OS === 'web') {
+    return 'http://localhost:8080/api';
+  }
+  return `http://${DEV_MACHINE_IP}:8080/api`;
+};
+
 const api = axios.create({
-  baseURL: 'http://localhost:8081/api',
+  baseURL: getBaseUrl(),
+  timeout: 4000,
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = await AsyncStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (e) {
+    // Ignore AsyncStorage read error
   }
   return config;
 });

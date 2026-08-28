@@ -17,6 +17,7 @@ public class EmploymentMapper {
                 .staffEmail(employment.getUser() != null ? employment.getUser().getEmail() : null)
                 .storeId(employment.getStore() != null ? employment.getStore().getId() : null)
                 .storeName(employment.getStore() != null ? employment.getStore().getName() : null)
+                .storeAddress(employment.getStore() != null ? employment.getStore().getAddress() : null)
                 .employmentType(employment.getEmploymentType())
                 .hourlyRate(employment.getHourlyRate())
                 .status(employment.getStatus())

@@ -36,6 +36,14 @@ public class AvailabilityService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<AvailabilityResponse> getStaffAvailability(UUID userId) {
+        return availabilityRepository.findByUserId(userId)
+                .stream()
+                .map(AvailabilityMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public AvailabilityResponse createAvailability(String email, AvailabilityRequest request) {
         validateTimeRange(request);

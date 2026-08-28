@@ -5,10 +5,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
-import AttendanceScreen from '../screens/AttendanceScreen';
+import AttendanceScreen from '../screens/AttendanceScreenLive';
 import PayrollScreen from '../screens/PayrollScreen';
 import RequestScreen from '../screens/RequestScreen';
 import AvailabilityScreen from '../screens/AvailabilityScreen';
+import ProfileScreen from '../screens/ProfileScreenApi';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -16,7 +17,11 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   return (
     <Tab.Navigator>
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{ headerShown: false, tabBarStyle: { display: 'none' } }}
+      />
       <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ title: 'Lịch làm việc' }} />
       <Tab.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Điểm danh' }} />
       <Tab.Screen name="Payroll" component={PayrollScreen} options={{ title: 'Phiếu lương' }} />
@@ -36,6 +41,7 @@ export default function AppNavigator() {
           component={AvailabilityScreen} 
           options={{ title: 'Khai Báo Lịch Rảnh', headerShown: true }} 
         />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

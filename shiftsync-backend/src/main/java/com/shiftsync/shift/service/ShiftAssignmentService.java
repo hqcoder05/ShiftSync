@@ -38,6 +38,7 @@ public class ShiftAssignmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional
     
@@ -97,6 +98,16 @@ public class ShiftAssignmentService {
                 .build();
 
         assignment = shiftAssignmentRepository.save(assignment);
+
+        try {
+            notificationService.sendNotification(
+                    staff.getId(),
+                    "Phân công ca làm việc",
+                    "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
+                    java.util.Map.of("shiftId", shift.getId().toString())
+            );
+        } catch (Exception ignored) {
+        }
 
         return ShiftAssignmentResponseDTO.builder()
                 .id(assignment.getId())

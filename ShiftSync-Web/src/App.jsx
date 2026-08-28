@@ -3,7 +3,7 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SchedulePage from './pages/SchedulePage';
-import AttendancePage from './pages/AttendancePage';
+import AttendancePage from './pages/AttendancePageLive';
 import PayrollPage from './pages/PayrollPage';
 import RequestPage from './pages/RequestPage';
 import EmployeesPage from './pages/EmployeesPage';
