@@ -50,9 +50,9 @@ public class ShiftValidationService {
         totalHoursThisWeek += newDuration.toMinutes() / 60.0;
 
         
-        Employment employment = employmentRepository.findByUserIdAndStoreIdAndStatus(staffId, newShift.getStore().getId(), com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
+        Employment employment = employmentRepository.findByUserIdAndStatus(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
                 .stream().findFirst()
-                .orElseThrow(() -> new BusinessException("Active employment not found for staff in this store", HttpStatus.BAD_REQUEST));
+                .orElseThrow(() -> new BusinessException("Active employment not found for staff", HttpStatus.BAD_REQUEST));
         int MAX_WEEKLY_HOURS = employment.getContractType().getMaxWeeklyHours();
 
         if (totalHoursThisWeek > MAX_WEEKLY_HOURS) {
