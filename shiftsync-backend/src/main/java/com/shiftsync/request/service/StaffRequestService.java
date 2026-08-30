@@ -39,53 +39,53 @@ public class StaffRequestService {
                     StaffRequest.builder()
                         .requesterName("Vivi.an")
                         .avatarKey("vivi")
-                        .requestType("Yêu cầu hỗ trợ")
+                        .requestType("YÃƒÂªu cÃ¡ÂºÂ§u hÃ¡Â»â€” trÃ¡Â»Â£")
                         .typeCategory("support")
-                        .status("Đang chờ phê duyệt")
-                        .recipient("Quản lý cửa hàng (Store Manager)")
+                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
+                        .recipient("QuÃ¡ÂºÂ£n lÃƒÂ½ cÃ¡Â»Â­a hÃƒÂ ng (Store Manager)")
                         .startDate(LocalDate.of(2026, 8, 8))
                         .endDate(LocalDate.of(2026, 8, 8))
                         .shiftInfo("Ca A (06:00 - 12:00)")
-                        .content("Yêu cầu hỗ trợ nhân viên\nNgười gửi: Vivi (Quản lý)\n\nChào anh/chị quản lý, hiện tại quán em đang thiếu nhân sự trong ca làm sắp tới nên cần hỗ trợ thêm 1 nhân viên từ quán khác sang phụ giúp để đảm bảo hoạt động phục vụ khách hàng được ổn định.\n\nQuán cần hỗ trợ nhân viên vào ngày 08/08/2026, ca A từ 06:00 đến 12:00.\nRất mong anh/chị hỗ trợ sắp xếp một nhân viên phù hợp từ quán khác sang hỗ trợ quán em trong ca này.\n\nCảm ơn anh/chị đã hỗ trợ!\nVivi – Quản lý quán")
+                        .content("YÃƒÂªu cÃ¡ÂºÂ§u hÃ¡Â»â€” trÃ¡Â»Â£ nhÃƒÂ¢n viÃƒÂªn\nNgÃ†Â°Ã¡Â»Âi gÃ¡Â»Â­i: Vivi (QuÃ¡ÂºÂ£n lÃƒÂ½)\n\nChÃƒÂ o anh/chÃ¡Â»â€¹ quÃ¡ÂºÂ£n lÃƒÂ½, hiÃ¡Â»â€¡n tÃ¡ÂºÂ¡i quÃƒÂ¡n em Ã„â€˜ang thiÃ¡ÂºÂ¿u nhÃƒÂ¢n sÃ¡Â»Â± trong ca lÃƒÂ m sÃ¡ÂºÂ¯p tÃ¡Â»â€ºi nÃƒÂªn cÃ¡ÂºÂ§n hÃ¡Â»â€” trÃ¡Â»Â£ thÃƒÂªm 1 nhÃƒÂ¢n viÃƒÂªn tÃ¡Â»Â« quÃƒÂ¡n khÃƒÂ¡c sang phÃ¡Â»Â¥ giÃƒÂºp Ã„â€˜Ã¡Â»Æ’ Ã„â€˜Ã¡ÂºÂ£m bÃ¡ÂºÂ£o hoÃ¡ÂºÂ¡t Ã„â€˜Ã¡Â»â„¢ng phÃ¡Â»Â¥c vÃ¡Â»Â¥ khÃƒÂ¡ch hÃƒÂ ng Ã„â€˜Ã†Â°Ã¡Â»Â£c Ã¡Â»â€¢n Ã„â€˜Ã¡Â»â€¹nh.\n\nQuÃƒÂ¡n cÃ¡ÂºÂ§n hÃ¡Â»â€” trÃ¡Â»Â£ nhÃƒÂ¢n viÃƒÂªn vÃƒÂ o ngÃƒÂ y 08/08/2026, ca A tÃ¡Â»Â« 06:00 Ã„â€˜Ã¡ÂºÂ¿n 12:00.\nRÃ¡ÂºÂ¥t mong anh/chÃ¡Â»â€¹ hÃ¡Â»â€” trÃ¡Â»Â£ sÃ¡ÂºÂ¯p xÃ¡ÂºÂ¿p mÃ¡Â»â„¢t nhÃƒÂ¢n viÃƒÂªn phÃƒÂ¹ hÃ¡Â»Â£p tÃ¡Â»Â« quÃƒÂ¡n khÃƒÂ¡c sang hÃ¡Â»â€” trÃ¡Â»Â£ quÃƒÂ¡n em trong ca nÃƒÂ y.\n\nCÃ¡ÂºÂ£m Ã†Â¡n anh/chÃ¡Â»â€¹ Ã„â€˜ÃƒÂ£ hÃ¡Â»â€” trÃ¡Â»Â£!\nVivi Ã¢â‚¬â€œ QuÃ¡ÂºÂ£n lÃƒÂ½ quÃƒÂ¡n")
                         .createdAt(OffsetDateTime.now().minusHours(4))
                         .build(),
                     StaffRequest.builder()
                         .requesterName("Mew. Ama")
                         .avatarKey("mew")
-                        .requestType("Yêu cầu nghỉ")
+                        .requestType("YÃƒÂªu cÃ¡ÂºÂ§u nghÃ¡Â»â€°")
                         .typeCategory("leave")
-                        .status("Đang chờ phê duyệt")
-                        .recipient("Quản lý trực tiếp")
+                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
+                        .recipient("QuÃ¡ÂºÂ£n lÃƒÂ½ trÃ¡Â»Â±c tiÃ¡ÂºÂ¿p")
                         .startDate(LocalDate.of(2026, 8, 6))
                         .endDate(LocalDate.of(2026, 8, 7))
-                        .shiftInfo("Cả ngày")
-                        .content("Kính gửi Quản lý cửa hàng,\n\nEm xin phép được nghỉ phép 2 ngày (06/08/2026 - 07/08/2026) do gia đình có việc quan trọng cần giải quyết ở quê.\nEm đã hoàn thành bàn giao công việc ca trực tuần này cho các bạn trong nhóm và sẽ quay trở lại làm việc đúng giờ vào ngày 08/08/2026.\n\nMong quản lý xem xét và phê duyệt giúp em ạ!\nEm xin cảm ơn!")
+                        .shiftInfo("CÃ¡ÂºÂ£ ngÃƒÂ y")
+                        .content("KÃƒÂ­nh gÃ¡Â»Â­i QuÃ¡ÂºÂ£n lÃƒÂ½ cÃ¡Â»Â­a hÃƒÂ ng,\n\nEm xin phÃƒÂ©p Ã„â€˜Ã†Â°Ã¡Â»Â£c nghÃ¡Â»â€° phÃƒÂ©p 2 ngÃƒÂ y (06/08/2026 - 07/08/2026) do gia Ã„â€˜ÃƒÂ¬nh cÃƒÂ³ viÃ¡Â»â€¡c quan trÃ¡Â»Âng cÃ¡ÂºÂ§n giÃ¡ÂºÂ£i quyÃ¡ÂºÂ¿t Ã¡Â»Å¸ quÃƒÂª.\nEm Ã„â€˜ÃƒÂ£ hoÃƒÂ n thÃƒÂ nh bÃƒÂ n giao cÃƒÂ´ng viÃ¡Â»â€¡c ca trÃ¡Â»Â±c tuÃ¡ÂºÂ§n nÃƒÂ y cho cÃƒÂ¡c bÃ¡ÂºÂ¡n trong nhÃƒÂ³m vÃƒÂ  sÃ¡ÂºÂ½ quay trÃ¡Â»Å¸ lÃ¡ÂºÂ¡i lÃƒÂ m viÃ¡Â»â€¡c Ã„â€˜ÃƒÂºng giÃ¡Â»Â vÃƒÂ o ngÃƒÂ y 08/08/2026.\n\nMong quÃ¡ÂºÂ£n lÃƒÂ½ xem xÃƒÂ©t vÃƒÂ  phÃƒÂª duyÃ¡Â»â€¡t giÃƒÂºp em Ã¡ÂºÂ¡!\nEm xin cÃ¡ÂºÂ£m Ã†Â¡n!")
                         .createdAt(OffsetDateTime.now().minusHours(6))
                         .build(),
                     StaffRequest.builder()
                         .requesterName("Thia. Ago")
                         .avatarKey("thia")
-                        .requestType("Yêu cầu đổi ca")
+                        .requestType("YÃƒÂªu cÃ¡ÂºÂ§u Ã„â€˜Ã¡Â»â€¢i ca")
                         .typeCategory("swap")
-                        .status("Đã phê duyệt")
-                        .recipient("Quản lý ca")
+                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
+                        .recipient("QuÃ¡ÂºÂ£n lÃƒÂ½ ca")
                         .startDate(LocalDate.of(2026, 8, 3))
                         .endDate(LocalDate.of(2026, 8, 3))
-                        .shiftInfo("Ca Chiều ⇄ Ca Sáng")
-                        .content("Kính gửi Quản lý,\n\nEm viết đơn này xin phép hoán đổi ca làm việc ngày 03/08/2026 từ Ca Chiều (14:00 - 22:00) sang Ca Sáng (06:00 - 14:00) với bạn Paul. Lee do em có lịch thi học phần tại trường vào buổi chiều.\nBạn Paul. Lee đã đồng ý hỗ trợ và nhận ca chiều thay em.\n\nKính mong Ban quản lý phê duyệt hoán đổi ca trực.\nTrân trọng!")
+                        .shiftInfo("Ca ChiÃ¡Â»Âu Ã¢â€¡â€ž Ca SÃƒÂ¡ng")
+                        .content("KÃƒÂ­nh gÃ¡Â»Â­i QuÃ¡ÂºÂ£n lÃƒÂ½,\n\nEm viÃ¡ÂºÂ¿t Ã„â€˜Ã†Â¡n nÃƒÂ y xin phÃƒÂ©p hoÃƒÂ¡n Ã„â€˜Ã¡Â»â€¢i ca lÃƒÂ m viÃ¡Â»â€¡c ngÃƒÂ y 03/08/2026 tÃ¡Â»Â« Ca ChiÃ¡Â»Âu (14:00 - 22:00) sang Ca SÃƒÂ¡ng (06:00 - 14:00) vÃ¡Â»â€ºi bÃ¡ÂºÂ¡n Paul. Lee do em cÃƒÂ³ lÃ¡Â»â€¹ch thi hÃ¡Â»Âc phÃ¡ÂºÂ§n tÃ¡ÂºÂ¡i trÃ†Â°Ã¡Â»Âng vÃƒÂ o buÃ¡Â»â€¢i chiÃ¡Â»Âu.\nBÃ¡ÂºÂ¡n Paul. Lee Ã„â€˜ÃƒÂ£ Ã„â€˜Ã¡Â»â€œng ÃƒÂ½ hÃ¡Â»â€” trÃ¡Â»Â£ vÃƒÂ  nhÃ¡ÂºÂ­n ca chiÃ¡Â»Âu thay em.\n\nKÃƒÂ­nh mong Ban quÃ¡ÂºÂ£n lÃƒÂ½ phÃƒÂª duyÃ¡Â»â€¡t hoÃƒÂ¡n Ã„â€˜Ã¡Â»â€¢i ca trÃ¡Â»Â±c.\nTrÃƒÂ¢n trÃ¡Â»Âng!")
                         .createdAt(OffsetDateTime.now().minusDays(2))
                         .build(),
                     StaffRequest.builder()
                         .requesterName("Dilan. Jon")
                         .avatarKey("dilan")
-                        .requestType("Yêu cầu đổi ca")
+                        .requestType("YÃƒÂªu cÃ¡ÂºÂ§u Ã„â€˜Ã¡Â»â€¢i ca")
                         .typeCategory("swap")
-                        .status("Đã phê duyệt")
-                        .recipient("Quản lý cửa hàng")
+                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
+                        .recipient("QuÃ¡ÂºÂ£n lÃƒÂ½ cÃ¡Â»Â­a hÃƒÂ ng")
                         .startDate(LocalDate.of(2026, 8, 5))
                         .endDate(LocalDate.of(2026, 8, 5))
-                        .shiftInfo("Ca Tối ⇄ Ca Sáng")
-                        .content("Kính gửi Quản lý,\n\nEm xin phép đổi ca làm việc ngày 05/08/2026 từ Ca Tối sang Ca Sáng. Em đã trao đổi và thống nhất với bạn trong ca cùng chi nhánh để đảm bảo đủ quân số phục vụ khách hàng.\n\nKính nhờ Quản lý duyệt giúp em. Em cảm ơn!")
+                        .shiftInfo("Ca TÃ¡Â»â€˜i Ã¢â€¡â€ž Ca SÃƒÂ¡ng")
+                        .content("KÃƒÂ­nh gÃ¡Â»Â­i QuÃ¡ÂºÂ£n lÃƒÂ½,\n\nEm xin phÃƒÂ©p Ã„â€˜Ã¡Â»â€¢i ca lÃƒÂ m viÃ¡Â»â€¡c ngÃƒÂ y 05/08/2026 tÃ¡Â»Â« Ca TÃ¡Â»â€˜i sang Ca SÃƒÂ¡ng. Em Ã„â€˜ÃƒÂ£ trao Ã„â€˜Ã¡Â»â€¢i vÃƒÂ  thÃ¡Â»â€˜ng nhÃ¡ÂºÂ¥t vÃ¡Â»â€ºi bÃ¡ÂºÂ¡n trong ca cÃƒÂ¹ng chi nhÃƒÂ¡nh Ã„â€˜Ã¡Â»Æ’ Ã„â€˜Ã¡ÂºÂ£m bÃ¡ÂºÂ£o Ã„â€˜Ã¡Â»Â§ quÃƒÂ¢n sÃ¡Â»â€˜ phÃ¡Â»Â¥c vÃ¡Â»Â¥ khÃƒÂ¡ch hÃƒÂ ng.\n\nKÃƒÂ­nh nhÃ¡Â»Â QuÃ¡ÂºÂ£n lÃƒÂ½ duyÃ¡Â»â€¡t giÃƒÂºp em. Em cÃ¡ÂºÂ£m Ã†Â¡n!")
                         .createdAt(OffsetDateTime.now().minusDays(3))
                         .build()
                 );
@@ -99,11 +99,11 @@ public class StaffRequestService {
     }
 
     @Transactional(readOnly = true)
-    public List<StaffRequestDTO> getAllRequests(String status, String typeCategory, String search) {
+    public List<StaffRequestDTO> getAllRequests(com.shiftsync.request.enums.RequestStatus status, String typeCategory, String search) {
         List<StaffRequest> list = staffRequestRepository.findAllByOrderByCreatedAtDesc();
 
         return list.stream()
-            .filter(r -> status == null || status.isBlank() || r.getStatus().equalsIgnoreCase(status.trim()))
+            .filter(r -> status == null || r.getStatus() == status)
             .filter(r -> typeCategory == null || typeCategory.isBlank() || r.getTypeCategory().equalsIgnoreCase(typeCategory.trim()))
             .filter(r -> {
                 if (search == null || search.isBlank()) return true;
@@ -111,7 +111,7 @@ public class StaffRequestService {
                 boolean matchName = r.getRequesterName() != null && r.getRequesterName().toLowerCase().contains(q);
                 boolean matchType = r.getRequestType() != null && r.getRequestType().toLowerCase().contains(q);
                 boolean matchContent = r.getContent() != null && r.getContent().toLowerCase().contains(q);
-                boolean matchStatus = r.getStatus() != null && r.getStatus().toLowerCase().contains(q);
+                boolean matchStatus = r.getStatus() != null && r.getStatus().name().toLowerCase().contains(q);
                 return matchName || matchType || matchContent || matchStatus;
             })
             .map(this::mapToDTO)
@@ -130,9 +130,9 @@ public class StaffRequestService {
         String category = dto.getTypeCategory();
         if (category == null || category.isBlank()) {
             String rt = dto.getRequestType().toLowerCase();
-            if (rt.contains("nghỉ")) category = "leave";
-            else if (rt.contains("đổi") || rt.contains("hoán")) category = "swap";
-            else if (rt.contains("vắng")) category = "absence";
+            if (rt.contains("nghÃ¡Â»â€°")) category = "leave";
+            else if (rt.contains("Ã„â€˜Ã¡Â»â€¢i") || rt.contains("hoÃƒÂ¡n")) category = "swap";
+            else if (rt.contains("vÃ¡ÂºÂ¯ng")) category = "absence";
             else category = "support";
         }
 
@@ -141,11 +141,11 @@ public class StaffRequestService {
             .avatarKey(dto.getAvatarKey() != null ? dto.getAvatarKey() : "paul")
             .requestType(dto.getRequestType())
             .typeCategory(category)
-            .status("Đang chờ phê duyệt")
+            .status(com.shiftsync.request.enums.RequestStatus.PENDING)
             .recipient(dto.getRecipient())
             .startDate(dto.getStartDate() != null ? dto.getStartDate() : LocalDate.now())
             .endDate(dto.getEndDate() != null ? dto.getEndDate() : LocalDate.now())
-            .shiftInfo(dto.getShiftInfo() != null ? dto.getShiftInfo() : "Ca tiêu chuẩn")
+            .shiftInfo(dto.getShiftInfo() != null ? dto.getShiftInfo() : "Ca tiÃƒÂªu chuÃ¡ÂºÂ©n")
             .content(dto.getContent())
             .build();
 
@@ -154,7 +154,7 @@ public class StaffRequestService {
     }
 
     @Transactional
-    public StaffRequestDTO updateRequestStatus(UUID id, String newStatus) {
+    public StaffRequestDTO updateRequestStatus(UUID id, com.shiftsync.request.enums.RequestStatus newStatus) {
         StaffRequest req = staffRequestRepository.findById(id)
             .orElseThrow(() -> new BusinessException("StaffRequest not found with ID: " + id, HttpStatus.NOT_FOUND));
 
@@ -167,7 +167,7 @@ public class StaffRequestService {
         OffsetDateTime created = entity.getCreatedAt() != null ? entity.getCreatedAt() : OffsetDateTime.now();
         
         String requestDate = created.format(DATE_FORMATTER);
-        String requestTime = String.format("Ngày %02d tháng %02d năm %d vào %02dh:%02dp",
+        String requestTime = String.format("NgÃƒÂ y %02d thÃƒÂ¡ng %02d nÃ„Æ’m %d vÃƒÂ o %02dh:%02dp",
             created.getDayOfMonth(),
             created.getMonthValue(),
             created.getYear(),

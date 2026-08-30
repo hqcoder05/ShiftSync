@@ -1,4 +1,5 @@
 package com.shiftsync.store.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.dto.StoreConfigurationDTO;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class StoreConfigurationService {
+    private final AuditLogService auditLogService;
 
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final StoreRepository storeRepository;
@@ -38,9 +40,12 @@ public class StoreConfigurationService {
     }
 
     @Transactional
-    public StoreConfigurationDTO updateStoreConfiguration(UUID storeId, StoreConfigurationUpdateRequest request) {
+    public StoreConfigurationDTO updateStoreConfiguration(UUID storeId, StoreConfigurationUpdateRequest request, UUID actorId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
+
+        // Get before data
+        StoreConfigurationDTO beforeData = getStoreConfiguration(storeId);
 
         // Update Store open/close times
         store.setOpenTime(request.getOpenTime());
@@ -63,7 +68,9 @@ public class StoreConfigurationService {
 
         StoreConfiguration savedConfig = storeConfigurationRepository.save(config);
 
-        return mapToDTO(store, savedConfig);
+        StoreConfigurationDTO afterData = mapToDTO(store, savedConfig);
+        auditLogService.log(actorId, "UPDATE_STORE_CONFIG", "StoreConfiguration", storeId, beforeData, afterData);
+        return afterData;
     }
 
     private StoreConfigurationDTO mapToDTO(Store store, StoreConfiguration config) {

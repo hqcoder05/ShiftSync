@@ -17,7 +17,7 @@ public class StaffRequestDTO {
     private String avatarKey;
     private String requestType;
     private String typeCategory;
-    private String status;
+    private com.shiftsync.request.enums.RequestStatus status;
     private String requestDate;  // formatted dd-MM-yyyy e.g. "04-08-2026"
     private String requestTime;  // formatted e.g. "Ngày 04 tháng 08 năm 2026 vào 11h:32p"
     private String recipient;

@@ -62,6 +62,10 @@ public class Shift {
     @OneToMany(mappedBy = "shift", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ShiftSkillRequirement> requirements = new ArrayList<>();
+
+    @OneToMany(mappedBy = "shift")
+    @Builder.Default
+    private List<ShiftAssignment> assignments = new ArrayList<>();
     
     public void setRequirements(List<ShiftSkillRequirement> newRequirements) {
         if (this.requirements == null) {

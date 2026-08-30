@@ -1,9 +1,9 @@
 package com.shiftsync.shift.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shared.exception.BusinessException;
-import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSwapRequest;
 import com.shiftsync.shift.enums.AssignmentSource;
@@ -17,19 +17,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShiftSwapService {
+    private final AuditLogService auditLogService;
 
     private final ShiftSwapRequestRepository shiftSwapRequestRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final ShiftRepository shiftRepository;
     private final UserRepository userRepository;
     private final ShiftValidationService shiftValidationService;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional(rollbackFor = Exception.class)
     public ShiftSwapRequest createSwapRequest(UUID fromStaffId, UUID fromShiftId, UUID toStaffId, UUID toShiftId) {
@@ -59,6 +60,7 @@ public class ShiftSwapService {
                 .build();
 
         return shiftSwapRequestRepository.save(request);
+
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -77,6 +79,14 @@ public class ShiftSwapService {
         if (!accept) {
             request.setStatus(SwapStatus.REJECTED);
             shiftSwapRequestRepository.save(request);
+            
+            notificationService.sendNotification(
+                request.getFromStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Shift Swap Rejected",
+                "Your shift swap request has been rejected.",
+                null
+            );
             return;
         }
 
@@ -125,5 +135,57 @@ public class ShiftSwapService {
         request.setStatus(SwapStatus.APPROVED);
         request.setApprovedBy(manager);
         shiftSwapRequestRepository.save(request);
+        auditLogService.log(managerId, "APPROVE_SWAP", "ShiftSwapRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "APPROVED"));
+
+
+        notificationService.sendNotification(
+            request.getFromStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+            "Shift Swap Approved",
+            "Your shift swap request has been approved.",
+            null
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void managerRejectSwapRequest(UUID requestId, UUID managerId) {
+        ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
+                .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        if (!request.isEmployeeAccepted()) {
+            throw new BusinessException("Employee has not accepted this swap yet", HttpStatus.BAD_REQUEST);
+        }
+
+        if (request.getStatus() != SwapStatus.PENDING) {
+            throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
+        }
+
+        User manager = userRepository.findById(managerId).orElseThrow();
+
+        request.setStatus(SwapStatus.REJECTED);
+        request.setApprovedBy(manager); // Track who rejected it
+        shiftSwapRequestRepository.save(request);
+
+        auditLogService.log(managerId, "REJECT_SWAP", "ShiftSwapRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "REJECTED"));
+
+        notificationService.sendNotification(
+            request.getFromStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+            "Shift Swap Rejected",
+            "Your shift swap request has been rejected by the manager.",
+            null
+        );
+        
+        notificationService.sendNotification(
+            request.getToStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+            "Shift Swap Rejected",
+            "The shift swap request you accepted has been rejected by the manager.",
+            null
+        );
     }
 }

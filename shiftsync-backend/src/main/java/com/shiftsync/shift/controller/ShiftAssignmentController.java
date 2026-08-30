@@ -32,4 +32,13 @@ public class ShiftAssignmentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(assignmentService.assignStaffToShift(storeId, shiftId, request.getStaffId()));
     }
+
+    @Operation(summary = "Get assignments for a shift")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @GetMapping
+    public ResponseEntity<java.util.List<ShiftAssignmentResponseDTO>> getAssignments(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId) {
+        return ResponseEntity.ok(assignmentService.getAssignmentsByShiftId(storeId, shiftId));
+    }
 }

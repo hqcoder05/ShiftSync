@@ -2,7 +2,6 @@ package com.shiftsync.shift.repository;
 
 import com.shiftsync.shift.entity.Shift;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,10 +11,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
 public interface ShiftRepository extends JpaRepository<Shift, UUID> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill", "assignments", "assignments.staff"})
     List<Shift> findByStoreId(UUID storeId);
     
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill", "assignments", "assignments.staff"})
     List<Shift> findByStoreIdAndShiftDateBetween(UUID storeId, LocalDate startDate, LocalDate endDate);
     
     Optional<Shift> findByIdAndStoreId(UUID id, UUID storeId);
@@ -28,4 +28,15 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
             @Param("staffId") UUID staffId, 
             @Param("startDate") LocalDate startDate, 
             @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT SUM(req.requiredCount) FROM Shift s JOIN s.requirements req " +
+           "WHERE s.store.id = :storeId AND s.shiftDate >= :startDate AND s.shiftDate <= :endDate")
+    Long sumRequiredStaffByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                             @Param("startDate") LocalDate startDate, 
+                                             @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT COUNT(s) FROM Shift s WHERE s.store.id = :storeId AND s.shiftDate >= :startDate AND s.shiftDate <= :endDate AND s.isOpen = true")
+    long countOpenShiftsByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                            @Param("startDate") LocalDate startDate, 
+                                            @Param("endDate") LocalDate endDate);
 }

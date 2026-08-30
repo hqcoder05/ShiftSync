@@ -2,7 +2,6 @@ package com.shiftsync.shift.service;
 
 import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
-import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
@@ -12,7 +11,6 @@ import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
-import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.enums.AssignmentSource;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
@@ -23,7 +21,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -39,6 +36,8 @@ public class ShiftAssignmentService {
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
     private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final ShiftAssignmentValidator shiftAssignmentValidator;
+    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Transactional
     
@@ -63,33 +62,7 @@ public class ShiftAssignmentService {
             throw new BusinessException("Employment Inactive: Staff does not work at this store or is suspended", HttpStatus.BAD_REQUEST);
         }
 
-        // Check if already assigned
-        if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)) {
-            throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);
-        }
-
-        // BR-09: Overlap and Max Weekly Hours Check
-        shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
-
-        // Availability Check
-        short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
-        boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
-        if (!covers) {
-            throw new BusinessException("Staff not available: Shift time is outside registered availability", HttpStatus.BAD_REQUEST);
-        }
-
-        boolean hasBlackout = blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate());
-        if (hasBlackout) {
-            throw new BusinessException("Staff not available: Has blackout date on shift day", HttpStatus.BAD_REQUEST);
-        }
-
-        // BR-14/15: Check Slot capacity
-        int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
-        int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
-        
-        if (currentAssignedCount >= maxSlots) {
-            throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
-        }
+        shiftAssignmentValidator.validateEligibility(shift, staffId);
 
         ShiftAssignment assignment = ShiftAssignment.builder()
                 .shift(shift)
@@ -116,5 +89,20 @@ public class ShiftAssignmentService {
                 .source(assignment.getSource())
                 .assignedAt(assignment.getAssignedAt())
                 .build();
+    }
+
+    public java.util.List<ShiftAssignmentResponseDTO> getAssignmentsByShiftId(UUID storeId, UUID shiftId) {
+        shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+
+        return shiftAssignmentRepository.findByShiftId(shiftId).stream()
+                .map(assignment -> ShiftAssignmentResponseDTO.builder()
+                        .id(assignment.getId())
+                        .shiftId(assignment.getShift().getId())
+                        .staffId(assignment.getStaff().getId())
+                        .source(assignment.getSource())
+                        .assignedAt(assignment.getAssignedAt())
+                        .build())
+                .toList();
     }
 }

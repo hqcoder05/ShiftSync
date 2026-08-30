@@ -77,8 +77,9 @@ public class ShiftController {
     @PostMapping("/publish")
     public ResponseEntity<Void> publishShifts(
             @PathVariable UUID storeId,
-            @Valid @RequestBody ShiftPublishRequest request) {
-        shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate());
+            @Valid @RequestBody ShiftPublishRequest request, 
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.ok().build();
     }
 

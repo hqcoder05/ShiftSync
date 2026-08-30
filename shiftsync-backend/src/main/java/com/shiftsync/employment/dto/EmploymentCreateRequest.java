@@ -1,6 +1,5 @@
 package com.shiftsync.employment.dto;
 
-import com.shiftsync.employment.enums.EmploymentType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
@@ -15,7 +14,7 @@ public class EmploymentCreateRequest {
     private UUID staffId;
     
     @NotNull(message = "Employment type is required")
-    private EmploymentType employmentType;
+    private java.util.UUID contractTypeId;
     
     @NotNull(message = "Hourly rate is required")
     @Positive(message = "Hourly rate must be positive")
@@ -24,3 +23,4 @@ public class EmploymentCreateRequest {
     @NotNull(message = "Joined date is required")
     private LocalDate joinedDate;
 }
+

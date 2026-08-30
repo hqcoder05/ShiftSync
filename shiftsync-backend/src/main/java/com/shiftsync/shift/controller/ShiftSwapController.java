@@ -73,4 +73,15 @@ public class ShiftSwapController {
         shiftSwapService.managerApproveSwapRequest(requestId, manager.getId());
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "Manager rejects swap request")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+    @PostMapping("/swaps/{requestId}/reject")
+    public ResponseEntity<Void> rejectSwap(
+            @PathVariable UUID requestId,
+            @AuthenticationPrincipal CustomUserDetails manager) {
+        
+        shiftSwapService.managerRejectSwapRequest(requestId, manager.getId());
+        return ResponseEntity.ok().build();
+    }
 }

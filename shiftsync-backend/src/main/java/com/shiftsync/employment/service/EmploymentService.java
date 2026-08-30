@@ -12,6 +12,8 @@ import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shared.security.SystemRole;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
+import com.shiftsync.employment.repository.ContractTypeRepository;
+import com.shiftsync.employment.entity.ContractType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -29,13 +31,15 @@ public class EmploymentService {
     private final EmploymentRepository employmentRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
+    private final ContractTypeRepository contractTypeRepository;
 
     public EmploymentService(EmploymentRepository employmentRepository, 
                              UserRepository userRepository, 
-                             StoreRepository storeRepository) {
+                             StoreRepository storeRepository, ContractTypeRepository contractTypeRepository) {
         this.employmentRepository = employmentRepository;
         this.userRepository = userRepository;
         this.storeRepository = storeRepository;
+        this.contractTypeRepository = contractTypeRepository;
     }
 
     @Transactional
@@ -54,10 +58,13 @@ public class EmploymentService {
             throw new BusinessException("Staff is already assigned to this store", HttpStatus.CONFLICT);
         }
 
+        ContractType ct = contractTypeRepository.findById(request.getContractTypeId())
+                .orElseThrow(() -> new BusinessException("Contract type not found", HttpStatus.NOT_FOUND));
+
         Employment employment = Employment.builder()
                 .user(user)
                 .store(store)
-                .employmentType(request.getEmploymentType())
+                .contractType(ct)
                 .hourlyRate(request.getHourlyRate())
                 .joinedDate(request.getJoinedDate())
                 .status(EmploymentStatus.ACTIVE)
