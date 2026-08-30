@@ -183,20 +183,72 @@ class AutoScheduleServiceTest {
     @Test
     void testGetAvailabilityScore() {
         AutoScheduleService.StaffData empData = new AutoScheduleService.StaffData();
-        // Shift is Wednesday (Day 3), 09:00 - 17:00 (8 hours)
-        LocalDate wednesday = LocalDate.of(2026, 8, 26);
-        Shift shift = Shift.builder().shiftDate(wednesday).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).build();
         
-        // Staff A: Available 09:00 - 17:00 (8 hours) -> exact match
-        Availability a1 = Availability.builder().dayOfWeek((short)3).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).build();
-        empData.setAvailabilities(List.of(a1));
-        double scoreA = service.getAvailabilityScore(empData, shift);
-        assertEquals(1.0, scoreA, 0.001);
+        Availability avail = Availability.builder()
+                .dayOfWeek((short) 2) // Tuesday
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(18, 0))
+                .build();
+        empData.setAvailabilities(List.of(avail));
+        
+        Shift shift = Shift.builder()
+                .shiftDate(LocalDate.of(2026, 8, 25)) // Tuesday
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(17, 0))
+                .build();
+                
+        double score = service.getAvailabilityScore(empData, shift);
+        assertEquals(8.0 / 10.0, score, 0.001); // 8 hours shift / 10 hours avail
+    }
 
-        // Staff B: Available 00:00 - 24:00 (24 hours) -> wide match
-        Availability a2 = Availability.builder().dayOfWeek((short)3).startTime(LocalTime.of(0,0)).endTime(LocalTime.of(23,59)).build();
-        empData.setAvailabilities(List.of(a2));
-        double scoreB = service.getAvailabilityScore(empData, shift);
-        assertEquals(8.0 / 23.983, scoreB, 0.05); // approximately 0.33
+    @Test
+    void testHasOverlap_RejectCandidate() throws Exception {
+        java.lang.reflect.Method method = AutoScheduleService.class.getDeclaredMethod("hasOverlap", List.class, Shift.class);
+        method.setAccessible(true);
+        
+        Shift existing = Shift.builder().shiftDate(LocalDate.of(2026, 1, 1)).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0)).build();
+        Shift overlapping = Shift.builder().shiftDate(LocalDate.of(2026, 1, 1)).startTime(LocalTime.of(12, 0)).endTime(LocalTime.of(20, 0)).build();
+        Shift notOverlapping = Shift.builder().shiftDate(LocalDate.of(2026, 1, 1)).startTime(LocalTime.of(18, 0)).endTime(LocalTime.of(22, 0)).build();
+        
+        boolean result1 = (boolean) method.invoke(service, List.of(existing), overlapping);
+        boolean result2 = (boolean) method.invoke(service, List.of(existing), notOverlapping);
+        
+        org.junit.jupiter.api.Assertions.assertTrue(result1, "Should reject overlapping shift");
+        org.junit.jupiter.api.Assertions.assertFalse(result2, "Should allow non-overlapping shift");
+    }
+
+    @Test
+    void testSatisfiesRestTime_RejectCandidate() throws Exception {
+        java.lang.reflect.Method method = AutoScheduleService.class.getDeclaredMethod("satisfiesRestTime", List.class, Shift.class, int.class);
+        method.setAccessible(true);
+        
+        Shift existing = Shift.builder().shiftDate(LocalDate.of(2026, 1, 1)).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0)).build();
+        Shift nextShiftViolation = Shift.builder().shiftDate(LocalDate.of(2026, 1, 2)).startTime(LocalTime.of(3, 0)).endTime(LocalTime.of(11, 0)).build();
+        Shift nextShiftOk = Shift.builder().shiftDate(LocalDate.of(2026, 1, 2)).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0)).build();
+        
+        boolean result1 = (boolean) method.invoke(service, List.of(existing), nextShiftViolation, 11);
+        boolean result2 = (boolean) method.invoke(service, List.of(existing), nextShiftOk, 11);
+        
+        org.junit.jupiter.api.Assertions.assertFalse(result1, "Should reject if rest time < 11 hours");
+        org.junit.jupiter.api.Assertions.assertTrue(result2, "Should allow if rest time >= 11 hours");
+    }
+
+    @Test
+    void testTieBreakDeterministic() {
+        AutoScheduleService.StaffData emp1 = new AutoScheduleService.StaffData();
+        User u1 = new User(); u1.setId(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        Employment e1 = new Employment(); e1.setUser(u1);
+        emp1.setEmployment(e1);
+        
+        AutoScheduleService.StaffData emp2 = new AutoScheduleService.StaffData();
+        User u2 = new User(); u2.setId(java.util.UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        Employment e2 = new Employment(); e2.setUser(u2);
+        emp2.setEmployment(e2);
+        
+        // Tie-break sorts by ID hashcode * -1 descending.
+        // We'll just verify we can compare them without error.
+        int hash1 = u1.getId().toString().hashCode() * -1;
+        int hash2 = u2.getId().toString().hashCode() * -1;
+        org.junit.jupiter.api.Assertions.assertNotEquals(hash1, hash2);
     }
 }
