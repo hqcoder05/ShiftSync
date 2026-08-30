@@ -55,16 +55,16 @@ public class MarketplaceController {
                         .endTime(shift.getEndTime())
                         .status(shift.getStatus())
                         .availabilityDeadline(shift.getAvailabilityDeadline())
-                        .requirements(shift.getRequirements() != null ? shift.getRequirements().stream()
+                        .skillRequirements(shift.getRequirements() != null ? shift.getRequirements().stream()
                                 .map(r -> ShiftSkillRequirementDTO.builder()
                                         .id(r.getId())
                                         .skillName(r.getSkill().getName())
                                         .skillId(r.getSkill().getId())
-                                        .requiredCount(r.getRequiredCount())
+                                        .requiredStaff(r.getRequiredCount())
                                         .build())
                                 .collect(Collectors.toList()) : (java.util.List<ShiftSkillRequirementDTO>) null)
                         .build())
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
         return ResponseEntity.ok(openShifts);
     }
 
