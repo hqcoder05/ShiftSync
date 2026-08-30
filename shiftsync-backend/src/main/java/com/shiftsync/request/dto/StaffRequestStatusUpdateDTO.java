@@ -10,6 +10,6 @@ import lombok.*;
 @Builder
 public class StaffRequestStatusUpdateDTO {
 
-    @NotBlank(message = "Status is required")
-    private String status; // 'Đã phê duyệt' | 'Đã từ chối' | 'Đang chờ phê duyệt'
+    @jakarta.validation.constraints.NotNull(message = "Status is required")
+    private com.shiftsync.request.enums.RequestStatus status;
 }
