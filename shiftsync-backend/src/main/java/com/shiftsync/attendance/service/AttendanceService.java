@@ -20,6 +20,9 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
+import java.time.LocalDate;
+import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
@@ -63,16 +66,7 @@ public class AttendanceService {
             throw new IllegalStateException("Store GPS coordinates are not configured. Cannot perform geofence validation.");
         }
 
-        double distance = calculateDistance(
-                request.getLatitude(), request.getLongitude(),
-                shift.getStore().getLatitude().doubleValue(), shift.getStore().getLongitude().doubleValue()
-        );
-
-        if (distance > config.getGeofenceRadiusM()) {
-            throw new IllegalStateException(String.format(
-                    "You are out of the allowed geofence area. Distance: %.0f meters, Allowed: %d meters.",
-                    distance, config.getGeofenceRadiusM()));
-        }
+        validateGeofence(shift, config, request.getLatitude(), request.getLongitude());
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
@@ -86,17 +80,40 @@ public class AttendanceService {
         Optional<Attendance> existingAttendanceOpt = attendanceRepository.findByShiftAssignmentId(assignment.getId());
 
         if (existingAttendanceOpt.isEmpty()) {
-            return processCheckIn(assignment, shiftStart, now, config);
+            return processCheckIn(assignment, shiftStart, now, config, request.getLatitude(), request.getLongitude(), null);
         } else {
             Attendance attendance = existingAttendanceOpt.get();
             if (attendance.getCheckOutTime() != null) {
                 throw new IllegalStateException("You have already checked out for this shift.");
             }
-            return processCheckOut(attendance, shiftEnd, now, config);
+            return processCheckOut(attendance, shiftEnd, now, config, request.getLatitude(), request.getLongitude(), null);
         }
     }
 
-    private Attendance processCheckIn(ShiftAssignment assignment, LocalDateTime shiftStart, LocalDateTime now, StoreConfiguration config) {
+    @Transactional
+    public Attendance submitSelfie(UUID staffId, UUID shiftId, double latitude, double longitude, byte[] photo) {
+        if (photo == null || photo.length == 0) {
+            throw new IllegalArgumentException("A live selfie is required to record attendance.");
+        }
+        ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)
+                .orElseThrow(() -> new IllegalArgumentException("You are not assigned to this shift"));
+        Shift shift = assignment.getShift();
+        StoreConfiguration config = storeConfigurationRepository.findByStoreId(shift.getStore().getId())
+                .orElseGet(StoreConfiguration::new);
+        validateGeofence(shift, config, latitude, longitude);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        LocalDateTime shiftEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
+        if (shiftEnd.isBefore(shiftStart)) shiftEnd = shiftEnd.plusDays(1);
+
+        Optional<Attendance> existing = attendanceRepository.findByShiftAssignmentId(assignment.getId());
+        if (existing.isEmpty()) return processCheckIn(assignment, shiftStart, now, config, latitude, longitude, photo);
+        if (existing.get().getCheckOutTime() != null) throw new IllegalStateException("You have already checked out for this shift.");
+        return processCheckOut(existing.get(), shiftEnd, now, config, latitude, longitude, photo);
+    }
+
+    private Attendance processCheckIn(ShiftAssignment assignment, LocalDateTime shiftStart, LocalDateTime now, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
         // Validate Check-in window
         LocalDateTime windowStart = shiftStart.minusMinutes(config.getAllowedCheckInMinutes());
         LocalDateTime windowEnd = shiftStart.plusMinutes(config.getAllowedCheckInMinutes());
@@ -116,13 +133,16 @@ public class AttendanceService {
         Attendance attendance = Attendance.builder()
                 .shiftAssignment(assignment)
                 .checkInTime(OffsetDateTime.now())
+                .checkInLat(latitude)
+                .checkInLng(longitude)
+                .checkInPhoto(photo)
                 .status(status)
                 .build();
 
         return attendanceRepository.save(attendance);
     }
 
-    private Attendance processCheckOut(Attendance attendance, LocalDateTime shiftEnd, LocalDateTime now, StoreConfiguration config) {
+    private Attendance processCheckOut(Attendance attendance, LocalDateTime shiftEnd, LocalDateTime now, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
         // Validate Check-out window
         LocalDateTime windowStart = shiftEnd.minusMinutes(config.getAllowedCheckOutMinutes());
         LocalDateTime windowEnd = shiftEnd.plusMinutes(config.getAllowedCheckOutMinutes());
@@ -143,7 +163,47 @@ public class AttendanceService {
         }
 
         attendance.setCheckOutTime(OffsetDateTime.now());
+        attendance.setCheckOutLat(latitude);
+        attendance.setCheckOutLng(longitude);
+        attendance.setCheckOutPhoto(photo);
         return attendanceRepository.save(attendance);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.shiftsync.attendance.dto.AttendanceDTO> getMyAttendance(UUID staffId) {
+        return attendanceRepository.findByShiftAssignment_Staff_IdOrderByCheckInTimeDesc(staffId).stream().map(this::toDTO).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.shiftsync.attendance.dto.AttendanceDTO> getStoreAttendance(UUID storeId, LocalDate from, LocalDate to) {
+        return attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(storeId, from, to).stream().map(this::toDTO).toList();
+    }
+
+    private com.shiftsync.attendance.dto.AttendanceDTO toDTO(Attendance attendance) {
+        ShiftAssignment assignment = attendance.getShiftAssignment();
+        Shift shift = assignment.getShift();
+        return com.shiftsync.attendance.dto.AttendanceDTO.builder()
+                .id(attendance.getId()).shiftAssignmentId(assignment.getId()).shiftId(shift.getId())
+                .storeId(shift.getStore().getId()).storeName(shift.getStore().getName())
+                .staffId(assignment.getStaff().getId().toString()).staffName(assignment.getStaff().getFullName())
+                .shiftDate(shift.getShiftDate()).scheduledStart(shift.getStartTime()).scheduledEnd(shift.getEndTime())
+                .checkInTime(attendance.getCheckInTime()).checkOutTime(attendance.getCheckOutTime()).status(attendance.getStatus())
+                .checkInLat(attendance.getCheckInLat()).checkInLng(attendance.getCheckInLng())
+                .checkOutLat(attendance.getCheckOutLat()).checkOutLng(attendance.getCheckOutLng())
+                .checkInPhotoBase64(toBase64(attendance.getCheckInPhoto())).checkOutPhotoBase64(toBase64(attendance.getCheckOutPhoto()))
+                .build();
+    }
+
+    private String toBase64(byte[] photo) { return photo == null ? null : Base64.getEncoder().encodeToString(photo); }
+
+    private void validateGeofence(Shift shift, StoreConfiguration config, double latitude, double longitude) {
+        if (shift.getStore().getLatitude() == null || shift.getStore().getLongitude() == null) {
+            throw new IllegalStateException("Store GPS coordinates are not configured. Cannot perform geofence validation.");
+        }
+        double distance = calculateDistance(latitude, longitude, shift.getStore().getLatitude().doubleValue(), shift.getStore().getLongitude().doubleValue());
+        if (distance > config.getGeofenceRadiusM()) {
+            throw new IllegalStateException(String.format("You are out of the allowed geofence area. Distance: %.0f meters, Allowed: %d meters.", distance, config.getGeofenceRadiusM()));
+        }
     }
 
     private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {

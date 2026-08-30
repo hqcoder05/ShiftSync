@@ -19,6 +19,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 
+import com.shiftsync.shared.security.CustomUserDetails;
+import com.shiftsync.shift.dto.ShiftDTO;
+import com.shiftsync.shift.service.ShiftService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,9 +33,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final ShiftService shiftService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, ShiftService shiftService) {
         this.userService = userService;
+        this.shiftService = shiftService;
     }
 
     @PostMapping
@@ -58,6 +66,14 @@ public class UserController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<UserDTO> users = userService.getAllUsers(search, pageable);
         return ResponseEntity.ok(users);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get the current user's profile")
+    public ResponseEntity<UserDTO> getMyProfile(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(userService.getUserById(userDetails.getId()));
     }
 
     @GetMapping("/{id}")
@@ -102,5 +118,12 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
         userService.deleteUser(id, userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/shifts")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get shifts assigned to the current user", description = "Retrieves all published/assigned shifts for the logged-in user.")
+    public ResponseEntity<List<ShiftDTO>> getMyShifts(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(shiftService.getShiftsByStaffId(userDetails.getId()));
     }
 }

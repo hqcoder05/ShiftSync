@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -60,6 +61,15 @@ public class AvailabilityController {
             @PathVariable UUID id, @Valid @RequestBody AvailabilityRequest request, Authentication authentication) {
         AvailabilityResponse response = availabilityService.updateAvailability(id, authentication.getName(), request);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/users/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+    @Operation(summary = "Get staff availability by user ID (Manager/Admin)", description = "Fetches all declared free time slots for a specific staff member.")
+    @ApiResponse(responseCode = "200", description = "List retrieved successfully")
+    public ResponseEntity<List<AvailabilityResponse>> getStaffAvailability(@PathVariable UUID userId) {
+        List<AvailabilityResponse> responses = availabilityService.getStaffAvailability(userId);
+        return ResponseEntity.ok(responses);
     }
 
     @DeleteMapping("/{id}")

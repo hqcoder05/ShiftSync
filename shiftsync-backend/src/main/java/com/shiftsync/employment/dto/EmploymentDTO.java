@@ -17,10 +17,14 @@ public class EmploymentDTO {
     private String staffEmail;
     private UUID storeId;
     private String storeName;
+    
+    private String storeAddress;
+    private String employmentType; 
+    
     private ContractTypeDTO contractType;
+    
     private BigDecimal hourlyRate;
     private EmploymentStatus status;
     private LocalDate joinedDate;
     private LocalDate leftDate;
 }
-
