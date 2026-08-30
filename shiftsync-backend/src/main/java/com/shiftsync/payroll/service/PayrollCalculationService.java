@@ -297,6 +297,9 @@ public class PayrollCalculationService {
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);
         }
+        if ((newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED || newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) && !isAdmin) {
+            throw new BusinessException("Transition to CONFIRMED or PAID is only allowed for ADMIN.", HttpStatus.FORBIDDEN);
+        }
 
                 auditLogService.log(actorId, "UPDATE_PAYROLL_STATUS", "PayrollPeriod", periodId, 
                 java.util.Map.of("status", period.getStatus().name()), 
