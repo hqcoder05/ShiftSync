@@ -339,4 +339,32 @@ class PayrollCalculationServiceTest {
         // Total Amount = 120 + 120 = 240.00
         assertEquals(new BigDecimal("240.00"), p.getTotalAmount());
     }
+
+    @Test
+    void testUpdatePayrollPeriodStatus_NonAdminCannotConfirmOrPay() {
+        PayrollPeriod period = new PayrollPeriod();
+        period.setId(java.util.UUID.randomUUID());
+        period.setStatus(PayrollPeriodStatus.DRAFT);
+        Store store = new Store();
+        store.setId(java.util.UUID.randomUUID());
+        period.setStore(store);
+        
+        when(payrollPeriodRepository.findById(period.getId())).thenReturn(java.util.Optional.of(period));
+        
+        // Mock non-admin authentication
+        org.springframework.security.core.Authentication auth = org.mockito.Mockito.mock(org.springframework.security.core.Authentication.class);
+        // Cast to Collection<? extends GrantedAuthority> to resolve ambiguity
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(auth).getAuthorities();
+        org.springframework.security.core.context.SecurityContext securityContext = org.mockito.Mockito.mock(org.springframework.security.core.context.SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        org.springframework.security.core.context.SecurityContextHolder.setContext(securityContext);
+        
+        com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.shiftsync.shared.exception.BusinessException.class, 
+                () -> payrollCalculationService.updatePayrollPeriodStatus(store.getId(), period.getId(), PayrollPeriodStatus.CONFIRMED, java.util.UUID.randomUUID())
+        );
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("only allowed for ADMIN"));
+        
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 }
