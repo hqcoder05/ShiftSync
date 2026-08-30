@@ -37,8 +37,9 @@ public class StaffRequest {
     private String typeCategory = "support";
 
     @Column(name = "status", nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String status = "Đang chờ phê duyệt";
+    private com.shiftsync.request.enums.RequestStatus status = com.shiftsync.request.enums.RequestStatus.PENDING;
 
     @Column(name = "recipient", length = 255)
     private String recipient;

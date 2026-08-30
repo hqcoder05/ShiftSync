@@ -1,13 +1,11 @@
 package com.shiftsync.shift.service;
 
-import com.shiftsync.auth.entity.User;
 import com.shiftsync.availability.entity.Availability;
 import com.shiftsync.availability.entity.BlackoutDate;
 import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.AutoScheduleRequest;
@@ -30,8 +28,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -77,12 +73,7 @@ public class AutoScheduleService {
         int monthlyShiftCount = 0; // TỔNG SỐ CA TRONG THÁNG (BA Fairness)
         
         int getMaxWeeklyHours() {
-            return switch (employment.getEmploymentType()) {
-                case FULL_TIME -> 48;
-                case PART_TIME -> 24;
-                case INTERN -> 20;
-                case SEASONAL -> 40;
-            };
+            return employment.getContractType().getMaxWeeklyHours();
         }
     }
 
@@ -345,7 +336,30 @@ public class AutoScheduleService {
         return Math.min(1.0, (minGap - minRestHours) / (24.0 - minRestHours));
     }
 
-    private double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
+    double getAvailabilityScore(StaffData empData, Shift newShift) {
+        short shiftDayOfWeek = (short) (newShift.getShiftDate().getDayOfWeek().getValue() % 7);
+        long shiftMinutes = java.time.Duration.between(newShift.getStartTime(), newShift.getEndTime()).toMinutes();
+        if (shiftMinutes <= 0) shiftMinutes += 24 * 60; // Handle overnight
+
+        double maxScore = 0.0;
+        for (Availability a : empData.getAvailabilities()) {
+            if (a.getDayOfWeek() == shiftDayOfWeek 
+                && !a.getStartTime().isAfter(newShift.getStartTime()) 
+                && !a.getEndTime().isBefore(newShift.getEndTime())) {
+                
+                long availMinutes = java.time.Duration.between(a.getStartTime(), a.getEndTime()).toMinutes();
+                if (availMinutes <= 0) availMinutes += 24 * 60;
+                
+                double score = (double) shiftMinutes / availMinutes;
+                if (score > maxScore) {
+                    maxScore = score;
+                }
+            }
+        }
+        return maxScore > 0 ? maxScore : 1.0;
+    }
+
+    double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
         if (empData.getMaxWeeklyHours() <= 0) {
             log.warn("Invalid MaxWeeklyHours: {} for staff: {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
             throw new IllegalStateException("Max weekly hours must be strictly positive to avoid division by zero.");
@@ -363,7 +377,7 @@ public class AutoScheduleService {
         
         double restTimeScore = getRestTimeScore(empData, slot.getShift(), minRestHours);
         
-        double availScore = 1.0; // Simplified logic, assume covered = 1.0 as HC already checked covering.
+        double availScore = getAvailabilityScore(empData, slot.getShift());
         
         double skillW = config.getSkillWeight().doubleValue();
         double hourW = config.getHourWeight().doubleValue();

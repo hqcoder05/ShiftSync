@@ -1,15 +1,17 @@
 package com.shiftsync.payroll.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.attendance.entity.Attendance;
 import com.shiftsync.attendance.repository.AttendanceRepository;
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
+import com.shiftsync.employment.entity.ContractType;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.entity.Holiday;
 import com.shiftsync.payroll.entity.Payroll;
 import com.shiftsync.payroll.entity.PayrollPeriod;
+import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import com.shiftsync.payroll.repository.HolidayRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.repository.PayrollRepository;
@@ -23,14 +25,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import com.shiftsync.notification.service.NotificationService;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -39,7 +41,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,8 +61,14 @@ class PayrollCalculationServiceTest {
     @Mock
     private StoreRepository storeRepository;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
+
+    @Captor
+    private ArgumentCaptor<List<Payroll>> captor;
 
     private Store store;
     private User staff;
@@ -80,7 +87,7 @@ class PayrollCalculationServiceTest {
         employment = new Employment();
         employment.setUser(staff);
         employment.setStore(store);
-        employment.setEmploymentType(EmploymentType.PART_TIME); // 24 hours max
+        employment.setContractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("PART_TIME").maxWeeklyHours(24).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()); // 24 hours max
         employment.setHourlyRate(new BigDecimal("20.00"));
         employment.setStatus(EmploymentStatus.ACTIVE);
 
@@ -126,7 +133,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -181,7 +187,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -250,7 +255,6 @@ class PayrollCalculationServiceTest {
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
-        ArgumentCaptor<List<Payroll>> captor = ArgumentCaptor.forClass(List.class);
         verify(payrollRepository).saveAll(captor.capture());
         
         List<Payroll> payrolls = captor.getValue();
@@ -263,5 +267,104 @@ class PayrollCalculationServiceTest {
         assertEquals(new BigDecimal("480.00"), p.getBaseAmount()); // 24 * 20
         assertEquals(new BigDecimal("60.00"), p.getOtAmount());    // 2 * 20 * 1.5
         assertEquals(new BigDecimal("540.00"), p.getTotalAmount());
+    }
+
+    @Test
+    void testGeneratePayroll_WhenPeriodIsLocked() {
+        PayrollPeriod lockedPeriod = new PayrollPeriod();
+        lockedPeriod.setStatus(PayrollPeriodStatus.CONFIRMED);
+        
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate))
+                .thenReturn(Optional.of(lockedPeriod));
+                
+        com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.shiftsync.shared.exception.BusinessException.class, 
+                () -> payrollCalculationService.generatePayroll(store.getId(), startDate, endDate)
+        );
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("Cannot regenerate payroll. Period is already"));
+    }
+
+    @Test
+    void testHolidayOvernightShift() {
+        when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
+        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        
+        // Day 1: Holiday (Rate 3.0), Day 2: Normal (Rate 1.0)
+        Holiday holiday = new Holiday();
+        holiday.setHolidayDate(LocalDate.of(2023, 10, 2));
+        holiday.setRateMultiplier(new BigDecimal("3.00"));
+        when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of(holiday));
+
+        // Create an overnight shift (22:00 to 06:00) starting on holiday
+        Shift shift = new Shift();
+        shift.setId(UUID.randomUUID());
+        shift.setShiftDate(LocalDate.of(2023, 10, 2)); 
+        shift.setStatus(ShiftStatus.COMPLETED);
+
+        ShiftAssignment assignment = new ShiftAssignment();
+        assignment.setId(UUID.randomUUID());
+        assignment.setShift(shift);
+        assignment.setStaff(employment.getUser());
+
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(
+                store.getId(), startDate, endDate)).thenReturn(List.of(assignment));
+
+        Attendance att = new Attendance();
+        att.setId(UUID.randomUUID());
+        att.setShiftAssignment(assignment);
+        // 22:00 to 06:00
+        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 22, 0, 0, 0, ZoneOffset.UTC));
+        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 3, 6, 0, 0, 0, ZoneOffset.UTC));
+
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
+                .thenReturn(List.of(att));
+
+        payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
+        verify(payrollRepository).saveAll(captor.capture());
+        
+        List<Payroll> payrolls = captor.getValue();
+        assertEquals(1, payrolls.size());
+        Payroll p = payrolls.get(0);
+        
+        // Total 8 hours. 2 hours on Holiday (22:00 - 00:00). 6 hours on Normal (00:00 - 06:00)
+        assertEquals(new BigDecimal("8.00"), p.getTotalHours());
+        assertEquals(new BigDecimal("2.00"), p.getHolidayHours()); // 2 hours holiday
+        
+        // Base Amount = 6 hours * 20 = 120.00
+        assertEquals(new BigDecimal("120.00"), p.getBaseAmount()); 
+        // Holiday Amount = 2 hours * 20 * 3.0 = 120.00
+        assertEquals(new BigDecimal("120.00"), p.getHolidayAmount()); 
+        // Total Amount = 120 + 120 = 240.00
+        assertEquals(new BigDecimal("240.00"), p.getTotalAmount());
+    }
+
+    @Test
+    void testUpdatePayrollPeriodStatus_NonAdminCannotConfirmOrPay() {
+        PayrollPeriod period = new PayrollPeriod();
+        period.setId(java.util.UUID.randomUUID());
+        period.setStatus(PayrollPeriodStatus.DRAFT);
+        Store store = new Store();
+        store.setId(java.util.UUID.randomUUID());
+        period.setStore(store);
+        
+        when(payrollPeriodRepository.findById(period.getId())).thenReturn(java.util.Optional.of(period));
+        
+        // Mock non-admin authentication
+        org.springframework.security.core.Authentication auth = org.mockito.Mockito.mock(org.springframework.security.core.Authentication.class);
+        // Cast to Collection<? extends GrantedAuthority> to resolve ambiguity
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(auth).getAuthorities();
+        org.springframework.security.core.context.SecurityContext securityContext = org.mockito.Mockito.mock(org.springframework.security.core.context.SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        org.springframework.security.core.context.SecurityContextHolder.setContext(securityContext);
+        
+        com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.shiftsync.shared.exception.BusinessException.class, 
+                () -> payrollCalculationService.updatePayrollPeriodStatus(store.getId(), period.getId(), PayrollPeriodStatus.CONFIRMED, java.util.UUID.randomUUID())
+        );
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getMessage().contains("only allowed for ADMIN"));
+        
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 }

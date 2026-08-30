@@ -2,7 +2,6 @@ package com.shiftsync.employment.entity;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
 import com.shiftsync.store.entity.Store;
 import jakarta.persistence.*;
 import lombok.*;
@@ -33,10 +32,9 @@ public class Employment {
     @JoinColumn(name = "store_id", nullable = false)
     private Store store;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "employment_type", nullable = false)
-    private EmploymentType employmentType;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_type_id", nullable = false)
+    private ContractType contractType;
 
     @Column(name = "hourly_rate", nullable = false)
     private BigDecimal hourlyRate;
@@ -52,3 +50,4 @@ public class Employment {
     @Column(name = "left_date")
     private LocalDate leftDate;
 }
+

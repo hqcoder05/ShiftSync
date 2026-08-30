@@ -14,6 +14,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -31,6 +32,10 @@ public class MarketplaceService {
     private final RedissonClient redissonClient;
     private final com.shiftsync.shift.service.ShiftValidationService shiftValidationService;
     private final com.shiftsync.auth.repository.UserRepository userRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional(rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
@@ -57,6 +62,38 @@ public class MarketplaceService {
 
         shift.setOpen(true);
         shiftRepository.save(shift);
+
+        // Hook FR-19: OPEN_SHIFT_AVAILABLE
+        // Find all ACTIVE employments in store
+        List<com.shiftsync.employment.entity.Employment> activeEmployments = 
+            employmentRepository.findByStoreIdAndStatus(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+            
+        java.util.Set<UUID> requiredSkillIds = shift.getRequirements().stream()
+                .map(r -> r.getSkill().getId())
+                .collect(java.util.stream.Collectors.toSet());
+                
+        for (com.shiftsync.employment.entity.Employment emp : activeEmployments) {
+            boolean eligible = true;
+            if (!requiredSkillIds.isEmpty()) {
+                List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(emp.getUser().getId());
+                boolean hasAnyRequired = staffSkills.stream()
+                        .anyMatch(ss -> requiredSkillIds.contains(ss.getSkillId()) && 
+                                       (ss.getExpirationDate() == null || !ss.getExpirationDate().isBefore(shift.getShiftDate())));
+                if (!hasAnyRequired) {
+                    eligible = false;
+                }
+            }
+            
+            if (eligible) {
+                notificationService.sendNotification(
+                    emp.getUser().getId(),
+                    com.shiftsync.notification.entity.NotificationType.OPEN_SHIFT_AVAILABLE,
+                    "New Open Shift",
+                    "A new open shift on " + shift.getShiftDate() + " is available.",
+                    null
+                );
+            }
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -83,7 +120,6 @@ public class MarketplaceService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void claimOpenShift(UUID storeId, UUID shiftId, UUID staffId) {
         RLock lock = redissonClient.getLock("shift_claim_lock:" + shiftId);
         try {
@@ -93,7 +129,8 @@ public class MarketplaceService {
             }
 
             // Inside lock
-            Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+            transactionTemplate.executeWithoutResult(status -> {
+                Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                     .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
             if (!shift.isOpen()) {
@@ -133,7 +170,7 @@ public class MarketplaceService {
                 shift.setOpen(false);
                 shiftRepository.save(shift);
             }
-
+            });
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Lỗi hệ thống khi lấy lock", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -144,3 +181,5 @@ public class MarketplaceService {
         }
     }
 }
+
+

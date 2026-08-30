@@ -1,7 +1,7 @@
 package com.shiftsync.employment.mapper;
 
 import com.shiftsync.employment.dto.EmploymentDTO;
-import com.shiftsync.employment.entity.Employment;
+import com.shiftsync.employment.dto.ContractTypeDTO;import com.shiftsync.employment.entity.Employment;
 
 public class EmploymentMapper {
 
@@ -17,7 +17,7 @@ public class EmploymentMapper {
                 .staffEmail(employment.getUser() != null ? employment.getUser().getEmail() : null)
                 .storeId(employment.getStore() != null ? employment.getStore().getId() : null)
                 .storeName(employment.getStore() != null ? employment.getStore().getName() : null)
-                .employmentType(employment.getEmploymentType())
+                .contractType(employment.getContractType() != null ? ContractTypeDTO.builder().id(employment.getContractType().getId()).name(employment.getContractType().getName()).maxWeeklyHours(employment.getContractType().getMaxWeeklyHours()).otMultiplier(employment.getContractType().getOtMultiplier()).defaultHourlyRate(employment.getContractType().getDefaultHourlyRate()).build() : null)
                 .hourlyRate(employment.getHourlyRate())
                 .status(employment.getStatus())
                 .joinedDate(employment.getJoinedDate())
@@ -25,3 +25,4 @@ public class EmploymentMapper {
                 .build();
     }
 }
+

@@ -2,7 +2,6 @@ package com.shiftsync.shift.repository;
 
 import com.shiftsync.shift.entity.ShiftAssignment;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,7 +10,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-@Repository
 public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment, UUID> {
     List<ShiftAssignment> findByShiftId(UUID shiftId);
 
@@ -31,4 +29,23 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
     List<ShiftAssignment> findByShift_Store_IdAndShift_ShiftDateBetween(UUID storeId, LocalDate startDate, LocalDate endDate);
     @Query("SELECT sa.shift.id FROM ShiftAssignment sa WHERE sa.staff.id = :staffId AND sa.shift.status = 'PUBLISHED' AND sa.shift.shiftDate >= :startDate AND sa.shift.shiftDate <= :endDate")
     List<UUID> findConflictingPublishedShiftIds(@Param("staffId") UUID staffId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT COUNT(sa) FROM ShiftAssignment sa WHERE sa.shift.store.id = :storeId " +
+           "AND sa.shift.shiftDate >= :startDate " +
+           "AND sa.shift.shiftDate <= :endDate")
+    long countTotalAssignmentsByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                                  @Param("startDate") LocalDate startDate, 
+                                                  @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT COUNT(sa) FROM ShiftAssignment sa WHERE sa.shift.store.id = :storeId " +
+           "AND sa.shift.shiftDate >= :startDate " +
+           "AND sa.shift.shiftDate <= :endDate " +
+           "AND (sa.shift.shiftDate < CURRENT_DATE OR (sa.shift.shiftDate = CURRENT_DATE AND sa.shift.endTime < CURRENT_TIME)) " +
+           "AND NOT EXISTS (SELECT a FROM Attendance a WHERE a.shiftAssignment = sa)")
+    long countAbsentAssignmentsByStoreAndDateRange(@Param("storeId") UUID storeId, 
+                                                   @Param("startDate") LocalDate startDate, 
+                                                   @Param("endDate") LocalDate endDate);
+
+    List<ShiftAssignment> findByShift_Store_IdAndShift_ShiftDateAndShift_StartTimeBetween(
+            UUID storeId, LocalDate shiftDate, java.time.LocalTime startTimeStart, java.time.LocalTime startTimeEnd);
 }

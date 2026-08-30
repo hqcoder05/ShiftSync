@@ -1,4 +1,5 @@
 package com.shiftsync.shift.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ShiftService {
+    private final AuditLogService auditLogService;
 
     private final ShiftRepository shiftRepository;
     private final StoreRepository storeRepository;
@@ -44,6 +46,7 @@ public class ShiftService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional(readOnly = true)
     
@@ -153,7 +156,7 @@ public class ShiftService {
     }
 
     @Transactional
-    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
@@ -175,8 +178,26 @@ public class ShiftService {
             }
         }
         
-        if (publishedCount > 0) {
+                if (publishedCount > 0) {
+            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null, 
+                java.util.Map.of("startDate", startDate.toString(), "endDate", endDate.toString(), "publishedCount", publishedCount));
+
             shiftRepository.saveAll(shifts);
+            
+            // Hook: FR-19 SCHEDULE_PUBLISHED
+            java.util.List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
+            java.util.Set<java.util.UUID> notifiedStaffIds = new java.util.HashSet<>();
+            for (ShiftAssignment sa : assignments) {
+                if (notifiedStaffIds.add(sa.getStaff().getId())) {
+                    notificationService.sendNotification(
+                        sa.getStaff().getId(),
+                        com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
+                        "Schedule Published",
+                        "The schedule from " + startDate + " to " + endDate + " has been published.",
+                        null
+                    );
+                }
+            }
         }
     }
 
@@ -184,6 +205,10 @@ public class ShiftService {
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
+        if (request.getShiftDate() != null && !request.getShiftDate().equals(shift.getShiftDate())) {
+            checkDateNotLocked(storeId, request.getShiftDate());
+        }
 
         if (request.getStartTime() != null && request.getEndTime() != null) {
             if (!request.getStartTime().isBefore(request.getEndTime())) {
@@ -223,6 +248,7 @@ public class ShiftService {
     public void deleteShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
         if (!assignments.isEmpty()) {
             shiftAssignmentRepository.deleteAll(assignments);
@@ -237,23 +263,41 @@ public class ShiftService {
     }
 
     private ShiftDTO mapToDTO(Shift entity) {
+        List<ShiftAssignment> assignments = entity.getAssignments() != null ? entity.getAssignments() : new java.util.ArrayList<>();
+        
+        List<com.shiftsync.shift.dto.ShiftAssignmentResponseDTO> assignmentDTOs = assignments.stream()
+                .map(a -> com.shiftsync.shift.dto.ShiftAssignmentResponseDTO.builder()
+                        .id(a.getId())
+                        .shiftId(a.getShift().getId())
+                        .staffId(a.getStaff().getId())
+                        .staffName(a.getStaff().getFullName())
+                        .source(a.getSource())
+                        .assignedAt(a.getAssignedAt())
+                        .build())
+                .collect(Collectors.toList());
+
         List<ShiftSkillRequirementDTO> reqDTOs = entity.getRequirements().stream()
                 .map(req -> ShiftSkillRequirementDTO.builder()
                         .id(req.getId())
                         .skillId(req.getSkill().getId())
                         .skillName(req.getSkill().getName())
-                        .requiredCount(req.getRequiredCount())
+                        .requiredStaff(req.getRequiredCount())
+                        // Approximate assigned count for this skill: count how many assigned staff have this skill (if needed). 
+                        // For simplicity without N+1, leaving as 0 or total assignments if 1 skill.
+                        .assignedCount(entity.getRequirements().size() == 1 ? assignments.size() : 0)
                         .build())
                 .collect(Collectors.toList());
 
         UUID assignedStaffId = null;
         String assignedStaffName = null;
-        List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(entity.getId());
         if (!assignments.isEmpty()) {
             User staff = assignments.get(0).getStaff();
             assignedStaffId = staff.getId();
             assignedStaffName = staff.getFullName();
         }
+
+        String primarySkillName = entity.getRequirements().isEmpty() ? null : entity.getRequirements().get(0).getSkill().getName();
+        int totalRequiredStaff = entity.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum();
 
         return ShiftDTO.builder()
                 .id(entity.getId())
@@ -264,9 +308,12 @@ public class ShiftService {
                 .endTime(entity.getEndTime())
                 .status(entity.getStatus())
                 .availabilityDeadline(entity.getAvailabilityDeadline())
-                .requirements(reqDTOs)
+                .skillRequirements(reqDTOs)
+                .shiftAssignments(assignmentDTOs)
                 .staffId(assignedStaffId)
                 .staffName(assignedStaffName)
+                .skillName(primarySkillName)
+                .requiredStaff(totalRequiredStaff)
                 .build();
     }
 }

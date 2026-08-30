@@ -3,10 +3,7 @@ package com.shiftsync.payroll.controller;
 import com.shiftsync.payroll.dto.PayrollPeriodDTO;
 import com.shiftsync.payroll.dto.PayrollDTO;
 import com.shiftsync.payroll.dto.PayrollPeriodStatusUpdateRequest;
-import com.shiftsync.payroll.enums.PayrollPeriodStatus;
 import com.shiftsync.payroll.dto.PayrollGenerateRequest;
-import com.shiftsync.payroll.entity.Payroll;
-import com.shiftsync.payroll.entity.PayrollPeriod;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.repository.PayrollRepository;
 import com.shiftsync.payroll.service.PayrollCalculationService;
@@ -141,8 +138,8 @@ public class PayrollController {
     public ResponseEntity<Void> updatePayrollPeriodStatus(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId,
-            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request) {
-        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus());
+            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.ok().build();
     }
 

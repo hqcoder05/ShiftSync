@@ -44,6 +44,7 @@ public class StoreController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get list of all store branches", description = "Retrieves a paginated list of all registered stores. Use ?page=0&size=20&sort=createdAt,desc for pagination.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Successfully retrieved stores list"),
@@ -78,7 +79,7 @@ public class StoreController {
         return ResponseEntity.ok(storeDTO);
     }
 
-    @PutMapping("/{id}")
+    @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #id))")
     @Operation(summary = "Update an existing store branch", description = "Modifies store parameters like location coordinates and operational hours.")
     @ApiResponses({
@@ -104,8 +105,8 @@ public class StoreController {
         @ApiResponse(responseCode = "403", description = "Access forbidden"),
         @ApiResponse(responseCode = "404", description = "Store not found")
     })
-    public ResponseEntity<Void> deleteStore(@PathVariable UUID id) {
-        storeService.deleteStore(id);
+    public ResponseEntity<Void> deleteStore(@PathVariable UUID id, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        storeService.deleteStore(id, userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.noContent().build();
     }
 }

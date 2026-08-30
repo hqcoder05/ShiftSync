@@ -7,19 +7,21 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.UUID;
 
-@Repository
 public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     List<Employment> findByUserIdAndStatus(UUID staffId, EmploymentStatus status);
 
+    List<Employment> findByUserIdAndStoreIdAndStatus(UUID userId, UUID storeId, EmploymentStatus status);
+
     Page<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status, Pageable pageable);
 
     List<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status);
+
+    long countByStoreIdAndContractTypeId(UUID storeId, UUID contractTypeId);
 
     long countByStoreIdAndStatus(UUID storeId, EmploymentStatus status);
 

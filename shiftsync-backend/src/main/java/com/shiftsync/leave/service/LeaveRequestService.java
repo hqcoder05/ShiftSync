@@ -1,4 +1,5 @@
 package com.shiftsync.leave.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
@@ -28,11 +29,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class LeaveRequestService {
+    private final AuditLogService auditLogService;
     private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
@@ -56,6 +59,7 @@ public class LeaveRequestService {
                 .build();
 
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+
         return mapToDTO(leaveRequest);
     }
 
@@ -89,6 +93,9 @@ public class LeaveRequestService {
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+        auditLogService.log(managerId, "APPROVE_LEAVE", "LeaveRequest", leaveId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "APPROVED"));
 
         // Generate Blackout Dates for each day
         LocalDate currentDate = leaveRequest.getStartDate();
@@ -115,6 +122,14 @@ public class LeaveRequestService {
             warning = "Staff has " + conflictingShifts.size() + " published shifts conflicting with this leave: " + conflictingShifts.toString();
         }
 
+        notificationService.sendNotification(
+            leaveRequest.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
+            "Leave Request Approved",
+            "Your leave request has been approved.",
+            null
+        );
+
         return LeaveApproveResponse.builder()
                 .leaveRequest(mapToDTO(leaveRequest))
                 .warning(warning)
@@ -140,7 +155,21 @@ public class LeaveRequestService {
         leaveRequest.setStatus(LeaveStatus.REJECTED);
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
-        return mapToDTO(leaveRequestRepository.save(leaveRequest));
+        leaveRequest = leaveRequestRepository.save(leaveRequest);
+
+        auditLogService.log(managerId, "REJECT_LEAVE", "LeaveRequest", leaveId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "REJECTED"));
+
+        notificationService.sendNotification(
+            leaveRequest.getStaff().getId(),
+            com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
+            "Leave Request Rejected",
+            "Your leave request has been rejected.",
+            null
+        );
+
+        return mapToDTO(leaveRequest);
     }
 
     private LeaveRequestDTO mapToDTO(LeaveRequest request) {

@@ -1,7 +1,6 @@
 package com.shiftsync.employment.dto;
 
 import com.shiftsync.employment.enums.EmploymentStatus;
-import com.shiftsync.employment.enums.EmploymentType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -18,9 +17,10 @@ public class EmploymentDTO {
     private String staffEmail;
     private UUID storeId;
     private String storeName;
-    private EmploymentType employmentType;
+    private ContractTypeDTO contractType;
     private BigDecimal hourlyRate;
     private EmploymentStatus status;
     private LocalDate joinedDate;
     private LocalDate leftDate;
 }
+

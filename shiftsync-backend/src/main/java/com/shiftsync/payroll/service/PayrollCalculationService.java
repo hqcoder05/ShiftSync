@@ -1,4 +1,5 @@
 package com.shiftsync.payroll.service;
+import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.attendance.entity.Attendance;
 import com.shiftsync.attendance.repository.AttendanceRepository;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PayrollCalculationService {
+    private final AuditLogService auditLogService;
 
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final PayrollRepository payrollRepository;
@@ -44,8 +46,9 @@ public class PayrollCalculationService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final AttendanceRepository attendanceRepository;
     private final StoreRepository storeRepository;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
 
-    private static final BigDecimal OT_MULTIPLIER = new BigDecimal("1.50");
+    
 
     @Transactional(rollbackFor = Exception.class)
     public void generatePayroll(UUID storeId, LocalDate startDate, LocalDate endDate) {
@@ -58,8 +61,28 @@ public class PayrollCalculationService {
         
         java.util.Optional<PayrollPeriod> existingOpt = payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(storeId, startDate, endDate);
         if (existingOpt.isPresent()) {
-            if (existingOpt.get().getStatus() != com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
-                throw new BusinessException("Cannot regenerate payroll. Period is already " + existingOpt.get().getStatus(), HttpStatus.CONFLICT);
+            com.shiftsync.payroll.enums.PayrollPeriodStatus currentStatus = existingOpt.get().getStatus();
+            if (currentStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
+                throw new BusinessException("Cannot regenerate payroll. Period is already PAID.", HttpStatus.BAD_REQUEST);
+            }
+            if (currentStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED) {
+                boolean isAdmin = false;
+                org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null) {
+                    isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                }
+                if (!isAdmin) {
+                    throw new BusinessException("Cannot regenerate payroll. Period is already CONFIRMED. Only ADMIN can do this.", HttpStatus.FORBIDDEN);
+                }
+                java.util.UUID authUserId = null;
+                if (auth != null && auth.getPrincipal() instanceof com.shiftsync.shared.security.CustomUserDetails) {
+                    authUserId = ((com.shiftsync.shared.security.CustomUserDetails) auth.getPrincipal()).getId();
+                }
+                if (authUserId != null) {
+                    auditLogService.log(authUserId, "UPDATE_PAYROLL_STATUS", "PayrollPeriod", existingOpt.get().getId(), 
+                        java.util.Map.of("status", "CONFIRMED"), 
+                        java.util.Map.of("status", "DRAFT (Regenerated)"));
+                }
             }
             // Delete old payrolls for this period so we can regenerate
             payrollRepository.deleteByPayrollPeriod(existingOpt.get());
@@ -111,6 +134,17 @@ public class PayrollCalculationService {
         
         long endTime = System.currentTimeMillis(); // Profiling end
         log.info("generatePayroll completed in {} ms for {} employees.", (endTime - startTime), employments.size());
+
+        // Hook FR-19: PAYROLL_COMPLETED
+        for (Payroll p : payrolls) {
+            notificationService.sendNotification(
+                p.getStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.PAYROLL_COMPLETED,
+                "Payroll Generated",
+                "Your payroll for the period " + startDate + " to " + endDate + " has been generated.",
+                null
+            );
+        }
     }
 
     private Payroll calculateForEmployee(Employment emp, PayrollPeriod period, List<ShiftAssignment> assignments, Map<UUID, Attendance> attendanceMap, Map<LocalDate, BigDecimal> holidayMap) {
@@ -122,43 +156,29 @@ public class PayrollCalculationService {
         Map<Integer, List<ShiftAssignment>> weeklyAssignments = assignments.stream()
                 .collect(Collectors.groupingBy(a -> a.getShift().getShiftDate().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
 
-        int maxWeeklyHours = getMaxWeeklyHours(emp);
+        int maxWeeklyHours = emp.getContractType().getMaxWeeklyHours();
         BigDecimal hourlyRate = emp.getHourlyRate();
 
-        BigDecimal totalBaseAmt = BigDecimal.ZERO;
-        BigDecimal totalOtAmt = BigDecimal.ZERO;
-        BigDecimal totalHolidayAmt = BigDecimal.ZERO;
+        class PayrollAccumulator {
+            BigDecimal totalBaseAmt = BigDecimal.ZERO;
+            BigDecimal totalOtAmt = BigDecimal.ZERO;
+            BigDecimal totalHolidayAmt = BigDecimal.ZERO;
 
-        BigDecimal totalBaseHrs = BigDecimal.ZERO;
-        BigDecimal totalOtHrs = BigDecimal.ZERO;
-        BigDecimal totalHolidayHrs = BigDecimal.ZERO;
-
-        for (List<ShiftAssignment> weekShifts : weeklyAssignments.values()) {
-            // Sort chronologically to accumulate hours
-            weekShifts.sort(Comparator.comparing(a -> a.getShift().getShiftDate()));
-
+            BigDecimal totalBaseHrs = BigDecimal.ZERO;
+            BigDecimal totalOtHrs = BigDecimal.ZERO;
+            BigDecimal totalHolidayHrs = BigDecimal.ZERO;
+            
             double hoursWorkedThisWeek = 0.0;
 
-            for (ShiftAssignment assignment : weekShifts) {
-                Attendance att = attendanceMap.get(assignment.getId());
-                // MUST have check-out time
-                if (att == null || att.getCheckInTime() == null || att.getCheckOutTime() == null) {
-                    continue;
-                }
+            void addSegment(double segmentHours, LocalDate date, int maxWeeklyHours, BigDecimal hourlyRate, Map<LocalDate, BigDecimal> holidayMap, BigDecimal OT_MULTIPLIER) {
+                if (segmentHours <= 0) return;
+                boolean isHoliday = holidayMap.containsKey(date);
+                BigDecimal holidayMultiplier = isHoliday ? holidayMap.get(date) : BigDecimal.ONE;
 
-                double durationHours = Duration.between(att.getCheckInTime(), att.getCheckOutTime()).toMinutes() / 60.0;
-                if (durationHours <= 0) continue;
-
-                LocalDate shiftDate = assignment.getShift().getShiftDate();
-                boolean isHoliday = holidayMap.containsKey(shiftDate);
-                BigDecimal holidayMultiplier = isHoliday ? holidayMap.get(shiftDate) : BigDecimal.ONE;
-
-                // Split into Standard and OT
                 double remainingStandard = Math.max(0, maxWeeklyHours - hoursWorkedThisWeek);
-                double stdHours = Math.min(durationHours, remainingStandard);
-                double otHours = durationHours - stdHours;
+                double stdHours = Math.min(segmentHours, remainingStandard);
+                double otHours = segmentHours - stdHours;
 
-                // Calculate Standard Segment
                 if (stdHours > 0) {
                     BigDecimal hrs = BigDecimal.valueOf(stdHours);
                     if (isHoliday) {
@@ -170,7 +190,6 @@ public class PayrollCalculationService {
                     }
                 }
 
-                // Calculate OT Segment
                 if (otHours > 0) {
                     BigDecimal hrs = BigDecimal.valueOf(otHours);
                     BigDecimal effectiveMultiplier = isHoliday ? OT_MULTIPLIER.max(holidayMultiplier) : OT_MULTIPLIER;
@@ -183,23 +202,53 @@ public class PayrollCalculationService {
                         totalOtAmt = totalOtAmt.add(hrs.multiply(hourlyRate).multiply(effectiveMultiplier));
                     }
                 }
-
-                hoursWorkedThisWeek += durationHours;
+                hoursWorkedThisWeek += segmentHours;
             }
         }
 
-        BigDecimal totalHours = totalBaseHrs.add(totalOtHrs).add(totalHolidayHrs);
-        BigDecimal totalAmt = totalBaseAmt.add(totalOtAmt).add(totalHolidayAmt);
+        PayrollAccumulator totalAcc = new PayrollAccumulator();
+
+        for (List<ShiftAssignment> weekShifts : weeklyAssignments.values()) {
+            weekShifts.sort(Comparator.comparing(a -> a.getShift().getShiftDate()));
+            totalAcc.hoursWorkedThisWeek = 0.0; // Reset weekly hours
+
+            for (ShiftAssignment assignment : weekShifts) {
+                Attendance att = attendanceMap.get(assignment.getId());
+                if (att == null || att.getCheckInTime() == null || att.getCheckOutTime() == null) {
+                    continue;
+                }
+
+                java.time.OffsetDateTime checkIn = att.getCheckInTime();
+                java.time.OffsetDateTime checkOut = att.getCheckOutTime();
+                LocalDate day1 = checkIn.toLocalDate();
+                LocalDate day2 = checkOut.toLocalDate();
+
+                if (day1.equals(day2)) {
+                    double durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
+                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                } else {
+                    java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
+                    double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
+                    double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
+                    
+                    totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                }
+            }
+        }
+
+        BigDecimal totalHours = totalAcc.totalBaseHrs.add(totalAcc.totalOtHrs).add(totalAcc.totalHolidayHrs);
+        BigDecimal totalAmt = totalAcc.totalBaseAmt.add(totalAcc.totalOtAmt).add(totalAcc.totalHolidayAmt);
 
         return Payroll.builder()
                 .payrollPeriod(period)
                 .staff(emp.getUser())
                 .totalHours(totalHours.setScale(2, RoundingMode.HALF_UP))
-                .otHours(totalOtHrs.setScale(2, RoundingMode.HALF_UP))
-                .holidayHours(totalHolidayHrs.setScale(2, RoundingMode.HALF_UP))
-                .baseAmount(totalBaseAmt.setScale(2, RoundingMode.HALF_UP))
-                .otAmount(totalOtAmt.setScale(2, RoundingMode.HALF_UP))
-                .holidayAmount(totalHolidayAmt.setScale(2, RoundingMode.HALF_UP))
+                .otHours(totalAcc.totalOtHrs.setScale(2, RoundingMode.HALF_UP))
+                .holidayHours(totalAcc.totalHolidayHrs.setScale(2, RoundingMode.HALF_UP))
+                .baseAmount(totalAcc.totalBaseAmt.setScale(2, RoundingMode.HALF_UP))
+                .otAmount(totalAcc.totalOtAmt.setScale(2, RoundingMode.HALF_UP))
+                .holidayAmount(totalAcc.totalHolidayAmt.setScale(2, RoundingMode.HALF_UP))
                 .totalAmount(totalAmt.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }
@@ -218,17 +267,10 @@ public class PayrollCalculationService {
                 .build();
     }
 
-    private int getMaxWeeklyHours(Employment employment) {
-        return switch (employment.getEmploymentType()) {
-            case FULL_TIME -> 48;
-            case PART_TIME -> 24;
-            case INTERN -> 20;
-            case SEASONAL -> 40;
-        };
-    }
+    
 
     @Transactional
-    public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus) {
+    public void updatePayrollPeriodStatus(java.util.UUID storeId, java.util.UUID periodId, com.shiftsync.payroll.enums.PayrollPeriodStatus newStatus, java.util.UUID actorId) {
         PayrollPeriod period = payrollPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new BusinessException("Payroll period not found.", HttpStatus.NOT_FOUND));
 
@@ -236,16 +278,32 @@ public class PayrollCalculationService {
             throw new BusinessException("Payroll period does not belong to this store.", HttpStatus.FORBIDDEN);
         }
 
+        // Fetch user roles
+        boolean isAdmin = false;
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        }
+
         // Validate One-way state transition: DRAFT -> CONFIRMED -> PAID
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot change status of a PAID payroll period.", HttpStatus.BAD_REQUEST);
         }
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT) {
-            throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT.", HttpStatus.BAD_REQUEST);
+            if (!isAdmin) {
+                throw new BusinessException("Cannot revert CONFIRMED payroll period back to DRAFT. Only ADMIN can do this.", HttpStatus.FORBIDDEN);
+            }
         }
         if (period.getStatus() == com.shiftsync.payroll.enums.PayrollPeriodStatus.DRAFT && newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
             throw new BusinessException("Cannot skip CONFIRMED state. Must confirm before paying.", HttpStatus.BAD_REQUEST);
         }
+        if ((newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED || newStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) && !isAdmin) {
+            throw new BusinessException("Transition to CONFIRMED or PAID is only allowed for ADMIN.", HttpStatus.FORBIDDEN);
+        }
+
+                auditLogService.log(actorId, "UPDATE_PAYROLL_STATUS", "PayrollPeriod", periodId, 
+                java.util.Map.of("status", period.getStatus().name()), 
+                java.util.Map.of("status", newStatus.name()));
 
         period.setStatus(newStatus);
         payrollPeriodRepository.save(period);
