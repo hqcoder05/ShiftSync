@@ -79,7 +79,7 @@ public class StoreController {
         return ResponseEntity.ok(storeDTO);
     }
 
-    @PutMapping("/{id}")
+    @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #id))")
     @Operation(summary = "Update an existing store branch", description = "Modifies store parameters like location coordinates and operational hours.")
     @ApiResponses({
