@@ -73,8 +73,10 @@ public class ShiftAssignmentService {
         assignment = shiftAssignmentRepository.save(assignment);
 
         try {
+            // [SỬA LỖI LẦN CUỐI]: Thêm tham số NotificationType.SHIFT_REMINDER
             notificationService.sendNotification(
                     staff.getId(),
+                    com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
                     "Phân công ca làm việc",
                     "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
                     java.util.Map.of("shiftId", shift.getId().toString())
