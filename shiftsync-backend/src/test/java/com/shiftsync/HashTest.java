@@ -3,8 +3,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 public class HashTest {
     @Test
-    public void testHash() {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        System.out.println("HASH FOR PASSWORD: " + encoder.encode("password"));
+    public void printHash() {
+        System.out.println("BCRYPT_HASH_IS: " + new BCryptPasswordEncoder().encode("password123"));
     }
 }
