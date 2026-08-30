@@ -13,6 +13,7 @@ public class ShiftAssignmentResponseDTO {
     private UUID id;
     private UUID shiftId;
     private UUID staffId;
+    private String staffName;
     private AssignmentSource source;
     private OffsetDateTime assignedAt;
 }
