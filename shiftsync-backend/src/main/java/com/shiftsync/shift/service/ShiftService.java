@@ -126,8 +126,10 @@ public class ShiftService {
                 shiftAssignmentRepository.save(assignment);
 
                 try {
+                    // [SỬA LỖI 1]: Đã thêm NotificationType.SHIFT_REMINDER
                     notificationService.sendNotification(
                             staff.getId(),
+                            com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
                             "Phân công ca làm việc",
                             "Bạn đã được phân công ca làm việc ngày " + savedShift.getShiftDate() + " (" + savedShift.getStartTime() + " - " + savedShift.getEndTime() + ")",
                             java.util.Map.of("shiftId", savedShift.getId().toString())
@@ -189,8 +191,10 @@ public class ShiftService {
                 List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shift.getId());
                 for (ShiftAssignment sa : assignments) {
                     try {
+                        // [SỬA LỖI 2]: Đã thêm NotificationType.SCHEDULE_PUBLISHED
                         notificationService.sendNotification(
                                 sa.getStaff().getId(),
+                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
                                 "Lịch làm việc đã xuất bản",
                                 "Lịch làm việc tuần mới đã được công bố. Ca của bạn: ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
                                 java.util.Map.of("shiftId", shift.getId().toString())
@@ -262,8 +266,10 @@ public class ShiftService {
                     shiftAssignmentRepository.save(assignment);
 
                     try {
+                        // [SỬA LỖI 3]: Đã thêm NotificationType.SHIFT_REMINDER
                         notificationService.sendNotification(
                                 staff.getId(),
+                                com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
                                 "Cập nhật ca làm việc",
                                 "Ca làm việc ngày " + saved.getShiftDate() + " (" + saved.getStartTime() + " - " + saved.getEndTime() + ") của bạn đã được cập nhật.",
                                 java.util.Map.of("shiftId", saved.getId().toString())
