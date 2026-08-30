@@ -27,7 +27,7 @@ public class StaffRequestController {
     @Operation(summary = "Get all staff requests with optional filters")
     @GetMapping
     public ResponseEntity<List<StaffRequestDTO>> getAllRequests(
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false) com.shiftsync.request.enums.RequestStatus status,
             @RequestParam(required = false) String typeCategory,
             @RequestParam(required = false) String search) {
         List<StaffRequestDTO> list = staffRequestService.getAllRequests(status, typeCategory, search);
@@ -43,7 +43,11 @@ public class StaffRequestController {
 
     @Operation(summary = "Create a new staff request")
     @PostMapping
-    public ResponseEntity<StaffRequestDTO> createRequest(@Valid @RequestBody StaffRequestCreateDTO createDTO) {
+    public ResponseEntity<StaffRequestDTO> createRequest(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails,
+            @Valid @RequestBody StaffRequestCreateDTO createDTO) {
+        // Ignored requesterName from FE, use the real name from token
+        createDTO.setRequesterName(userDetails.getUser().getFullName());
         StaffRequestDTO created = staffRequestService.createRequest(createDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
