@@ -23,6 +23,9 @@ public class ShiftDTO {
     @Schema(description = "Shift Template ID (Optional)")
     private UUID shiftTemplateId;
 
+    @Schema(description = "List of assignments")
+    private List<ShiftAssignmentResponseDTO> shiftAssignments;
+
     @Schema(description = "Shift Date")
     private LocalDate shiftDate;
 
@@ -39,7 +42,7 @@ public class ShiftDTO {
     private ZonedDateTime availabilityDeadline;
     
     @Schema(description = "Requirements by Skill/Role")
-    private List<ShiftSkillRequirementDTO> requirements;
+    private List<ShiftSkillRequirementDTO> skillRequirements;
 
     @Schema(description = "Assigned Staff ID")
     private UUID staffId;
@@ -55,4 +58,10 @@ public class ShiftDTO {
 
     @Schema(description = "Skill / Role ID")
     private UUID skillId;
+
+    @Schema(description = "Primary Skill / Role Name")
+    private String skillName;
+
+    @Schema(description = "Total Required Staff")
+    private Integer requiredStaff;
 }
