@@ -79,4 +79,19 @@ public class ShiftAssignmentService {
                 .assignedAt(assignment.getAssignedAt())
                 .build();
     }
+
+    public java.util.List<ShiftAssignmentResponseDTO> getAssignmentsByShiftId(UUID storeId, UUID shiftId) {
+        shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+
+        return shiftAssignmentRepository.findByShiftId(shiftId).stream()
+                .map(assignment -> ShiftAssignmentResponseDTO.builder()
+                        .id(assignment.getId())
+                        .shiftId(assignment.getShift().getId())
+                        .staffId(assignment.getStaff().getId())
+                        .source(assignment.getSource())
+                        .assignedAt(assignment.getAssignedAt())
+                        .build())
+                .toList();
+    }
 }
