@@ -18,6 +18,9 @@ public class ShiftSkillRequirementDTO {
     @Schema(description = "Skill Name")
     private String skillName;
 
-    @Schema(description = "Required count")
-    private int requiredCount;
+    @Schema(description = "Required staff")
+    private int requiredStaff;
+
+    @Schema(description = "Assigned count")
+    private int assignedCount;
 }
