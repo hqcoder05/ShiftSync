@@ -79,12 +79,12 @@ public class StoreService {
 
         validateStoreBusinessRules(request);
 
-        store.setName(request.getName());
-        store.setAddress(request.getAddress());
-        store.setLatitude(request.getLatitude());
-        store.setLongitude(request.getLongitude());
-        store.setOpenTime(request.getOpenTime());
-        store.setCloseTime(request.getCloseTime());
+        if (request.getName() != null) store.setName(request.getName());
+        if (request.getAddress() != null) store.setAddress(request.getAddress());
+        if (request.getLatitude() != null) store.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) store.setLongitude(request.getLongitude());
+        if (request.getOpenTime() != null) store.setOpenTime(request.getOpenTime());
+        if (request.getCloseTime() != null) store.setCloseTime(request.getCloseTime());
 
         Store updatedStore = storeRepository.save(store);
         return StoreMapper.toDTO(updatedStore);
