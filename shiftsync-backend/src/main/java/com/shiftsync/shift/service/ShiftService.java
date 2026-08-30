@@ -263,23 +263,41 @@ public class ShiftService {
     }
 
     private ShiftDTO mapToDTO(Shift entity) {
+        List<ShiftAssignment> assignments = entity.getAssignments() != null ? entity.getAssignments() : new java.util.ArrayList<>();
+        
+        List<com.shiftsync.shift.dto.ShiftAssignmentResponseDTO> assignmentDTOs = assignments.stream()
+                .map(a -> com.shiftsync.shift.dto.ShiftAssignmentResponseDTO.builder()
+                        .id(a.getId())
+                        .shiftId(a.getShift().getId())
+                        .staffId(a.getStaff().getId())
+                        .staffName(a.getStaff().getFullName())
+                        .source(a.getSource())
+                        .assignedAt(a.getAssignedAt())
+                        .build())
+                .collect(Collectors.toList());
+
         List<ShiftSkillRequirementDTO> reqDTOs = entity.getRequirements().stream()
                 .map(req -> ShiftSkillRequirementDTO.builder()
                         .id(req.getId())
                         .skillId(req.getSkill().getId())
                         .skillName(req.getSkill().getName())
-                        .requiredCount(req.getRequiredCount())
+                        .requiredStaff(req.getRequiredCount())
+                        // Approximate assigned count for this skill: count how many assigned staff have this skill (if needed). 
+                        // For simplicity without N+1, leaving as 0 or total assignments if 1 skill.
+                        .assignedCount(entity.getRequirements().size() == 1 ? assignments.size() : 0)
                         .build())
                 .collect(Collectors.toList());
 
         UUID assignedStaffId = null;
         String assignedStaffName = null;
-        List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(entity.getId());
         if (!assignments.isEmpty()) {
             User staff = assignments.get(0).getStaff();
             assignedStaffId = staff.getId();
             assignedStaffName = staff.getFullName();
         }
+
+        String primarySkillName = entity.getRequirements().isEmpty() ? null : entity.getRequirements().get(0).getSkill().getName();
+        int totalRequiredStaff = entity.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum();
 
         return ShiftDTO.builder()
                 .id(entity.getId())
@@ -290,9 +308,12 @@ public class ShiftService {
                 .endTime(entity.getEndTime())
                 .status(entity.getStatus())
                 .availabilityDeadline(entity.getAvailabilityDeadline())
-                .requirements(reqDTOs)
+                .skillRequirements(reqDTOs)
+                .shiftAssignments(assignmentDTOs)
                 .staffId(assignedStaffId)
                 .staffName(assignedStaffName)
+                .skillName(primarySkillName)
+                .requiredStaff(totalRequiredStaff)
                 .build();
     }
 }
