@@ -3,7 +3,8 @@ import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
-import { getShiftsForStore, createShift, updateShift, deleteShift } from '../services/shiftService';
+import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
+import { getStaffAvailability } from '../services/availabilityService';
 import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
 import iconUser from '../assets/icons/icon-user.png';
@@ -162,6 +163,12 @@ export default function SchedulePage() {
   /* -- Custom Confirm Dialog -- */
   const [confirmDialog, setConfirmDialog] = useState(null);
 
+  /* -- Staff registered availability modal -- */
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [selectedStaffForAvail, setSelectedStaffForAvail] = useState(null);
+  const [staffAvailSlots, setStaffAvailSlots] = useState([]);
+  const [loadingAvail, setLoadingAvail] = useState(false);
+
   const showToast = (title, desc) => {
     setToastNotification({ title, desc });
     setTimeout(() => {
@@ -311,7 +318,12 @@ export default function SchedulePage() {
       .then((res) => {
         const list = res.data.content || res.data;
         setStores(list);
-        if (list.length) setStoreId(list[0].id);
+        if (list && list.length) {
+          const saved = localStorage.getItem('selectedStoreId');
+          const target = (saved && list.find((s) => String(s.id) === String(saved))) || list[0];
+          setStoreId(target.id);
+          localStorage.setItem('selectedStoreId', String(target.id));
+        }
       })
       .catch(() => setError('Không tải được danh sách chi nhánh'));
   }, []);
@@ -339,9 +351,14 @@ export default function SchedulePage() {
         const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
         const staff = rawStaff.map((emp) => {
           const id = emp.staffId || emp.id;
-          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
+          const name = emp.staffFullName || emp.fullName || 'Nhân viên';
+          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || (emp.contractType?.name || '');
           return {
             ...emp,
+            id: id,
+            staffId: id,
+            fullName: name,
+            staffFullName: name,
             position: pos,
             jobTitle: pos,
             skillName: pos,
@@ -436,7 +453,7 @@ export default function SchedulePage() {
   });
 
   const alreadyInStoreIds = new Set(employees.map((e) => e.staffId || e.id));
-  const availableToAdd = allEmployees.filter((e) => !alreadyInStoreIds.has(e.id));
+  const availableToAdd = allEmployees.filter((e) => !alreadyInStoreIds.has(e.id) && (e.role || e.systemRole) !== 'ADMIN');
 
   const getSkillColor = (skObj) => {
     if (!skObj) return null;
@@ -469,11 +486,13 @@ export default function SchedulePage() {
     setEditingShift(null);
 
     const defaults = getEmpDefaultSkillAndColor(empId);
+    const currentStore = stores.find((store) => store.id === storeId);
+    const defaultStartTime = currentStore?.openTime?.slice(0, 5) || '06:00';
 
     setRegisterForm({
       staffId: empId || '',
       shiftDate: dateIso || '',
-      startTime: '06:00',
+      startTime: defaultStartTime,
       endTime: '14:00',
       color: defaults.color || SHIFT_COLORS[0],
       location: defaults.location || '',
@@ -534,16 +553,14 @@ export default function SchedulePage() {
     setAddUserForm({
       staffId: '',
       employmentType: 'PART_TIME',
-      hourlyRate: '',
-      joinedDate: '',
+      hourlyRate: '25000',
+      joinedDate: toISODate(new Date()),
       skillId: '',
     });
     setShowAddUserModal(true);
-    if (allEmployees.length === 0) {
-      getEmployees(0, 100)
-        .then((res) => setAllEmployees(res.data.content || res.data))
-        .catch(() => setAllEmployees([]));
-    }
+    getEmployees(0, 100)
+      .then((res) => setAllEmployees(res.data.content || res.data || []))
+      .catch(() => setAllEmployees([]));
   };
 
   const openEditEmpModal = (emp) => {
@@ -559,6 +576,69 @@ export default function SchedulePage() {
       position: pos,
     });
     setShowEditEmpModal(true);
+  };
+
+  const handleOpenStaffAvailability = async (emp) => {
+    if (!emp) return;
+    const empId = emp.staffId || emp.id;
+    const name = emp.staffFullName || emp.fullName || '';
+    const pos = emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || 'Nhân viên';
+    setSelectedStaffForAvail({ ...emp, id: empId, name, position: pos });
+    setShowAvailabilityModal(true);
+    setLoadingAvail(true);
+    try {
+      const res = await getStaffAvailability(empId);
+      setStaffAvailSlots(res.data || []);
+    } catch (err) {
+      console.log('Lỗi tải lịch đăng ký của nhân viên:', err.message);
+      setStaffAvailSlots([]);
+    } finally {
+      setLoadingAvail(false);
+    }
+  };
+
+  const handleAssignAvailSlot = async (slot) => {
+    if (!selectedStaffForAvail) return;
+    const empId = selectedStaffForAvail.id;
+    const empName = selectedStaffForAvail.name;
+
+    // Tìm ngày tương ứng với slot.dayOfWeek trong tuần đang xem
+    // slot.dayOfWeek: 0 = CN, 1 = T2, 2 = T3, 3 = T4, 4 = T5, 5 = T6, 6 = T7
+    const targetDateObj = weekDatesFull.find((d) => d.getDay() === slot.dayOfWeek) || weekDatesFull[0];
+    const targetDateIso = toISODate(targetDateObj);
+
+    const defaults = getEmpDefaultSkillAndColor(empId);
+    const fmtT = (t) => {
+      if (!t) return '06:00';
+      if (typeof t === 'string') return t.slice(0, 5);
+      return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
+    };
+
+    const payload = {
+      staffId: empId,
+      shiftDate: targetDateIso,
+      startTime: fmtT(slot.startTime),
+      endTime: fmtT(slot.endTime),
+      color: defaults.color || SHIFT_COLORS[0],
+      skillId: defaults.location || null,
+      note: `Phân công từ ca đăng ký rảnh (${DOW_VI[slot.dayOfWeek]})`,
+    };
+
+    try {
+      await createShift(storeId, payload);
+      try {
+        await publishShifts(storeId, targetDateIso, targetDateIso);
+      } catch (pubErr) {
+        // Continue even if already published
+      }
+      showToast(
+        'Duyệt ca thành công! 🎉',
+        `Đã duyệt và phân công ca ${DOW_VI[slot.dayOfWeek]} (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) cho ${empName}. Ca làm việc đã được xuất bản và hiển thị ngay trên ứng dụng của nhân viên!`
+      );
+      loadData();
+    } catch (err) {
+      showToast('Lỗi phân công', err.response?.data?.message || 'Không thể phân công ca này');
+    }
   };
 
   /* ── Handlers ──────────────────────────────────── */
@@ -604,6 +684,23 @@ export default function SchedulePage() {
   const handleCreateShift = async (e) => {
     e.preventDefault();
     setError('');
+
+    const currentStore = stores.find((store) => store.id === storeId);
+    const openTime = currentStore?.openTime?.slice(0, 5);
+    const closeTime = currentStore?.closeTime?.slice(0, 5);
+    if (openTime && registerForm.startTime < openTime) {
+      setError(`Giờ bắt đầu phải từ ${openTime} trở đi (giờ mở cửa chi nhánh).`);
+      return;
+    }
+    if (closeTime && registerForm.endTime > closeTime) {
+      setError(`Giờ kết thúc phải trước hoặc bằng ${closeTime} (giờ đóng cửa chi nhánh).`);
+      return;
+    }
+    if (registerForm.startTime >= registerForm.endTime) {
+      setError('Giờ kết thúc phải sau giờ bắt đầu.');
+      return;
+    }
+
     try {
       // Nếu chọn chi nhánh làm việc khác với chi nhánh hiện tại -> Tạo yêu cầu điều phối liên chi nhánh
       if (registerForm.branch && registerForm.branch !== storeId) {
@@ -656,7 +753,7 @@ export default function SchedulePage() {
         shiftDate: registerForm.shiftDate,
         startTime: registerForm.startTime + ':00',
         endTime: registerForm.endTime + ':00',
-        registrationDeadline,
+        availabilityDeadline: registrationDeadline,
         staffId: registerForm.staffId || null,
         skillId: registerForm.location || null,
         note: registerForm.note || null,
@@ -774,7 +871,7 @@ export default function SchedulePage() {
         shiftDate: req.shiftDate,
         startTime: req.startTime + ':00',
         endTime: req.endTime + ':00',
-        registrationDeadline,
+        availabilityDeadline: registrationDeadline,
         staffId: req.staffId,
         skillId: req.skillId,
         note: req.note,
@@ -903,13 +1000,34 @@ export default function SchedulePage() {
       await assignStaffToStore(storeId, {
         staffId: addUserForm.staffId,
         employmentType: addUserForm.employmentType,
-        hourlyRate: Number(addUserForm.hourlyRate) || 0,
+        hourlyRate: Number(addUserForm.hourlyRate) || 25000,
         joinedDate: addUserForm.joinedDate || toISODate(new Date()),
+        skillId: addUserForm.skillId ? addUserForm.skillId : null,
       });
+      // Lưu vị trí công việc vào localStorage để hiển thị ngay
+      if (addUserForm.skillId) {
+        const skObj = skills.find((s) => s.id === addUserForm.skillId);
+        if (skObj) {
+          const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
+          savedPositions[addUserForm.staffId] = skObj.name;
+          localStorage.setItem(`emp_positions_${storeId}`, JSON.stringify(savedPositions));
+        }
+      }
+      setUserFilter('All');
+      setSkillFilter('All');
       setShowAddUserModal(false);
+      showToast('Thêm thành công', 'Nhân viên đã được thêm vào chi nhánh và hiển thị trên lịch.');
       loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Thêm nhân viên thất bại');
+      if (err.response?.status === 409) {
+        showToast('Thông báo', 'Nhân viên này đã thuộc chi nhánh rồi.');
+        setUserFilter('All');
+        setSkillFilter('All');
+        setShowAddUserModal(false);
+        loadData();
+      } else {
+        setError(err.response?.data?.message || 'Thêm nhân viên thất bại');
+      }
     }
   };
 
@@ -942,7 +1060,11 @@ export default function SchedulePage() {
             <select
               className="sch-filter-select"
               value={storeId}
-              onChange={(e) => setStoreId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStoreId(val);
+                localStorage.setItem('selectedStoreId', String(val));
+              }}
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -1032,8 +1154,24 @@ export default function SchedulePage() {
                       src={getAvatar(name)}
                       alt={name}
                       className="sch-filter-avatar"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenStaffAvailability(emp);
+                      }}
+                      title="Bấm để xem lịch đăng ký rảnh của nhân viên"
                     />
-                    {name}
+                    <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => setUserFilter(name)}>{name}</span>
+                    <button
+                      type="button"
+                      className="sch-filter-avail-badge-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenStaffAvailability(emp);
+                      }}
+                      title="Xem lịch đăng ký của nhân viên"
+                    >
+                      Lịch rảnh
+                    </button>
                   </div>
                 );
               })}
@@ -1292,14 +1430,23 @@ export default function SchedulePage() {
                       <td className="sch-col-emp">
                         <div
                           className="sch-emp-cell"
-                          onClick={() => openEditEmpModal(emp)}
-                          title="Nhấp để chỉnh sửa thông tin nhân viên"
+                          onClick={() => handleOpenStaffAvailability(emp)}
+                          title="Bấm vào ảnh đại diện hoặc tên để xem lịch nhân viên đã đăng ký & phân công ca"
                         >
-                          <img
-                            className="sch-emp-avatar"
-                            src={getAvatar(name)}
-                            alt={name}
-                          />
+                          <div className="sch-emp-avatar-wrap">
+                            <img
+                              className="sch-emp-avatar"
+                              src={getAvatar(name)}
+                              alt={name}
+                            />
+                            <span
+                              className="sch-emp-avatar-badge"
+                              title="Xem lịch đăng ký rảnh"
+                              aria-label="Có lịch đăng ký rảnh"
+                            >
+                              !
+                            </span>
+                          </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
                             <div className="sch-emp-role">{role || 'Nhân viên'}</div>
@@ -1468,6 +1615,8 @@ export default function SchedulePage() {
                 </button>
               </div>
             </div>
+
+            {error && <p className="sch-error">{error}</p>}
 
             {/* 2-column grid */}
             <div className="sch-modal-grid">
@@ -2079,6 +2228,145 @@ export default function SchedulePage() {
                 onClick={() => setShowCrossStoreModal(false)}
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Lịch đăng ký của nhân viên (Staff Registered Shifts / Availability) ═══ */}
+      {showAvailabilityModal && selectedStaffForAvail && (
+        <div className="sch-modal-overlay" onClick={() => setShowAvailabilityModal(false)}>
+          <div className="sch-modal sch-avail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sch-modal-header">
+              <div className="sch-avail-modal-emp-info">
+                <img
+                  src={getAvatar(selectedStaffForAvail.name)}
+                  alt={selectedStaffForAvail.name}
+                  className="sch-avail-modal-avatar"
+                />
+                <div>
+                  <span className="sch-avail-modal-eyebrow">LỊCH KHẢ DỤNG</span>
+                  <h2 className="sch-avail-modal-title">
+                    Lịch đăng ký của {selectedStaffForAvail.name}
+                  </h2>
+                  <span className="sch-avail-modal-sub">
+                    {selectedStaffForAvail.position} • Tuần: {fmtDM(weekDatesFull[0])} đến {fmtDM(weekDatesFull[6])}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="sch-modal-close"
+                onClick={() => setShowAvailabilityModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="sch-avail-modal-body">
+              {loadingAvail ? (
+                <div style={{ textAlign: 'center', padding: '36px', color: '#666', fontSize: '14px' }}>
+                  ⏳ Đang tải lịch đăng ký của nhân viên...
+                </div>
+              ) : staffAvailSlots.length === 0 ? (
+                <div className="sch-avail-empty-box">
+                  <div className="sch-avail-empty-icon" aria-hidden="true"><span /></div>
+                  <p className="sch-avail-empty-title">
+                    Chưa có khung giờ khả dụng
+                  </p>
+                  <p className="sch-avail-empty-description">
+                    {selectedStaffForAvail.name} chưa gửi lịch rảnh cho tuần này. Bạn vẫn có thể tạo ca thủ công ngay tại đây.
+                  </p>
+                  <button
+                    type="button"
+                    className="sch-avail-empty-action"
+                    onClick={() => {
+                      setShowAvailabilityModal(false);
+                      openRegisterModal(selectedStaffForAvail.id, toISODate(weekDatesFull[0]));
+                    }}
+                  >
+                    Tạo ca thủ công
+                  </button>
+                </div>
+              ) : (
+                <div className="sch-avail-list">
+                  <div className="sch-avail-guide">
+                    Các khung giờ dưới đây được <strong>{selectedStaffForAvail.name}</strong> đăng ký khả dụng trên mobile. Chọn một khung giờ để thêm vào lịch tuần này.
+                  </div>
+                  {[1, 2, 3, 4, 5, 6, 0].map((dow) => {
+                    const slotsForDow = staffAvailSlots.filter((s) => s.dayOfWeek === dow);
+                    const targetDate = weekDatesFull.find((d) => d.getDay() === dow);
+                    const targetIso = targetDate ? toISODate(targetDate) : '';
+                    const assignedForThisDay = targetIso && assignments[selectedStaffForAvail.id]?.[targetIso]?.length > 0;
+
+                    if (slotsForDow.length === 0) return null;
+
+                    return (
+                      <div key={dow} className="sch-avail-day-row">
+                        <div className="sch-avail-day-title">
+                          <span className="sch-avail-dow-badge">{DOW_VI[dow]}</span>
+                          <span className="sch-avail-date-label">
+                            ({targetDate ? fmtDM(targetDate) : ''})
+                          </span>
+                        </div>
+                        <div className="sch-avail-slots-group">
+                          {slotsForDow.map((slot) => {
+                            const fmtT = (t) => {
+                              if (!t) return '06:00';
+                              if (typeof t === 'string') return t.slice(0, 5);
+                              return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
+                            };
+                            return (
+                              <div key={slot.id} className="sch-avail-slot-card">
+                                <div className="sch-avail-slot-info">
+                                  <span className="sch-avail-slot-time">
+                                    {fmtT(slot.startTime)} – {fmtT(slot.endTime)}
+                                  </span>
+                                  {assignedForThisDay ? (
+                                    <span className="sch-avail-status-tag assigned">Đã có ca trên lịch</span>
+                                  ) : (
+                                    <span className="sch-avail-status-tag pending">Đã đăng ký rảnh</span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className={`sch-avail-assign-btn${assignedForThisDay ? ' already' : ''}`}
+                                  onClick={() => handleAssignAvailSlot(slot)}
+                                >
+                                  {assignedForThisDay ? 'Gán thêm ca' : 'Phân công ca'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="sch-avail-modal-footer">
+              <button
+                type="button"
+                className="sch-avail-footer-edit"
+                onClick={() => {
+                  setShowAvailabilityModal(false);
+                  openEditEmpModal(selectedStaffForAvail);
+                }}
+              >
+                Chỉnh sửa hồ sơ
+              </button>
+              <button
+                type="button"
+                className="sch-avail-footer-create"
+                onClick={() => {
+                  setShowAvailabilityModal(false);
+                  openRegisterModal(selectedStaffForAvail.id, toISODate(weekDatesFull[0]));
+                }}
+              >
+                Tạo ca tùy chỉnh
               </button>
             </div>
           </div>

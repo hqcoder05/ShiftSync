@@ -14,6 +14,9 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     
     List<Attendance> findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate);
 
+    List<Attendance> findByShiftAssignment_Staff_IdOrderByCheckInTimeDesc(UUID staffId);
+
+
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(a) FROM Attendance a WHERE a.shiftAssignment.shift.store.id = :storeId " +
            "AND a.shiftAssignment.shift.shiftDate >= :startDate " +
            "AND a.shiftAssignment.shift.shiftDate <= :endDate " +

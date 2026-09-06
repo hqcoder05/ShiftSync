@@ -45,6 +45,9 @@ class ShiftAssignmentServiceTest {
     @Mock private PayrollPeriodRepository payrollPeriodRepository;
     @Mock private ShiftValidationService shiftValidationService;
     @Mock private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
+    
+    // [THÊM MỚI]: Khai báo Mock cho NotificationService
+    @Mock private com.shiftsync.notification.service.NotificationService notificationService;
 
     private ShiftAssignmentValidator shiftAssignmentValidator;
     private ShiftAssignmentService service;
@@ -64,7 +67,8 @@ class ShiftAssignmentServiceTest {
         );
         service = new ShiftAssignmentService(
             shiftRepository, shiftAssignmentRepository, availabilityRepository, blackoutDateRepository, employmentRepository, userRepository,
-            payrollPeriodRepository, shiftValidationService, shiftAssignmentValidator, staffSkillRepository
+            // [THÊM MỚI]: Truyền notificationService vào vị trí thứ 9
+            payrollPeriodRepository, shiftValidationService, notificationService, shiftAssignmentValidator, staffSkillRepository
         );
 
         storeId = UUID.randomUUID();

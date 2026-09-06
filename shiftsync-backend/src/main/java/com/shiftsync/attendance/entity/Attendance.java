@@ -38,8 +38,28 @@ public class Attendance {
     @Column(name = "check_in_time")
     private OffsetDateTime checkInTime;
 
+    @Column(name = "check_in_lat")
+    private Double checkInLat;
+
+    @Column(name = "check_in_lng")
+    private Double checkInLng;
+
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "check_in_photo")
+    private byte[] checkInPhoto;
+
     @Column(name = "check_out_time")
     private OffsetDateTime checkOutTime;
+
+    @Column(name = "check_out_lat")
+    private Double checkOutLat;
+
+    @Column(name = "check_out_lng")
+    private Double checkOutLng;
+
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "check_out_photo")
+    private byte[] checkOutPhoto;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

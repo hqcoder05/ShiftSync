@@ -44,6 +44,15 @@ public class ShiftController {
         return ResponseEntity.ok(shiftService.getShiftsByStoreId(storeId, status, isStaff));
     }
 
+    @Operation(summary = "Get my assigned shifts in this store")
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/my")
+    public ResponseEntity<List<ShiftDTO>> getMyShiftsInStore(
+            @PathVariable UUID storeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(shiftService.getShiftsByStoreAndStaff(storeId, userDetails.getId()));
+    }
+
     @Operation(summary = "Create a new shift")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping

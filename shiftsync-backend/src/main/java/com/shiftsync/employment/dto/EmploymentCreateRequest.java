@@ -13,14 +13,14 @@ public class EmploymentCreateRequest {
     @NotNull(message = "Staff ID is required")
     private UUID staffId;
     
-    @NotNull(message = "Employment type is required")
-    private java.util.UUID contractTypeId;
+    private UUID contractTypeId;
     
-    @NotNull(message = "Hourly rate is required")
-    @Positive(message = "Hourly rate must be positive")
+    private String employmentType;
+
+    private UUID skillId;
+    
     private BigDecimal hourlyRate;
     
-    @NotNull(message = "Joined date is required")
     private LocalDate joinedDate;
 }
 

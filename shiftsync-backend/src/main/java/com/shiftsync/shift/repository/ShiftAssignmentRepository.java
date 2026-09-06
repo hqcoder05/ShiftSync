@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment, UUID> {
     List<ShiftAssignment> findByShiftId(UUID shiftId);
 
+    List<ShiftAssignment> findByStaffId(UUID staffId);
+
     @Query("SELECT COUNT(sa) FROM ShiftAssignment sa WHERE sa.shift.id = :shiftId")
     long countActiveAssignmentsByShiftId(@Param("shiftId") UUID shiftId);
 

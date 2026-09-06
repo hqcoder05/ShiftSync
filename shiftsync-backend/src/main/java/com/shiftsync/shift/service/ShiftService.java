@@ -57,6 +57,7 @@ public class ShiftService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<ShiftDTO> getShiftsByStoreId(UUID storeId, ShiftStatus statusFilter, boolean isStaff) {
         verifyStoreExists(storeId);
         return shiftRepository.findByStoreId(storeId).stream()
@@ -124,6 +125,18 @@ public class ShiftService {
                         .source(AssignmentSource.MANUAL)
                         .build();
                 shiftAssignmentRepository.save(assignment);
+
+                try {
+                    // [SỬA LỖI 1]: Đã thêm NotificationType.SHIFT_REMINDER
+                    notificationService.sendNotification(
+                            staff.getId(),
+                            com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
+                            "Phân công ca làm việc",
+                            "Bạn đã được phân công ca làm việc ngày " + savedShift.getShiftDate() + " (" + savedShift.getStartTime() + " - " + savedShift.getEndTime() + ")",
+                            java.util.Map.of("shiftId", savedShift.getId().toString())
+                    );
+                } catch (Exception ignored) {
+                }
             });
         }
 
@@ -175,6 +188,21 @@ public class ShiftService {
                 }
                 shift.setStatus(ShiftStatus.PUBLISHED);
                 publishedCount++;
+
+                List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shift.getId());
+                for (ShiftAssignment sa : assignments) {
+                    try {
+                        // [SỬA LỖI 2]: Đã thêm NotificationType.SCHEDULE_PUBLISHED
+                        notificationService.sendNotification(
+                                sa.getStaff().getId(),
+                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
+                                "Lịch làm việc đã xuất bản",
+                                "Lịch làm việc tuần mới đã được công bố. Ca của bạn: ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
+                                java.util.Map.of("shiftId", shift.getId().toString())
+                        );
+                    } catch (Exception ignored) {
+                    }
+                }
             }
         }
         
@@ -224,7 +252,23 @@ public class ShiftService {
             shift.setAvailabilityDeadline(request.getAvailabilityDeadline());
         }
 
+        if (shift.getStatus() == ShiftStatus.DRAFT) {
+            shift.setStatus(ShiftStatus.PUBLISHED);
+        }
+
         Shift saved = shiftRepository.save(shift);
+
+        if (request.getSkillId() != null) {
+            skillRepository.findById(request.getSkillId()).ifPresent(sk -> {
+                saved.getRequirements().clear();
+                saved.getRequirements().add(ShiftSkillRequirement.builder()
+                        .shift(saved)
+                        .skill(sk)
+                        .requiredCount(1)
+                        .build());
+                shiftRepository.save(saved);
+            });
+        }
 
         if (request.getStaffId() != null) {
             List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
@@ -237,6 +281,18 @@ public class ShiftService {
                             .source(AssignmentSource.MANUAL)
                             .build();
                     shiftAssignmentRepository.save(assignment);
+
+                    try {
+                        // [SỬA LỖI 3]: Đã thêm NotificationType.SHIFT_REMINDER
+                        notificationService.sendNotification(
+                                staff.getId(),
+                                com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
+                                "Cập nhật ca làm việc",
+                                "Ca làm việc ngày " + saved.getShiftDate() + " (" + saved.getStartTime() + " - " + saved.getEndTime() + ") của bạn đã được cập nhật.",
+                                java.util.Map.of("shiftId", saved.getId().toString())
+                        );
+                    } catch (Exception ignored) {
+                    }
                 });
             }
         }
@@ -254,6 +310,24 @@ public class ShiftService {
             shiftAssignmentRepository.deleteAll(assignments);
         }
         shiftRepository.delete(shift);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShiftDTO> getShiftsByStaffId(UUID staffId) {
+        return shiftAssignmentRepository.findByStaffId(staffId).stream()
+                .map(ShiftAssignment::getShift)
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShiftDTO> getShiftsByStoreAndStaff(UUID storeId, UUID staffId) {
+        verifyStoreExists(storeId);
+        return shiftAssignmentRepository.findByStaffId(staffId).stream()
+                .map(ShiftAssignment::getShift)
+                .filter(s -> s.getStore().getId().equals(storeId))
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
     }
 
     private void verifyStoreExists(UUID storeId) {
@@ -282,8 +356,6 @@ public class ShiftService {
                         .skillId(req.getSkill().getId())
                         .skillName(req.getSkill().getName())
                         .requiredStaff(req.getRequiredCount())
-                        // Approximate assigned count for this skill: count how many assigned staff have this skill (if needed). 
-                        // For simplicity without N+1, leaving as 0 or total assignments if 1 skill.
                         .assignedCount(entity.getRequirements().size() == 1 ? assignments.size() : 0)
                         .build())
                 .collect(Collectors.toList());
@@ -301,7 +373,9 @@ public class ShiftService {
 
         return ShiftDTO.builder()
                 .id(entity.getId())
-                .storeId(entity.getStore().getId())
+                .storeId(entity.getStore() != null ? entity.getStore().getId() : null)
+                .storeName(entity.getStore() != null ? entity.getStore().getName() : null)
+                .storeAddress(entity.getStore() != null ? entity.getStore().getAddress() : null)
                 .shiftTemplateId(entity.getShiftTemplate() != null ? entity.getShiftTemplate().getId() : null)
                 .shiftDate(entity.getShiftDate())
                 .startTime(entity.getStartTime())

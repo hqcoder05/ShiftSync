@@ -14,6 +14,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
+import java.time.LocalDate;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -47,5 +50,45 @@ public class AttendanceController {
                 .status(attendance.getStatus())
                 .build();
         return ResponseEntity.ok(dto);
+    }
+
+    @PostMapping(value = "/attendance/selfie", consumes = "multipart/form-data")
+    public ResponseEntity<AttendanceDTO> submitSelfie(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam UUID shiftId,
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(required = false) String forcedStatus,
+            @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
+        byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
+        Attendance attendance = attendanceService.submitSelfie(
+                userDetails.getId(), shiftId, latitude, longitude, photoBytes, forcedStatus);
+        return ResponseEntity.ok(attendanceService.toDTO(attendance));
+    }
+
+    @GetMapping("/attendance/me")
+    public ResponseEntity<List<AttendanceDTO>> getMyAttendance(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(attendanceService.getMyAttendance(userDetails.getId()));
+    }
+
+    @GetMapping("/stores/{storeId}/attendance")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<List<AttendanceDTO>> getStoreAttendance(
+            @PathVariable UUID storeId,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to) {
+        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate start = from == null ? end.withDayOfMonth(1) : from;
+        return ResponseEntity.ok(attendanceService.getStoreAttendance(storeId, start, end));
+    }
+
+    @PutMapping("/stores/{storeId}/attendance/{attendanceId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<AttendanceDTO> updateAttendance(
+            @PathVariable UUID storeId,
+            @PathVariable UUID attendanceId,
+            @RequestBody com.shiftsync.attendance.dto.AttendanceUpdateRequest request) {
+        return ResponseEntity.ok(attendanceService.updateAttendance(storeId, attendanceId, request));
     }
 }

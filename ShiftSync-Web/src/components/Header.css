@@ -87,3 +87,88 @@
   object-fit: contain;
   filter: brightness(0) invert(1);
 }
+
+/* Settings Dropdown Container */
+.ss-header-settings-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ss-settings-btn.active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ss-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: #2B2B2B;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  min-width: 170px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: ssDropdownFade 0.15s ease-out;
+}
+
+@keyframes ssDropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ss-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #E0E0E0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.ss-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+.ss-dropdown-item.selected {
+  background: #51A33D;
+  color: #FFFFFF;
+}
+
+.ss-dropdown-item.selected svg {
+  stroke: #FFFFFF;
+}
+
+.ss-dropdown-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #F87171;
+}
+
+.ss-dropdown-logout:hover svg {
+  stroke: #F87171;
+}
+
+.ss-dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 6px;
+}

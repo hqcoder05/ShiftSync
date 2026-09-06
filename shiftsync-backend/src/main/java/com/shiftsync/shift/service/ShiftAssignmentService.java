@@ -35,6 +35,7 @@ public class ShiftAssignmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final ShiftValidationService shiftValidationService;
+    private final com.shiftsync.notification.service.NotificationService notificationService;
     private final ShiftAssignmentValidator shiftAssignmentValidator;
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
@@ -70,6 +71,18 @@ public class ShiftAssignmentService {
                 .build();
 
         assignment = shiftAssignmentRepository.save(assignment);
+
+        try {
+            // [SỬA LỖI LẦN CUỐI]: Thêm tham số NotificationType.SHIFT_REMINDER
+            notificationService.sendNotification(
+                    staff.getId(),
+                    com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
+                    "Phân công ca làm việc",
+                    "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
+                    java.util.Map.of("shiftId", shift.getId().toString())
+            );
+        } catch (Exception ignored) {
+        }
 
         return ShiftAssignmentResponseDTO.builder()
                 .id(assignment.getId())

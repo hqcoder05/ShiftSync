@@ -39,9 +39,14 @@ export default function LoginScreen({ navigation }) {
       navigation.replace('MainTabs');
     } catch (err) {
       console.log('LOGIN ERROR:', err.message);
-      // Fallback demo mode nếu backend chưa bật
-      await AsyncStorage.setItem('accessToken', 'demo-token');
-      navigation.replace('MainTabs');
+      const status = err.response?.status;
+      if (status === 401) {
+        setError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
+      } else if (status === 0 || !err.response) {
+        setError('Không kết nối được server. Hãy đảm bảo backend đang chạy tại cổng 8080.');
+      } else {
+        setError('Đăng nhập thất bại. Vui lòng thử lại.');
+      }
     }
   };
 

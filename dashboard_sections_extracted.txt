@@ -1,0 +1,867 @@
+=== KW: Rectangle 32 at 378 ===
+bsolute;
+  height: 100px;
+  left: -256px;
+  right: 0px;
+  top: 100px;
+  background: #FFFFFF;
+=== /* Rectangle 32 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 247px;
+  left: 103px;
+  top: 242px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 34 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 283px;
+  left: 103px;
+  top: 523px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 35 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 300px;
+  left: 103px;
+  top: 863px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(
+------------------------------------------------------------
+=== KW: Rectangle 34 at 662 ===
+182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 34 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 283px;
+  left: 103px;
+  top: 523px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 35 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 300px;
+  left: 103px;
+  top: 863px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 132 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 492px;
+  left: 104px;
+  top: 1237px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgb
+------------------------------------------------------------
+=== KW: Rectangle 35 at 946 ===
+182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 35 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 300px;
+  left: 103px;
+  top: 863px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 132 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 492px;
+  left: 104px;
+  top: 1237px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 167 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 603px;
+  left: 103px;
+  top: 1807px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px r
+------------------------------------------------------------
+=== KW: Rectangle 132 at 1230 ===
+182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 132 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 492px;
+  left: 104px;
+  top: 1237px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 167 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 603px;
+  left: 103px;
+  top: 1807px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 177 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 309px;
+  left: 104px;
+  top: 2473px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px
+------------------------------------------------------------
+=== KW: Rectangle 167 at 1516 ===
+182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 167 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 603px;
+  left: 103px;
+  top: 1807px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 177 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 309px;
+  left: 104px;
+  top: 2473px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Bell
+Keywords: alarm, notification, sound
+*/
+position: absolute;
+width: 44px;
+height: 44px;
+left: 27px;
+top: 33px;
+/* Icon */ ===
+  position: absolute;
+  left: 12.5%;
+  right: 12.5%;
+  top: 8.33%;
+  bottom: 8.35%;
+  border: 4px 
+------------------------------------------------------------
+=== KW: Rectangle 177 at 1802 ===
+182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Rectangle 177 */ ===
+  box-sizing: border-box;
+  position: absolute;
+  width: 1720px;
+  height: 309px;
+  left: 104px;
+  top: 2473px;
+  background: #FFFFFF;
+  border: 1px solid rgba(188, 182, 183, 0.5);
+  box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+  border-radius: 10px;
+=== /* Bell
+Keywords: alarm, notification, sound
+*/
+position: absolute;
+width: 44px;
+height: 44px;
+left: 27px;
+top: 33px;
+/* Icon */ ===
+  position: absolute;
+  left: 12.5%;
+  right: 12.5%;
+  top: 8.33%;
+  bottom: 8.35%;
+  border: 4px solid #FFFFFF;
+=== /* Calendar */ ===
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  left: 346px;
+  top: 26px;
+=== /* Icon */ ===
+  position: absolute;
+  left: 12.5%;
+  right: 12.5%;
+  top: 8.33%;
+  bottom: 8.33%;
+  border: 4px solid #FFFFFF;
+=== /* Calendar */ ===
+  position: 
+------------------------------------------------------------
+=== KW: Lịch làm việc hôm nay at 5750 ===
+style: normal;
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Lịch làm việc hôm nay */ ===
+  position: absolute;
+  width: 310px;
+  height: 40px;
+  left: 134px;
+  top: 266px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Yêu cầu */ ===
+  position: absolute;
+  width: 129px;
+  height: 40px;
+  left: 138px;
+  top: 2500px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Thông báo chấm công */ ===
+  position: absolute;
+  width: 307px;
+  height: 40px;
+  left: 134px;
+  top: 545px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Tổng quan hôm nay */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left:
+------------------------------------------------------------
+=== KW: Yêu cầu at 5993 ===
+style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Yêu cầu */ ===
+  position: absolute;
+  width: 129px;
+  height: 40px;
+  left: 138px;
+  top: 2500px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Thông báo chấm công */ ===
+  position: absolute;
+  width: 307px;
+  height: 40px;
+  left: 134px;
+  top: 545px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Tổng quan hôm nay */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 139px;
+  top: 891px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Dự báo lương */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 170px;
+ 
+------------------------------------------------------------
+=== KW: Thông báo chấm công at 6223 ===
+style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Thông báo chấm công */ ===
+  position: absolute;
+  width: 307px;
+  height: 40px;
+  left: 134px;
+  top: 545px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Tổng quan hôm nay */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 139px;
+  top: 891px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Dự báo lương */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 170px;
+  top: 1841px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Lịch xếp: 46 giờ */ ===
+  position: absolute;
+  width: 218px;
+  height: 40px;
+  left:
+------------------------------------------------------------
+=== KW: Tổng quan hôm nay at 6464 ===
+style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Tổng quan hôm nay */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 139px;
+  top: 891px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Dự báo lương */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 170px;
+  top: 1841px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Lịch xếp: 46 giờ */ ===
+  position: absolute;
+  width: 218px;
+  height: 40px;
+  left: 167px;
+  top: 1922px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Thực làm: 16 giờ */ ===
+  position: absolute;
+  width: 221px;
+  height: 40px;
+  left: 4
+------------------------------------------------------------
+=== KW: Dự báo lương at 6703 ===
+style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Dự báo lương */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 170px;
+  top: 1841px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Lịch xếp: 46 giờ */ ===
+  position: absolute;
+  width: 218px;
+  height: 40px;
+  left: 167px;
+  top: 1922px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Thực làm: 16 giờ */ ===
+  position: absolute;
+  width: 221px;
+  height: 40px;
+  left: 481px;
+  top: 1924px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Ca làm việc được phân công */ ===
+  position: absolute;
+  width: 390px;
+  height: 40px;
+------------------------------------------------------------
+=== KW: Ca làm việc được phân công at 7416 ===
+style: normal;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Ca làm việc được phân công */ ===
+  position: absolute;
+  width: 390px;
+  height: 40px;
+  left: 155px;
+  top: 1269px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  color: #333333;
+=== /* Ca trống chưa lắp */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 139px;
+  top: 960px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 29px;
+  color: #333333;
+=== /* Xem lịch trình hôm nay */ ===
+  position: absolute;
+  width: 272px;
+  height: 40px;
+  left: 142px;
+  top: 1012px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 19px;
+  color: #469034;
+=== /* Xem lịch trình hôm nay */ ===
+  position: absolute;
+  height: 40px;
+------------------------------------------------------------
+=== KW: Rectangle 35 at 10567 ===
+4 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 50px;
+  left: 104px;
+  top: 591px;
+=== /* Rectangle 35 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 50px;
+  left: 104px;
+  top: 591px;
+  background: rgba(217, 217, 217, 0.5);
+=== /* Group 5 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 35px;
+  left: 104px;
+  top: 706px;
+=== /* Rectangle 35 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 35px;
+  left: 104px;
+  top: 706px;
+  background: rgba(217, 217, 217, 0.5);
+=== /* Tên */ ===
+  position: absolute;
+  width: 111px;
+  height: 26px;
+  left: 127px;
+  top: 332px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 24px;
+  color: #333333;
+=== /* Hôm nay */ ===
+  position: absolute;
+  width: 111px;
+  height: 26px;
+  left: 139px;
+  top: 603px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  f
+------------------------------------------------------------
+=== KW: Rectangle 35 at 10824 ===
+5 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 35px;
+  left: 104px;
+  top: 706px;
+=== /* Rectangle 35 */ ===
+  position: absolute;
+  width: 1720px;
+  height: 35px;
+  left: 104px;
+  top: 706px;
+  background: rgba(217, 217, 217, 0.5);
+=== /* Tên */ ===
+  position: absolute;
+  width: 111px;
+  height: 26px;
+  left: 127px;
+  top: 332px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 24px;
+  color: #333333;
+=== /* Hôm nay */ ===
+  position: absolute;
+  width: 111px;
+  height: 26px;
+  left: 139px;
+  top: 603px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 24px;
+  color: #333333;
+=== /* Hôm qua */ ===
+  position: absolute;
+  width: 111px;
+  height: 26px;
+  left: 127px;
+  top: 711px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 20px;
+  line-heigh
+------------------------------------------------------------
+=== KW: Rectangle 34 at 27378 ===
+ 3 */ ===
+  position: absolute;
+  width: 909px;
+  height: 40px;
+  left: 365px;
+  top: 382px;
+=== /* Rectangle 34 */ ===
+  position: absolute;
+  width: 909px;
+  height: 40px;
+  left: 365px;
+  top: 382px;
+  background: #8DD9CC;
+  border-radius: 7px;
+=== /* Rectangle 36 */ ===
+  position: absolute;
+  width: 24.94px;
+  height: 5px;
+  left: 367.33px;
+  top: 383px;
+  background: rgba(240, 236, 236, 0.7);
+  border-radius: 2px;
+  transform: rotate(-45deg);
+=== /* Rectangle 37 */ ===
+  position: absolute;
+  width: 42.21px;
+  height: 5px;
+  left: 367.97px;
+  top: 383.82px;
+  background: rgba(240, 236, 236, 0.7);
+  border-radius: 2px;
+  transform: rotate(-45deg);
+=== /* Rectangle 38 */ ===
+  position: absolute;
+  width: 44.39px;
+  height: 5px;
+  left: 383.75px;
+  top: 384.71px;
+  background: rgba(240, 236, 236, 0.7);
+  border-radius: 2px;
+  transform: rotate(-45deg);
+=== /* Rectangle 39 */ ===
+  po
+------------------------------------------------------------
+=== KW: REQUESTS at 74487 ===
+style: normal;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 22px;
+  color: #D9D98D;
+=== /* REQUESTS */ ===
+  position: absolute;
+  width: 133px;
+  height: 21px;
+  left: 830px;
+  top: 45px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 19px;
+  color: #FFFFFF;
+=== /* REQUESTS */ ===
+  position: absolute;
+  width: 133px;
+  height: 21px;
+  left: 830px;
+  top: 45px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 19px;
+  color: #FFFFFF;
+=== /* image 64 */ ===
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  left: 740px;
+  top: 9px;
+  background: url(image.png);
+=== /* image 65 */ ===
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  left: 740px;
+  top: 9px;
+  background: url(image.png);
+=== /* image 67 */ ===
+  position: absolute;
+  width: 55px;
+  height: 55px;
+  left:
+------------------------------------------------------------
+=== KW: REQUESTS at 74716 ===
+style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 19px;
+  color: #FFFFFF;
+=== /* REQUESTS */ ===
+  position: absolute;
+  width: 133px;
+  height: 21px;
+  left: 830px;
+  top: 45px;
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 19px;
+  color: #FFFFFF;
+=== /* image 64 */ ===
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  left: 740px;
+  top: 9px;
+  background: url(image.png);
+=== /* image 65 */ ===
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  left: 740px;
+  top: 9px;
+  background: url(image.png);
+=== /* image 67 */ ===
+  position: absolute;
+  width: 55px;
+  height: 55px;
+  left: 1823px;
+  top: 21px;
+  background: url(image.png);
+  transform: matrix(1, 0, 0, -1, 0, 0);
+=== /* Line 3 */ ===
+  position: absolute;
+  width: 1719px;
+  height: 0px;
+  left: 103px;
+  top: 316px;
+  border: 1px solid rgba(188, 182
+------------------------------------------------------------
+=== KW: Yêu cầu at 78197 ===
+.
+  Khi chọn một chi nhánh mới, toàn bộ dữ liệu trên trang Dashboard (Lịch làm, Thông báo, Biểu đồ, Yêu cầu) sẽ tự động reload và cập nhật theo chi nhánh đó.
+  2. Lịch làm việc hôm nay (Gantt Chart Real-time)
+  Mô tả: Biểu đồ dạng thanh ngang thể hiện ca làm việc của từng nhân viên theo mốc thời gian trong ngày (6:00 AM - 19:00 PM+).
+  Luồng hoạt động & Thanh tiến trình real-time:
+  Mỗi dòng hiển thị Tên nhân viên và thanh tiến trình thời gian làm việc.
+  Cột màu chạy tăng dần: Thanh màu đại diện cho khoảng thời gian ca làm việc. Ngay khi nhân viên chấm công vào ca (Check-in), màu của thanh sẽ bắt đầu lấp đầy/tăng dần theo thời gian thực (real-time clock) cho đến khi nhân viên chấm công ra ca (Check-out) thì thanh màu hoàn tất và giữ nguyên.
+  Giúp quản lý theo dõi trực tiếp ai đang làm, ca làm đã diễn ra được bao nhiêu tiếng.
+  3. Thông báo chấm công (Attendance Notifications)
+  Mô tả: 
+------------------------------------------------------------
+=== KW: Lịch làm việc hôm nay at 78260 ===
+board (Lịch làm, Thông báo, Biểu đồ, Yêu cầu) sẽ tự động reload và cập nhật theo chi nhánh đó.
+  2. Lịch làm việc hôm nay (Gantt Chart Real-time)
+  Mô tả: Biểu đồ dạng thanh ngang thể hiện ca làm việc của từng nhân viên theo mốc thời gian trong ngày (6:00 AM - 19:00 PM+).
+  Luồng hoạt động & Thanh tiến trình real-time:
+  Mỗi dòng hiển thị Tên nhân viên và thanh tiến trình thời gian làm việc.
+  Cột màu chạy tăng dần: Thanh màu đại diện cho khoảng thời gian ca làm việc. Ngay khi nhân viên chấm công vào ca (Check-in), màu của thanh sẽ bắt đầu lấp đầy/tăng dần theo thời gian thực (real-time clock) cho đến khi nhân viên chấm công ra ca (Check-out) thì thanh màu hoàn tất và giữ nguyên.
+  Giúp quản lý theo dõi trực tiếp ai đang làm, ca làm đã diễn ra được bao nhiêu tiếng.
+  3. Thông báo chấm công (Attendance Notifications)
+  Mô tả: Khối hiển thị các sự kiện chấm công bất thường (Vắng mặt, Đi tr
+------------------------------------------------------------
+=== KW: Thông báo chấm công at 78941 ===
+nguyên.
+  Giúp quản lý theo dõi trực tiếp ai đang làm, ca làm đã diễn ra được bao nhiêu tiếng.
+  3. Thông báo chấm công (Attendance Notifications)
+  Mô tả: Khối hiển thị các sự kiện chấm công bất thường (Vắng mặt, Đi trễ, Đi sớm, Hỗ trợ ca).
+  Luồng hoạt động:
+  Phân loại trạng thái: Hiển thị danh sách thẻ thông báo gồm: Đi trễ, Đi sớm, Vắng mặt, Hỗ trợ ca kèm Tên, Thời gian cụ thể.
+  Bộ lọc ngày: Cho phép chọn xem thông báo theo ngày (Hôm nay) hoặc chọn vào Icon Lịch (DatePicker) để truy xuất lịch sử thông báo chấm công ở các ngày trong quá khứ.
+  Điều hướng: Bấm vào thẻ thông báo hỗ trợ/bất thường sẽ tự động chuyển đổi sang trang Yêu cầu (Requests) để xử lý các đơn giải trình hoặc đơn nhờ làm hộ.
+  4. Tổng quan hôm nay (Metric Cards Summary)
+  Mô tả: Thẻ chứa các chỉ số KPI quan trọng trong ngày: Ca trống chưa lắp, Độ phủ ca, Chi phí lao động, Tỷ lệ đi trễ, Tỷ lệ vắng mặt, Cần duyệt.
+ 
+------------------------------------------------------------
+=== KW: Yêu cầu at 79481 ===
+ong quá khứ.
+  Điều hướng: Bấm vào thẻ thông báo hỗ trợ/bất thường sẽ tự động chuyển đổi sang trang Yêu cầu (Requests) để xử lý các đơn giải trình hoặc đơn nhờ làm hộ.
+  4. Tổng quan hôm nay (Metric Cards Summary)
+  Mô tả: Thẻ chứa các chỉ số KPI quan trọng trong ngày: Ca trống chưa lắp, Độ phủ ca, Chi phí lao động, Tỷ lệ đi trễ, Tỷ lệ vắng mặt, Cần duyệt.
+  Luồng hoạt động:
+  Tất cả các dòng chữ màu xanh đậm dưới mỗi chỉ số (ví dụ: "Xem lịch trình hôm nay", "Xem yêu cầu đang chờ xử lý") là nút bấm hành động (Hyperlink).
+  Khi người dùng nhấp vào link màu xanh đậm này, hệ thống sẽ mở ra trang chi tiết tương ứng (Lịch trình chi tiết, Trang quản lý đơn cần duyệt...).
+  Chi phí lao động: Tính toán tổng chi phí tiền lương dựa trên tổng số giờ làm việc nhân với mức lương cơ bản/giờ của nhân viên trong phạm vi ngày được chọn (Hôm nay, Tùy chọn ngày, hoặc Theo Tuần).
+  5. Ca làm việc được phân 
+------------------------------------------------------------
+=== KW: Tổng quan hôm nay at 79554 ===
+động chuyển đổi sang trang Yêu cầu (Requests) để xử lý các đơn giải trình hoặc đơn nhờ làm hộ.
+  4. Tổng quan hôm nay (Metric Cards Summary)
+  Mô tả: Thẻ chứa các chỉ số KPI quan trọng trong ngày: Ca trống chưa lắp, Độ phủ ca, Chi phí lao động, Tỷ lệ đi trễ, Tỷ lệ vắng mặt, Cần duyệt.
+  Luồng hoạt động:
+  Tất cả các dòng chữ màu xanh đậm dưới mỗi chỉ số (ví dụ: "Xem lịch trình hôm nay", "Xem yêu cầu đang chờ xử lý") là nút bấm hành động (Hyperlink).
+  Khi người dùng nhấp vào link màu xanh đậm này, hệ thống sẽ mở ra trang chi tiết tương ứng (Lịch trình chi tiết, Trang quản lý đơn cần duyệt...).
+  Chi phí lao động: Tính toán tổng chi phí tiền lương dựa trên tổng số giờ làm việc nhân với mức lương cơ bản/giờ của nhân viên trong phạm vi ngày được chọn (Hôm nay, Tùy chọn ngày, hoặc Theo Tuần).
+  5. Ca làm việc được phân công (Stacked Bar Chart)
+  Mô tả: Biểu đồ cột chồng hiển thị số lượng nhâ
+------------------------------------------------------------
+=== KW: Ca làm việc được phân công at 80259 ===
+ơ bản/giờ của nhân viên trong phạm vi ngày được chọn (Hôm nay, Tùy chọn ngày, hoặc Theo Tuần).
+  5. Ca làm việc được phân công (Stacked Bar Chart)
+  Mô tả: Biểu đồ cột chồng hiển thị số lượng nhân viên theo từng vị trí công việc qua các khoảng thời gian/ngày.
+  Đồng bộ hệ màu (Color System Consistency):
+  Mã màu đại diện cho Vị trí công việc (Cashier, Barista, Server, Parking Staff...) bắt buộc phải đồng bộ 100% giữa: Trang Quản lý nhân sự $\rightarrow$ Trang Lịch làm việc $\rightarrow$ Biểu đồ Ca làm việc.
+  Ví dụ: Nếu trang Quản lý nhân sự set vị trí Sale/Cashier là màu hồng, thì hệ thống tự động gán mặc định màu hồng trên toàn bộ Lịch làm và Biểu đồ cột này. Quản lý vẫn có quyền tùy chỉnh lại màu riêng, nhưng mặc định kế thừa từ Quản lý nhân sự.
+  Luồng hoạt động:
+  Mỗi cột xếp chồng các phân đoạn màu tương ứng với các vị trí làm việc trong ca đó.
+  Khi Hover (Rê chuột) vào từng cột: 
+------------------------------------------------------------
+=== KW: Dự báo lương at 81256 ===
+ver: 2, Parking Staff: 1).
+  Tích hợp Bộ lọc ngày (Icon Lịch) và Nút xem theo Vị trí / Ca làm.
+  6. Dự báo lương (Line Chart - Scheduled vs Actual)
+  Mô tả: Biểu đồ đường so sánh giữa Lịch xếp (Scheduled Hours) và Thực làm (Actual Hours).
+  Luồng hoạt động:
+  Đường biểu đồ: Gồm 2 đường riêng biệt đại diện cho Tổng giờ xếp lịch (màu xanh lá) và Tổng giờ chấm công thực tế (màu xanh dương).
+  Thống kê tổng: Hiển thị thẻ tóm tắt tổng số giờ (Ví dụ: Lịch xếp: 46 giờ | Thực làm: 16 giờ).
+  Bộ lọc & Nút xuất:
+  Bộ lọc Ngày (Icon Lịch - tương tự trang Web Tạo lịch làm).
+  Nút chọn phạm vi (Hôm nay / 1 Tuần).
+  Bộ lọc theo Nhân viên: Cho phép lọc xem biểu đồ dự báo lương của từng cá nhân hoặc toàn bộ bộ phận.
+  Nút Xuất (Export): Đặt ở góc phải đối diện với tiêu đề, cho phép xuất báo cáo dạng file Excel/CSV.
+  7. Trang Yêu cầu (Requests Summary)
+  Mô tả: Bảng tổng hợp các nhóm yêu cầu từ nhân viê
+------------------------------------------------------------
+=== KW: Yêu cầu at 81978 ===
+Export): Đặt ở góc phải đối diện với tiêu đề, cho phép xuất báo cáo dạng file Excel/CSV.
+  7. Trang Yêu cầu (Requests Summary)
+  Mô tả: Bảng tổng hợp các nhóm yêu cầu từ nhân viên chờ người quản lý xử lý.
+  Danh sách các loại yêu cầu:
+  Chấm công & Điểm danh: Xử lý đơn điều chỉnh giờ vào/ra, xin đi trễ/về sớm, đăng ký tăng ca.
+  Nghỉ phép & Vắng mặt: Tiếp nhận đơn xin nghỉ phép, nghỉ bệnh, báo vắng đột xuất.
+  Lịch làm & Đổi ca: Xử lý hoán đổi ca giữa các nhân viên, đăng ký ca trống, cập nhật lịch rảnh/bận.
+  Lương & Nhân sự: Tiếp nhận phản hồi bảng lương, xin ứng lương, yêu cầu chuyển chi nhánh.
+  Luồng hoạt động:
+  Bên phải mỗi mục có Badge số (Bubble Count) màu sắc đại diện cho số lượng yêu cầu đang chờ duyệt.
+  Khi bấm trực tiếp vào từng dòng yêu cầu: Mở ra trang Chi tiết yêu cầu tương ứng (giống trang Requests chính).
+  Cung cấp Bộ lọc Lịch (DatePicker) và Bộ lọc Nhân viên đồng bộ c
+------------------------------------------------------------

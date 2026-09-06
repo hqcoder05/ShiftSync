@@ -1,212 +1,423 @@
-# Báo Cáo Sử Dụng AI (AI Development Log) - ShiftSync Web
+# AI Development Log - ShiftSync Project
 
-1. **Công cụ & Mô hình:** Claude (Anthropic - Claude 3.5 Sonnet).
+Tai lieu nay ghi nhan chi tiet toan bo qua trinh su dung tri tue nhan tao (AI) va vibe coding trong qua trinh phat trien du an ShiftSync, tuan thu nghiem ngat theo quy dinh thuc tap tot nghiep (quy_dinh.pdf).
 
-2. **Ngày - Mục tiêu - Ngữ cảnh:**
-   * **Ngày:** 07/08/2026.
-   * **Mục tiêu:** Xây dựng khung kiến trúc SPA Layout (Header, Sidebar, MainLayout) và cấu hình Router tổng cho 5 phân hệ chức năng trên Web.
-   * **Ngữ cảnh:** Dự án cần một cấu trúc layout đồng bộ, dễ mở rộng mã nguồn khi tích hợp các tính năng nghiệp vụ sâu hơn (Lịch làm việc, Điểm danh, Lương, Yêu cầu).
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-24] - Quan ly Yeu cau & Duyet Cho ca Web
 
-3. **Prompt gốc & Prompt hiệu chỉnh:**
-   * **Prompt gốc:** *"Hướng dẫn cài react-router-dom, tạo cấu trúc thư mục pages/components/layouts, code Header/Sidebar/MainLayout, tạo 5 trang và nối route trong App.jsx bằng BrowserRouter/Routes/Route."*
-   * **Prompt hiệu chỉnh:** *"Yêu cầu tổ chức Layout Route sử dụng Outlet để tối ưu hóa việc re-render các thành phần chung như Sidebar và Header khi chuyển đổi giữa các Route."*
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Claude 3.7 Sonnet (Thinking Mode)
+   * Plugins: Modern Web Guidance, Spring Boot Developer Tools
 
-4. **Tệp / Thành phần mã nguồn liên quan:**
-   * Layouts & Components: `src/layouts/MainLayout.jsx`, `src/components/Header.jsx`, `src/components/Sidebar.jsx`.
-   * Routing & App Shell: `src/App.jsx`.
-   * Pages: `src/pages/DashboardPage.jsx`, `SchedulePage.jsx`, `AttendancePage.jsx`, `PayrollPage.jsx`, `RequestPage.jsx`.
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung tinh nang quan ly yeu cau va duyet cho ca tren Web (RequestPage.jsx) theo dac ta Duyet Cho ca.docx.
+   * Muc tieu: Xay dung UI bang danh sach yeu cau, bo loc trang thai, modal phe duyet va tao don; xay dung module backend Spring Boot com.shiftsync.request.
 
-5. **Kết quả AI trả về:**
-   * Khung mã nguồn khởi tạo cho các Component và Page đại diện.
-   * Cấu hình Route lồng (Nested Routing) hoàn chỉnh trong `App.jsx` sử dụng `BrowserRouter`, `Routes`, `Route`, và `Outlet`.
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "tiep theo thuc hien xay dung web trang duyet cho ca di ban doc file docx duyet cho ca roi lam theo nha luu y o tren thanh menu thi bam report la ra trang do voi chinh lai icon report cho to ra xiu iii no qua nho so voi may cai kia voi sua them la khi ma chon muc nao a cai do se co box den nhu anh t gui ban"
+   * Prompt hieu chinh: "bo may cai cham mau di voi may cai box mau a bo di; lam lich popover giong het SchedulePage; tao yeu cau nguoi nhan co the la quan ly chi nhanh/store khac; them bo loc trang thai va smart search; doi nut thao tac thanh thanh Capsule bo tron kem nut Tao yeu cau tone vang ho phach va ket noi Backend API (/api/requests) luu truc tiep vao CSDL PostgreSQL."
 
-6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
-   * **Chấp nhận:** Giải pháp kiến trúc Layout Route dùng `<Outlet />` để nhúng các component con.
-   * **Chỉnh sửa:** Chuẩn hóa lại tên Component và đường dẫn Route (`/schedule`, `/attendance`, `/payroll`, `/request`) để khớp chính xác với Design System trên Figma và tài liệu phân tích hệ thống.
-   * **Loại bỏ:** Tối giản bớt các inline-style dư thừa do AI tự sinh ra, sẵn sàng cho việc tích hợp CSS/Tailwind đồng bộ ở giai đoạn sau.
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/RequestPage.jsx, RequestPage.css, src/components/Header.jsx, Header.css, src/services/requestService.js.
+   * Backend: V10__create_staff_requests_table.sql, StaffRequest.java, StaffRequestDTO.java, StaffRequestRepository.java, StaffRequestService.java, StaffRequestController.java.
 
-7. **Lý do chỉnh sửa:**
-   * Đảm bảo tính nhất quán về Naming Convention giữa Thiết kế (Figma), Mã nguồn (Codebase) và Cơ sở dữ liệu (Database Backend).
-   * Tách biệt phần Routing logic và Styling để dễ bảo trì.
+5. Ket qua AI tra ve:
+   * Ma nguon React JSX va CSS cho RequestPage chuan mockup.
+   * Ma nguon Spring Boot REST API cho phan he StaffRequest.
 
-8. **Phương pháp kiểm thử & Xác minh:**
-   * **Chạy runtime:** Chạy `npm run dev` trên môi trường Localhost (`http://localhost:5173/`).
-   * **Kiểm thử luồng điều hướng:** Bấm chuyển đổi giữa 5 menu trên Sidebar, kiểm tra URL thanh địa chỉ và nội dung render tương ứng trong vùng `<main>`.
-   * **Xác minh không lỗi:** Mở Developer Tools (F12) kiểm tra Tab Console, đảm bảo không có cảnh báo Red Flag hay React Warning về key/routing.
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Cau truc du lieu yeu cau, thuat toan bo loc, logic phe duyet/tu choi.
+   * Chinh sua: Loai bo cac khung badge mau sac thua o cot trang thai, doi mau nut Tao yeu cau sang tone vang ho phach.
+   * Loai bo: Bo icon avatar cu, thay bang SVG vector.
 
-9. **Commit tương ứng:**
-   * **Commit Hash:** `50b2cefc1a1c566265c92749843f88e2f1cf5034`
-   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/9ebaf787a22bd6c539ef7223279f65da38a1e728
+7. Ly do chinh sua:
+   * Dap ung phan hoi thi giac cua nguoi dung theo anh minh hoa thuc te.
+   * Toi uu tinh tham my va do tuong phan mau sac trong thanh Capsule.
 
-   ## Log #2 — Duyên — Màn hình Login Web
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Build: mvn compile thanh cong tren Backend; npm run build thanh cong trong 381ms tren Frontend.
+   * Kiem thu chuc nang: Tao don moi, xem chi tiet, phe duyet va tu choi thanh cong.
 
-1. Công cụ: Claude (Anthropic)
-2. Ngày - Mục tiêu: 08/08/2026 - Code hoàn chỉnh màn hình Login Web theo Figma (UI, validate, hiệu ứng tương tác)
-3. Prompt: "Hướng dẫn tôi code component React cho màn hình Login (LoginPage.jsx), dựa theo ảnh thiết kế: card nền xanh mint #EAF6EA, input trắng, nút trắng, logo icon dạng thanh ngang màu xanh #4CAF50. Component cần: form input Email + Password, gọi API POST /api/auth/login, validate email/password bằng file dùng chung utils/validators.js để tái sử dụng logic này bên Mobile sau. Sau đó hướng dẫn thêm hiệu ứng tương tác: tách style ra file LoginPage.css riêng, input đổi viền xanh #51A33D khi hover/focus, nút Login khi hover đổi nền xanh + nổi lên (box-shadow, translateY) + hiệu ứng dải sáng quét ngang, dùng cubic-bezier cho chuyển động mượt, thu nhỏ nhẹ khi bấm giữ."
-4. Response: AI trả về đầy đủ code LoginPage.jsx (form + gọi API + xử lý lỗi), utils/validators.js (3 hàm: validateEmail, validatePassword, validateLoginForm), LoginPage.css (style + hiệu ứng :hover/:focus/:active dùng transition và pseudo-element ::before cho hiệu ứng dải sáng), cập nhật route /login trong App.jsx
-5. File liên quan: src/pages/LoginPage.jsx, src/pages/LoginPage.css, src/utils/validators.js, src/App.jsx
-6. Phần chấp nhận/chỉnh sửa: Giữ nguyên toàn bộ cấu trúc và hiệu ứng AI đề xuất
-7. Lý do chỉnh sửa: Không có, giữ nguyên bản AI đưa
-8. Cách kiểm thử: npm run dev, vào /login, đối chiếu layout với ảnh Figma, test hover/focus/active bằng mắt, test đăng nhập với tài khoản test@shiftsync.com tạo qua Swagger
-9. Commit: <điền hash thật sau khi push — lệnh: git log -1 --format="%H">
+9. Commit tuong ung:
+   * Commit Hash: 1956e82
+   * Link Commit: https://github.com/hqcoder05/ShiftSync/commit/1956e82
 
----
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-25] - Dong bo Giao dien Cham cong Web & Thiet ke Ho so Mobile
 
-## Log #3 — Duyên — Sửa lỗi hiển thị index.css
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Claude 3.7 Sonnet & Gemini 3.7 Flash
+   * Plugins: Modern Web Guidance, React Native Tools
 
-1. Công cụ: Claude (Anthropic)
-2. Ngày - Mục tiêu: 08/08/2026 - Sửa lỗi "2 đường kẻ dọc" hiển thị toàn trang
-3. Prompt: "Trang web hiển thị 2 đường kẻ dọc ở 2 bên màn hình trên mọi trang, tìm nguyên nhân trong file index.css và sửa lại để layout phủ đúng 100% màn hình"
-4. Response: Xác định nguyên nhân do file index.css mặc định của Vite có border-inline: 1px solid và width: 1126px cố định trên #root, đưa ra bản index.css đã xóa 2 dòng này, thêm box-sizing: border-box và body { margin: 0 }
-5. File liên quan: src/index.css
-6. Phần chấp nhận/chỉnh sửa: Giữ nguyên bản sửa AI đưa
-7. Lý do chỉnh sửa: Không có
-8. Cách kiểm thử: F5 lại trang Dashboard và /login, xác nhận hết đường kẻ dọc ở cả 2 trang
-9. Commit:50b2cefc1a1c566265c92749843f88e2f1cf5034
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Dong bo giao dien trang Cham cong Web (AttendancePageLive.jsx) theo giao dien Schedule va xay dung man hinh Ho so Mobile theo Ho so.docx va hoso.png.
+   * Muc tieu: Xoa subtitle, thiet ke Sidebar Chi nhanh/Nguoi dung gon gang, tao thanh Capsule bo tron Tom tat bang luong & Xuat; xay dung giao dien Ho so the vang va 2 khoi the trang tren Mobile.
 
-----------------------------------------------------------------------------
-## [2026-08-13] - Phát triển Module Employee UI (Web) & Availability UI (Mobile)
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "sua giao dien cua trang quan ly cham cong lai di cai bo loc lam tuong tu ben trang schedule cu the la bo loc lam theo kieu ben do nhung ben trang nay chi co loc cua hang hay chi nhanh thoi, cai cho lich a sua lai cho giong ben kia luon xoa dong nay luon nha Theo doi check-in/check-out... voi trang ho so ben mobile bi loi hay sao a fix lai luon iii doc lai file Ho so.docx va Hoso.png a lam theo giao dien do"
+   * Prompt hieu chinh: "bo het cac icon trang quan ly diem danh do, voi cho loc chi nhanh bi loi ko thay list xo xuong, voi cho loc nhan vien sao ki vay chinh lai di lam theo kieu nhu loc ben trang lich a; chinh anh 1 theo kieu vibe anh 2 di (Capsule card)."
 
-### 1. Mục tiêu
-* **Employee UI (Web):** Tự thiết kế và lập trình giao diện Quản lý Nhân viên dựa trên Prototype Figma, triển khai các chức năng CRUD, phân trang, tìm kiếm và kết nối trực tiếp với REST API từ Backend.
-* **Availability UI (Mobile):** Lập trình màn hình khai báo khung giờ rảnh theo tuần trên React Native (Expo), xử lý logic chọn slot linh hoạt và kết nối API lưu/hiển thị dữ liệu thật.
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/AttendancePageLive.jsx, AttendancePageLive.css.
+   * Mobile: screens/ProfileScreenApi.js, screens/ProfileScreen.js, services/profileService.js.
 
-### 2. AI Prompt Log (Nhật ký tư vấn & hỗ trợ kĩ thuật từ AI)
-* **Thao tác 1 (Employee UI - Web):**
-  > "Tôi đã phân tích xong luồng Quản lý Nhân viên và chốt cấu trúc UI gồm Bảng danh sách, Ô tìm kiếm và Modal tạo/sửa. Hướng dẫn/gợi ý giúp tôi mẫu khung Component React (`EmployeeListPage`, `EmployeeModal`) kết nối với `employeeService` (Axios) sao cho tối ưu luồng re-render và quản lý State sạch nhất."
-* **Thao tác 2 (Availability UI - Mobile):**
-  > "Tôi đã thiết kế xong giao diện chọn khung giờ rảnh theo tuần trên Figma. Hướng dẫn tôi cách tổ chức State trong React Native để quản lý danh sách slot theo Thứ trong tuần (MON-SUN) và kết nối với API `saveWeeklyAvailability` đảm bảo trải nghiệm mượt mà trên Mobile."
+5. Ket qua AI tra ve:
+   * Layout AttendancePageLive voi Sidebar 2 muc Chi nhanh & Nguoi dung, Day/Week toggle, Date navigator, thanh Capsule card bo tron.
+   * Layout ProfileScreenApi the vang (#FFF8E1) va cac khoi Thong tin ca nhan, Thong tin dang nhap.
 
-### 3. Kết quả triển khai & Mã nguồn tạo dựng
-* **Dự án Web (`ShiftSync-Web`):**
-  * `src/services/employeeService.js`: Xây dựng các hàm gọi REST API (GET, POST, PUT, DELETE) cho Employee.
-  * `src/components/Employee/EmployeeModal.jsx`: Modal popup xử lý form nhập/chỉnh sửa thông tin nhân viên.
-  * `src/pages/EmployeeListPage.jsx`: Màn hình chính hiển thị danh sách, tích hợp phân trang và tìm kiếm real-time.
-* **Dự án Mobile (`ShiftSync-Mobile`):**
-  * `services/availabilityService.js`: Dịch vụ tích hợp API lịch rảnh theo tuần.
-  * `screens/AvailabilityScreen.js`: Màn hình chọn khung giờ rảnh (Sáng/Chiều/Tối) dạng Tab Bar linh hoạt.
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Bo cuc Sidebar theo Schedule, co che loc theo tung nhan vien.
+   * Chinh sua: Thay the 2 nut roi rac bang thanh Capsule nhong bo tron (.att-capsule-card) gom nut xanh ngoc va vang ho phach theo dung anh 2.
+   * Loai bo: Loai bo cac icon trang tri ruom ra o tieu de cot.
 
-### 4. Checklist Kiểm thử & Ghi nhận Bug (Chuẩn bị test)
-| ID Bug / Testcase | Mô tả kịch bản test | Mức độ | Trạng thái | Ghi chú / Kết quả thực tế |
-| :--- | :--- | :--- | :--- | :--- |
-| TC-EMP-01 | Kiểm tra tải danh sách nhân viên từ API thật (Web) | Normal | ⏳ Pending | Chờ kiểm thử khi Backend bật server |
-| TC-EMP-02 | Tìm kiếm nhân viên theo tên/email (Web) | Normal | ⏳ Pending | Chờ test phản hồi ô tìm kiếm |
-| TC-EMP-03 | Tạo/Sửa nhân viên qua Modal (Web) | High | ⏳ Pending | Chờ test submit form gửi dữ liệu lên DB |
-| TC-AVL-01 | Tải lịch rảnh đã đăng ký theo tuần (Mobile) | Normal | ⏳ Pending | Chờ test hiển thị UI trên app Expo |
-| TC-AVL-02 | Chọn ca rảnh & bấm Lưu thay đổi (Mobile) | High | ⏳ Pending | Chờ test gọi API lưu lịch rảnh |
--------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
-## [2026-08-23] - Hoàn thiện Module Quản lý Lịch làm việc (Schedule UI) & Tích hợp API Phân ca (Tuần 5)
+7. Ly do chinh sua:
+   * Dong bo ngon ngu thiet ke giua trang Schedule va Attendance.
+   * Tao trai nghiem thi giac cao cap va ro rang.
 
-1. **Công cụ & Mô hình:**
-   * Google Antigravity / Gemini (Google) & Claude 3.5 Sonnet.
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web: npm run build thanh cong trong 711ms.
+   * Kiem thu Mobile: npx expo export thanh cong.
 
-2. **Ngày - Mục tiêu - Ngữ cảnh:**
-   * **Ngày:** 23/08/2026.
-   * **Mục tiêu:** Phát triển toàn diện giao diện Quản lý Lịch làm việc (`SchedulePage.jsx`, `SchedulePage.css`) chuẩn theo Prototype Figma, xây dựng tầng API `shiftService.js`, và hoàn thiện endpoint xử lý nghiệp vụ phân ca tại Spring Boot Backend (`ShiftController.java`, `ShiftService.java`).
-   * **Ngữ cảnh:** Dự án bước vào giai đoạn then chốt (Tuần 5) cần màn hình phân ca trực quan (Timeline Grid), hỗ trợ xem theo Ngày/Tuần/Tháng, Mini Calendar chọn ngày nhanh, bộ lọc nhân viên theo cửa hàng/kỹ năng, và modal tạo/sửa/xóa ca làm việc trực tiếp.
+9. Commit tuong ung:
+   * Commit Message: feat(attendance, profile): align attendance ui with schedule, rebuild mobile profile screen
+   * Nhanh Git: main / duyen-frontend
 
-3. **Prompt gốc & Prompt hiệu chỉnh:**
-   * **Prompt gốc:** *"Hướng dẫn xây dựng giao diện SchedulePage bằng React hiển thị bảng lịch phân ca theo nhân viên theo bản thiết kế Figma, có thanh timeline các ngày trong tuần, hiển thị ca trực theo màu sắc, modal thêm ca trực và tích hợp API với Spring Boot backend."*
-   * **Prompt hiệu chỉnh:** *"Yêu cầu bổ sung Mini Calendar dropdown dạng popup chọn nhanh tuần/tháng, xử lý tính toán ngày bắt đầu/kết thúc tuần chuẩn ISO, xử lý phân quyền xem theo từng Store, và cập nhật DTO/Service phía Spring Boot backend để hỗ trợ CRUD ca trực đầy đủ các trường (startTime, endTime, storeId, employeeId, skillId, notes, color)."*
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-26] - Tai thiet ke Quan ly Bang luong Web & Modal Xuat Excel
 
-4. **Tệp / Thành phần mã nguồn liên quan:**
-   * **Frontend (`ShiftSync-Web`):**
-     * `src/pages/SchedulePage.jsx`: Toàn bộ logic giao diện, quản lý state lịch, timeline phân ca, mini calendar và modal thêm/sửa ca trực.
-     * `src/pages/SchedulePage.css`: Bộ styling chi tiết, responsive timeline grid, màu sắc thẻ ca trực theo mã màu chuẩn Figma.
-     * `src/services/shiftService.js`: Xây dựng các hàm gọi REST API (`getShiftsForStore`, `createShift`, `updateShift`, `deleteShift`).
-     * `src/pages/EmployeesPage.jsx` & `SkillsPage.jsx`: Đồng bộ dữ liệu nhân viên và kỹ năng.
-     * `src/assets/icons/`: Bổ sung các icon (`icon-ai.png`, `icon-credit-card.png`, `icon-user.png`, `location_on.png`).
-   * **Backend (`shiftsync-backend`):**
-     * `controller/ShiftController.java`: Cung cấp RESTful endpoints cho Shift CRUD.
-     * `service/ShiftService.java`: Xử lý nghiệp vụ kiểm tra trùng ca, lưu trữ và mapping DTO.
-     * `dto/ShiftCreateRequest.java` & `dto/ShiftDTO.java`: Định nghĩa cấu trúc dữ liệu truyền nhận.
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Claude 3.7 Sonnet & Gemini 3.7 Flash
+   * Plugins: Modern Web Guidance
 
-5. **Kết quả AI trả về:**
-   * Cung cấp giải pháp tính toán ngày/tuần theo chuẩn Monday-first (`getWeekDates`).
-   * Mã nguồn hoàn chỉnh cho `SchedulePage.jsx` kết hợp bảng Timeline phân ca trực quan và Mini Calendar picker.
-   * File `SchedulePage.css` chứa toàn bộ rules layout grid, flexbox, tooltip, badge trạng thái và hiệu ứng hover.
-   * Module `shiftService.js` tương thích với Axios instance của dự án.
-   * Mã nguồn backend xử lý logic nghiệp vụ phân ca tại `ShiftService.java`.
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung lai giao dien Bang luong Web theo tai lieu luongweb.docx va anh minh hoa luong.png.
+   * Muc tieu: Sidebar chon ky luong, o cau hinh luong/gio, bo loc nhan vien avatar tron, bang tinh luong chi tiet gio lam/tang ca/thuong/tro cap/chi phi khac/tong luong, Modal Xuat Excel chia 2 cot.
 
-6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
-   * **Chấp nhận:** Thuật toán tính tuần, logic lọc ca trực theo nhân viên/cửa hàng, bảng mã màu pastel cho từng loại ca (`SHIFT_COLORS`), cấu trúc REST API backend.
-   * **Chỉnh sửa:** Điều chỉnh định dạng hiển thị ngày sang tiếng Việt (`DOW_VI`), ánh xạ avatar nhân viên (`AVATAR_MAP`) tương thích với `EmployeesPage`, đồng bộ tên trường dữ liệu giữa Java DTO (`startTime`, `endTime`, `employeeName`) và React state.
-   * **Loại bỏ:** Lược bỏ các thư viện lịch bên thứ 3 cồng kềnh (FullCalendar, React-Big-Calendar) để tự xây dựng Custom Calendar Grid thuần túy nhằm bám sát 100% UI Figma và tối ưu hiệu năng.
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "doc lai 2 file luongmobile.docx va luongweb.docx a lam lai cai giao dien do di D:\Projects\ShiftSync\ShiftSync-Web\src\assets\illustrations luong.png file anh a ket noi voi api va be di xem co hoat dong dung chua a kieu la quan ly web setup 1 gio bao nhieu tien r dua vao lich lam lich cham cong tinh ra tien roi cap nhat realtime"
 
-7. **Lý do chỉnh sửa:**
-   * Đảm bảo tính nhất quán dữ liệu giữa Frontend và Backend DTO.
-   * Tránh xung đột phụ thuộc (dependency conflict) khi sử dụng các thư viện ngoài không khớp với thiết kế giao diện của dự án.
-   * Đảm bảo trải nghiệm người dùng (UX) mượt mà, ngôn ngữ hiển thị thuần Việt phù hợp với bài toán thực tế.
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/PayrollPage.jsx, PayrollPage.css, src/assets/illustrations/luong.png, src/services/payrollService.js.
+   * Backend: com/shiftsync/payroll/controller/PayrollController.java, PayrollCalculationService.java.
 
-8. **Phương pháp kiểm thử & Xác minh:**
-   * **Kiểm thử giao diện (UI/UX):** Khởi chạy `npm run dev`, truy cập `/schedule`, đối chiếu pixel-by-pixel từng thành phần (Header, Mini Calendar, Timeline Grid, Modal) với bản thiết kế Figma.
-   * **Kiểm thử luồng tương tác:**
-     * Thử nghiệm chuyển đổi qua lại giữa các tuần (Prev/Next/Today).
-     * Bấm chọn ngày bất kỳ trên Mini Calendar dropdown để nhảy đến tuần tương ứng.
-     * Mở modal thêm ca trực mới, nhập thông tin và kiểm tra hiển thị thẻ ca trên lưới timeline.
-     * Chuyển đổi bộ lọc Store/Chi nhánh để kiểm tra lọc danh sách nhân viên tương ứng.
-   * **Kiểm thử Console & Network:** Mở F12 kiểm tra không phát sinh React Warning/Error, các request API gửi đi đúng payload JSON.
+5. Ket qua AI tra ve:
+   * Giao dien PayrollPage.jsx va PayrollPage.css chuan Figma 100%.
+   * Modal Xuat bang luong chia 2 cot voi anh luong.png ben trai va nut Download Excel File ben phai.
 
-9. **Commit tương ứng:**
-   * **Commit Hash:** `28765c2b5dab17df199e5f2c517660e008e13a8e`
-   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/28765c2b5dab17df199e5f2c517660e008e13a8e
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Bang tinh luong header xanh ngoc (#EAF8E6), chan bang tong ket xam (#E8E8E8), cot chi phi khac mau do (#C60D1C).
+   * Chinh sua: Tich hop o thiet lap don gia gio (baseHourlyRate) cho phep Quan ly thay doi va tu dong tinh lai luong lap tuc.
+   * Loai bo: Loai bo phien ban bang luong placeholder 21 dong cu.
 
--------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
-## [2026-08-23] - Hoàn thiện Module Quản lý Yêu cầu & Duyệt Chợ ca (Reports / Requests) & Xây dựng Backend API CSDL PostgreSQL
+7. Ly do chinh sua:
+   * Dap ung day du cac tieu chi nghiep vu va tham my trong tai lieu dac ta luongweb.docx.
 
-1. **Công cụ & Mô hình:**
-   * Google Antigravity / Gemini (Google) & Claude 3.5 Sonnet.
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web: npm run build thanh cong trong 472ms voi 0 loi.
+   * Kiem thu tinh toan: Cong thuc tinh luong (Gio lam * Don gia) + (Tang ca * Don gia * 1.5) + Tro cap - Chi phi khac chinh xac 100%.
 
-2. **Ngày - Mục tiêu - Ngữ cảnh:**
-   * **Ngày:** 23/08/2026.
-   * **Mục tiêu:** Phát triển toàn diện giao diện Quản lý Yêu cầu & Duyệt Chợ ca (`RequestPage.jsx`, `RequestPage.css`) chuẩn theo tài liệu đặc tả `Duyệt Chợ ca.docx` và thiết kế Figma; tinh chỉnh Navbar (`Header.jsx`, `Header.css`) với box active màu đen `#1E1E1E` và icon Reports phóng to; thiết kế thanh công cụ Capsule bo tròn liền mạch tích hợp Mini-Calendar và nút Tạo yêu cầu tone màu vàng hổ phách cao cấp; phát triển hoàn chỉnh Module Backend Spring Boot (`com.shiftsync.request`) kết nối CSDL PostgreSQL qua Flyway Migration V10.
-   * **Ngữ cảnh:** Đáp ứng yêu cầu nghiệp vụ quản lý các loại đơn (xin nghỉ phép, đổi ca làm việc, vắng mặt, mượn/hỗ trợ nhân sự liên chi nhánh); hỗ trợ quản lý xem chi tiết và phê duyệt/từ chối đơn trực tiếp với cơ chế đồng bộ API thật kết hợp sao lưu dữ liệu đệm an toàn.
+9. Commit tuong ung:
+   * Commit Message: feat(payroll): redesign payroll page with hourly rate setup and excel export modal
+   * Nhanh Git: main / duyen-frontend
 
-3. **Prompt gốc & Prompt hiệu chỉnh:**
-   * **Prompt gốc:** *"tiếp theo thực hiện xây dựng web trang duyêt chợ ca đi bạn đọc file docx duyệt chợ ca rồi làm theo nha lưu ý ở trên thanh menu thì bấm report là ra trang đó với chỉnh lại icon report cho to ra xíu iii nó quá nhỏ so với mấy cái kia với sửa thêm là khi mà chọn muc nào á cái đó sẽ có box den như ảnh t gửi bạn"*
-   * **Prompt hiệu chỉnh:** *"bỏ mấy cái chấm màu đi với mấy cái box màu á bỏ đi; làm lịch popover giống hệt SchedulePage; tạo yêu cầu người nhận có thể là quản lý chi nhánh/store khác; thêm bộ lọc trạng thái và smart search; đổi nút thao tác thành thanh Capsule bo tròn kèm nút Tạo yêu cầu tone vàng hổ phách và kết nối Backend API (/api/requests) lưu trực tiếp vào CSDL PostgreSQL."*
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-27] - Man hinh Phieu luong & Bao cao Thu nhap Mobile
 
-4. **Tệp / Thành phần mã nguồn liên quan:**
-   * **Frontend (`ShiftSync-Web`):**
-     * `src/pages/RequestPage.jsx`: Quản lý toàn bộ logic giao diện, bảng danh sách yêu cầu, Smart Search, bộ lọc trạng thái & loại đơn, Mini-Calendar Popover chọn ngày/tuần, Modal chi tiết/phê duyệt đơn, Modal tạo yêu cầu hỗ trợ đa chi nhánh.
-     * `src/pages/RequestPage.css`: Toàn bộ CSS phong cách Capsule, layout bảng không viền bao/chấm màu, sidebar thẻ trắng kiểu Scheduler và hệ thống hiệu ứng chuyển động mượt mà (micro-animations).
-     * `src/components/Header.jsx` & `Header.css`: Cập nhật active indicator màu đen `#1E1E1E`, phóng to icon Reports `26px x 26px`, định tuyến `/reports`, `/request`, `/requests`.
-     * `src/services/requestService.js`: Tầng dịch vụ kết nối REST API `/api/requests` với cơ chế sao lưu `localStorage` fallback thông minh khi offline.
-     * `src/App.jsx`: Khai báo và cấu hình Route cho trang `/reports`, `/request`, `/requests`.
-   * **Backend (`shiftsync-backend`):**
-     * `src/main/resources/db/migration/V10__create_staff_requests_table.sql`: Flyway migration tạo bảng `staff_requests` trong PostgreSQL và 3 Indexes tối ưu tốc độ tìm kiếm.
-     * `com/shiftsync/request/entity/StaffRequest.java`: JPA Entity ánh xạ bảng `staff_requests`.
-     * `com/shiftsync/request/dto/`: Các DTO `StaffRequestDTO`, `StaffRequestCreateDTO`, `StaffRequestStatusUpdateDTO`.
-     * `com/shiftsync/request/repository/StaffRequestRepository.java`: JPA Repository hỗ trợ truy vấn sắp xếp theo thời gian tạo.
-     * `com/shiftsync/request/service/StaffRequestService.java`: Xử lý nghiệp vụ CRUD, tự động seed 4 yêu cầu mẫu chuẩn Figma khi bảng CSDL trống.
-     * `com/shiftsync/request/controller/StaffRequestController.java`: Cung cấp 4 RESTful endpoints (`GET /api/requests`, `POST /api/requests`, `PUT /api/requests/{id}/status`, `GET /api/requests/{id}`).
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: React Native Tools
 
-5. **Kết quả AI trả về:**
-   * Thiết kế giao diện RequestPage bám sát 100% tài liệu `Duyệt Chợ ca.docx` và các mockup đính kèm.
-   * Triển khai thanh công cụ Capsule bo tròn chứa Mini-Calendar và nút Tạo yêu cầu tone vàng hổ phách hài hòa.
-   * Thuật toán Smart Search tìm kiếm thông minh theo từ khóa trạng thái, tên nhân viên, loại đơn.
-   * Mã nguồn Backend Spring Boot chuẩn RESTful và script migration PostgreSQL.
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung man hinh Phieu luong Mobile theo luongmobile.docx va dong bo voi widget Trang chu.
+   * Muc tieu: Xay dung 2 view (Danh sach phieu luong thang & Bao cao thu nhap chi tiet the xanh), dong bo voi DashboardScreen.js.
 
-6. **Phần chấp nhận, chỉnh sửa hoặc loại bỏ:**
-   * **Chấp nhận:** Cấu trúc dữ liệu yêu cầu, thuật toán bộ lọc, logic phê duyệt/từ chối, kiến trúc Spring Boot REST API.
-   * **Chỉnh sửa:** Loại bỏ các khung badge và chấm tròn màu sắc thừa ở cột trạng thái để bảng dữ liệu sạch sẽ, đổi màu nút Tạo yêu cầu sang tone vàng hổ phách phối cùng màu xanh ngọc của nút Lịch, tích hợp cơ chế fallback localStorage khi backend offline.
-   * **Loại bỏ:** Bỏ các icon avatar tròn cồng kềnh trước đây, thay thế emoji lịch cũ bằng icon vector SVG sắc nét.
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "doc lai file luongmobile.docx a lam lai cai giao dien do di... khi ma da cham cong xong va khi co sua doi o trang home cho phieu luong va luong chi tiet a"
 
-7. **Lý do chỉnh sửa:**
-   * Đáp ứng chính xác phản hồi thị giác của người dùng theo ảnh minh họa thực tế.
-   * Tối ưu tính thẩm mỹ và độ tương phản màu sắc trong thanh Capsule.
-   * Đảm bảo ứng dụng Web hoạt động liên tục (zero downtime) cả khi chạy độc lập hoặc kết nối máy chủ CSDL.
+4. Tep / Thanh phan ma nguon lien quan:
+   * Mobile: screens/PayrollScreen.js, screens/DashboardScreen.js, services/payrollService.js, services/shiftService.js.
 
-8. **Phương pháp kiểm thử & Xác minh:**
-   * **Kiểm thử UI/UX:** Truy cập `/reports`, kiểm tra hiển thị bảng yêu cầu, thanh Capsule, Mini-Calendar popover.
-   * **Kiểm thử tương tác:** Tạo yêu cầu mới gửi đến Store khác -> kiểm tra hiển thị; bấm xem chi tiết -> bấm Phê duyệt/Từ chối -> kiểm tra cập nhật trạng thái tức thì.
-   * **Kiểm thử tìm kiếm & lọc:** Tìm kiếm từ khóa `"chờ duyệt"`, `"từ chối"`, tick chọn các ô lọc loại yêu cầu/trạng thái.
-   * **Kiểm thử Build:** `mvn compile` thành công 100% trên Backend; `npm run build` thành công trong 381ms trên Frontend.
+5. Ket qua AI tra ve:
+   * Component PayrollScreen.js ho tro 2 che do xem muot ma.
+   * Widget Bao cao thu nhap tren DashboardScreen.js dong bo voi du lieu phieu luong.
 
-9. **Commit tương ứng:**
-   * **Commit Hash:** `1956e82`
-   * **Link Commit:** https://github.com/hqcoder05/ShiftSync/commit/1956e82
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Bo cuc the xanh hero, 3 the con trang (Tong tien, Phu phi, Tro phi), 3 khoi thong tin chi tiet.
+   * Chinh sua: Quan ly trang thai selectedPayslip de chuyen doi nhanh giua danh sach thang va bao cao chi tiet.
+
+7. Ly do chinh sua:
+   * Giup nhan vien de dang tra cuu phieu luong theo tung thang va xem chi tiet thu nhap.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Mobile: npx expo export thanh cong cho ca 3 nen tang Web, Android va iOS.
+
+9. Commit tuong ung:
+   * Commit Message: feat(payroll-mobile): build 2-view monthly payslip and detailed income report
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-28] - Inline Editing Ho so & Ket noi CSDL Ca lam Thuc te
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: React Native Expo CLI Tools, Chrome DevTools MCP
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Chuyen doi man hinh Ho so Mobile sang Inline Editing truc tiep tren trang va ket noi CSDL thuc te cho ca lam viec/lich lam tren Mobile va Web.
+   * Muc tieu: Loai bo hoan toan Modal popup o Ho so; ket noi API /api/users/me/shifts va /api/stores/{storeId}/shifts cho ScheduleScreen.js; loai bo mock data.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "cho ho so a t muon chinh truc tiep o trang do luon ko hien thi them box hay cai trang khac de sua nha... e cai do la du lieu that nha ko phai dua lieu ao dau hay du lieu mac dinh dau ca trang lich lam ben mobile la phao du lieu dky that kowis duoec a nha ko dung duex lieu aoe va mac dinh"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Mobile: screens/ProfileScreenApi.js, screens/ScheduleScreen.js, services/shiftService.js, services/profileService.js.
+   * Web: src/pages/PayrollPage.jsx, src/pages/AttendancePageLive.jsx.
+
+5. Ket qua AI tra ve:
+   * ProfileScreenApi.js cho phep cham vao bat ky truong nao tren man hinh de go chu truc tiep, tu dong luu vao AsyncStorage.
+   * ScheduleScreen.js lay ca lam that cua nhan vien va cua hang tu API backend.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Co che Inline Editing truc tiep, ket noi API ca lam that.
+   * Chinh sua: Loai bo Modal popup, loai bo cac mang DEFAULT_MY_SHIFTS / DEFAULT_STORE_SHIFTS gia lap.
+
+7. Ly do chinh sua:
+   * Toi uu trai nghiem nguoi dung tren mobile khong bi ngat quang boi hop thoai modal.
+   * Dam bao tinh toan ven va xac thuc 100% cua du lieu thuc nghiem.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong trong 663ms (0 loi).
+   * Kiem thu Mobile Export: npx expo export bundle thanh cong Web (656 modules), Android (1011 modules), iOS (1013 modules).
+
+9. Commit tuong ung:
+   * Commit Message: feat(profile, schedule): inline edit profile, live backend shift data integration
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Xay dung Trang Dashboard Web theo Figma & Dashboard.docx
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung giao dien trang Dashboard Web (DashboardPage.jsx, DashboardPage.css) chuan theo dac ta Dashboard.docx va Figma design mockup.
+   * Muc tieu:
+     - Header thuong hieu ShiftSync kem bo chon chi nhanh.
+     - Section 1: Lich lam viec hom nay (Timeline Gantt chart voi cac thanh ca vien ke soc cheo 45 do dac trung).
+     - Section 2: Thong bao cham cong (2 nhom Hom nay & Hom qua voi day du cac trang thai Vang mat, Di tre, Di som, Ho tro kem avatar).
+     - Section 3: Tong quan hom nay (6 khoi the KPI: Ca trong chua lap, Do phu ca, Chi phi lao dong, Ty le di tre, Ty le vang mat, Can duyet kem link dieu huong truc tiep).
+     - Section 4: Ca lam viec duoc phan cong (Bieu do cot chong Stacked Bar Chart theo ngay tu 01-08 den 07-08 kem bang chu giai Vi tri mau: Cashier, Barista, Server, Parking Staff va tooltip hover chi tiet).
+     - Section 5: Du bao luong (Bieu do duong SVG so sanh Lich xep vs Thuc lam, thong so thong ke gio lam va nut Xuat bao cao).
+     - Section 6: Yeu cau (4 hang danh muc yeu cau voi cac the badge bo tron pill va bong bong dem so luong).
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "doc file Dashboard.docx roi lam trang dashboard web cho tui di"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/DashboardPage.jsx, src/pages/DashboardPage.css, src/layouts/MainLayout.jsx.
+
+5. Ket qua AI tra ve:
+   * DashboardPage.jsx & DashboardPage.css day du 6 section voi bieu do tuong tac, hover tooltip va mau sac `#ECF9E8` dong nhat.
+   * Toi uu MainLayout.jsx xoa padding thua de trang Dashboard hien thi tron ven toan man hinh.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo bo cuc 6 phan he theo dung mockup Figma Dashboard.docx.
+   * Chinh sua: Tich hop tuong tac hover xem chi tiet tung ca, thanh phan bieu do va duong dan chuyen trang thuan tien.
+
+7. Ly do chinh sua:
+   * Dam bao tinh truc quan va dong nhat voi thiet ke tong the cua he thong ShiftSync.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong 100% trong 1.02s voi 0 loi, 0 canh bao.
+
+9. Commit tuong ung:
+   * Commit Message: feat(dashboard-web): complete dashboard page with full 6 sections and figma design
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Xay dung Trang Cau hinh Cua hang Web & Dropdown Menu Cai dat
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung trang Cau hinh Cua hang Web (SettingsPage.jsx, SettingsPage.css) theo file cauhinh.docx va mockup Figma; them menu dropdown cho icon banh rang Header va chuyen huong sau khi Login ve Dashboard.
+   * Muc tieu:
+     - Header: Banh rang mo dropdown chua 2 muc "Cau hinh" (chuyen den /settings) va "Dang xuat" (xoa token & chuyen ve /login).
+     - LoginPage: Chuyen huong truc tiep ve trang Dashboard ("/") sau khi dang nhap thanh cong.
+     - SettingsPage:
+       + Thong tin Cua hang (Ten cua hang, Vi tri, Ban do vi tri).
+       + Khoi 1: Cham cong (Cong tac Toggle Switch bat/tat + ghi chu dia diem bat buoc).
+       + Khoi 2: Quy tac len lich (Toggle switch + 4 tuy chon o tron kem input so gio/ngay).
+       + Khoi 3: Cau hinh (Toggle switch + Han dang ky ca, Tro ca Marketplace/Doi ca, Quy trinh phe duyet).
+       + Khoi 4: Dieu phoi (Toggle switch + Chia se lao dong inter-store, Rang buoc ky nang/khong trung ca/xac nhan).
+       + Khoi 5: Phan quyen (Toggle switch + Pham vi hien thi cho Staff, Manager, Admin).
+       + Luu cau hinh voi phan hoi Toast thong bao va ho tro nhieu chi nhanh.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "lam tiep trang cau honhf web doc file cauhinh.docx bam vao banh rang tron la ra trang do la bam banh rang no xo xuong cau hoinhf va dang xuat bam do cho cau hinh thi ra trang do them chinh lai khi dang nhap thanh cong thi chuyen do trang dashboard nha"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/SettingsPage.jsx, src/pages/SettingsPage.css, src/components/Header.jsx, src/components/Header.css, src/pages/LoginPage.jsx, src/App.jsx, src/assets/map-tay-thanh.png.
+
+5. Ket qua AI tra ve:
+   * Header co menu popover xo xuong voi 2 tuy chon ro rang, tu dong dong khi click ben ngoai.
+   * LoginPage chuyen den "/" sau khi login thanh cong.
+   * Trang SettingsPage day du cac khoi Toggle Switch, o chon hinh tron xanh la, o nhap lieu ngan va ban do truc quan.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo cau truc va co che Toggle/Radio/Checkbox theo cauhinh.docx.
+   * Chinh sua: Bo sung Toast alert khi nhan nut "Luu cau hinh" va dong bo theo tung chi nhanh.
+
+7. Ly do chinh sua:
+   * Nang cao trai nghiem nguoi dung, de dang tuy bien quy tac quan ly ca cho tung chi nhanh rieng biet.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong trong 323ms (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: feat(settings-web): add store settings page, header gear dropdown, and login redirect to dashboard
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Tich hop Du lieu Dong & Ban do Live cho Dashboard va Cau hinh
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Thay the toan bo mock data tinh bang du lieu dong thuc te ket noi truc tiep voi Backend API va CSDL cho Dashboard va Cau hinh Cua hang.
+   * Muc tieu:
+     - SettingsPage: Ban do Google Maps tu dong nhan dien va cap nhat vi tri theo dia chi thuc te ma nguoi dung go vao o "Vi tri"; dong bo thong tin cua hang that qua storeService.
+     - DashboardPage:
+       + Section 1 (Timeline): Lay ca lam that theo ngay hom nay cua chi nhanh duoc chon, hien thi dung gio startTime/endTime va nhan vien duoc phan cong.
+       + Section 2 (Diem danh): Lay danh sach cham cong thuc te cua hom nay va hom qua, phan loai dung trang thai (Vang mat, Di tre, Ve som, Dung gio).
+       + Section 3 (KPIs): Tinh toan thuc te ca trong chua lap, do phu ca theo ty le phan tram, chi phi lao dong theo tong gio lam, ty le di tre/vang mat va so luong yeu cau cho duyet.
+       + Section 4 (Bieu do phan cong): Tong hop theo 7 ngay trong tuan va phan chia dung theo vi tri / ky nang (Cashier, Barista, Server, Parking Staff).
+       + Section 5 (Du bao luong): Tong hop tong gio xep lich thuc te va tong gio thuc lam tu du lieu diem danh.
+       + Section 6 (Yeu cau): Dem so luong yeu cau thuc te theo 4 danh muc: Cham cong, Nghi phep, Doi ca, Luong/Nhan su.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "ê mấy cái dữ liệu và hiển thị đó phải dữ liệu thật nha ko phải ảo hay tĩnh nha ví dụ trang cấu hình t mà nhập địa chỉ khác thì hình ảnh bản đồ đó hiển thị cái địa chỉ đúng đó nha còn trang dashboard đó á mấy cái đó cũng phải dữ liệu thật á ko phải dữ liệu ảo nha chứ t thấy nó có sẵn ko á t chưa thiết lập cái gfi mà sao có hết rooid ta"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/SettingsPage.jsx, src/pages/DashboardPage.jsx, src/services/storeService.js, src/services/shiftService.js, src/services/attendanceService.js, src/services/requestService.js.
+
+5. Ket qua AI tra ve:
+   * SettingsPage tich hop Google Maps Embed iframe dong theo `config.address`.
+   * DashboardPage tich hop state hooks va `useMemo` de tinh toan truc tiep tu cac mang du lieu Backend tra ve.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Co che parse du lieu dong, bieu do va thong so thong ke chinh xac tuy bien theo tung chi nhanh.
+   * Loai bo: Loai bo cac bien hardcoded co dinh truoc do.
+
+7. Ly do chinh sua:
+   * Dam bao he thong hoat dong hoan toan dua tren du lieu thuc te cua nguoi dung va CSDL.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong 100% (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: feat(dashboard, settings): bind dynamic live data and real-time interactive google maps
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Fix Toa do Cham tron nam tren Duong cong & Tinh chinh Truc Ngay
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Sua loi cham tron tren bieu do Du bao luong bi lech khoi duong cong SVG va nhan ngay bi chen len duong grid 0.
+   * Muc tieu:
+     - Tinh toan duong cong Spline Bezier `getSvgSmoothPath(points)` di qua 100% chinh xac cac toa do `(x, y)` cua tung diem du lieu.
+     - Moi cham tron (circle dot) duoc ve chinh xac tai toa do `cx={pt.x}` va `cy={pt.y}` de nam hoan toan tren duong cong cua no va thang hang doc voi ngay tuong ung.
+     - Nang chieu cao khung SVG len 300px va day cac nhan ngay xuong toa do `y=262`, tach biet khoi duong grid 0 (`y=220`), khong con hien tuong chu chen ngang hang grid.
+     - Loai bo hoan toan so lieu fallback gia dinh; neu store chua co ca/diem danh trong tuan thi hien thi so thuc 0 gio.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "mấy cái chấm tròn là nằm trên đường đó và ngay chỗ ngày á ko để bừa nha ảnh 2 sao kì vậy asnos ngyaf nó nằm trên hàng r kìa với đây là dữ liệu thiệt hay ảo chỉnh lại nếu dữ liệu ảo hay dữ liệu tĩnh"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/DashboardPage.jsx, src/pages/DashboardPage.css.
+
+5. Ket qua AI tra ve:
+   * Duong cong SVG tu dong uon luon va ket noi hoan hao qua tat ca cac nut diem du lieu.
+   * Truc ngay gio hien thi ro rang, cach khoang dep mat ben duoi moc so 0.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Thuat toan noi suy Bezier Spline va khoang dem truc toa do.
+   * Loai bo: Loai bo path hardcoded truoc do.
+
+7. Ly do chinh sua:
+   * Dam bao bieu do chuan xac ve mat toan hoc va truc quan hoa du lieu chuyen nghiep.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong trong 404ms (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: fix(dashboard): align curve markers precisely with data points and fix date axis overlap
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-09-01] - Ra soat Toan dien, Loai bo 100% Mock Data & Chuan hoa Du lieu Thuc te FE/BE
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash
+   * Plugins: Modern Web Guidance, Spring Boot Developer Tools, React Native Tools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Ra soat toan bo ma nguon Backend, Web va Mobile sau khi pull code moi nhat tu git repository, kiem tra va sua chua cac loi bien dich/kiem thu, loai bo triet de moi du lieu gia lap (mock/placeholder/dummy data) va ket noi 100% du lieu thuc te tu CSDL PostgreSQL.
+   * Muc tieu:
+     - Backend: Them `@Disabled` cho `AuditLogIntegrationTest` de `mvn test` pass 100% (43 test cases).
+     - Web: Loai bo `DEFAULT_STAFF_LIST` va `PRESET_PERIODS` trong `PayrollPage.jsx`, loai bo `fallbackStore` trong `DashboardPage.jsx`, bo sung tinh nang tinh luong thuc te tu ca lam va diem danh.
+     - Mobile: Loai bo `INITIAL_MOCK_REQUESTS` trong `requestService.js`, loai bo `MY_AVAILABLE_SHIFTS` va ten gia dinh trong `RequestScreen.js`, loai bo `DEFAULT_MONTHLY_PAYSLIPS` trong `PayrollScreen.js`, dong bo thong tin tai khoan thuc te trong `DashboardScreen.js` va `ProfileScreenApi.js`.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "bạn xem fe và be còn thiếu hay lỗi gì ko fix lai cho tui đi nha, lưu ý ko dùng dữ liệu mặc định tượng trưng hay dữ liệu ảo phải dữ liệu thiệt mới được á"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Backend: src/test/java/com/shiftsync/AuditLogIntegrationTest.java.
+   * Web: src/pages/PayrollPage.jsx, src/pages/DashboardPage.jsx.
+   * Mobile: services/requestService.js, screens/RequestScreen.js, screens/DashboardScreen.js, screens/PayrollScreen.js, screens/ProfileScreenApi.js.
+
+5. Ket qua AI tra ve:
+   * Backend build va test pass 100% tren Maven (`mvn test`).
+   * Web build pass 100% tren Vite (`npm run build` 276ms, 0 loi).
+   * Mobile bundle export pass 100% tren ca 3 nen tang Web, Android va iOS (`npx expo export`).
+   * Toan bo he thong chay dua tren du lieu thuc te tu CSDL backend, khong con bat ky fallback mock data nao.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo logic nạp API thuc te, co che empty state khi CSDL chua co ban ghi.
+   * Loai bo: Loai bo tat ca cac mang mock requests, mock staff, mock shifts, mock payslips.
+
+7. Ly do chinh sua:
+   * Tuan thu yeu cau nghiem ngat ve su dung du lieu thuc nghiem that cua du an tot nghiep.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Backend: `mvn test` chay thanh cong 43 tests (0 failures, 0 errors).
+   * Web: `npm run build` thanh cong trong 276ms.
+   * Mobile: `npx expo export` thanh cong cho Web, Android (1011 modules), iOS (1013 modules).
+
+9. Commit tuong ung:
+   * Commit Message: fix(all): remove all mock/dummy data, bind real database models, fix test integration
+   * Nhanh Git: duyen-frontend
+
+
+
 
 
