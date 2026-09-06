@@ -9,6 +9,7 @@ import RequestPage from './pages/RequestPage';
 import EmployeesPage from './pages/EmployeesPage';
 import StoresPage from './pages/StoresPage';
 import SkillsPage from './pages/SkillsPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -27,6 +28,8 @@ export default function App() {
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/skills" element={<SkillsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/config" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

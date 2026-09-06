@@ -20,6 +20,12 @@ public class ShiftDTO {
     @Schema(description = "Store ID")
     private UUID storeId;
 
+    @Schema(description = "Store Name")
+    private String storeName;
+
+    @Schema(description = "Store Address")
+    private String storeAddress;
+
     @Schema(description = "Shift Template ID (Optional)")
     private UUID shiftTemplateId;
 

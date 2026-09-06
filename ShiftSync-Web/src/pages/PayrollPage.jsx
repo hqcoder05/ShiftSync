@@ -24,89 +24,6 @@ const AVATAR_MAP = {
   'Paul. Lee': avatarPaul,
 };
 
-const DEFAULT_STAFF_LIST = [
-  {
-    id: 'emp-1',
-    name: 'Dilan. Jon',
-    role: 'Barista',
-    hours: 180,
-    otHours: 10,
-    totalHours: 190,
-    bonus: 0,
-    allowance: 150000,
-    deduction: 0,
-    hourlyRate: 26000,
-  },
-  {
-    id: 'emp-2',
-    name: 'Mew. Ama',
-    role: 'Barista',
-    hours: 175,
-    otHours: 0,
-    totalHours: 175,
-    bonus: 0,
-    allowance: 150000,
-    deduction: 150000,
-    hourlyRate: 26000,
-  },
-  {
-    id: 'emp-3',
-    name: 'Thia. Ago',
-    role: 'Cashier',
-    hours: 160,
-    otHours: 12,
-    totalHours: 172,
-    bonus: 0,
-    allowance: 150000,
-    deduction: 0,
-    hourlyRate: 26000,
-  },
-  {
-    id: 'emp-4',
-    name: 'Paul. Lee',
-    role: 'Cashier',
-    hours: 168,
-    otHours: 0,
-    totalHours: 168,
-    bonus: 0,
-    allowance: 150000,
-    deduction: 150000,
-    hourlyRate: 26000,
-  },
-  {
-    id: 'emp-5',
-    name: 'Thia. Ago',
-    role: 'Parking Staff',
-    hours: 120,
-    otHours: 8,
-    totalHours: 128,
-    bonus: 0,
-    allowance: 100000,
-    deduction: 0,
-    hourlyRate: 24000,
-  },
-  {
-    id: 'emp-6',
-    name: 'Mew. Ama',
-    role: 'Server',
-    hours: 110,
-    otHours: 0,
-    totalHours: 110,
-    bonus: 0,
-    allowance: 100000,
-    deduction: 0,
-    hourlyRate: 24000,
-  },
-];
-
-const PRESET_PERIODS = [
-  { id: 'p-2026-07', label: '01-31 tháng 7 năm 2026', startDate: '2026-07-01', endDate: '2026-07-31', status: 'CONFIRMED' },
-  { id: 'p-2026-08', label: '01-31 tháng 8 năm 2026', startDate: '2026-08-01', endDate: '2026-08-31', status: 'DRAFT' },
-  { id: 'p-2026-06', label: '01-30 tháng 6 năm 2026', startDate: '2026-06-01', endDate: '2026-06-30', status: 'PAID' },
-  { id: 'p-2026-05', label: '01-31 tháng 5 năm 2026', startDate: '2026-05-01', endDate: '2026-05-31', status: 'PAID' },
-  { id: 'p-2026-04', label: '01-30 tháng 4 năm 2026', startDate: '2026-04-01', endDate: '2026-04-30', status: 'PAID' },
-];
-
 const formatVND = (num) => {
   if (!num && num !== 0) return '—';
   return new Intl.NumberFormat('vi-VN').format(num) + 'đ';
@@ -115,13 +32,14 @@ const formatVND = (num) => {
 export default function PayrollPage() {
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState('');
-  const [periods, setPeriods] = useState(PRESET_PERIODS);
-  const [selectedPeriod, setSelectedPeriod] = useState(PRESET_PERIODS[0]);
+  const [periods, setPeriods] = useState([]);
+  const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [selectedStaff, setSelectedStaff] = useState('ALL');
-  const [staffData, setStaffData] = useState(DEFAULT_STAFF_LIST);
+  const [staffData, setStaffData] = useState([]);
   const [baseHourlyRate, setBaseHourlyRate] = useState(26000);
   const [showExportModal, setShowExportModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
 
   // Load stores on mount
@@ -133,8 +51,7 @@ export default function PayrollPage() {
         if (list[0]) setStoreId(list[0].id);
       })
       .catch(() => {
-        setStores([{ id: 'default-store', name: 'Highlands Coffee - Chi nhánh Tân Phú' }]);
-        setStoreId('default-store');
+        setStores([]);
       });
   }, []);
 
@@ -143,7 +60,7 @@ export default function PayrollPage() {
     if (!storeId) return;
     getPayrollPeriods(storeId)
       .then(({ data }) => {
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           const mapped = data.map((p) => ({
             id: p.id,
             label: `${p.startDate} – ${p.endDate}`,
@@ -153,25 +70,34 @@ export default function PayrollPage() {
           }));
           setPeriods(mapped);
           setSelectedPeriod(mapped[0]);
+        } else {
+          setPeriods([]);
+          setSelectedPeriod(null);
+          setStaffData([]);
         }
       })
       .catch(() => {
-        // use preset periods
+        setPeriods([]);
+        setSelectedPeriod(null);
+        setStaffData([]);
       });
   }, [storeId]);
 
   // Try fetching API payslips or compute from attendance
   useEffect(() => {
-    if (!storeId || !selectedPeriod?.id) return;
+    if (!storeId || !selectedPeriod?.id) {
+      setStaffData([]);
+      return;
+    }
     getPayslips(storeId, selectedPeriod.id)
       .then(({ data }) => {
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           const mapped = data.map((ps, idx) => {
             const hRate = ps.baseAmount && ps.totalHours ? Math.round(Number(ps.baseAmount) / Number(ps.totalHours)) : baseHourlyRate;
             return {
               id: ps.id || `ps-${idx}`,
               name: ps.staffName || `Nhân viên #${idx + 1}`,
-              role: 'Barista',
+              role: ps.role || 'Nhân viên',
               hours: Number(ps.totalHours || 0) - Number(ps.otHours || 0),
               otHours: Number(ps.otHours || 0),
               totalHours: Number(ps.totalHours || 0),
@@ -182,12 +108,45 @@ export default function PayrollPage() {
             };
           });
           setStaffData(mapped);
+        } else {
+          setStaffData([]);
         }
       })
       .catch(() => {
-        // Fallback to default staff calculation
+        setStaffData([]);
       });
   }, [storeId, selectedPeriod, baseHourlyRate]);
+
+  // Handle Calculate / Generate Payroll for current month
+  const handleGeneratePayroll = async () => {
+    if (!storeId) return;
+    setIsGenerating(true);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+    try {
+      await generatePayroll(storeId, { startDate, endDate });
+      const { data } = await getPayrollPeriods(storeId);
+      if (data && data.length > 0) {
+        const mapped = data.map((p) => ({
+          id: p.id,
+          label: `${p.startDate} – ${p.endDate}`,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          status: p.status,
+        }));
+        setPeriods(mapped);
+        setSelectedPeriod(mapped[0]);
+      }
+    } catch (err) {
+      console.warn('Lỗi tính lương:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Compute calculated salary rows based on hourly rate
   const computedRows = useMemo(() => {
@@ -305,41 +264,58 @@ export default function PayrollPage() {
             className="pay-period-btn"
             onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
           >
-            <span>{selectedPeriod?.label || '01-31 tháng 7 năm 2026'}</span>
+            <span>{selectedPeriod?.label || (periods.length === 0 ? 'Chưa có kỳ lương' : 'Chọn kỳ lương')}</span>
             <span className="pay-arrow">▾</span>
           </button>
 
           {showPeriodDropdown && (
             <div className="pay-period-dropdown">
-              {periods.map((p) => (
-                <div
-                  key={p.id}
-                  className={`pay-period-item ${selectedPeriod?.id === p.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedPeriod(p);
-                    setShowPeriodDropdown(false);
-                  }}
-                >
-                  <span>{p.label}</span>
-                  <span className={`pay-status-pill ${p.status?.toLowerCase()}`}>
-                    {p.status === 'PAID' ? 'Đã thanh toán' : p.status === 'CONFIRMED' ? 'Đã chốt' : 'Bản nháp'}
-                  </span>
+              {periods.length === 0 ? (
+                <div style={{ padding: '12px', fontSize: '13px', color: '#666', textAlign: 'center' }}>
+                  Chưa có kỳ lương.
                 </div>
-              ))}
+              ) : (
+                periods.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`pay-period-item ${selectedPeriod?.id === p.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedPeriod(p);
+                      setShowPeriodDropdown(false);
+                    }}
+                  >
+                    <span>{p.label}</span>
+                    <span className={`pay-status-pill ${p.status?.toLowerCase()}`}>
+                      {p.status === 'PAID' ? 'Đã thanh toán' : p.status === 'CONFIRMED' ? 'Đã chốt' : 'Bản nháp'}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
 
         {/* Close / Export Period Action Button */}
         <div className="pay-period-action-wrap">
-          <span className="pay-close-period-label">CLOSE PERIOD</span>
-          <button
-            type="button"
-            className={`pay-close-period-btn ${selectedPeriod?.status === 'CONFIRMED' ? 'confirmed' : ''}`}
-            onClick={() => setShowExportModal(true)}
-          >
-            {selectedPeriod?.status === 'CONFIRMED' ? 'XUẤT BẢNG LƯƠNG' : 'CLOSE PERIOD'}
-          </button>
+          <span className="pay-close-period-label">{periods.length === 0 ? 'GENERATE' : 'CLOSE PERIOD'}</span>
+          {periods.length === 0 ? (
+            <button
+              type="button"
+              className="pay-close-period-btn"
+              onClick={handleGeneratePayroll}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'ĐANG TÍNH...' : 'TÍNH LƯƠNG KỲ NÀY'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`pay-close-period-btn ${selectedPeriod?.status === 'CONFIRMED' ? 'confirmed' : ''}`}
+              onClick={() => setShowExportModal(true)}
+            >
+              {selectedPeriod?.status === 'CONFIRMED' ? 'XUẤT BẢNG LƯƠNG' : 'CLOSE PERIOD'}
+            </button>
+          )}
         </div>
 
         {/* Manager Hourly Rate Setup Box */}

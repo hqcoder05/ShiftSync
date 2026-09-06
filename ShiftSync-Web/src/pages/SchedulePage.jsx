@@ -3,7 +3,7 @@ import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
-import { getShiftsForStore, createShift, updateShift, deleteShift } from '../services/shiftService';
+import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
 import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
@@ -318,7 +318,12 @@ export default function SchedulePage() {
       .then((res) => {
         const list = res.data.content || res.data;
         setStores(list);
-        if (list.length) setStoreId(list[0].id);
+        if (list && list.length) {
+          const saved = localStorage.getItem('selectedStoreId');
+          const target = (saved && list.find((s) => String(s.id) === String(saved))) || list[0];
+          setStoreId(target.id);
+          localStorage.setItem('selectedStoreId', String(target.id));
+        }
       })
       .catch(() => setError('Không tải được danh sách chi nhánh'));
   }, []);
@@ -346,9 +351,14 @@ export default function SchedulePage() {
         const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
         const staff = rawStaff.map((emp) => {
           const id = emp.staffId || emp.id;
-          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
+          const name = emp.staffFullName || emp.fullName || 'Nhân viên';
+          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || (emp.contractType?.name || '');
           return {
             ...emp,
+            id: id,
+            staffId: id,
+            fullName: name,
+            staffFullName: name,
             position: pos,
             jobTitle: pos,
             skillName: pos,
@@ -443,7 +453,7 @@ export default function SchedulePage() {
   });
 
   const alreadyInStoreIds = new Set(employees.map((e) => e.staffId || e.id));
-  const availableToAdd = allEmployees.filter((e) => !alreadyInStoreIds.has(e.id));
+  const availableToAdd = allEmployees.filter((e) => !alreadyInStoreIds.has(e.id) && (e.role || e.systemRole) !== 'ADMIN');
 
   const getSkillColor = (skObj) => {
     if (!skObj) return null;
@@ -543,16 +553,14 @@ export default function SchedulePage() {
     setAddUserForm({
       staffId: '',
       employmentType: 'PART_TIME',
-      hourlyRate: '',
-      joinedDate: '',
+      hourlyRate: '25000',
+      joinedDate: toISODate(new Date()),
       skillId: '',
     });
     setShowAddUserModal(true);
-    if (allEmployees.length === 0) {
-      getEmployees(0, 100)
-        .then((res) => setAllEmployees(res.data.content || res.data))
-        .catch(() => setAllEmployees([]));
-    }
+    getEmployees(0, 100)
+      .then((res) => setAllEmployees(res.data.content || res.data || []))
+      .catch(() => setAllEmployees([]));
   };
 
   const openEditEmpModal = (emp) => {
@@ -618,9 +626,14 @@ export default function SchedulePage() {
 
     try {
       await createShift(storeId, payload);
+      try {
+        await publishShifts(storeId, targetDateIso, targetDateIso);
+      } catch (pubErr) {
+        // Continue even if already published
+      }
       showToast(
-        'Phân công thành công! 🎉',
-        `Đã gán ca ${DOW_VI[slot.dayOfWeek]} (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) cho ${empName}. Thông báo đã được gửi đến nhân viên!`
+        'Duyệt ca thành công! 🎉',
+        `Đã duyệt và phân công ca ${DOW_VI[slot.dayOfWeek]} (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) cho ${empName}. Ca làm việc đã được xuất bản và hiển thị ngay trên ứng dụng của nhân viên!`
       );
       loadData();
     } catch (err) {
@@ -987,13 +1000,34 @@ export default function SchedulePage() {
       await assignStaffToStore(storeId, {
         staffId: addUserForm.staffId,
         employmentType: addUserForm.employmentType,
-        hourlyRate: Number(addUserForm.hourlyRate) || 0,
+        hourlyRate: Number(addUserForm.hourlyRate) || 25000,
         joinedDate: addUserForm.joinedDate || toISODate(new Date()),
+        skillId: addUserForm.skillId ? addUserForm.skillId : null,
       });
+      // Lưu vị trí công việc vào localStorage để hiển thị ngay
+      if (addUserForm.skillId) {
+        const skObj = skills.find((s) => s.id === addUserForm.skillId);
+        if (skObj) {
+          const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
+          savedPositions[addUserForm.staffId] = skObj.name;
+          localStorage.setItem(`emp_positions_${storeId}`, JSON.stringify(savedPositions));
+        }
+      }
+      setUserFilter('All');
+      setSkillFilter('All');
       setShowAddUserModal(false);
+      showToast('Thêm thành công', 'Nhân viên đã được thêm vào chi nhánh và hiển thị trên lịch.');
       loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Thêm nhân viên thất bại');
+      if (err.response?.status === 409) {
+        showToast('Thông báo', 'Nhân viên này đã thuộc chi nhánh rồi.');
+        setUserFilter('All');
+        setSkillFilter('All');
+        setShowAddUserModal(false);
+        loadData();
+      } else {
+        setError(err.response?.data?.message || 'Thêm nhân viên thất bại');
+      }
     }
   };
 
@@ -1026,7 +1060,11 @@ export default function SchedulePage() {
             <select
               className="sch-filter-select"
               value={storeId}
-              onChange={(e) => setStoreId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStoreId(val);
+                localStorage.setItem('selectedStoreId', String(val));
+              }}
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>

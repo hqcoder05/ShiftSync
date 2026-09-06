@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, Switch, ScrollView, TouchableOpacity,
-  StyleSheet, Alert,
+  StyleSheet, Alert, SafeAreaView,
 } from 'react-native';
 import { getMyAvailability, createAvailability } from '../services/availabilityService';
 import ScrollTimePicker from '../components/ScrollTimePicker';
+import BottomNavbar from '../components/BottomNavbar';
 
 const days = [
   { label: 'Thứ 2', value: 1 },
@@ -32,43 +33,56 @@ function getWeekDates(weekOffset = 0) {
   });
 }
 
-export default function AvailabilityScreen() {
+export default function AvailabilityScreen({ navigation }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const weekDatesObjs = getWeekDates(weekOffset);
   const weekDates = weekDatesObjs.map(d => d.getDate().toString().padStart(2, '0'));
 
   // Tiêu đề tháng: lấy theo tháng của Thứ 2 đầu tuần đang xem
-  const monthTitle = MONTH_NAMES[weekDatesObjs[0].getMonth()];
+  const mondayMonth = weekDatesObjs[0].getMonth();
+  const monthTitle = MONTH_NAMES[mondayMonth];
 
-  const [selectedDay, setSelectedDay] = useState(days[0].value);
-  const [allDay, setAllDay] = useState(false);
-  const [startTime, setStartTime] = useState('06:00');
-  const [endTime, setEndTime] = useState('14:00');
-  const [myAvailability, setMyAvailability] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [allDay, setAllDay] = useState(true);
+  const [startTime, setStartTime] = useState({ hour: '06', minute: '00' });
+  const [endTime, setEndTime] = useState({ hour: '14', minute: '00' });
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [availabilities, setAvailabilities] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pickerFor, setPickerFor] = useState(null); // 'start' | 'end' | null
+
+  useEffect(() => {
+    loadAvailability();
+  }, []);
 
   const loadAvailability = async () => {
     try {
       const res = await getMyAvailability();
-      setMyAvailability(res.data);
+      setAvailabilities(res.data || []);
     } catch (err) {
-      console.log('Lỗi tải availability:', err.message);
+      console.log('Error loading availability:', err);
     }
   };
 
-  useEffect(() => { loadAvailability(); }, []);
-
-  const hasDataForDay = (dayValue) => myAvailability.some((a) => a.dayOfWeek === dayValue);
+  const hasDataForDay = (dayVal) => {
+    return availabilities.some(a => a.dayOfWeek === dayVal);
+  };
 
   const handleSubmit = async () => {
-    const finalStart = allDay ? '00:00' : startTime;
-    const finalEnd = allDay ? '23:59' : endTime;
-
-    setLoading(true);
     try {
+      setLoading(true);
+      const finalStart = allDay ? '00:00:00' : `${startTime.hour}:${startTime.minute}:00`;
+      const finalEnd = allDay ? '23:59:59' : `${endTime.hour}:${endTime.minute}:00`;
+
       await createAvailability(selectedDay, finalStart, finalEnd);
-      Alert.alert('Thành công', 'Đã đăng ký khung giờ rảnh');
+      Alert.alert(
+        'Đăng ký thành công! 🎉',
+        'Khung giờ rảnh của bạn đã được gửi đến Quản lý. Khi Quản lý duyệt và phân công ca, ca làm việc sẽ hiển thị ngay trên ứng dụng của bạn.',
+        [
+          { text: 'Đăng ký tiếp', onPress: () => {} },
+          { text: 'Xem lịch ca', onPress: () => navigation.navigate('Schedule') },
+        ]
+      );
       loadAvailability();
     } catch (err) {
       const status = err.response?.status;
@@ -82,102 +96,134 @@ export default function AvailabilityScreen() {
   };
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <View style={styles.monthNavRow}>
-        <TouchableOpacity onPress={() => setWeekOffset(w => w - 1)} style={styles.navArrow}>
-          <Text style={styles.navArrowText}>‹</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.screenTitle}>Đăng ký lịch rảnh</Text>
+          <View style={{ width: 32 }} />
+        </View>
+
+        <View style={styles.monthNavRow}>
+          <TouchableOpacity onPress={() => setWeekOffset(w => w - 1)} style={styles.navArrow}>
+            <Text style={styles.navArrowText}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.monthTitle}>{monthTitle}</Text>
+          <TouchableOpacity onPress={() => setWeekOffset(w => w + 1)} style={styles.navArrow}>
+            <Text style={styles.navArrowText}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.myShiftsBtn}
+          onPress={() => navigation.navigate('Schedule')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.myShiftsText}>Xem lịch ca làm việc</Text>
         </TouchableOpacity>
-        <Text style={styles.monthTitle}>{monthTitle}</Text>
-        <TouchableOpacity onPress={() => setWeekOffset(w => w + 1)} style={styles.navArrow}>
-          <Text style={styles.navArrowText}>›</Text>
+
+        <View style={styles.dayRow}>
+          {days.map((d, i) => {
+            const active = selectedDay === d.value;
+            return (
+              <TouchableOpacity
+                key={d.value}
+                style={[styles.dayCell, active && styles.dayCellActive]}
+                onPress={() => setSelectedDay(d.value)}
+              >
+                <Text style={styles.dayLabel}>{d.label.replace('Thứ ', 'T')}</Text>
+                <Text style={styles.dayNumber}>{weekDates[i]}</Text>
+                {hasDataForDay(d.value) && <View style={styles.dot} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Cả ngày</Text>
+          <Switch
+            value={allDay}
+            onValueChange={setAllDay}
+            trackColor={{ false: '#ddd', true: '#51A33D' }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        {!allDay && (
+          <>
+            <View style={styles.row}>
+              <Text style={styles.label}>Thời gian bắt đầu:</Text>
+              <TouchableOpacity
+                style={styles.timePill}
+                onPress={() => setShowStartPicker(!showStartPicker)}
+              >
+                <Text style={styles.timePillText}>{`${startTime.hour}:${startTime.minute}`}</Text>
+              </TouchableOpacity>
+            </View>
+            {showStartPicker && (
+              <ScrollTimePicker
+                value={`${startTime.hour}:${startTime.minute}`}
+                onChange={(t) => {
+                  const [h, m] = t.split(':');
+                  setStartTime({ hour: h, minute: m });
+                }}
+                onDone={() => setShowStartPicker(false)}
+              />
+            )}
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Thời gian kết thúc:</Text>
+              <TouchableOpacity
+                style={styles.timePill}
+                onPress={() => setShowEndPicker(!showEndPicker)}
+              >
+                <Text style={styles.timePillText}>{`${endTime.hour}:${endTime.minute}`}</Text>
+              </TouchableOpacity>
+            </View>
+            {showEndPicker && (
+              <ScrollTimePicker
+                value={`${endTime.hour}:${endTime.minute}`}
+                onChange={(t) => {
+                  const [h, m] = t.split(':');
+                  setEndTime({ hour: h, minute: m });
+                }}
+                onDone={() => setShowEndPicker(false)}
+              />
+            )}
+          </>
+        )}
+
+        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
+          <Text style={styles.submitText}>{loading ? 'Đang lưu...' : 'Đăng ký'}</Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.myShiftsBtn}>
-        <Text style={styles.myShiftsText}>My shifts</Text>
-      </View>
-
-      <View style={styles.dayRow}>
-        {days.map((d, i) => {
-          const active = selectedDay === d.value;
-          return (
-            <TouchableOpacity
-              key={d.value}
-              style={[styles.dayCell, active && styles.dayCellActive]}
-              onPress={() => setSelectedDay(d.value)}
-            >
-              <Text style={styles.dayLabel}>{d.label.replace('Thứ ', 'T')}</Text>
-              <Text style={styles.dayNumber}>{weekDates[i]}</Text>
-              {hasDataForDay(d.value) && <View style={styles.dot} />}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.label}>Cả ngày</Text>
-        <Switch
-          value={allDay}
-          onValueChange={setAllDay}
-          trackColor={{ false: '#ddd', true: '#51A33D' }}
-          thumbColor="#fff"
-        />
-      </View>
-
-      {!allDay && (
-        <>
-          <View style={styles.row}>
-            <Text style={styles.label}>Thời gian bắt đầu:</Text>
-            <TouchableOpacity
-              style={styles.timePill}
-              onPress={() => setPickerFor(pickerFor === 'start' ? null : 'start')}
-            >
-              <Text style={styles.timePillText}>{startTime}</Text>
-            </TouchableOpacity>
-          </View>
-          {pickerFor === 'start' && (
-            <ScrollTimePicker
-              value={startTime}
-              onChange={setStartTime}
-              onDone={() => setPickerFor(null)}
-            />
-          )}
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Thời gian kết thúc:</Text>
-            <TouchableOpacity
-              style={styles.timePill}
-              onPress={() => setPickerFor(pickerFor === 'end' ? null : 'end')}
-            >
-              <Text style={styles.timePillText}>{endTime}</Text>
-            </TouchableOpacity>
-          </View>
-          {pickerFor === 'end' && (
-            <ScrollTimePicker
-              value={endTime}
-              onChange={setEndTime}
-              onDone={() => setPickerFor(null)}
-            />
-          )}
-        </>
-      )}
-
-      <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
-        <Text style={styles.submitText}>{loading ? 'Đang lưu...' : 'Đăng ký'}</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={{ height: 90 }} />
+      </ScrollView>
+      <BottomNavbar navigation={navigation} activeRoute="Availability" />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#fff' },
   content: { padding: 20, paddingBottom: 60 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  backBtn: { padding: 4 },
+  backArrow: { fontSize: 24, fontWeight: '700', color: '#333' },
+  screenTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
   monthNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
-    marginTop: 20, 
+    marginTop: 8, 
     marginBottom: 12,
   },
   navArrow: {

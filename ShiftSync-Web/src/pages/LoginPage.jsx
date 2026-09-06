@@ -40,8 +40,8 @@ export default function LoginPage() {
 
       console.log('Login thành công:', res);
 
-      // Route thật trong App.jsx là /employees, không phải /users
-      navigate('/employees'); 
+      // Chuyển vào trang Dashboard sau khi đăng nhập thành công
+      navigate('/'); 
     } catch (err) {
       setError(err.response?.data?.message || 'Sai email hoặc mật khẩu');
     }

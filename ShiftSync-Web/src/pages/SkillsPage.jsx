@@ -32,7 +32,12 @@ export default function SkillsPage() {
       .then((res) => {
         const list = res.data.content || res.data || [];
         setStores(list);
-        if (list.length) setStoreId(list[0].id);
+        if (list.length) {
+          const saved = localStorage.getItem('selectedStoreId');
+          const target = (saved && list.find((s) => String(s.id) === String(saved))) || list[0];
+          setStoreId(target.id);
+          localStorage.setItem('selectedStoreId', String(target.id));
+        }
       })
       .catch(() => setError('Không tải được danh sách chi nhánh'));
   }, []);

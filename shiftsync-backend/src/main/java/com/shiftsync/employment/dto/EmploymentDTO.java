@@ -24,6 +24,8 @@ public class EmploymentDTO {
     private ContractTypeDTO contractType;
     
     private BigDecimal hourlyRate;
+    private UUID skillId;
+    private String skillName;
     private EmploymentStatus status;
     private LocalDate joinedDate;
     private LocalDate leftDate;

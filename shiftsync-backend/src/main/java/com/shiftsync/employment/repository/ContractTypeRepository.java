@@ -12,5 +12,6 @@ import java.util.UUID;
 public interface ContractTypeRepository extends JpaRepository<ContractType, UUID> {
     List<ContractType> findByStoreId(UUID storeId);
     Optional<ContractType> findByIdAndStoreId(UUID id, UUID storeId);
+    Optional<ContractType> findByStoreIdAndName(UUID storeId, String name);
     boolean existsByNameAndStoreId(String name, UUID storeId);
 }

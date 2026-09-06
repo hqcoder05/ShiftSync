@@ -58,7 +58,7 @@ public class EmploymentController {
 
     @GetMapping("/users/{staffId}/stores")
     @Operation(summary = "Get stores a staff belongs to")
-    @PreAuthorize("hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and authentication.principal.id == #staffId)")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or authentication.principal.id == #staffId")
     public ResponseEntity<List<EmploymentDTO>> getStoresByStaff(
             @PathVariable UUID staffId,
             Authentication authentication) {

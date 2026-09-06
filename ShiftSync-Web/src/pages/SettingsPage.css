@@ -1,0 +1,364 @@
+/* ==========================================================================
+   SettingsPage.css — ShiftSync Store & Configuration (cauhinh.docx / Figma)
+   ========================================================================== */
+
+:root {
+  --cfg-bg: #F4F6F4;
+  --cfg-card-bg: #FFFFFF;
+  --cfg-border: rgba(188, 182, 183, 0.5);
+  --cfg-shadow: 0 8px 24px rgba(188, 182, 183, 0.35);
+  --cfg-primary-green: #51A33D;
+  --cfg-primary-dark: #388226;
+  --cfg-text-main: #333333;
+  --cfg-text-muted: #666671;
+}
+
+.cfg-page {
+  background-color: var(--cfg-bg);
+  min-height: calc(100vh - 64px);
+  padding: 40px 24px 80px;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--cfg-text-main);
+  box-sizing: border-box;
+}
+
+.cfg-card {
+  max-width: 1297px;
+  margin: 0 auto;
+  background: var(--cfg-card-bg);
+  border: 1px solid var(--cfg-border);
+  box-shadow: var(--cfg-shadow);
+  border-radius: 10px;
+  padding: 48px 60px;
+  box-sizing: border-box;
+}
+
+/* Header Section */
+.cfg-header-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--cfg-border);
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.cfg-main-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--cfg-text-main);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.cfg-store-select-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F4F4F5;
+  border: 1px solid rgba(188, 182, 183, 0.6);
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cfg-store-select-pill select {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333333;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Store Info Inputs */
+.cfg-store-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 36px;
+  border-bottom: 2px solid var(--cfg-border);
+  margin-bottom: 36px;
+}
+
+.cfg-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cfg-input-label {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--cfg-text-main);
+}
+
+.cfg-text-input {
+  width: 100%;
+  max-width: 800px;
+  height: 52px;
+  background: #FFFFFF;
+  border: 1.5px solid var(--cfg-border);
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 7px;
+  padding: 0 18px;
+  font-size: 17px;
+  font-family: inherit;
+  color: var(--cfg-text-main);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.cfg-text-input.full-width {
+  max-width: 100%;
+}
+
+.cfg-text-input:focus {
+  border-color: var(--cfg-primary-green);
+  box-shadow: 0 0 0 3px rgba(81, 163, 61, 0.15);
+}
+
+/* Map Container */
+.cfg-map-container {
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--cfg-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.cfg-map-img {
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Config Blocks */
+.cfg-block-item {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  column-gap: 20px;
+  padding: 32px 0;
+  border-bottom: 2px solid var(--cfg-border);
+}
+
+.cfg-block-item:last-of-type {
+  border-bottom: none;
+}
+
+/* Toggle Switch */
+.cfg-switch-col {
+  padding-top: 4px;
+}
+
+.cfg-toggle-switch {
+  width: 48px;
+  height: 26px;
+  background-color: #D1D5DB;
+  border-radius: 13px;
+  border: 1px solid rgba(188, 182, 183, 0.6);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cfg-toggle-switch.active {
+  background-color: #E2F2DE;
+  border-color: var(--cfg-primary-green);
+}
+
+.cfg-toggle-circle {
+  width: 20px;
+  height: 20px;
+  background-color: #9CA3AF;
+  border-radius: 50%;
+  position: absolute;
+  left: 3px;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.cfg-toggle-switch.active .cfg-toggle-circle {
+  transform: translateX(22px);
+  background-color: var(--cfg-primary-green);
+}
+
+/* Block Content */
+.cfg-block-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cfg-block-content.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.cfg-block-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--cfg-text-main);
+  margin: 0 0 6px 0;
+}
+
+.cfg-block-desc {
+  font-size: 18px;
+  line-height: 1.5;
+  color: #4A4A4A;
+  margin: 0;
+}
+
+.cfg-sub-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--cfg-text-main);
+  margin: 12px 0 6px 0;
+}
+
+/* Options Grid / Rows */
+.cfg-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cfg-option-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 18px;
+  color: var(--cfg-text-main);
+  cursor: pointer;
+  user-select: none;
+  flex-wrap: wrap;
+}
+
+/* Circular Radio/Checkmark */
+.cfg-circle-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--cfg-primary-green);
+  background-color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.cfg-circle-check.checked {
+  background-color: var(--cfg-primary-green);
+}
+
+.cfg-circle-check-inner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #FFFFFF;
+}
+
+/* Short numeric inputs */
+.cfg-num-input {
+  width: 68px;
+  height: 32px;
+  border: 2px solid var(--cfg-border);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cfg-text-main);
+  outline: none;
+  background: #FFFFFF;
+  transition: border-color 0.15s ease;
+}
+
+.cfg-num-input:focus {
+  border-color: var(--cfg-primary-green);
+}
+
+/* Action Footer */
+.cfg-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 2px solid var(--cfg-border);
+}
+
+.cfg-save-btn {
+  background-color: var(--cfg-primary-green);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 36px;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.cfg-save-btn:hover {
+  background-color: var(--cfg-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(81, 163, 61, 0.3);
+}
+
+.cfg-save-btn:active {
+  transform: translateY(0);
+}
+
+.cfg-reset-btn {
+  background-color: #F4F4F5;
+  color: var(--cfg-text-main);
+  border: 1px solid var(--cfg-border);
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cfg-reset-btn:hover {
+  background-color: #E4E4E7;
+}
+
+/* Toast alert */
+.cfg-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: #1F2937;
+  color: #FFFFFF;
+  padding: 14px 24px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: 15px;
+  font-weight: 500;
+  z-index: 2000;
+  animation: cfgToastFade 0.2s ease-out;
+}
+
+@keyframes cfgToastFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

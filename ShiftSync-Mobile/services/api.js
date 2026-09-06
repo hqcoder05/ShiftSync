@@ -1,26 +1,39 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-// Tự động nhận diện môi trường:
-// - Web trình duyệt: http://localhost:8080/api
-// - Điện thoại thật (Expo Go): http://172.20.10.7:8080/api
-const DEV_MACHINE_IP = '172.20.10.7';
+// IP Wi-Fi hiện tại của máy tính chạy backend:
+const CURRENT_LAN_IP = '192.168.0.113';
 
-const getBaseUrl = () => {
+// Tự động trích xuất IP host mà Expo Go đang kết nối, hoặc dùng fallback CURRENT_LAN_IP
+const getHostIp = () => {
   if (Platform.OS === 'web') {
-    return 'http://localhost:8080/api';
+    return 'localhost';
   }
-  return `http://${DEV_MACHINE_IP}:8080/api`;
+  const scriptURL = NativeModules?.SourceCode?.scriptURL;
+  if (scriptURL) {
+    const address = scriptURL.split('://')[1]?.split('/')[0]?.split(':')[0];
+    if (address && address !== 'localhost' && address !== '127.0.0.1') {
+      return address;
+    }
+  }
+  return CURRENT_LAN_IP;
+};
+
+export const getBaseUrl = () => {
+  const host = getHostIp();
+  return `http://${host}:8080/api`;
 };
 
 const api = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 4000,
+  timeout: 20000,
 });
 
 api.interceptors.request.use(async (config) => {
   try {
+    // Luôn cập nhật baseURL theo IP động mới nhất
+    config.baseURL = getBaseUrl();
     const token = await AsyncStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

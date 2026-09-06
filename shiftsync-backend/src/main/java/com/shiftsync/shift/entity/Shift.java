@@ -60,10 +60,12 @@ public class Shift {
     private boolean isOpen = false;
 
     @OneToMany(mappedBy = "shift", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 50)
     @Builder.Default
     private List<ShiftSkillRequirement> requirements = new ArrayList<>();
 
     @OneToMany(mappedBy = "shift")
+    @org.hibernate.annotations.BatchSize(size = 50)
     @Builder.Default
     private List<ShiftAssignment> assignments = new ArrayList<>();
     

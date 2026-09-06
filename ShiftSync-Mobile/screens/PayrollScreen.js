@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { getMyPayslips } from '../services/payrollService';
 import { getMyShifts } from '../services/shiftService';
 import { getMyAttendanceHistory } from '../services/attendanceService';
+import BottomNavbar from '../components/BottomNavbar';
 
 // Assets
 import calendarIcon from '../assets/Calendar.png';
@@ -24,101 +25,8 @@ const formatVND = (num) => {
   return Number(num).toLocaleString('vi-VN') + ' VNĐ';
 };
 
-const DEFAULT_MONTHLY_PAYSLIPS = [
-  {
-    id: 'ps-8',
-    month: 8,
-    year: 2026,
-    title: 'Phiếu lương tháng 8',
-    periodRange: '01/08/26 – 31/08/26',
-    role: 'Barista',
-    hourlyRate: 26000,
-    totalShifts: 16,
-    completedShifts: 16,
-    scheduledHours: 132,
-    workedHours: 132,
-    workedDays: 20,
-    baseAmount: 3300000,
-    deduction: 150000,
-    allowance: 120000,
-    totalAmount: 3450000,
-  },
-  {
-    id: 'ps-7',
-    month: 7,
-    year: 2026,
-    title: 'Phiếu lương tháng 7',
-    periodRange: '01/07/26 – 31/07/26',
-    role: 'Barista',
-    hourlyRate: 26000,
-    totalShifts: 16,
-    completedShifts: 16,
-    scheduledHours: 128,
-    workedHours: 128,
-    workedDays: 19,
-    baseAmount: 2450000,
-    deduction: 0,
-    allowance: 100000,
-    totalAmount: 2550000,
-  },
-  {
-    id: 'ps-6',
-    month: 6,
-    year: 2026,
-    title: 'Phiếu lương tháng 6',
-    periodRange: '01/06/26 – 30/06/26',
-    role: 'Barista',
-    hourlyRate: 26000,
-    totalShifts: 18,
-    completedShifts: 18,
-    scheduledHours: 140,
-    workedHours: 140,
-    workedDays: 21,
-    baseAmount: 3300000,
-    deduction: 0,
-    allowance: 150000,
-    totalAmount: 3450000,
-  },
-  {
-    id: 'ps-5',
-    month: 5,
-    year: 2026,
-    title: 'Phiếu lương tháng 5',
-    periodRange: '01/05/26 – 31/05/26',
-    role: 'Barista',
-    hourlyRate: 26000,
-    totalShifts: 15,
-    completedShifts: 15,
-    scheduledHours: 110,
-    workedHours: 110,
-    workedDays: 17,
-    baseAmount: 2600000,
-    deduction: 0,
-    allowance: 150000,
-    totalAmount: 2750000,
-  },
-  {
-    id: 'ps-4',
-    month: 4,
-    year: 2026,
-    title: 'Phiếu lương tháng 4',
-    periodRange: '01/04/26 – 30/04/26',
-    role: 'Barista',
-    hourlyRate: 26000,
-    totalShifts: 10,
-    completedShifts: 10,
-    scheduledHours: 65,
-    workedHours: 65,
-    workedDays: 10,
-    baseAmount: 1500000,
-    deduction: 0,
-    allowance: 150000,
-    totalAmount: 1650000,
-  },
-];
-
 export default function PayrollScreen({ navigation }) {
-  const [payslips, setPayslips] = useState(DEFAULT_MONTHLY_PAYSLIPS);
+  const [payslips, setPayslips] = useState([]);
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -134,16 +42,20 @@ export default function PayrollScreen({ navigation }) {
           apiPayslips = data;
         }
       } catch (e) {
-        // use default fallback
+        // ignore
       }
 
       // 2. Fetch completed shifts/attendance to calculate live current month
       let completedHours = 0;
       let completedDays = 0;
+      let userRole = 'Nhân viên';
       try {
         const { data: shifts } = await getMyShifts();
         if (shifts && Array.isArray(shifts)) {
           const finished = shifts.filter((s) => s.status === 'COMPLETED');
+          if (finished.length > 0) {
+            userRole = finished[0].skillName || finished[0].requiredSkillName || 'Nhân viên';
+          }
           completedHours = finished.reduce((acc, s) => {
             if (s.startTime && s.endTime) {
               const [h1, m1] = s.startTime.split(':').map(Number);
@@ -173,40 +85,57 @@ export default function PayrollScreen({ navigation }) {
             year,
             title: `Phiếu lương tháng ${month}`,
             periodRange: `${p.periodStartDate || '01/08/26'} – ${p.periodEndDate || '31/08/26'}`,
-            role: 'Barista',
+            role: userRole,
             hourlyRate: workedH ? Math.round(baseAmt / workedH) : 26000,
-            totalShifts: Math.round(workedH / 8) || 16,
-            completedShifts: Math.round(workedH / 8) || 16,
-            scheduledHours: workedH || 132,
-            workedHours: workedH || 132,
-            workedDays: Math.round(workedH / 8) || 20,
+            totalShifts: Math.round(workedH / 8) || completedDays || 1,
+            completedShifts: Math.round(workedH / 8) || completedDays || 1,
+            scheduledHours: workedH || Math.round(completedHours) || 8,
+            workedHours: workedH || Math.round(completedHours) || 8,
+            workedDays: Math.round(workedH / 8) || completedDays || 1,
             baseAmount: baseAmt,
-            deduction: 150000,
+            deduction: 0,
             allowance: 120000,
-            totalAmount: totalAmt || 3450000,
+            totalAmount: totalAmt,
           };
         });
         setPayslips(mapped);
       } else if (completedHours > 0) {
-        // Update current month (August) live
-        setPayslips((prev) =>
-          prev.map((ps) => {
-            if (ps.month === 8) {
-              const worked = Math.round(completedHours);
-              const base = worked * ps.hourlyRate;
-              const total = base + ps.allowance - ps.deduction;
-              return {
-                ...ps,
-                workedHours: worked,
-                completedShifts: completedDays || ps.completedShifts,
-                workedDays: completedDays || ps.workedDays,
-                baseAmount: base,
-                totalAmount: total,
-              };
-            }
-            return ps;
-          })
-        );
+        // Live current active month estimate from real shifts
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+        const startStr = `01/${String(currentMonth).padStart(2, '0')}/${String(currentYear).slice(2)}`;
+        const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+        const endStr = `${lastDay}/${String(currentMonth).padStart(2, '0')}/${String(currentYear).slice(2)}`;
+        const worked = Math.round(completedHours);
+        const hourlyRate = 26000;
+        const baseAmt = worked * hourlyRate;
+        const allowance = 120000;
+        const deduction = 0;
+        const totalAmt = baseAmt + allowance - deduction;
+
+        setPayslips([
+          {
+            id: `live-current-${currentMonth}-${currentYear}`,
+            month: currentMonth,
+            year: currentYear,
+            title: `Phiếu lương tháng ${currentMonth} (Ước tính)`,
+            periodRange: `${startStr} – ${endStr}`,
+            role: userRole,
+            hourlyRate,
+            totalShifts: completedDays,
+            completedShifts: completedDays,
+            scheduledHours: worked,
+            workedHours: worked,
+            workedDays: completedDays,
+            baseAmount: baseAmt,
+            deduction,
+            allowance,
+            totalAmount: totalAmt,
+          }
+        ]);
+      } else {
+        setPayslips([]);
       }
     } finally {
       setLoading(false);
@@ -398,44 +327,52 @@ export default function PayrollScreen({ navigation }) {
 
         {/* Monthly Payslips List */}
         <View style={styles.payslipsCard}>
-          {payslips.map((ps, idx) => {
-            const isDetailed = ps.month === 8 || ps.month === 7;
-            return (
-              <Pressable
-                key={ps.id || idx}
-                style={styles.payslipRow}
-                onPress={() => setSelectedPayslip(ps)}
-              >
-                {/* Left info */}
-                <View style={styles.payslipRowLeft}>
-                  <Text style={styles.payslipTitle}>{ps.title}</Text>
+          {payslips.length === 0 ? (
+            <Text style={{ padding: 24, textAlign: 'center', color: '#7B8490', fontSize: 14 }}>
+              Chưa có phiếu lương nào trong hệ thống.
+            </Text>
+          ) : (
+            payslips.map((ps, idx) => {
+              const isDetailed = ps.month === 8 || ps.month === 7 || payslips.length === 1;
+              return (
+                <Pressable
+                  key={ps.id || idx}
+                  style={styles.payslipRow}
+                  onPress={() => setSelectedPayslip(ps)}
+                >
+                  {/* Left info */}
+                  <View style={styles.payslipRowLeft}>
+                    <Text style={styles.payslipTitle}>{ps.title}</Text>
 
-                  {isDetailed ? (
-                    <View style={styles.payslipDetailWrap}>
-                      <View style={styles.yellowDotLine}>
-                        <View style={styles.yellowBullet} />
-                        <Text style={styles.detailedAmount}>{formatVND(ps.totalAmount)}</Text>
+                    {isDetailed ? (
+                      <View style={styles.payslipDetailWrap}>
+                        <View style={styles.yellowDotLine}>
+                          <View style={styles.yellowBullet} />
+                          <Text style={styles.detailedAmount}>{formatVND(ps.totalAmount)}</Text>
+                        </View>
+                        <Text style={styles.payslipRangeText}>{ps.periodRange}</Text>
+                        <View style={styles.payslipRoleWrap}>
+                          <View style={styles.roleTagDot} />
+                          <Text style={styles.roleTagText}>{ps.role}</Text>
+                        </View>
                       </View>
+                    ) : (
                       <Text style={styles.payslipRangeText}>{ps.periodRange}</Text>
-                      <View style={styles.payslipRoleWrap}>
-                        <View style={styles.roleTagDot} />
-                        <Text style={styles.roleTagText}>{ps.role}</Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text style={styles.payslipRangeText}>{ps.periodRange}</Text>
-                  )}
-                </View>
+                    )}
+                  </View>
 
-                {/* Right info (for simple months) */}
-                {!isDetailed && (
-                  <Text style={styles.goldSalaryAmount}>{formatVND(ps.totalAmount)}</Text>
-                )}
-              </Pressable>
-            );
-          })}
+                  {/* Right info (for simple months) */}
+                  {!isDetailed && (
+                    <Text style={styles.goldSalaryAmount}>{formatVND(ps.totalAmount)}</Text>
+                  )}
+                </Pressable>
+              );
+            })
+          )}
         </View>
+        <View style={{ height: 90 }} />
       </ScrollView>
+      <BottomNavbar navigation={navigation} activeRoute="Payroll" />
     </SafeAreaView>
   );
 }
@@ -477,7 +414,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 18,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 95,
   },
   subHeaderRow: {
     flexDirection: 'row',

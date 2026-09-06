@@ -1,0 +1,3718 @@
+/* Dashboard */
+position: relative;
+width: 1920px;
+height: 2858px;
+background: #ECF9E8;
+/* Rectangle 25 */
+position: absolute;
+width: 2150px;
+height: 100px;
+left: -230px;
+top: 0px;
+background: #333333;
+/* Rectangle 26 */
+position: absolute;
+height: 100px;
+left: -256px;
+right: 0px;
+top: 100px;
+background: #FFFFFF;
+/* Rectangle 32 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 247px;
+left: 103px;
+top: 242px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Rectangle 34 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 283px;
+left: 103px;
+top: 523px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Rectangle 35 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 300px;
+left: 103px;
+top: 863px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Rectangle 132 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 492px;
+left: 104px;
+top: 1237px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Rectangle 167 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 603px;
+left: 103px;
+top: 1807px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Rectangle 177 */
+box-sizing: border-box;
+position: absolute;
+width: 1720px;
+height: 309px;
+left: 104px;
+top: 2473px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+box-shadow: 8px 8px 10px rgba(188, 182, 183, 0.35);
+border-radius: 10px;
+/* Bell
+Keywords: alarm, notification, sound
+*/
+position: absolute;
+width: 44px;
+height: 44px;
+left: 27px;
+top: 33px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.35%;
+border: 4px solid #FFFFFF;
+/* Calendar */
+position: absolute;
+width: 44px;
+height: 44px;
+left: 346px;
+top: 26px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid #FFFFFF;
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 1753px;
+top: 888px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Clock */
+position: absolute;
+width: 44px;
+height: 44px;
+left: 554px;
+top: 26px;
+/* Icon */
+position: absolute;
+left: 8.33%;
+right: 8.33%;
+top: 8.33%;
+bottom: 8.33%;
+border: 2px solid #FFFFFF;
+/* SCHEDULER */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 402px;
+top: 40px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #BCB6B7;
+/* ATTENDANCE */
+position: absolute;
+width: 109px;
+height: 19px;
+left: 615px;
+top: 39px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #BCB6B7;
+/* Rectangle 31 */
+position: absolute;
+width: 205px;
+height: 98px;
+left: 103px;
+top: 1px;
+background: #222222;
+/* Group 1 */
+position: absolute;
+width: 47px;
+height: 36px;
+left: 132px;
+top: 33px;
+/* Rectangle 25 */
+box-sizing: border-box;
+position: absolute;
+width: 32.25px;
+height: 9.9px;
+left: 132px;
+top: 33px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* Rectangle 26 */
+box-sizing: border-box;
+position: absolute;
+width: 11.98px;
+height: 9.9px;
+left: 167.02px;
+top: 33px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* Rectangle 27 */
+box-sizing: border-box;
+position: absolute;
+width: 11.06px;
+height: 9.9px;
+left: 132px;
+top: 46.5px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* Rectangle 28 */
+box-sizing: border-box;
+position: absolute;
+width: 11.06px;
+height: 9.9px;
+left: 167.02px;
+top: 59.1px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* Rectangle 29 */
+box-sizing: border-box;
+position: absolute;
+width: 33.18px;
+height: 9.9px;
+left: 145.82px;
+top: 46.5px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* Rectangle 30 */
+box-sizing: border-box;
+position: absolute;
+width: 31.33px;
+height: 9.9px;
+left: 132.92px;
+top: 59.1px;
+background: #333333;
+border: 2.5px solid #FFFFFF;
+border-radius: 2.5px;
+/* DASHBOARD */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 196px;
+top: 40px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #FFFFFF;
+/* image 15 */
+box-sizing: border-box;
+position: absolute;
+width: 65px;
+height: 65px;
+left: 124px;
+top: 119px;
+background: url(image.png);
+border: 2.5px solid #666671;
+border-radius: 50px;
+/* ShiftSync */
+position: absolute;
+width: 117px;
+height: 31px;
+left: 203px;
+top: 136px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Lịch làm việc hôm nay */
+position: absolute;
+width: 310px;
+height: 40px;
+left: 134px;
+top: 266px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Yêu cầu */
+position: absolute;
+width: 129px;
+height: 40px;
+left: 138px;
+top: 2500px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Thông báo chấm công */
+position: absolute;
+width: 307px;
+height: 40px;
+left: 134px;
+top: 545px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Tổng quan hôm nay */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 139px;
+top: 891px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Dự báo lương */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 170px;
+top: 1841px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Lịch xếp: 46 giờ */
+position: absolute;
+width: 218px;
+height: 40px;
+left: 167px;
+top: 1922px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Thực làm: 16 giờ */
+position: absolute;
+width: 221px;
+height: 40px;
+left: 481px;
+top: 1924px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Ca làm việc được phân công */
+position: absolute;
+width: 390px;
+height: 40px;
+left: 155px;
+top: 1269px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 34px;
+color: #333333;
+/* Ca trống chưa lắp */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 139px;
+top: 960px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Xem lịch trình hôm nay */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 142px;
+top: 1012px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #469034;
+/* Xem lịch trình hôm nay */
+position: absolute;
+height: 40px;
+left: 139px;
+right: 1509px;
+top: 1124px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #469034;
+/* Xem lịch trình hôm nay */
+position: absolute;
+height: 40px;
+left: 669px;
+right: 979px;
+top: 1126px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #469034;
+/* Xem yêu cầu đang chờ xử lý */
+position: absolute;
+height: 40px;
+left: 1257px;
+right: 391px;
+top: 1126px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #469034;
+/* Xem lịch trình hôm nay */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 670px;
+top: 1013px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #469034;
+/* Tỷ lệ đi trễ */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 142px;
+top: 1068px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Tỷ lệ vắng mặt */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 670px;
+top: 1068px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Độ phủ ca */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 669px;
+top: 960px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Chi phí lao động */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 1257px;
+top: 957px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Cần duyệt */
+position: absolute;
+width: 272px;
+height: 40px;
+left: 1247px;
+top: 1073px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 24px;
+line-height: 29px;
+color: #333333;
+/* Rectangle 33 */
+position: absolute;
+width: 1720px;
+height: 50px;
+left: 103px;
+top: 320px;
+background: rgba(217, 217, 217, 0.5);
+/* Group 4 */
+position: absolute;
+width: 1720px;
+height: 50px;
+left: 104px;
+top: 591px;
+/* Rectangle 35 */
+position: absolute;
+width: 1720px;
+height: 50px;
+left: 104px;
+top: 591px;
+background: rgba(217, 217, 217, 0.5);
+/* Group 5 */
+position: absolute;
+width: 1720px;
+height: 35px;
+left: 104px;
+top: 706px;
+/* Rectangle 35 */
+position: absolute;
+width: 1720px;
+height: 35px;
+left: 104px;
+top: 706px;
+background: rgba(217, 217, 217, 0.5);
+/* Tên */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 127px;
+top: 332px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Hôm nay */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 139px;
+top: 603px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Hôm qua */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 127px;
+top: 711px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* 6:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 368px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 7:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 469px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 8:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 576px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 9:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 679px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 10:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 784px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 11:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 887px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 12:00 AM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 994px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 13:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1095px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 14:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1202px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 15:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1305px;
+top: 340px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 16:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1410px;
+top: 341px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 17:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1515px;
+top: 340px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 18:00 PM */
+position: absolute;
+width: 111px;
+height: 26px;
+left: 1618px;
+top: 339px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* 19:00 PM */
+position: absolute;
+height: 26px;
+left: 1725px;
+right: 84px;
+top: 338px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Dilan. Jon */
+position: absolute;
+width: 76px;
+height: 21px;
+left: 180px;
+top: 381px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Vắng mặt */
+position: absolute;
+width: 76px;
+height: 21px;
+left: 180px;
+top: 649px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi sớm */
+position: absolute;
+width: 76px;
+height: 21px;
+left: 177px;
+top: 749px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Dilan. Jon 01/08/2026 */
+position: absolute;
+width: 175px;
+height: 21px;
+left: 180px;
+top: 671px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Dilan. Jon 31/07/2026 17:59 PM */
+position: absolute;
+width: 175px;
+height: 36px;
+left: 177px;
+top: 770px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* 1 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 146px;
+top: 1657px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 0 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 144px;
+top: 2304px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 2 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 144px;
+top: 2246px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 4 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 144px;
+top: 2191px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 6 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 144px;
+top: 2135px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 8 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 144px;
+top: 2077px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 01-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 191px;
+top: 1671px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 02-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 275px;
+top: 1672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 03-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 387px;
+top: 1672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 04-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 504px;
+top: 1672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 05-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 635px;
+top: 1672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 06-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 746px;
+top: 1673px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 07-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 843px;
+top: 1673px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 2 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 211px;
+top: 1346px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 03-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 194px;
+top: 2320px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* Lịch xếp */
+position: absolute;
+width: 75px;
+height: 15px;
+left: 204px;
+top: 2358px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* Thực làm */
+position: absolute;
+width: 75px;
+height: 15px;
+left: 333px;
+top: 2358px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* 04-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 448px;
+top: 2321px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 05-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 691px;
+top: 2321px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 06-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 934px;
+top: 2321px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 07-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 1185px;
+top: 2322px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 08-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 1433px;
+top: 2323px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 09-08 */
+position: absolute;
+width: 55px;
+height: 15px;
+left: 1681px;
+top: 2324px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 1 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 302px;
+top: 1346px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 0 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 408px;
+top: 1346px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 2 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 519px;
+top: 1345px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 3 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 650px;
+top: 1346px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 1 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 768px;
+top: 1346px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 0 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 864px;
+top: 1347px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 2 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 146px;
+top: 1599px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 3 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 146px;
+top: 1545px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 5 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 146px;
+top: 1487px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 7 */
+position: absolute;
+width: 12px;
+height: 15px;
+left: 146px;
+top: 1429px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* 9 */
+position: absolute;
+width: 25px;
+height: 15px;
+left: 142px;
+top: 1375px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* Paul. Lee 01/08/2026 10:20 AM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 426px;
+top: 672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Mew. Ama 01/08/2026 18:10 PM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 718px;
+top: 672px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Mew. Ama 31/07/2026 5:49 AM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 426px;
+top: 772px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Mesi. Lio 01/08/2026 5:55 AM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 1021px;
+top: 674px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Thia. Ago 01/08/2026 5:50 AM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 1332px;
+top: 671px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Thia. Ago 01/08/2026 18:00 PM */
+position: absolute;
+width: 175px;
+height: 30px;
+left: 1637px;
+top: 674px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 15px;
+color: #666671;
+/* Paul. Lee */
+position: absolute;
+width: 76px;
+height: 21px;
+left: 180px;
+top: 441px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi trễ */
+position: absolute;
+width: 76px;
+height: 21px;
+left: 426px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi trễ */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 718px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi sớm */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 426px;
+top: 753px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi sớm */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1021px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Đi sớm */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1332px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Hỗ trợ */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1637px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Hỗ trợ */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1637px;
+top: 653px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 16px;
+line-height: 19px;
+color: #333333;
+/* Hôm nay */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1622px;
+top: 891px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Group 3 */
+position: absolute;
+width: 909px;
+height: 40px;
+left: 365px;
+top: 382px;
+/* Rectangle 34 */
+position: absolute;
+width: 909px;
+height: 40px;
+left: 365px;
+top: 382px;
+background: #8DD9CC;
+border-radius: 7px;
+/* Rectangle 36 */
+position: absolute;
+width: 24.94px;
+height: 5px;
+left: 367.33px;
+top: 383px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 37 */
+position: absolute;
+width: 42.21px;
+height: 5px;
+left: 367.97px;
+top: 383.82px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 38 */
+position: absolute;
+width: 44.39px;
+height: 5px;
+left: 383.75px;
+top: 384.71px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 39 */
+position: absolute;
+width: 43.52px;
+height: 5px;
+left: 402.86px;
+top: 385.61px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 40 */
+position: absolute;
+width: 43.86px;
+height: 5px;
+left: 420.8px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 41 */
+position: absolute;
+width: 43.71px;
+height: 5px;
+left: 440.91px;
+top: 385px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 42 */
+position: absolute;
+width: 43.19px;
+height: 5px;
+left: 459.28px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 43 */
+position: absolute;
+width: 44.08px;
+height: 5px;
+left: 477.65px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 44 */
+position: absolute;
+width: 44.56px;
+height: 5px;
+left: 495.31px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 45 */
+position: absolute;
+width: 43.62px;
+height: 5px;
+left: 514.98px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 46 */
+position: absolute;
+width: 43.28px;
+height: 5px;
+left: 534.21px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 48 */
+position: absolute;
+width: 44.45px;
+height: 5px;
+left: 555.38px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 49 */
+position: absolute;
+width: 44.61px;
+height: 5px;
+left: 576.27px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 50 */
+position: absolute;
+width: 44.31px;
+height: 5px;
+left: 597.48px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 51 */
+position: absolute;
+width: 43.4px;
+height: 5px;
+left: 619.13px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 52 */
+position: absolute;
+width: 43.56px;
+height: 5px;
+left: 640.01px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 53 */
+position: absolute;
+width: 43.73px;
+height: 5px;
+left: 660.9px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 54 */
+position: absolute;
+width: 44.04px;
+height: 5px;
+left: 681.68px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 55 */
+position: absolute;
+width: 43.89px;
+height: 5px;
+left: 702.78px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 56 */
+position: absolute;
+width: 43.29px;
+height: 5px;
+left: 724.21px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 57 */
+position: absolute;
+width: 43.3px;
+height: 5px;
+left: 745.2px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 58 */
+position: absolute;
+width: 43.92px;
+height: 5px;
+left: 765.76px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 59 */
+position: absolute;
+width: 43.46px;
+height: 5px;
+left: 787.08px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 60 */
+position: absolute;
+width: 44.24px;
+height: 5px;
+left: 807.54px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 61 */
+position: absolute;
+width: 43.94px;
+height: 5px;
+left: 828.75px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 62 */
+position: absolute;
+width: 43.64px;
+height: 5px;
+left: 849.96px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 63 */
+position: absolute;
+width: 43.19px;
+height: 5px;
+left: 871.28px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 64 */
+position: absolute;
+width: 43.81px;
+height: 5px;
+left: 891.84px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 65 */
+position: absolute;
+width: 43.2px;
+height: 5px;
+left: 913.27px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 66 */
+position: absolute;
+width: 43.52px;
+height: 5px;
+left: 934.05px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 67 */
+position: absolute;
+width: 42.3px;
+height: 5px;
+left: 955.91px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 68 */
+position: absolute;
+width: 43.38px;
+height: 5px;
+left: 976.14px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 69 */
+position: absolute;
+width: 42.93px;
+height: 5px;
+left: 997.46px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 70 */
+position: absolute;
+width: 43.39px;
+height: 5px;
+left: 1018.13px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 71 */
+position: absolute;
+width: 43.86px;
+height: 5px;
+left: 1038.8px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 72 */
+position: absolute;
+width: 43.56px;
+height: 5px;
+left: 1060.02px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 73 */
+position: absolute;
+width: 42.96px;
+height: 5px;
+left: 1081.44px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 74 */
+position: absolute;
+width: 43.42px;
+height: 5px;
+left: 1102.11px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 75 */
+position: absolute;
+width: 43.89px;
+height: 5px;
+left: 1122.78px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 76 */
+position: absolute;
+width: 44.05px;
+height: 5px;
+left: 1143.67px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 77 */
+position: absolute;
+width: 43.6px;
+height: 5px;
+left: 1164.99px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 78 */
+position: absolute;
+width: 43.15px;
+height: 5px;
+left: 1186.31px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 79 */
+position: absolute;
+width: 43.92px;
+height: 5px;
+left: 1206.76px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 80 */
+position: absolute;
+width: 43.16px;
+height: 5px;
+left: 1228.3px;
+top: 386px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Rectangle 81 */
+position: absolute;
+width: 28.31px;
+height: 5px;
+left: 1249.21px;
+top: 396.59px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: rotate(-45deg);
+/* Group 2 */
+position: absolute;
+width: 901.08px;
+height: 40px;
+left: 788.92px;
+top: 441px;
+/* Rectangle 82 */
+position: absolute;
+width: 901.08px;
+height: 40px;
+left: 788.92px;
+top: 441px;
+background: #D98DB3;
+border-radius: 7px;
+/* Rectangle 83 */
+position: absolute;
+width: 24.84px;
+height: 4.98px;
+left: 791.23px;
+top: 442px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 84 */
+position: absolute;
+width: 42.03px;
+height: 4.98px;
+left: 791.86px;
+top: 442.82px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 85 */
+position: absolute;
+width: 44.2px;
+height: 4.98px;
+left: 807.51px;
+top: 443.71px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 86 */
+position: absolute;
+width: 43.33px;
+height: 4.98px;
+left: 826.45px;
+top: 444.61px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 87 */
+position: absolute;
+width: 43.67px;
+height: 4.98px;
+left: 844.24px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 88 */
+position: absolute;
+width: 43.52px;
+height: 4.98px;
+left: 864.17px;
+top: 444px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 89 */
+position: absolute;
+width: 43px;
+height: 4.98px;
+left: 882.38px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 90 */
+position: absolute;
+width: 43.88px;
+height: 4.98px;
+left: 900.59px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 91 */
+position: absolute;
+width: 44.37px;
+height: 4.98px;
+left: 918.09px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 92 */
+position: absolute;
+width: 43.43px;
+height: 4.98px;
+left: 937.59px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 93 */
+position: absolute;
+width: 43.09px;
+height: 4.98px;
+left: 956.66px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 94 */
+position: absolute;
+width: 44.26px;
+height: 4.98px;
+left: 977.64px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 95 */
+position: absolute;
+width: 44.42px;
+height: 4.98px;
+left: 998.35px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 96 */
+position: absolute;
+width: 44.12px;
+height: 4.98px;
+left: 1019.38px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 97 */
+position: absolute;
+width: 43.22px;
+height: 4.98px;
+left: 1040.83px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 98 */
+position: absolute;
+width: 43.38px;
+height: 4.98px;
+left: 1061.53px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 99 */
+position: absolute;
+width: 43.54px;
+height: 4.98px;
+left: 1082.24px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 100 */
+position: absolute;
+width: 43.85px;
+height: 4.98px;
+left: 1102.84px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 101 */
+position: absolute;
+width: 43.7px;
+height: 4.98px;
+left: 1123.76px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 102 */
+position: absolute;
+width: 43.1px;
+height: 4.98px;
+left: 1145px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 103 */
+position: absolute;
+width: 43.11px;
+height: 4.98px;
+left: 1165.81px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 104 */
+position: absolute;
+width: 43.72px;
+height: 4.98px;
+left: 1186.19px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 105 */
+position: absolute;
+width: 43.28px;
+height: 4.98px;
+left: 1207.33px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 106 */
+position: absolute;
+width: 44.04px;
+height: 4.98px;
+left: 1227.6px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 107 */
+position: absolute;
+width: 43.75px;
+height: 4.98px;
+left: 1248.63px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 108 */
+position: absolute;
+width: 43.45px;
+height: 4.98px;
+left: 1269.65px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 109 */
+position: absolute;
+width: 43px;
+height: 4.98px;
+left: 1290.79px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 110 */
+position: absolute;
+width: 43.62px;
+height: 4.98px;
+left: 1311.17px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 111 */
+position: absolute;
+width: 43.02px;
+height: 4.98px;
+left: 1332.41px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 112 */
+position: absolute;
+width: 43.33px;
+height: 4.98px;
+left: 1353.01px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 113 */
+position: absolute;
+width: 42.12px;
+height: 4.98px;
+left: 1374.68px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 114 */
+position: absolute;
+width: 43.19px;
+height: 4.98px;
+left: 1394.74px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 115 */
+position: absolute;
+width: 42.74px;
+height: 4.98px;
+left: 1415.87px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 116 */
+position: absolute;
+width: 43.2px;
+height: 4.98px;
+left: 1436.36px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 117 */
+position: absolute;
+width: 43.67px;
+height: 4.98px;
+left: 1456.85px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 118 */
+position: absolute;
+width: 43.37px;
+height: 4.98px;
+left: 1477.88px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 119 */
+position: absolute;
+width: 42.77px;
+height: 4.98px;
+left: 1499.12px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 120 */
+position: absolute;
+width: 43.23px;
+height: 4.98px;
+left: 1519.61px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 121 */
+position: absolute;
+width: 43.7px;
+height: 4.98px;
+left: 1540.1px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 122 */
+position: absolute;
+width: 43.86px;
+height: 4.98px;
+left: 1560.8px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 123 */
+position: absolute;
+width: 43.41px;
+height: 4.98px;
+left: 1581.94px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 124 */
+position: absolute;
+width: 42.96px;
+height: 4.98px;
+left: 1603.07px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 125 */
+position: absolute;
+width: 43.73px;
+height: 4.98px;
+left: 1623.35px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 126 */
+position: absolute;
+width: 42.97px;
+height: 4.98px;
+left: 1644.7px;
+top: 445px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* Rectangle 127 */
+position: absolute;
+width: 28.18px;
+height: 4.98px;
+left: 1665.42px;
+top: 455.59px;
+background: rgba(240, 236, 236, 0.7);
+border-radius: 2px;
+transform: matrix(0.7, -0.71, 0.7, 0.71, 0, 0);
+/* image 23 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 50px;
+left: 658px;
+top: 649px;
+background: url(image.png);
+border: 1px solid #000000;
+border-radius: 50px;
+/* image 27 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 50px;
+left: 114px;
+top: 747px;
+background: url(image.png);
+border: 1px solid #000000;
+border-radius: 50px;
+/* image 25 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 50px;
+left: 1275px;
+top: 649px;
+background: url(image.png);
+border: 1px solid #000000;
+border-radius: 50px;
+/* image 26 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 50px;
+left: 1582px;
+top: 649px;
+background: url(image.png);
+border: 1px solid #000000;
+border-radius: 50px;
+/* Rectangle 128 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 1753px;
+top: 534px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 130 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 1743px;
+top: 880px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 133 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 563px;
+top: 1266px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 170 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 370px;
+top: 1836px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 178 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 279px;
+top: 2495px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 168 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 563px;
+top: 1266px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 171 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 370px;
+top: 1836px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 179 */
+box-sizing: border-box;
+position: absolute;
+width: 50px;
+height: 45px;
+left: 279px;
+top: 2495px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 129 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 1623px;
+top: 534px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 131 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 1609px;
+top: 880px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 134 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 639px;
+top: 1266px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 172 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 446px;
+top: 1836px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 180 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 355px;
+top: 2495px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 169 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 639px;
+top: 1266px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 173 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 446px;
+top: 1836px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 181 */
+box-sizing: border-box;
+position: absolute;
+width: 106px;
+height: 45px;
+left: 355px;
+top: 2495px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 135 */
+box-sizing: border-box;
+position: absolute;
+width: 105px;
+height: 45px;
+left: 771px;
+top: 1266px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 174 */
+box-sizing: border-box;
+position: absolute;
+width: 119px;
+height: 45px;
+left: 583px;
+top: 1836px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 182 */
+box-sizing: border-box;
+position: absolute;
+width: 119px;
+height: 45px;
+left: 492px;
+top: 2495px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Rectangle 175 */
+box-sizing: border-box;
+position: absolute;
+width: 86px;
+height: 45px;
+left: 1710px;
+top: 1833px;
+background: rgba(255, 255, 255, 0.49);
+border: 1px solid rgba(102, 102, 113, 0.49);
+border-radius: 7px;
+/* Line 62 */
+position: absolute;
+width: 405px;
+height: 0px;
+left: 963.51px;
+top: 1324px;
+border: 1px solid rgba(102, 102, 113, 0.49);
+transform: rotate(-90deg);
+/* Rectangle 136 */
+position: absolute;
+width: 859px;
+height: 50px;
+left: 964px;
+top: 1324px;
+background: #D9D9D9;
+/* Vị trí */
+position: absolute;
+width: 52px;
+height: 26px;
+left: 1012px;
+top: 1336px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Ellipse 1 */
+position: absolute;
+width: 35px;
+height: 35px;
+left: 1020px;
+top: 1390px;
+background: #D98DB3;
+/* Ellipse 2 */
+position: absolute;
+width: 35px;
+height: 35px;
+left: 1020px;
+top: 1452px;
+background: #8DD9CC;
+/* Ellipse 3 */
+position: absolute;
+width: 35px;
+height: 35px;
+left: 1020px;
+top: 1509px;
+background: #D9D98D;
+/* Ellipse 4 */
+position: absolute;
+width: 35px;
+height: 35px;
+left: 1020px;
+top: 1566px;
+background: #D98D8D;
+/* Hôm nay */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 647px;
+top: 1275px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Hôm nay */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 455px;
+top: 1846px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Hôm nay */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 647px;
+top: 1275px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Cashier */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1079px;
+top: 1397px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Barista */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1079px;
+top: 1459px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Server */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1079px;
+top: 1514px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Parking Staff */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 1079px;
+top: 1569px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Vị trí */
+position: absolute;
+width: 112px;
+height: 21px;
+left: 796px;
+top: 1274px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Nhân Viên */
+position: absolute;
+width: 112px;
+height: 21px;
+left: 593px;
+top: 1846px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Hôm nay */
+position: absolute;
+width: 112px;
+height: 21px;
+left: 364px;
+top: 2506px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Nhân viên */
+position: absolute;
+width: 105px;
+height: 21px;
+left: 506px;
+top: 2506px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Xuất */
+position: absolute;
+width: 56px;
+height: 21px;
+left: 1731px;
+top: 1845px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 573px;
+top: 1272px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 380px;
+top: 1842px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 289px;
+top: 2501px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 573px;
+top: 1272px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 380px;
+top: 1842px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 289px;
+top: 2501px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Hôm nay */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 1632px;
+top: 545px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 20px;
+line-height: 24px;
+color: #333333;
+/* Calendar */
+position: absolute;
+width: 30px;
+height: 30px;
+left: 1763px;
+top: 542px;
+/* Icon */
+position: absolute;
+left: 12.5%;
+right: 12.5%;
+top: 8.33%;
+bottom: 8.33%;
+border: 4px solid rgba(102, 102, 113, 0.49);
+/* Rectangle 137 */
+position: absolute;
+width: 41px;
+height: 59px;
+left: 190px;
+top: 1607px;
+background: #D98DB3;
+/* Rectangle 143 */
+position: absolute;
+width: 41px;
+height: 114px;
+left: 387px;
+top: 1552px;
+background: #D98DB3;
+/* Rectangle 155 */
+position: absolute;
+width: 41px;
+height: 114px;
+left: 843px;
+top: 1551px;
+background: #D98DB3;
+/* Rectangle 149 */
+position: absolute;
+width: 41px;
+height: 58px;
+left: 635px;
+top: 1607px;
+background: #D98DB3;
+/* Rectangle 146 */
+position: absolute;
+width: 41px;
+height: 114px;
+left: 504px;
+top: 1553px;
+background: #D98DB3;
+/* Rectangle 140 */
+position: absolute;
+width: 41px;
+height: 114px;
+left: 275px;
+top: 1552px;
+background: #D98DB3;
+/* Rectangle 138 */
+position: absolute;
+width: 41px;
+height: 55px;
+left: 190px;
+top: 1552px;
+background: #8DD9CC;
+/* Rectangle 144 */
+position: absolute;
+width: 41px;
+height: 85px;
+left: 387px;
+top: 1467px;
+background: #8DD9CC;
+/* Rectangle 156 */
+position: absolute;
+width: 41px;
+height: 85px;
+left: 843px;
+top: 1467px;
+background: #8DD9CC;
+/* Rectangle 147 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 504px;
+top: 1496px;
+background: #8DD9CC;
+/* Rectangle 150 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 635px;
+top: 1550px;
+background: #8DD9CC;
+/* Rectangle 141 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 275px;
+top: 1495px;
+background: #8DD9CC;
+/* Rectangle 139 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 190px;
+top: 1524px;
+background: #D9D98D;
+/* Rectangle 158 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 190px;
+top: 1496px;
+background: #D98D8D;
+/* Rectangle 159 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 275px;
+top: 1440px;
+background: #D98D8D;
+/* Rectangle 160 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 387px;
+top: 1382px;
+background: #D98D8D;
+/* Rectangle 161 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 504px;
+top: 1411px;
+background: #D98D8D;
+/* Rectangle 162 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 635px;
+top: 1473px;
+background: #D98D8D;
+/* Rectangle 164 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 843px;
+top: 1383px;
+background: #D98D8D;
+/* Rectangle 142 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 275px;
+top: 1467px;
+background: #D9D98D;
+/* Rectangle 145 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 387px;
+top: 1410px;
+background: #D9D98D;
+/* Rectangle 157 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 843px;
+top: 1411px;
+background: #D9D98D;
+/* Rectangle 148 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 504px;
+top: 1439px;
+background: #D9D98D;
+/* Rectangle 151 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 635px;
+top: 1501px;
+background: #D9D98D;
+/* Rectangle 166 */
+position: absolute;
+width: 64px;
+height: 284px;
+left: 733px;
+top: 1382px;
+background: rgba(188, 182, 183, 0.4);
+/* Group 7 */
+position: absolute;
+width: 41px;
+height: 255px;
+left: 747px;
+top: 1411px;
+/* Rectangle 152 */
+position: absolute;
+width: 41px;
+height: 114px;
+left: 747px;
+top: 1552px;
+background: #D98DB3;
+/* Rectangle 153 */
+position: absolute;
+width: 41px;
+height: 59px;
+left: 747px;
+top: 1493px;
+background: #8DD9CC;
+/* Rectangle 163 */
+position: absolute;
+width: 41px;
+height: 28px;
+left: 747px;
+top: 1411px;
+background: #D98D8D;
+/* Rectangle 154 */
+position: absolute;
+width: 41px;
+height: 57px;
+left: 747px;
+top: 1438px;
+background: #D9D98D;
+/* Rectangle 165 */
+box-sizing: border-box;
+position: absolute;
+width: 135.5px;
+height: 170px;
+left: 620px;
+top: 1382px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* 06-08 */
+position: absolute;
+width: 50px;
+height: 15px;
+left: 631px;
+top: 1389px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #666671;
+/* Cashier */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 630px;
+top: 1431px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* : 3 */
+position: absolute;
+width: 23px;
+height: 21px;
+left: 686px;
+top: 1431px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* : 2 */
+position: absolute;
+width: 23px;
+height: 21px;
+left: 681px;
+top: 1462px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* : 2 */
+position: absolute;
+width: 23px;
+height: 21px;
+left: 682px;
+top: 1493px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* : 1 */
+position: absolute;
+width: 23px;
+height: 21px;
+left: 724px;
+top: 1519px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* Barista */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 631px;
+top: 1462px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* Server */
+position: absolute;
+width: 87px;
+height: 21px;
+left: 632px;
+top: 1493px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* Parking Staff */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 631px;
+top: 1519px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #333333;
+/* Line 79 */
+position: absolute;
+width: 1585px;
+height: 0px;
+left: 167px;
+top: 2085px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 82 */
+position: absolute;
+width: 1585px;
+height: 0px;
+left: 156px;
+top: 2031px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 81 */
+position: absolute;
+width: 1720.01px;
+height: 0px;
+left: 104px;
+top: 1972px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 80 */
+position: absolute;
+width: 1585px;
+height: 0px;
+left: 167px;
+top: 2143px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 74 */
+position: absolute;
+width: 41.02px;
+height: 0px;
+left: 474px;
+top: 1920px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Line 78 */
+position: absolute;
+width: 281.04px;
+height: 0px;
+left: 707px;
+top: 2031px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Vector 1 */
+position: absolute;
+width: 519.5px;
+height: 119px;
+left: 187.5px;
+top: 2083px;
+border: 2px solid #51A33D;
+/* Vector 2 */
+position: absolute;
+width: 514.5px;
+height: 66.5px;
+left: 187px;
+top: 2076.5px;
+border: 2px solid #547CCC;
+/* Ellipse 5 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 463px;
+top: 2138px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 6 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 463px;
+top: 2136px;
+background: #FFFFFF;
+border: 2px solid #547CCC;
+/* Ellipse 13 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 700px;
+top: 2070px;
+background: #FFFFFF;
+border: 2px solid #547CCC;
+/* Ellipse 12 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 182px;
+top: 2138px;
+background: #FFFFFF;
+border: 2px solid #547CCC;
+/* Vector 3 */
+position: absolute;
+width: 991.5px;
+height: 111px;
+left: 705px;
+top: 2032.5px;
+border: 2.5px solid #51A33D;
+/* Ellipse 11 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 702px;
+top: 2080px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 15 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 946px;
+top: 2080px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 16 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 1196px;
+top: 2138px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 17 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 1450px;
+top: 2080px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 18 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 1692px;
+top: 2028px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Ellipse 14 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 183px;
+top: 2197px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Line 83 */
+position: absolute;
+width: 33px;
+height: 0px;
+left: 166px;
+top: 2369px;
+border: 2.5px solid #51A33D;
+/* Line 84 */
+position: absolute;
+width: 38px;
+height: 0px;
+left: 285px;
+top: 2369px;
+border: 2.5px solid #547CCC;
+/* Ellipse 19 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 297px;
+top: 2362px;
+background: #FFFFFF;
+border: 2px solid #547CCC;
+/* Ellipse 20 */
+box-sizing: border-box;
+position: absolute;
+width: 10px;
+height: 10px;
+left: 175px;
+top: 2362px;
+background: #FFFFFF;
+border: 2px solid #51A33D;
+/* Rectangle 176 */
+box-sizing: border-box;
+position: absolute;
+width: 146px;
+height: 56px;
+left: 707px;
+top: 2013px;
+background: #FFFFFF;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: matrix(-1, 0, 0, 1, 0, 0);
+/* Lịch xếp: 16 giờ */
+position: absolute;
+width: 104px;
+height: 15px;
+left: 725px;
+top: 2023px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #51A33D;
+/* Thực làm: 18 giờ */
+position: absolute;
+width: 118px;
+height: 15px;
+left: 725px;
+top: 2046px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+color: #547CCC;
+/* Rectangle 183 */
+position: absolute;
+width: 226px;
+height: 32px;
+left: 138px;
+top: 2585px;
+background: #D98DB3;
+border-radius: 5px;
+/* Rectangle 184 */
+position: absolute;
+width: 226px;
+height: 32px;
+left: 138px;
+top: 2637px;
+background: #BFD98D;
+border-radius: 5px;
+/* Rectangle 185 */
+position: absolute;
+width: 226px;
+height: 32px;
+left: 138px;
+top: 2689px;
+background: #8DBFD9;
+border-radius: 5px;
+/* Rectangle 186 */
+position: absolute;
+width: 226px;
+height: 32px;
+left: 138px;
+top: 2741px;
+background: #D9D98D;
+border-radius: 5px;
+/* Chấm công & Điểm danh */
+position: absolute;
+width: 237px;
+height: 20px;
+left: 144px;
+top: 2590px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #FFFFFF;
+/* Quản lý các yêu cầu điều chỉnh giờ vào/ra ca, xin đi trễ, về sớm và đăng ký tăng ca. */
+position: absolute;
+width: 1163px;
+height: 20px;
+left: 399px;
+top: 2590px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #333333;
+/* Tiếp nhận các đơn xin nghỉ phép, nghỉ bệnh hoặc báo vắng mặt đột xuất. */
+position: absolute;
+width: 1163px;
+height: 20px;
+left: 399px;
+top: 2641px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #333333;
+/* Xử lý việc hoán đổi ca giữa các nhân viên, đăng ký ca trống và cập nhật lịch rảnh/bận. */
+position: absolute;
+width: 1163px;
+height: 20px;
+left: 399px;
+top: 2692px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #333333;
+/* Tiếp nhận phản hồi bảng lương, xin ứng lương và yêu cầu điều chuyển chi nhánh. */
+position: absolute;
+width: 1163px;
+height: 20px;
+left: 399px;
+top: 2743px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #333333;
+/* Nghỉ phép & Vắng mặt */
+position: absolute;
+width: 193px;
+height: 20px;
+left: 154px;
+top: 2643px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #FFFFFF;
+/* Lịch làm & Đổi ca */
+position: absolute;
+width: 146px;
+height: 20px;
+left: 172px;
+top: 2695px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #FFFFFF;
+/* Lương & Nhân sự */
+position: absolute;
+width: 159px;
+height: 20px;
+left: 178px;
+top: 2747px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #FFFFFF;
+/* Ellipse 21 */
+box-sizing: border-box;
+position: absolute;
+width: 38px;
+height: 38px;
+left: 1738px;
+top: 2580px;
+background: rgba(217, 141, 179, 0.3);
+border: 1px solid #D98DB3;
+/* Ellipse 22 */
+box-sizing: border-box;
+position: absolute;
+width: 38px;
+height: 38px;
+left: 1740px;
+top: 2633px;
+background: rgba(191, 217, 141, 0.3);
+border: 1px solid #BFD98D;
+/* Ellipse 23 */
+box-sizing: border-box;
+position: absolute;
+width: 38px;
+height: 38px;
+left: 1740px;
+top: 2685px;
+background: rgba(141, 191, 217, 0.3);
+border: 1px solid #8DBFD9;
+/* Ellipse 24 */
+box-sizing: border-box;
+position: absolute;
+width: 38px;
+height: 38px;
+left: 1740px;
+top: 2737px;
+background: rgba(217, 217, 141, 0.3);
+border: 1px solid #D9D98D;
+/* 1 */
+position: absolute;
+width: 8px;
+height: 24px;
+left: 1753px;
+top: 2587px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #D98DB3;
+/* 4 */
+position: absolute;
+width: 18px;
+height: 24px;
+left: 1753px;
+top: 2641px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #BFD98D;
+/* 0 */
+position: absolute;
+width: 18px;
+height: 24px;
+left: 1753px;
+top: 2692px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #8DBFD9;
+/* 0 */
+position: absolute;
+width: 18px;
+height: 24px;
+left: 1753px;
+top: 2744px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 18px;
+line-height: 22px;
+color: #D9D98D;
+/* REQUESTS */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 830px;
+top: 45px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #FFFFFF;
+/* REQUESTS */
+position: absolute;
+width: 133px;
+height: 21px;
+left: 830px;
+top: 45px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 19px;
+color: #FFFFFF;
+/* image 64 */
+position: absolute;
+width: 90px;
+height: 90px;
+left: 740px;
+top: 9px;
+background: url(image.png);
+/* image 65 */
+position: absolute;
+width: 90px;
+height: 90px;
+left: 740px;
+top: 9px;
+background: url(image.png);
+/* image 67 */
+position: absolute;
+width: 55px;
+height: 55px;
+left: 1823px;
+top: 21px;
+background: url(image.png);
+transform: matrix(1, 0, 0, -1, 0, 0);
+/* Line 3 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 103px;
+top: 316px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 5 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 103px;
+top: 367px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 6 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 103px;
+top: 427px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 40 */
+position: absolute;
+width: 8px;
+height: 0px;
+left: 1601px;
+top: 477px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Line 32 */
+position: absolute;
+width: 70.01px;
+height: 0px;
+left: 1601px;
+top: 367px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Line 20 */
+position: absolute;
+width: 169.03px;
+height: 0px;
+left: 1710px;
+top: 316px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Line 21 */
+position: absolute;
+width: 169.03px;
+height: 0px;
+left: 1813px;
+top: 316px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+transform: rotate(-90deg);
+/* Line 61 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 95px;
+top: 943px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 85 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 75px;
+top: 1052px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 78 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 102px;
+top: 2556px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 79 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 102px;
+top: 2621px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 81 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 102px;
+top: 2726px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+/* Line 80 */
+position: absolute;
+width: 1719px;
+height: 0px;
+left: 102px;
+top: 2676px;
+border: 1px solid rgba(188, 182, 183, 0.5);
+Dưới đây là mô tả chi tiết luồng hoạt động (User Flow & Business Logic) hoàn chỉnh dựa trên giao diện Dashboard ShiftSync và các yêu cầu bạn đã nêu. Bạn có thể dùng trực tiếp tài liệu này để làm Prompt cho AI/UI Design hoặc Tài liệu tả luồng (SRS) cho lập trình viên.
+LUỒNG HOẠT ĐỘNG VÀ LOGIC DASHBOARD SHIFTSYNC
+1. Thanh điều hướng topbar & Chuyển đổi chi nhánh
+Vị trí: Góc trên bên trái, chứa Logo ShiftSync và Icon Store/Chi nhánh.
+Luồng hoạt động:
+Khi bấm vào khu vực Logo / Tên chi nhánh (ví dụ: ShiftSync), một menu thả xuống (dropdown) hiển thị danh sách tất cả các chi nhánh mà tài khoản quản lý có quyền truy cập.
+Khi chọn một chi nhánh mới, toàn bộ dữ liệu trên trang Dashboard (Lịch làm, Thông báo, Biểu đồ, Yêu cầu) sẽ tự động reload và cập nhật theo chi nhánh đó.
+2. Lịch làm việc hôm nay (Gantt Chart Real-time)
+Mô tả: Biểu đồ dạng thanh ngang thể hiện ca làm việc của từng nhân viên theo mốc thời gian trong ngày (6:00 AM - 19:00 PM+).
+Luồng hoạt động & Thanh tiến trình real-time:
+Mỗi dòng hiển thị Tên nhân viên và thanh tiến trình thời gian làm việc.
+Cột màu chạy tăng dần: Thanh màu đại diện cho khoảng thời gian ca làm việc. Ngay khi nhân viên chấm công vào ca (Check-in), màu của thanh sẽ bắt đầu lấp đầy/tăng dần theo thời gian thực (real-time clock) cho đến khi nhân viên chấm công ra ca (Check-out) thì thanh màu hoàn tất và giữ nguyên.
+Giúp quản lý theo dõi trực tiếp ai đang làm, ca làm đã diễn ra được bao nhiêu tiếng.
+3. Thông báo chấm công (Attendance Notifications)
+Mô tả: Khối hiển thị các sự kiện chấm công bất thường (Vắng mặt, Đi trễ, Đi sớm, Hỗ trợ ca).
+Luồng hoạt động:
+Phân loại trạng thái: Hiển thị danh sách thẻ thông báo gồm: Đi trễ, Đi sớm, Vắng mặt, Hỗ trợ ca kèm Tên, Thời gian cụ thể.
+Bộ lọc ngày: Cho phép chọn xem thông báo theo ngày (Hôm nay) hoặc chọn vào Icon Lịch (DatePicker) để truy xuất lịch sử thông báo chấm công ở các ngày trong quá khứ.
+Điều hướng: Bấm vào thẻ thông báo hỗ trợ/bất thường sẽ tự động chuyển đổi sang trang Yêu cầu (Requests) để xử lý các đơn giải trình hoặc đơn nhờ làm hộ.
+4. Tổng quan hôm nay (Metric Cards Summary)
+Mô tả: Thẻ chứa các chỉ số KPI quan trọng trong ngày: Ca trống chưa lắp, Độ phủ ca, Chi phí lao động, Tỷ lệ đi trễ, Tỷ lệ vắng mặt, Cần duyệt.
+Luồng hoạt động:
+Tất cả các dòng chữ màu xanh đậm dưới mỗi chỉ số (ví dụ: "Xem lịch trình hôm nay", "Xem yêu cầu đang chờ xử lý") là nút bấm hành động (Hyperlink).
+Khi người dùng nhấp vào link màu xanh đậm này, hệ thống sẽ mở ra trang chi tiết tương ứng (Lịch trình chi tiết, Trang quản lý đơn cần duyệt...).
+Chi phí lao động: Tính toán tổng chi phí tiền lương dựa trên tổng số giờ làm việc nhân với mức lương cơ bản/giờ của nhân viên trong phạm vi ngày được chọn (Hôm nay, Tùy chọn ngày, hoặc Theo Tuần).
+5. Ca làm việc được phân công (Stacked Bar Chart)
+Mô tả: Biểu đồ cột chồng hiển thị số lượng nhân viên theo từng vị trí công việc qua các khoảng thời gian/ngày.
+Đồng bộ hệ màu (Color System Consistency):
+Mã màu đại diện cho Vị trí công việc (Cashier, Barista, Server, Parking Staff...) bắt buộc phải đồng bộ 100% giữa: Trang Quản lý nhân sự $\rightarrow$ Trang Lịch làm việc $\rightarrow$ Biểu đồ Ca làm việc.
+Ví dụ: Nếu trang Quản lý nhân sự set vị trí Sale/Cashier là màu hồng, thì hệ thống tự động gán mặc định màu hồng trên toàn bộ Lịch làm và Biểu đồ cột này. Quản lý vẫn có quyền tùy chỉnh lại màu riêng, nhưng mặc định kế thừa từ Quản lý nhân sự.
+Luồng hoạt động:
+Mỗi cột xếp chồng các phân đoạn màu tương ứng với các vị trí làm việc trong ca đó.
+Khi Hover (Rê chuột) vào từng cột: Hiển thị Tooltip chi tiết tổng số lượng từng vị trí (Ví dụ từ 06-08h: Cashier: 3, Barista: 2, Server: 2, Parking Staff: 1).
+Tích hợp Bộ lọc ngày (Icon Lịch) và Nút xem theo Vị trí / Ca làm.
+6. Dự báo lương (Line Chart - Scheduled vs Actual)
+Mô tả: Biểu đồ đường so sánh giữa Lịch xếp (Scheduled Hours) và Thực làm (Actual Hours).
+Luồng hoạt động:
+Đường biểu đồ: Gồm 2 đường riêng biệt đại diện cho Tổng giờ xếp lịch (màu xanh lá) và Tổng giờ chấm công thực tế (màu xanh dương).
+Thống kê tổng: Hiển thị thẻ tóm tắt tổng số giờ (Ví dụ: Lịch xếp: 46 giờ | Thực làm: 16 giờ).
+Bộ lọc & Nút xuất:
+Bộ lọc Ngày (Icon Lịch - tương tự trang Web Tạo lịch làm).
+Nút chọn phạm vi (Hôm nay / 1 Tuần).
+Bộ lọc theo Nhân viên: Cho phép lọc xem biểu đồ dự báo lương của từng cá nhân hoặc toàn bộ bộ phận.
+Nút Xuất (Export): Đặt ở góc phải đối diện với tiêu đề, cho phép xuất báo cáo dạng file Excel/CSV.
+7. Trang Yêu cầu (Requests Summary)
+Mô tả: Bảng tổng hợp các nhóm yêu cầu từ nhân viên chờ người quản lý xử lý.
+Danh sách các loại yêu cầu:
+Chấm công & Điểm danh: Xử lý đơn điều chỉnh giờ vào/ra, xin đi trễ/về sớm, đăng ký tăng ca.
+Nghỉ phép & Vắng mặt: Tiếp nhận đơn xin nghỉ phép, nghỉ bệnh, báo vắng đột xuất.
+Lịch làm & Đổi ca: Xử lý hoán đổi ca giữa các nhân viên, đăng ký ca trống, cập nhật lịch rảnh/bận.
+Lương & Nhân sự: Tiếp nhận phản hồi bảng lương, xin ứng lương, yêu cầu chuyển chi nhánh.
+Luồng hoạt động:
+Bên phải mỗi mục có Badge số (Bubble Count) màu sắc đại diện cho số lượng yêu cầu đang chờ duyệt.
+Khi bấm trực tiếp vào từng dòng yêu cầu: Mở ra trang Chi tiết yêu cầu tương ứng (giống trang Requests chính).
+Cung cấp Bộ lọc Lịch (DatePicker) và Bộ lọc Nhân viên đồng bộ chuẩn theo giao diện Web tạo lịch làm việc.

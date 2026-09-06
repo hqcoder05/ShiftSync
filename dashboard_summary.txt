@@ -1,0 +1,438 @@
+/* Dashboard */
+/* Rectangle 25 */
+/* Rectangle 26 */
+/* Rectangle 32 */
+/* Rectangle 34 */
+/* Rectangle 35 */
+/* Rectangle 132 */
+/* Rectangle 167 */
+/* Rectangle 177 */
+TEXT: /* Bell
+TEXT: Keywords: alarm, notification, sound
+TEXT: */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Clock */
+/* Icon */
+/* SCHEDULER */
+/* ATTENDANCE */
+/* Rectangle 31 */
+/* Group 1 */
+/* Rectangle 25 */
+/* Rectangle 26 */
+/* Rectangle 27 */
+/* Rectangle 28 */
+/* Rectangle 29 */
+/* Rectangle 30 */
+/* DASHBOARD */
+/* image 15 */
+/* ShiftSync */
+/* Lịch làm việc hôm nay */
+/* Yêu cầu */
+/* Thông báo chấm công */
+/* Tổng quan hôm nay */
+/* Dự báo lương */
+/* Lịch xếp: 46 giờ */
+/* Thực làm: 16 giờ */
+/* Ca làm việc được phân công */
+/* Ca trống chưa lắp */
+/* Xem lịch trình hôm nay */
+/* Xem lịch trình hôm nay */
+/* Xem lịch trình hôm nay */
+/* Xem yêu cầu đang chờ xử lý */
+/* Xem lịch trình hôm nay */
+/* Tỷ lệ đi trễ */
+/* Tỷ lệ vắng mặt */
+/* Độ phủ ca */
+/* Chi phí lao động */
+/* Cần duyệt */
+/* Rectangle 33 */
+/* Group 4 */
+/* Rectangle 35 */
+/* Group 5 */
+/* Rectangle 35 */
+/* Tên */
+/* Hôm nay */
+/* Hôm qua */
+/* 6:00 AM */
+/* 7:00 AM */
+/* 8:00 AM */
+/* 9:00 AM */
+/* 10:00 AM */
+/* 11:00 AM */
+/* 12:00 AM */
+/* 13:00 PM */
+/* 14:00 PM */
+/* 15:00 PM */
+/* 16:00 PM */
+/* 17:00 PM */
+/* 18:00 PM */
+/* 19:00 PM */
+/* Dilan. Jon */
+/* Vắng mặt */
+/* Đi sớm */
+/* Dilan. Jon 01/08/2026 */
+/* Dilan. Jon 31/07/2026 17:59 PM */
+/* 1 */
+/* 0 */
+/* 2 */
+/* 4 */
+/* 6 */
+/* 8 */
+/* 01-08 */
+/* 02-08 */
+/* 03-08 */
+/* 04-08 */
+/* 05-08 */
+/* 06-08 */
+/* 07-08 */
+/* 2 */
+/* 03-08 */
+/* Lịch xếp */
+/* Thực làm */
+/* 04-08 */
+/* 05-08 */
+/* 06-08 */
+/* 07-08 */
+/* 08-08 */
+/* 09-08 */
+/* 1 */
+/* 0 */
+/* 2 */
+/* 3 */
+/* 1 */
+/* 0 */
+/* 2 */
+/* 3 */
+/* 5 */
+/* 7 */
+/* 9 */
+/* Paul. Lee 01/08/2026 10:20 AM */
+/* Mew. Ama 01/08/2026 18:10 PM */
+/* Mew. Ama 31/07/2026 5:49 AM */
+/* Mesi. Lio 01/08/2026 5:55 AM */
+/* Thia. Ago 01/08/2026 5:50 AM */
+/* Thia. Ago 01/08/2026 18:00 PM */
+/* Paul. Lee */
+/* Đi trễ */
+/* Đi trễ */
+/* Đi sớm */
+/* Đi sớm */
+/* Đi sớm */
+/* Hỗ trợ */
+/* Hỗ trợ */
+/* Hôm nay */
+/* Group 3 */
+/* Rectangle 34 */
+/* Rectangle 36 */
+/* Rectangle 37 */
+/* Rectangle 38 */
+/* Rectangle 39 */
+/* Rectangle 40 */
+/* Rectangle 41 */
+/* Rectangle 42 */
+/* Rectangle 43 */
+/* Rectangle 44 */
+/* Rectangle 45 */
+/* Rectangle 46 */
+/* Rectangle 48 */
+/* Rectangle 49 */
+/* Rectangle 50 */
+/* Rectangle 51 */
+/* Rectangle 52 */
+/* Rectangle 53 */
+/* Rectangle 54 */
+/* Rectangle 55 */
+/* Rectangle 56 */
+/* Rectangle 57 */
+/* Rectangle 58 */
+/* Rectangle 59 */
+/* Rectangle 60 */
+/* Rectangle 61 */
+/* Rectangle 62 */
+/* Rectangle 63 */
+/* Rectangle 64 */
+/* Rectangle 65 */
+/* Rectangle 66 */
+/* Rectangle 67 */
+/* Rectangle 68 */
+/* Rectangle 69 */
+/* Rectangle 70 */
+/* Rectangle 71 */
+/* Rectangle 72 */
+/* Rectangle 73 */
+/* Rectangle 74 */
+/* Rectangle 75 */
+/* Rectangle 76 */
+/* Rectangle 77 */
+/* Rectangle 78 */
+/* Rectangle 79 */
+/* Rectangle 80 */
+/* Rectangle 81 */
+/* Group 2 */
+/* Rectangle 82 */
+/* Rectangle 83 */
+/* Rectangle 84 */
+/* Rectangle 85 */
+/* Rectangle 86 */
+/* Rectangle 87 */
+/* Rectangle 88 */
+/* Rectangle 89 */
+/* Rectangle 90 */
+/* Rectangle 91 */
+/* Rectangle 92 */
+/* Rectangle 93 */
+/* Rectangle 94 */
+/* Rectangle 95 */
+/* Rectangle 96 */
+/* Rectangle 97 */
+/* Rectangle 98 */
+/* Rectangle 99 */
+/* Rectangle 100 */
+/* Rectangle 101 */
+/* Rectangle 102 */
+/* Rectangle 103 */
+/* Rectangle 104 */
+/* Rectangle 105 */
+/* Rectangle 106 */
+/* Rectangle 107 */
+/* Rectangle 108 */
+/* Rectangle 109 */
+/* Rectangle 110 */
+/* Rectangle 111 */
+/* Rectangle 112 */
+/* Rectangle 113 */
+/* Rectangle 114 */
+/* Rectangle 115 */
+/* Rectangle 116 */
+/* Rectangle 117 */
+/* Rectangle 118 */
+/* Rectangle 119 */
+/* Rectangle 120 */
+/* Rectangle 121 */
+/* Rectangle 122 */
+/* Rectangle 123 */
+/* Rectangle 124 */
+/* Rectangle 125 */
+/* Rectangle 126 */
+/* Rectangle 127 */
+/* image 23 */
+/* image 27 */
+/* image 25 */
+/* image 26 */
+/* Rectangle 128 */
+/* Rectangle 130 */
+/* Rectangle 133 */
+/* Rectangle 170 */
+/* Rectangle 178 */
+/* Rectangle 168 */
+/* Rectangle 171 */
+/* Rectangle 179 */
+/* Rectangle 129 */
+/* Rectangle 131 */
+/* Rectangle 134 */
+/* Rectangle 172 */
+/* Rectangle 180 */
+/* Rectangle 169 */
+/* Rectangle 173 */
+/* Rectangle 181 */
+/* Rectangle 135 */
+/* Rectangle 174 */
+/* Rectangle 182 */
+/* Rectangle 175 */
+/* Line 62 */
+/* Rectangle 136 */
+/* Vị trí */
+/* Ellipse 1 */
+/* Ellipse 2 */
+/* Ellipse 3 */
+/* Ellipse 4 */
+/* Hôm nay */
+/* Hôm nay */
+/* Hôm nay */
+/* Cashier */
+/* Barista */
+/* Server */
+/* Parking Staff */
+/* Vị trí */
+/* Nhân Viên */
+/* Hôm nay */
+/* Nhân viên */
+/* Xuất */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Calendar */
+/* Icon */
+/* Hôm nay */
+/* Calendar */
+/* Icon */
+/* Rectangle 137 */
+/* Rectangle 143 */
+/* Rectangle 155 */
+/* Rectangle 149 */
+/* Rectangle 146 */
+/* Rectangle 140 */
+/* Rectangle 138 */
+/* Rectangle 144 */
+/* Rectangle 156 */
+/* Rectangle 147 */
+/* Rectangle 150 */
+/* Rectangle 141 */
+/* Rectangle 139 */
+/* Rectangle 158 */
+/* Rectangle 159 */
+/* Rectangle 160 */
+/* Rectangle 161 */
+/* Rectangle 162 */
+/* Rectangle 164 */
+/* Rectangle 142 */
+/* Rectangle 145 */
+/* Rectangle 157 */
+/* Rectangle 148 */
+/* Rectangle 151 */
+/* Rectangle 166 */
+/* Group 7 */
+/* Rectangle 152 */
+/* Rectangle 153 */
+/* Rectangle 163 */
+/* Rectangle 154 */
+/* Rectangle 165 */
+/* 06-08 */
+/* Cashier */
+/* : 3 */
+/* : 2 */
+/* : 2 */
+/* : 1 */
+/* Barista */
+/* Server */
+/* Parking Staff */
+/* Line 79 */
+/* Line 82 */
+/* Line 81 */
+/* Line 80 */
+/* Line 74 */
+/* Line 78 */
+/* Vector 1 */
+/* Vector 2 */
+/* Ellipse 5 */
+/* Ellipse 6 */
+/* Ellipse 13 */
+/* Ellipse 12 */
+/* Vector 3 */
+/* Ellipse 11 */
+/* Ellipse 15 */
+/* Ellipse 16 */
+/* Ellipse 17 */
+/* Ellipse 18 */
+/* Ellipse 14 */
+/* Line 83 */
+/* Line 84 */
+/* Ellipse 19 */
+/* Ellipse 20 */
+/* Rectangle 176 */
+/* Lịch xếp: 16 giờ */
+/* Thực làm: 18 giờ */
+/* Rectangle 183 */
+/* Rectangle 184 */
+/* Rectangle 185 */
+/* Rectangle 186 */
+/* Chấm công & Điểm danh */
+/* Quản lý các yêu cầu điều chỉnh giờ vào/ra ca, xin đi trễ, về sớm và đăng ký tăng ca. */
+/* Tiếp nhận các đơn xin nghỉ phép, nghỉ bệnh hoặc báo vắng mặt đột xuất. */
+/* Xử lý việc hoán đổi ca giữa các nhân viên, đăng ký ca trống và cập nhật lịch rảnh/bận. */
+/* Tiếp nhận phản hồi bảng lương, xin ứng lương và yêu cầu điều chuyển chi nhánh. */
+/* Nghỉ phép & Vắng mặt */
+/* Lịch làm & Đổi ca */
+/* Lương & Nhân sự */
+/* Ellipse 21 */
+/* Ellipse 22 */
+/* Ellipse 23 */
+/* Ellipse 24 */
+/* 1 */
+/* 4 */
+/* 0 */
+/* 0 */
+/* REQUESTS */
+/* REQUESTS */
+/* image 64 */
+/* image 65 */
+/* image 67 */
+/* Line 3 */
+/* Line 5 */
+/* Line 6 */
+/* Line 40 */
+/* Line 32 */
+/* Line 20 */
+/* Line 21 */
+/* Line 61 */
+/* Line 85 */
+/* Line 78 */
+/* Line 79 */
+/* Line 81 */
+/* Line 80 */
+TEXT: Dưới đây là mô tả chi tiết luồng hoạt động (User Flow & Business Logic) hoàn chỉnh dựa trên giao diện Dashboard ShiftSync và các yêu cầu bạn đã nêu. Bạn có thể dùng trực tiếp tài liệu này để làm Prompt cho AI/UI Design hoặc Tài liệu tả luồng (SRS) cho lập trình viên.
+TEXT: LUỒNG HOẠT ĐỘNG VÀ LOGIC DASHBOARD SHIFTSYNC
+TEXT: 1. Thanh điều hướng topbar & Chuyển đổi chi nhánh
+TEXT: Vị trí: Góc trên bên trái, chứa Logo ShiftSync và Icon Store/Chi nhánh.
+TEXT: Luồng hoạt động:
+TEXT: Khi bấm vào khu vực Logo / Tên chi nhánh (ví dụ: ShiftSync), một menu thả xuống (dropdown) hiển thị danh sách tất cả các chi nhánh mà tài khoản quản lý có quyền truy cập.
+TEXT: Khi chọn một chi nhánh mới, toàn bộ dữ liệu trên trang Dashboard (Lịch làm, Thông báo, Biểu đồ, Yêu cầu) sẽ tự động reload và cập nhật theo chi nhánh đó.
+TEXT: 2. Lịch làm việc hôm nay (Gantt Chart Real-time)
+TEXT: Mô tả: Biểu đồ dạng thanh ngang thể hiện ca làm việc của từng nhân viên theo mốc thời gian trong ngày (6:00 AM - 19:00 PM+).
+TEXT: Luồng hoạt động & Thanh tiến trình real-time:
+TEXT: Mỗi dòng hiển thị Tên nhân viên và thanh tiến trình thời gian làm việc.
+TEXT: Cột màu chạy tăng dần: Thanh màu đại diện cho khoảng thời gian ca làm việc. Ngay khi nhân viên chấm công vào ca (Check-in), màu của thanh sẽ bắt đầu lấp đầy/tăng dần theo thời gian thực (real-time clock) cho đến khi nhân viên chấm công ra ca (Check-out) thì thanh màu hoàn tất và giữ nguyên.
+TEXT: Giúp quản lý theo dõi trực tiếp ai đang làm, ca làm đã diễn ra được bao nhiêu tiếng.
+TEXT: 3. Thông báo chấm công (Attendance Notifications)
+TEXT: Mô tả: Khối hiển thị các sự kiện chấm công bất thường (Vắng mặt, Đi trễ, Đi sớm, Hỗ trợ ca).
+TEXT: Luồng hoạt động:
+TEXT: Phân loại trạng thái: Hiển thị danh sách thẻ thông báo gồm: Đi trễ, Đi sớm, Vắng mặt, Hỗ trợ ca kèm Tên, Thời gian cụ thể.
+TEXT: Bộ lọc ngày: Cho phép chọn xem thông báo theo ngày (Hôm nay) hoặc chọn vào Icon Lịch (DatePicker) để truy xuất lịch sử thông báo chấm công ở các ngày trong quá khứ.
+TEXT: Điều hướng: Bấm vào thẻ thông báo hỗ trợ/bất thường sẽ tự động chuyển đổi sang trang Yêu cầu (Requests) để xử lý các đơn giải trình hoặc đơn nhờ làm hộ.
+TEXT: 4. Tổng quan hôm nay (Metric Cards Summary)
+TEXT: Mô tả: Thẻ chứa các chỉ số KPI quan trọng trong ngày: Ca trống chưa lắp, Độ phủ ca, Chi phí lao động, Tỷ lệ đi trễ, Tỷ lệ vắng mặt, Cần duyệt.
+TEXT: Luồng hoạt động:
+TEXT: Tất cả các dòng chữ màu xanh đậm dưới mỗi chỉ số (ví dụ: "Xem lịch trình hôm nay", "Xem yêu cầu đang chờ xử lý") là nút bấm hành động (Hyperlink).
+TEXT: Khi người dùng nhấp vào link màu xanh đậm này, hệ thống sẽ mở ra trang chi tiết tương ứng (Lịch trình chi tiết, Trang quản lý đơn cần duyệt...).
+TEXT: Chi phí lao động: Tính toán tổng chi phí tiền lương dựa trên tổng số giờ làm việc nhân với mức lương cơ bản/giờ của nhân viên trong phạm vi ngày được chọn (Hôm nay, Tùy chọn ngày, hoặc Theo Tuần).
+TEXT: 5. Ca làm việc được phân công (Stacked Bar Chart)
+TEXT: Mô tả: Biểu đồ cột chồng hiển thị số lượng nhân viên theo từng vị trí công việc qua các khoảng thời gian/ngày.
+TEXT: Đồng bộ hệ màu (Color System Consistency):
+TEXT: Mã màu đại diện cho Vị trí công việc (Cashier, Barista, Server, Parking Staff...) bắt buộc phải đồng bộ 100% giữa: Trang Quản lý nhân sự $\rightarrow$ Trang Lịch làm việc $\rightarrow$ Biểu đồ Ca làm việc.
+TEXT: Ví dụ: Nếu trang Quản lý nhân sự set vị trí Sale/Cashier là màu hồng, thì hệ thống tự động gán mặc định màu hồng trên toàn bộ Lịch làm và Biểu đồ cột này. Quản lý vẫn có quyền tùy chỉnh lại màu riêng, nhưng mặc định kế thừa từ Quản lý nhân sự.
+TEXT: Luồng hoạt động:
+TEXT: Mỗi cột xếp chồng các phân đoạn màu tương ứng với các vị trí làm việc trong ca đó.
+TEXT: Khi Hover (Rê chuột) vào từng cột: Hiển thị Tooltip chi tiết tổng số lượng từng vị trí (Ví dụ từ 06-08h: Cashier: 3, Barista: 2, Server: 2, Parking Staff: 1).
+TEXT: Tích hợp Bộ lọc ngày (Icon Lịch) và Nút xem theo Vị trí / Ca làm.
+TEXT: 6. Dự báo lương (Line Chart - Scheduled vs Actual)
+TEXT: Mô tả: Biểu đồ đường so sánh giữa Lịch xếp (Scheduled Hours) và Thực làm (Actual Hours).
+TEXT: Luồng hoạt động:
+TEXT: Đường biểu đồ: Gồm 2 đường riêng biệt đại diện cho Tổng giờ xếp lịch (màu xanh lá) và Tổng giờ chấm công thực tế (màu xanh dương).
+TEXT: Thống kê tổng: Hiển thị thẻ tóm tắt tổng số giờ (Ví dụ: Lịch xếp: 46 giờ | Thực làm: 16 giờ).
+TEXT: Bộ lọc & Nút xuất:
+TEXT: Bộ lọc Ngày (Icon Lịch - tương tự trang Web Tạo lịch làm).
+TEXT: Nút chọn phạm vi (Hôm nay / 1 Tuần).
+TEXT: Bộ lọc theo Nhân viên: Cho phép lọc xem biểu đồ dự báo lương của từng cá nhân hoặc toàn bộ bộ phận.
+TEXT: Nút Xuất (Export): Đặt ở góc phải đối diện với tiêu đề, cho phép xuất báo cáo dạng file Excel/CSV.
+TEXT: 7. Trang Yêu cầu (Requests Summary)
+TEXT: Mô tả: Bảng tổng hợp các nhóm yêu cầu từ nhân viên chờ người quản lý xử lý.
+TEXT: Danh sách các loại yêu cầu:
+TEXT: Chấm công & Điểm danh: Xử lý đơn điều chỉnh giờ vào/ra, xin đi trễ/về sớm, đăng ký tăng ca.
+TEXT: Nghỉ phép & Vắng mặt: Tiếp nhận đơn xin nghỉ phép, nghỉ bệnh, báo vắng đột xuất.
+TEXT: Lịch làm & Đổi ca: Xử lý hoán đổi ca giữa các nhân viên, đăng ký ca trống, cập nhật lịch rảnh/bận.
+TEXT: Lương & Nhân sự: Tiếp nhận phản hồi bảng lương, xin ứng lương, yêu cầu chuyển chi nhánh.
+TEXT: Luồng hoạt động:
+TEXT: Bên phải mỗi mục có Badge số (Bubble Count) màu sắc đại diện cho số lượng yêu cầu đang chờ duyệt.
+TEXT: Khi bấm trực tiếp vào từng dòng yêu cầu: Mở ra trang Chi tiết yêu cầu tương ứng (giống trang Requests chính).
+TEXT: Cung cấp Bộ lọc Lịch (DatePicker) và Bộ lọc Nhân viên đồng bộ chuẩn theo giao diện Web tạo lịch làm việc.

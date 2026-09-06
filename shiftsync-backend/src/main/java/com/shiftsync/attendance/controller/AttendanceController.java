@@ -58,10 +58,12 @@ public class AttendanceController {
             @RequestParam UUID shiftId,
             @RequestParam double latitude,
             @RequestParam double longitude,
-            @RequestPart("photo") MultipartFile photo) throws java.io.IOException {
+            @RequestParam(required = false) String forcedStatus,
+            @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
+        byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
         Attendance attendance = attendanceService.submitSelfie(
-                userDetails.getId(), shiftId, latitude, longitude, photo.getBytes());
-        return ResponseEntity.ok(toDTO(attendance));
+                userDetails.getId(), shiftId, latitude, longitude, photoBytes, forcedStatus);
+        return ResponseEntity.ok(attendanceService.toDTO(attendance));
     }
 
     @GetMapping("/attendance/me")
@@ -81,13 +83,12 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getStoreAttendance(storeId, start, end));
     }
 
-    private AttendanceDTO toDTO(Attendance attendance) {
-        return AttendanceDTO.builder()
-                .id(attendance.getId())
-                .shiftAssignmentId(attendance.getShiftAssignment().getId())
-                .checkInTime(attendance.getCheckInTime())
-                .checkOutTime(attendance.getCheckOutTime())
-                .status(attendance.getStatus())
-                .build();
+    @PutMapping("/stores/{storeId}/attendance/{attendanceId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<AttendanceDTO> updateAttendance(
+            @PathVariable UUID storeId,
+            @PathVariable UUID attendanceId,
+            @RequestBody com.shiftsync.attendance.dto.AttendanceUpdateRequest request) {
+        return ResponseEntity.ok(attendanceService.updateAttendance(storeId, attendanceId, request));
     }
 }

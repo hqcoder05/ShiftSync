@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
-import { getStoreAttendance } from '../services/attendanceService';
+import { getStoreAttendance, updateAttendanceRecord } from '../services/attendanceService';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
@@ -87,7 +87,10 @@ const calcScheduledHours = (row) => {
   return Number(dur.toFixed(1));
 };
 
-const statusLabel = (val) => {
+const statusLabel = (val, lateMins) => {
+  if (val === 'LATE') {
+    return lateMins && lateMins > 0 ? `Đi trễ (${lateMins}p)` : 'Đi trễ';
+  }
   const map = {
     PRESENT: 'Đúng giờ',
     LATE: 'Đi trễ',
@@ -122,6 +125,54 @@ export default function AttendancePageLive() {
   const [error, setError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
 
+  // Edit attendance state (Quản lý chỉnh sửa giờ chấm công)
+  const [editingRow, setEditingRow] = useState(null);
+  const [editForm, setEditForm] = useState({
+    checkInTimeString: '',
+    checkOutTimeString: '',
+    status: 'PRESENT',
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleOpenEdit = (row) => {
+    setEditingRow(row);
+    let inStr = '';
+    if (row.checkInTime) {
+      const d = new Date(row.checkInTime);
+      inStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    let outStr = '';
+    if (row.checkOutTime) {
+      const d = new Date(row.checkOutTime);
+      outStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    setEditForm({
+      checkInTimeString: inStr,
+      checkOutTimeString: outStr,
+      status: row.status || 'PRESENT',
+    });
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingRow || !storeId) return;
+    setIsSaving(true);
+    try {
+      await updateAttendanceRecord(storeId, editingRow.id, {
+        checkInTimeString: editForm.checkInTimeString || null,
+        checkOutTimeString: editForm.checkOutTimeString || null,
+        status: editForm.status,
+      });
+      setEditingRow(null);
+      const res = await getStoreAttendance(storeId, fromDate, toDate);
+      setRows(res.data || []);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Không thể cập nhật giờ chấm công. Vui lòng thử lại.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Refs for outside click handling
   const dateNavWrapRef = useRef(null);
   const clickTimeoutRef = useRef(null);
@@ -146,7 +197,10 @@ export default function AttendancePageLive() {
         const list = res.data.content || res.data || [];
         setStores(list);
         if (list.length > 0) {
-          setStoreId(list[0].id);
+          const saved = localStorage.getItem('selectedStoreId');
+          const target = (saved && list.find((s) => String(s.id) === String(saved))) || list[0];
+          setStoreId(target.id);
+          localStorage.setItem('selectedStoreId', String(target.id));
         }
       })
       .catch(() => setError('Không tải được danh sách chi nhánh'));
@@ -379,6 +433,7 @@ export default function AttendancePageLive() {
                     className={`att-user-list-item${isSelected ? ' active' : ''}`}
                     onClick={() => {
                       setStoreId(s.id);
+                      localStorage.setItem('selectedStoreId', String(s.id));
                       setShowStoreList(false);
                     }}
                   >
@@ -617,6 +672,34 @@ export default function AttendancePageLive() {
         {/* ── Error Banner ── */}
         {error && <div className="att-error-banner">{error}</div>}
 
+        {/* ── Late Alert Banner ── */}
+        {visibleRows.filter((r) => r.status === 'LATE').length > 0 && (
+          <div
+            style={{
+              backgroundColor: '#FEF2F2',
+              border: '1px solid #FCA5A5',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: '#991B1B',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            <span style={{ fontSize: '18px' }}>⚠️</span>
+            <span>
+              Hệ thống phát hiện{' '}
+              <strong>
+                {visibleRows.filter((r) => r.status === 'LATE').length} lượt check-in đi trễ
+              </strong>{' '}
+              trong khoảng thời gian này. Hãy kiểm tra các mục có nhãn cảnh báo đỏ bên dưới.
+            </span>
+          </div>
+        )}
+
         {/* ═══ ATTENDANCE TABLE ═══ */}
         <div className="att-table-card">
           {loading ? (
@@ -643,6 +726,7 @@ export default function AttendancePageLive() {
                     <th>Tổng</th>
                     <th>Trạng thái</th>
                     <th>Ảnh / GPS</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -722,24 +806,47 @@ export default function AttendancePageLive() {
                         {/* Trạng thái */}
                         <td>
                           <span className={`att-status-pill ${row.status?.toLowerCase() || 'present'}`}>
-                            {statusLabel(row.status)}
+                            {statusLabel(row.status, row.lateMinutes)}
                           </span>
                         </td>
 
                         {/* Ảnh / GPS */}
                         <td>
                           <div className="att-proof-cell">
-                            {row.checkInPhotoBase64 ? (
-                              <img
-                                src={`data:image/jpeg;base64,${row.checkInPhotoBase64}`}
-                                alt="Selfie"
-                                className="att-proof-thumb"
-                                onClick={() => setPreviewPhoto(`data:image/jpeg;base64,${row.checkInPhotoBase64}`)}
-                                title="Bấm để xem ảnh phóng to"
-                              />
-                            ) : (
-                              <span className="att-muted">—</span>
-                            )}
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              {row.checkInPhotoBase64 && (
+                                <img
+                                  src={`data:image/jpeg;base64,${row.checkInPhotoBase64}`}
+                                  alt="In"
+                                  className="att-proof-thumb"
+                                  onClick={() =>
+                                    setPreviewPhoto({
+                                      uri: `data:image/jpeg;base64,${row.checkInPhotoBase64}`,
+                                      title: `Ảnh Check-In (${row.staffName || 'Nhân viên'})`,
+                                    })
+                                  }
+                                  title="Bấm để xem ảnh Check-in"
+                                />
+                              )}
+                              {row.checkOutPhotoBase64 && (
+                                <img
+                                  src={`data:image/jpeg;base64,${row.checkOutPhotoBase64}`}
+                                  alt="Out"
+                                  className="att-proof-thumb"
+                                  style={{ borderColor: '#F59E0B' }}
+                                  onClick={() =>
+                                    setPreviewPhoto({
+                                      uri: `data:image/jpeg;base64,${row.checkOutPhotoBase64}`,
+                                      title: `Ảnh Check-Out (${row.staffName || 'Nhân viên'})`,
+                                    })
+                                  }
+                                  title="Bấm để xem ảnh Check-out"
+                                />
+                              )}
+                              {!row.checkInPhotoBase64 && !row.checkOutPhotoBase64 && (
+                                <span className="att-muted">—</span>
+                              )}
+                            </div>
                             <div className="att-gps-info">
                               {row.checkInLat ? (
                                 <span className="att-gps-text">
@@ -750,6 +857,18 @@ export default function AttendancePageLive() {
                               )}
                             </div>
                           </div>
+                        </td>
+
+                        {/* Thao tác */}
+                        <td>
+                          <button
+                            type="button"
+                            className="att-edit-btn"
+                            onClick={() => handleOpenEdit(row)}
+                            title="Chỉnh sửa giờ chấm công của nhân viên"
+                          >
+                            ✏️ Sửa
+                          </button>
                         </td>
                       </tr>
                     );
@@ -774,7 +893,7 @@ export default function AttendancePageLive() {
         <div className="att-photo-modal-overlay" onClick={() => setPreviewPhoto(null)}>
           <div className="att-photo-modal" onClick={(e) => e.stopPropagation()}>
             <div className="att-photo-modal-header">
-              <h3>Ảnh xác thực check-in</h3>
+              <h3>{previewPhoto.title || 'Ảnh xác thực chấm công'}</h3>
               <button
                 type="button"
                 className="att-photo-close-btn"
@@ -784,8 +903,104 @@ export default function AttendancePageLive() {
               </button>
             </div>
             <div className="att-photo-modal-body">
-              <img src={previewPhoto} alt="Xác thực" className="att-photo-full" />
+              <img
+                src={previewPhoto.uri || previewPhoto}
+                alt="Xác thực"
+                className="att-photo-full"
+              />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL CHỈNH SỬA CHẤM CÔNG (DÀNH CHO QUẢN LÝ) ═══ */}
+      {editingRow && (
+        <div className="att-modal-overlay" onClick={() => !isSaving && setEditingRow(null)}>
+          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="att-modal-header">
+              <h3>Điều chỉnh giờ chấm công</h3>
+              <button
+                type="button"
+                className="att-modal-close"
+                onClick={() => setEditingRow(null)}
+                disabled={isSaving}
+              >
+                ✕
+              </button>
+            </div>
+            <form className="att-edit-form" onSubmit={handleSaveEdit}>
+              <div className="att-form-info-box">
+                <div className="att-info-row">
+                  <span className="att-info-label">Nhân viên:</span>
+                  <span className="att-info-val">{editingRow.staffName || 'Nhân viên'}</span>
+                </div>
+                <div className="att-info-row">
+                  <span className="att-info-label">Ngày ca làm:</span>
+                  <span className="att-info-val">{fmtShortDate(editingRow.shiftDate)}</span>
+                </div>
+                <div className="att-info-row">
+                  <span className="att-info-label">Giờ theo lịch:</span>
+                  <span className="att-info-val">
+                    {editingRow.scheduledStart && editingRow.scheduledEnd
+                      ? `${editingRow.scheduledStart.slice(0, 5)} - ${editingRow.scheduledEnd.slice(0, 5)}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="att-form-group">
+                <label>Giờ vào (Check-In)</label>
+                <input
+                  type="time"
+                  className="att-time-input"
+                  value={editForm.checkInTimeString}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, checkInTimeString: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Giờ ra (Check-Out)</label>
+                <input
+                  type="time"
+                  className="att-time-input"
+                  value={editForm.checkOutTimeString}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, checkOutTimeString: e.target.value }))}
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Trạng thái</label>
+                <select
+                  className="att-select-input"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="PRESENT">Đúng giờ (PRESENT)</option>
+                  <option value="LATE">Đi trễ (LATE)</option>
+                  <option value="EARLY_LEAVE">Về sớm (EARLY_LEAVE)</option>
+                  <option value="ABSENT">Vắng (ABSENT)</option>
+                </select>
+              </div>
+
+              <div className="att-modal-actions">
+                <button
+                  type="button"
+                  className="att-cancel-btn"
+                  onClick={() => setEditingRow(null)}
+                  disabled={isSaving}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="att-save-btn"
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

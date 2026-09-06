@@ -14,6 +14,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { getMyRequests, createStaffRequest } from '../services/requestService';
+import { getMyShifts } from '../services/shiftService';
+import { getMyProfile } from '../services/profileService';
+import BottomNavbar from '../components/BottomNavbar';
 
 // ── Asset Icons ─────────────────────────────────────────────────────────────
 const iconHac = require('../assets/icon_hac.png');
@@ -36,6 +39,15 @@ const AVATAR_MAP = {
   'Thia. Ago': avatarThia,
 };
 
+const EMPTY_SHIFT = {
+  id: 'no-shift',
+  dayLabel: 'Chưa có ca',
+  timeRange: '—',
+  location: 'Cửa hàng được phân công',
+  role: 'Nhân viên',
+  color: '#8DD9CC',
+};
+
 const SUGGESTED_SWAP_STAFF = [
   { name: 'Mew. Ama', role: 'Barista', avatar: avatarMew },
   { name: 'Thia. Ago', role: 'Cashier', avatar: avatarThia },
@@ -44,52 +56,10 @@ const SUGGESTED_SWAP_STAFF = [
   { name: 'Mew. Ama', role: 'Server', avatar: avatarMew },
 ];
 
-// Danh sách các ca làm của người dùng (Dilan. Jon) có thể chọn để đổi hoặc xin vắng
-const MY_AVAILABLE_SHIFTS = [
-  {
-    id: 'my-shift-1',
-    dayLabel: 'Thứ 2 (03/08)',
-    timeRange: '6:00AM - 15:00PM',
-    location: 'Highlands D9/71 Tây Thạnh Tân Phú',
-    role: 'Barista',
-    color: '#8DD9CC',
-  },
-  {
-    id: 'my-shift-2',
-    dayLabel: 'Thứ 4 (05/08)',
-    timeRange: '6:00AM - 15:00PM',
-    location: 'Highlands D9/71 Tây Thạnh Tân Phú',
-    role: 'Barista',
-    color: '#8DD9CC',
-  },
-  {
-    id: 'my-shift-3',
-    dayLabel: 'Thứ 5 (06/08)',
-    timeRange: '6:00AM - 14:00PM',
-    location: 'Highlands D9/71 Tây Thạnh Tân Phú',
-    role: 'Barista',
-    color: '#8DD9CC',
-  },
-  {
-    id: 'my-shift-4',
-    dayLabel: 'Thứ 6 (07/08)',
-    timeRange: '14:00PM - 22:00PM',
-    location: 'Highlands D9/71 Tây Thạnh Tân Phú',
-    role: 'Cashier',
-    color: '#D98DB3',
-  },
-  {
-    id: 'my-shift-5',
-    dayLabel: 'Thứ CN (09/08)',
-    timeRange: '14:00PM - 22:00PM',
-    location: 'Highlands D9/71 Tây Thạnh Tân Phú',
-    role: 'Cashier',
-    color: '#D98DB3',
-  },
-];
-
 export default function RequestScreen({ navigation, route }) {
   const [requests, setRequests] = useState([]);
+  const [availableShifts, setAvailableShifts] = useState([]);
+  const [currentUserName, setCurrentUserName] = useState('');
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
@@ -111,29 +81,29 @@ export default function RequestScreen({ navigation, route }) {
   const [leaveReason, setLeaveReason] = useState('');
 
   // ── Form States (Đổi ca - Image 3) ──
-  const [selectedSwapShift, setSelectedSwapShift] = useState(MY_AVAILABLE_SHIFTS[0]);
+  const [selectedSwapShift, setSelectedSwapShift] = useState(EMPTY_SHIFT);
   const [showShiftPicker, setShowShiftPicker] = useState(false);
   const [selectedSwapStaff, setSelectedSwapStaff] = useState('Mew. Ama');
 
   // ── Form States (Xin vắng - Image 4) ──
-  const [selectedAbsentShift, setSelectedAbsentShift] = useState(MY_AVAILABLE_SHIFTS[0]);
+  const [selectedAbsentShift, setSelectedAbsentShift] = useState(EMPTY_SHIFT);
   const [showAbsentShiftPicker, setShowAbsentShiftPicker] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
 
   useEffect(() => {
-    loadRequests();
+    loadData();
+  }, []);
 
+  useEffect(() => {
     // Check if opened with an action from ScheduleScreen
     if (route?.params?.action === 'open_swap') {
       if (route.params.shift) {
-        const found = MY_AVAILABLE_SHIFTS.find(s => s.id === route.params.shift.id);
-        if (found) setSelectedSwapShift(found);
+        setSelectedSwapShift(route.params.shift);
       }
       setSwapModalVisible(true);
     } else if (route?.params?.action === 'open_absent') {
       if (route.params.shift) {
-        const found = MY_AVAILABLE_SHIFTS.find(s => s.id === route.params.shift.id);
-        if (found) setSelectedAbsentShift(found);
+        setSelectedAbsentShift(route.params.shift);
       }
       setAbsentModalVisible(true);
     } else if (route?.params?.action === 'open_leave') {
@@ -148,17 +118,53 @@ export default function RequestScreen({ navigation, route }) {
     }, 3500);
   };
 
-  const loadRequests = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getMyRequests();
-      setRequests(data);
+      const [reqData, profileRes, shiftsRes] = await Promise.allSettled([
+        getMyRequests(),
+        getMyProfile(),
+        getMyShifts(),
+      ]);
+
+      if (reqData.status === 'fulfilled') {
+        setRequests(reqData.value || []);
+      }
+
+      if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
+        setCurrentUserName(profileRes.value.data.fullName || 'Nhân viên');
+      }
+
+      if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
+        const mapped = shiftsRes.value.data.map((s, idx) => {
+          const d = s.shiftDate ? new Date(s.shiftDate) : new Date();
+          const dow = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
+          const dayStr = String(d.getDate()).padStart(2, '0');
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          return {
+            id: s.id || `shift-${idx}`,
+            dayLabel: `${dow} (${dayStr}/${monthStr})`,
+            timeRange: `${String(s.startTime).slice(0, 5)} - ${String(s.endTime).slice(0, 5)}`,
+            location: s.storeAddress || s.storeName || 'Highlands Tây Thạnh Tân Phú',
+            role: s.skillName || s.requiredSkillName || 'Barista',
+            color: '#8DD9CC',
+          };
+        });
+
+        if (mapped.length > 0) {
+          setAvailableShifts(mapped);
+          setSelectedSwapShift(mapped[0]);
+          setSelectedAbsentShift(mapped[0]);
+        }
+      }
     } catch (e) {
-      console.log('Error loading requests:', e);
+      console.log('Error loading data:', e);
     } finally {
       setLoading(false);
     }
   };
+
+  const loadRequests = loadData;
 
   const handleFilterToggle = (status) => {
     if (filterStatus === status) {
@@ -179,7 +185,7 @@ export default function RequestScreen({ navigation, route }) {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         startDate: startDate,
         endDate: endDate,
         reason: leaveReason.trim(),
@@ -201,7 +207,7 @@ export default function RequestScreen({ navigation, route }) {
       setLoading(true);
       await createStaffRequest({
         type: 'SWAP',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         targetStaffName: selectedSwapStaff,
         shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
         reason: `Yêu cầu đổi ca trực với bạn ${selectedSwapStaff}`,
@@ -227,7 +233,7 @@ export default function RequestScreen({ navigation, route }) {
       setLoading(true);
       await createStaffRequest({
         type: 'ABSENT',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
         reason: absentReason.trim(),
       });
@@ -568,26 +574,32 @@ export default function RequestScreen({ navigation, route }) {
             {/* Dropdown danh sách ca của tôi */}
             {showShiftPicker && (
               <View style={styles.shiftPickerDropdown}>
-                {MY_AVAILABLE_SHIFTS.map((shift) => {
-                  const isSelected = selectedSwapShift.id === shift.id;
-                  return (
-                    <TouchableOpacity
-                      key={shift.id}
-                      style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
-                      onPress={() => {
-                        setSelectedSwapShift(shift);
-                        setShowShiftPicker(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.shiftPickerDot, { backgroundColor: shift.color }]} />
-                      <Text style={[styles.shiftPickerItemText, isSelected && styles.shiftPickerItemTextSelected]}>
-                        {shift.dayLabel} : {shift.timeRange} ({shift.role})
-                      </Text>
-                      {isSelected && <Text style={styles.shiftPickerCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
+                {availableShifts.length === 0 ? (
+                  <Text style={{ padding: 12, color: '#7B8490', fontSize: 13, textAlign: 'center' }}>
+                    Chưa có ca làm việc được phân công.
+                  </Text>
+                ) : (
+                  availableShifts.map((shift) => {
+                    const isSelected = selectedSwapShift.id === shift.id;
+                    return (
+                      <TouchableOpacity
+                        key={shift.id}
+                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        onPress={() => {
+                          setSelectedSwapShift(shift);
+                          setShowShiftPicker(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.shiftPickerDot, { backgroundColor: shift.color }]} />
+                        <Text style={[styles.shiftPickerItemText, isSelected && styles.shiftPickerItemTextSelected]}>
+                          {shift.dayLabel} : {shift.timeRange} ({shift.role})
+                        </Text>
+                        {isSelected && <Text style={styles.shiftPickerCheck}>✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
               </View>
             )}
 
@@ -595,7 +607,7 @@ export default function RequestScreen({ navigation, route }) {
             <View style={styles.requesterShiftBox}>
               <View style={styles.avatarCol}>
                 <Image source={avatarDilan} style={styles.avatarImg} />
-                <Text style={styles.avatarName}>Dilan. Jon</Text>
+                <Text style={styles.avatarName}>{currentUserName || 'Nhân viên'}</Text>
               </View>
 
               <View style={styles.shiftCardMini}>
@@ -686,26 +698,32 @@ export default function RequestScreen({ navigation, route }) {
             {/* Dropdown danh sách ca của tôi */}
             {showAbsentShiftPicker && (
               <View style={styles.shiftPickerDropdown}>
-                {MY_AVAILABLE_SHIFTS.map((shift) => {
-                  const isSelected = selectedAbsentShift.id === shift.id;
-                  return (
-                    <TouchableOpacity
-                      key={shift.id}
-                      style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
-                      onPress={() => {
-                        setSelectedAbsentShift(shift);
-                        setShowAbsentShiftPicker(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.shiftPickerDot, { backgroundColor: shift.color }]} />
-                      <Text style={[styles.shiftPickerItemText, isSelected && styles.shiftPickerItemTextSelected]}>
-                        {shift.dayLabel} : {shift.timeRange} ({shift.role})
-                      </Text>
-                      {isSelected && <Text style={styles.shiftPickerCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
+                {availableShifts.length === 0 ? (
+                  <Text style={{ padding: 12, color: '#7B8490', fontSize: 13, textAlign: 'center' }}>
+                    Chưa có ca làm việc được phân công.
+                  </Text>
+                ) : (
+                  availableShifts.map((shift) => {
+                    const isSelected = selectedAbsentShift.id === shift.id;
+                    return (
+                      <TouchableOpacity
+                        key={shift.id}
+                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        onPress={() => {
+                          setSelectedAbsentShift(shift);
+                          setShowAbsentShiftPicker(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.shiftPickerDot, { backgroundColor: shift.color }]} />
+                        <Text style={[styles.shiftPickerItemText, isSelected && styles.shiftPickerItemTextSelected]}>
+                          {shift.dayLabel} : {shift.timeRange} ({shift.role})
+                        </Text>
+                        {isSelected && <Text style={styles.shiftPickerCheck}>✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
               </View>
             )}
 
@@ -713,7 +731,7 @@ export default function RequestScreen({ navigation, route }) {
             <View style={styles.requesterShiftBox}>
               <View style={styles.avatarCol}>
                 <Image source={avatarDilan} style={styles.avatarImg} />
-                <Text style={styles.avatarName}>Dilan. Jon</Text>
+                <Text style={styles.avatarName}>{currentUserName || 'Nhân viên'}</Text>
               </View>
 
               <View style={styles.shiftCardMini}>
@@ -819,6 +837,7 @@ export default function RequestScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+      <BottomNavbar navigation={navigation} activeRoute="Request" />
     </SafeAreaView>
   );
 }
@@ -836,7 +855,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 95,
   },
 
   // ── Custom Toast ──

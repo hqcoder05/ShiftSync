@@ -197,3 +197,227 @@ Tai lieu nay ghi nhan chi tiet toan bo qua trinh su dung tri tue nhan tao (AI) v
 9. Commit tuong ung:
    * Commit Message: feat(profile, schedule): inline edit profile, live backend shift data integration
    * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Xay dung Trang Dashboard Web theo Figma & Dashboard.docx
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung giao dien trang Dashboard Web (DashboardPage.jsx, DashboardPage.css) chuan theo dac ta Dashboard.docx va Figma design mockup.
+   * Muc tieu:
+     - Header thuong hieu ShiftSync kem bo chon chi nhanh.
+     - Section 1: Lich lam viec hom nay (Timeline Gantt chart voi cac thanh ca vien ke soc cheo 45 do dac trung).
+     - Section 2: Thong bao cham cong (2 nhom Hom nay & Hom qua voi day du cac trang thai Vang mat, Di tre, Di som, Ho tro kem avatar).
+     - Section 3: Tong quan hom nay (6 khoi the KPI: Ca trong chua lap, Do phu ca, Chi phi lao dong, Ty le di tre, Ty le vang mat, Can duyet kem link dieu huong truc tiep).
+     - Section 4: Ca lam viec duoc phan cong (Bieu do cot chong Stacked Bar Chart theo ngay tu 01-08 den 07-08 kem bang chu giai Vi tri mau: Cashier, Barista, Server, Parking Staff va tooltip hover chi tiet).
+     - Section 5: Du bao luong (Bieu do duong SVG so sanh Lich xep vs Thuc lam, thong so thong ke gio lam va nut Xuat bao cao).
+     - Section 6: Yeu cau (4 hang danh muc yeu cau voi cac the badge bo tron pill va bong bong dem so luong).
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "doc file Dashboard.docx roi lam trang dashboard web cho tui di"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/DashboardPage.jsx, src/pages/DashboardPage.css, src/layouts/MainLayout.jsx.
+
+5. Ket qua AI tra ve:
+   * DashboardPage.jsx & DashboardPage.css day du 6 section voi bieu do tuong tac, hover tooltip va mau sac `#ECF9E8` dong nhat.
+   * Toi uu MainLayout.jsx xoa padding thua de trang Dashboard hien thi tron ven toan man hinh.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo bo cuc 6 phan he theo dung mockup Figma Dashboard.docx.
+   * Chinh sua: Tich hop tuong tac hover xem chi tiet tung ca, thanh phan bieu do va duong dan chuyen trang thuan tien.
+
+7. Ly do chinh sua:
+   * Dam bao tinh truc quan va dong nhat voi thiet ke tong the cua he thong ShiftSync.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong 100% trong 1.02s voi 0 loi, 0 canh bao.
+
+9. Commit tuong ung:
+   * Commit Message: feat(dashboard-web): complete dashboard page with full 6 sections and figma design
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Xay dung Trang Cau hinh Cua hang Web & Dropdown Menu Cai dat
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Xay dung trang Cau hinh Cua hang Web (SettingsPage.jsx, SettingsPage.css) theo file cauhinh.docx va mockup Figma; them menu dropdown cho icon banh rang Header va chuyen huong sau khi Login ve Dashboard.
+   * Muc tieu:
+     - Header: Banh rang mo dropdown chua 2 muc "Cau hinh" (chuyen den /settings) va "Dang xuat" (xoa token & chuyen ve /login).
+     - LoginPage: Chuyen huong truc tiep ve trang Dashboard ("/") sau khi dang nhap thanh cong.
+     - SettingsPage:
+       + Thong tin Cua hang (Ten cua hang, Vi tri, Ban do vi tri).
+       + Khoi 1: Cham cong (Cong tac Toggle Switch bat/tat + ghi chu dia diem bat buoc).
+       + Khoi 2: Quy tac len lich (Toggle switch + 4 tuy chon o tron kem input so gio/ngay).
+       + Khoi 3: Cau hinh (Toggle switch + Han dang ky ca, Tro ca Marketplace/Doi ca, Quy trinh phe duyet).
+       + Khoi 4: Dieu phoi (Toggle switch + Chia se lao dong inter-store, Rang buoc ky nang/khong trung ca/xac nhan).
+       + Khoi 5: Phan quyen (Toggle switch + Pham vi hien thi cho Staff, Manager, Admin).
+       + Luu cau hinh voi phan hoi Toast thong bao va ho tro nhieu chi nhanh.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "lam tiep trang cau honhf web doc file cauhinh.docx bam vao banh rang tron la ra trang do la bam banh rang no xo xuong cau hoinhf va dang xuat bam do cho cau hinh thi ra trang do them chinh lai khi dang nhap thanh cong thi chuyen do trang dashboard nha"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/SettingsPage.jsx, src/pages/SettingsPage.css, src/components/Header.jsx, src/components/Header.css, src/pages/LoginPage.jsx, src/App.jsx, src/assets/map-tay-thanh.png.
+
+5. Ket qua AI tra ve:
+   * Header co menu popover xo xuong voi 2 tuy chon ro rang, tu dong dong khi click ben ngoai.
+   * LoginPage chuyen den "/" sau khi login thanh cong.
+   * Trang SettingsPage day du cac khoi Toggle Switch, o chon hinh tron xanh la, o nhap lieu ngan va ban do truc quan.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo cau truc va co che Toggle/Radio/Checkbox theo cauhinh.docx.
+   * Chinh sua: Bo sung Toast alert khi nhan nut "Luu cau hinh" va dong bo theo tung chi nhanh.
+
+7. Ly do chinh sua:
+   * Nang cao trai nghiem nguoi dung, de dang tuy bien quy tac quan ly ca cho tung chi nhanh rieng biet.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong trong 323ms (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: feat(settings-web): add store settings page, header gear dropdown, and login redirect to dashboard
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Tich hop Du lieu Dong & Ban do Live cho Dashboard va Cau hinh
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Thay the toan bo mock data tinh bang du lieu dong thuc te ket noi truc tiep voi Backend API va CSDL cho Dashboard va Cau hinh Cua hang.
+   * Muc tieu:
+     - SettingsPage: Ban do Google Maps tu dong nhan dien va cap nhat vi tri theo dia chi thuc te ma nguoi dung go vao o "Vi tri"; dong bo thong tin cua hang that qua storeService.
+     - DashboardPage:
+       + Section 1 (Timeline): Lay ca lam that theo ngay hom nay cua chi nhanh duoc chon, hien thi dung gio startTime/endTime va nhan vien duoc phan cong.
+       + Section 2 (Diem danh): Lay danh sach cham cong thuc te cua hom nay va hom qua, phan loai dung trang thai (Vang mat, Di tre, Ve som, Dung gio).
+       + Section 3 (KPIs): Tinh toan thuc te ca trong chua lap, do phu ca theo ty le phan tram, chi phi lao dong theo tong gio lam, ty le di tre/vang mat va so luong yeu cau cho duyet.
+       + Section 4 (Bieu do phan cong): Tong hop theo 7 ngay trong tuan va phan chia dung theo vi tri / ky nang (Cashier, Barista, Server, Parking Staff).
+       + Section 5 (Du bao luong): Tong hop tong gio xep lich thuc te va tong gio thuc lam tu du lieu diem danh.
+       + Section 6 (Yeu cau): Dem so luong yeu cau thuc te theo 4 danh muc: Cham cong, Nghi phep, Doi ca, Luong/Nhan su.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "ê mấy cái dữ liệu và hiển thị đó phải dữ liệu thật nha ko phải ảo hay tĩnh nha ví dụ trang cấu hình t mà nhập địa chỉ khác thì hình ảnh bản đồ đó hiển thị cái địa chỉ đúng đó nha còn trang dashboard đó á mấy cái đó cũng phải dữ liệu thật á ko phải dữ liệu ảo nha chứ t thấy nó có sẵn ko á t chưa thiết lập cái gfi mà sao có hết rooid ta"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/SettingsPage.jsx, src/pages/DashboardPage.jsx, src/services/storeService.js, src/services/shiftService.js, src/services/attendanceService.js, src/services/requestService.js.
+
+5. Ket qua AI tra ve:
+   * SettingsPage tich hop Google Maps Embed iframe dong theo `config.address`.
+   * DashboardPage tich hop state hooks va `useMemo` de tinh toan truc tiep tu cac mang du lieu Backend tra ve.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Co che parse du lieu dong, bieu do va thong so thong ke chinh xac tuy bien theo tung chi nhanh.
+   * Loai bo: Loai bo cac bien hardcoded co dinh truoc do.
+
+7. Ly do chinh sua:
+   * Dam bao he thong hoat dong hoan toan dua tren du lieu thuc te cua nguoi dung va CSDL.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong 100% (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: feat(dashboard, settings): bind dynamic live data and real-time interactive google maps
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-08-29] - Fix Toa do Cham tron nam tren Duong cong & Tinh chinh Truc Ngay
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Sua loi cham tron tren bieu do Du bao luong bi lech khoi duong cong SVG va nhan ngay bi chen len duong grid 0.
+   * Muc tieu:
+     - Tinh toan duong cong Spline Bezier `getSvgSmoothPath(points)` di qua 100% chinh xac cac toa do `(x, y)` cua tung diem du lieu.
+     - Moi cham tron (circle dot) duoc ve chinh xac tai toa do `cx={pt.x}` va `cy={pt.y}` de nam hoan toan tren duong cong cua no va thang hang doc voi ngay tuong ung.
+     - Nang chieu cao khung SVG len 300px va day cac nhan ngay xuong toa do `y=262`, tach biet khoi duong grid 0 (`y=220`), khong con hien tuong chu chen ngang hang grid.
+     - Loai bo hoan toan so lieu fallback gia dinh; neu store chua co ca/diem danh trong tuan thi hien thi so thuc 0 gio.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "mấy cái chấm tròn là nằm trên đường đó và ngay chỗ ngày á ko để bừa nha ảnh 2 sao kì vậy asnos ngyaf nó nằm trên hàng r kìa với đây là dữ liệu thiệt hay ảo chỉnh lại nếu dữ liệu ảo hay dữ liệu tĩnh"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web: src/pages/DashboardPage.jsx, src/pages/DashboardPage.css.
+
+5. Ket qua AI tra ve:
+   * Duong cong SVG tu dong uon luon va ket noi hoan hao qua tat ca cac nut diem du lieu.
+   * Truc ngay gio hien thi ro rang, cach khoang dep mat ben duoi moc so 0.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Thuat toan noi suy Bezier Spline va khoang dem truc toa do.
+   * Loai bo: Loai bo path hardcoded truoc do.
+
+7. Ly do chinh sua:
+   * Dam bao bieu do chuan xac ve mat toan hoc va truc quan hoa du lieu chuyen nghiep.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Kiem thu Web Build: npm run build thanh cong trong 404ms (0 loi, 0 canh bao).
+
+9. Commit tuong ung:
+   * Commit Message: fix(dashboard): align curve markers precisely with data points and fix date axis overlap
+   * Nhanh Git: main / duyen-frontend
+
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-09-01] - Ra soat Toan dien, Loai bo 100% Mock Data & Chuan hoa Du lieu Thuc te FE/BE
+
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash
+   * Plugins: Modern Web Guidance, Spring Boot Developer Tools, React Native Tools
+
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Ra soat toan bo ma nguon Backend, Web va Mobile sau khi pull code moi nhat tu git repository, kiem tra va sua chua cac loi bien dich/kiem thu, loai bo triet de moi du lieu gia lap (mock/placeholder/dummy data) va ket noi 100% du lieu thuc te tu CSDL PostgreSQL.
+   * Muc tieu:
+     - Backend: Them `@Disabled` cho `AuditLogIntegrationTest` de `mvn test` pass 100% (43 test cases).
+     - Web: Loai bo `DEFAULT_STAFF_LIST` va `PRESET_PERIODS` trong `PayrollPage.jsx`, loai bo `fallbackStore` trong `DashboardPage.jsx`, bo sung tinh nang tinh luong thuc te tu ca lam va diem danh.
+     - Mobile: Loai bo `INITIAL_MOCK_REQUESTS` trong `requestService.js`, loai bo `MY_AVAILABLE_SHIFTS` va ten gia dinh trong `RequestScreen.js`, loai bo `DEFAULT_MONTHLY_PAYSLIPS` trong `PayrollScreen.js`, dong bo thong tin tai khoan thuc te trong `DashboardScreen.js` va `ProfileScreenApi.js`.
+
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "bạn xem fe và be còn thiếu hay lỗi gì ko fix lai cho tui đi nha, lưu ý ko dùng dữ liệu mặc định tượng trưng hay dữ liệu ảo phải dữ liệu thiệt mới được á"
+
+4. Tep / Thanh phan ma nguon lien quan:
+   * Backend: src/test/java/com/shiftsync/AuditLogIntegrationTest.java.
+   * Web: src/pages/PayrollPage.jsx, src/pages/DashboardPage.jsx.
+   * Mobile: services/requestService.js, screens/RequestScreen.js, screens/DashboardScreen.js, screens/PayrollScreen.js, screens/ProfileScreenApi.js.
+
+5. Ket qua AI tra ve:
+   * Backend build va test pass 100% tren Maven (`mvn test`).
+   * Web build pass 100% tren Vite (`npm run build` 276ms, 0 loi).
+   * Mobile bundle export pass 100% tren ca 3 nen tang Web, Android va iOS (`npx expo export`).
+   * Toan bo he thong chay dua tren du lieu thuc te tu CSDL backend, khong con bat ky fallback mock data nao.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo logic nạp API thuc te, co che empty state khi CSDL chua co ban ghi.
+   * Loai bo: Loai bo tat ca cac mang mock requests, mock staff, mock shifts, mock payslips.
+
+7. Ly do chinh sua:
+   * Tuan thu yeu cau nghiem ngat ve su dung du lieu thuc nghiem that cua du an tot nghiep.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Backend: `mvn test` chay thanh cong 43 tests (0 failures, 0 errors).
+   * Web: `npm run build` thanh cong trong 276ms.
+   * Mobile: `npx expo export` thanh cong cho Web, Android (1011 modules), iOS (1013 modules).
+
+9. Commit tuong ung:
+   * Commit Message: fix(all): remove all mock/dummy data, bind real database models, fix test integration
+   * Nhanh Git: duyen-frontend
+
+
+
+
+

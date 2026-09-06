@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
-import { assignStaffToStore } from '../services/employmentService';
+import { assignStaffToStore, getStoresByStaff } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
@@ -44,6 +44,13 @@ export default function EmployeesPage() {
   const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
   const [skills, setSkills] = useState([]);
 
+  // Black Toast
+  const [toastMsg, setToastMsg] = useState('');
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
   const fetchEmployees = async () => {
     setLoading(true); 
     setError('');
@@ -83,13 +90,26 @@ export default function EmployeesPage() {
     setSavedUserId(null); 
     setActiveTab('hoso');
     setError('');
+    const defaultStoreId = localStorage.getItem('selectedStoreId') || (stores[0]?.id || '');
     setForm({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
-    setAssignForm({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
-    setSkills([]);
+    setAssignForm({
+      storeId: defaultStoreId,
+      employmentType: 'FULL_TIME',
+      hourlyRate: '25000',
+      joinedDate: new Date().toISOString().split('T')[0],
+      skillId: ''
+    });
+    if (defaultStoreId) {
+      getSkillsByStore(defaultStoreId)
+        .then(res => setSkills(Array.isArray(res.data) ? res.data : (res.data?.content || [])))
+        .catch(() => setSkills([]));
+    } else {
+      setSkills([]);
+    }
     setShowModal(true);
   };
 
-  const openEdit = (emp) => {
+  const openEdit = async (emp) => {
     setEditing(emp); 
     setSavedUserId(emp.id); 
     setActiveTab('hoso');
@@ -101,6 +121,64 @@ export default function EmployeesPage() {
       password: '', 
       role: emp.role || emp.systemRole || 'STAFF' 
     });
+
+    const defaultStoreId = localStorage.getItem('selectedStoreId') || (stores[0]?.id || '');
+    let initialStoreId = defaultStoreId;
+
+    try {
+      const res = await getStoresByStaff(emp.id);
+      const stList = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      const activeSt = stList.find(s => s.status === 'ACTIVE') || stList[0];
+      if (activeSt) {
+        initialStoreId = activeSt.storeId || defaultStoreId;
+        if (initialStoreId) {
+          try {
+            const sRes = await getSkillsByStore(initialStoreId);
+            setSkills(Array.isArray(sRes.data) ? sRes.data : (sRes.data?.content || []));
+          } catch {
+            setSkills([]);
+          }
+        }
+        setAssignForm({
+          storeId: initialStoreId,
+          employmentType: activeSt.employmentType || (activeSt.contractType?.name) || 'FULL_TIME',
+          hourlyRate: activeSt.hourlyRate != null ? String(activeSt.hourlyRate) : '25000',
+          joinedDate: activeSt.joinedDate || new Date().toISOString().split('T')[0],
+          skillId: activeSt.skillId ? String(activeSt.skillId) : ''
+        });
+      } else {
+        if (defaultStoreId) {
+          try {
+            const sRes = await getSkillsByStore(defaultStoreId);
+            setSkills(Array.isArray(sRes.data) ? sRes.data : (sRes.data?.content || []));
+          } catch {
+            setSkills([]);
+          }
+        }
+        setAssignForm({
+          storeId: defaultStoreId,
+          employmentType: 'FULL_TIME',
+          hourlyRate: '25000',
+          joinedDate: new Date().toISOString().split('T')[0],
+          skillId: ''
+        });
+      }
+    } catch (e) {
+      console.error('Lỗi khi lấy thông tin phân công:', e);
+      if (defaultStoreId) {
+        getSkillsByStore(defaultStoreId)
+          .then(sRes => setSkills(Array.isArray(sRes.data) ? sRes.data : (sRes.data?.content || [])))
+          .catch(() => setSkills([]));
+      }
+      setAssignForm({
+        storeId: defaultStoreId,
+        employmentType: 'FULL_TIME',
+        hourlyRate: '25000',
+        joinedDate: new Date().toISOString().split('T')[0],
+        skillId: ''
+      });
+    }
+
     setShowModal(true);
   };
 
@@ -125,25 +203,30 @@ export default function EmployeesPage() {
         await updateEmployee(editing.id, payload);
         setSavedUserId(editing.id);
       } else {
-        // Map đúng payload `role` khớp với UserCreateRequest trong Swagger
+        // Map đúng payload `systemRole` khớp với UserCreateRequest trong Swagger
         const payload = {
           fullName: form.fullName,
           email: form.email,
           phone: form.phone,
           password: form.password,
-          role: form.role
+          systemRole: form.role,   // ← fix: service đọc `systemRole`, không phải `role`
         };
         const res = await createEmployee(payload);
         const newId = res.data?.id || res.data?.data?.id || res.data;
         setSavedUserId(newId);
       }
       fetchEmployees();
+      showToast(editing ? '✓ Đã cập nhật hồ sơ nhân viên' : '✓ Đã tạo nhân viên mới');
       setActiveTab('phancong'); 
     } catch (err) {
-      if (err.response?.status === 403) {
+      const status = err.response?.status;
+      const msg = err.response?.data?.message;
+      if (status === 409) {
+        setError(msg || 'Email này đã tồn tại! Vui lòng dùng email khác.');
+      } else if (status === 403) {
         setError('Lỗi 403: Không có quyền hoặc Token đã hết hạn! Vui lòng đăng nhập lại.');
       } else {
-        setError(err.response?.data?.message || 'Lưu hồ sơ thất bại. Kiểm tra lại thông tin!');
+        setError(msg || 'Lưu hồ sơ thất bại. Kiểm tra lại thông tin!');
       }
     }
   };
@@ -160,9 +243,11 @@ export default function EmployeesPage() {
         employmentType: assignForm.employmentType,
         hourlyRate: Number(assignForm.hourlyRate),
         joinedDate: assignForm.joinedDate,
+        skillId: assignForm.skillId ? assignForm.skillId : null,
       });
       setShowModal(false);
       fetchEmployees();
+      showToast('✓ Đã lưu phân công thành công');
     } catch (err) {
       setError(err.response?.data?.message || 'Phân công thất bại');
     }
@@ -172,7 +257,8 @@ export default function EmployeesPage() {
     if (!confirm('Xoá nhân viên này?')) return;
     try { 
       await deleteEmployee(id); 
-      fetchEmployees(); 
+      fetchEmployees();
+      showToast('✓ Đã xoá nhân viên');
     } catch (err) { 
       setError(err.response?.data?.message || 'Xoá thất bại'); 
     }
@@ -180,14 +266,16 @@ export default function EmployeesPage() {
 
   return (
     <div className="emp-page">
+      {/* Black Toast */}
+      {toastMsg && <div className="black-toast">{toastMsg}</div>}
+
       <Sidebar
         search={{ value: search, onChange: setSearch, placeholder: 'Tìm kiếm' }}
         pageNav={{
           currentTo: '/employees',
           options: [
             { to: '/employees', label: 'Người dùng' },
-            { to: '/skills', label: 'Vị trí công việc' },
-            { to: '/stores', label: 'Chi nhánh' },
+            { to: '/stores', label: 'Chi nhánh & Vị trí' },
           ],
         }}
       />
