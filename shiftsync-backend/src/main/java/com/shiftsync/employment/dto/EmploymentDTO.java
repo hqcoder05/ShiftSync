@@ -18,7 +18,6 @@ public class EmploymentDTO {
     private UUID storeId;
     private String storeName;
     private String storeAddress;
-    private EmploymentType employmentType;
     private ContractTypeDTO contractType;
     private BigDecimal hourlyRate;
     private EmploymentStatus status;

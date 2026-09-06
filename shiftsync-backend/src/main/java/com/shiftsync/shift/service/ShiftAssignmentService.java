@@ -70,6 +70,7 @@ public class ShiftAssignmentService {
         try {
             notificationService.sendNotification(
                     staff.getId(),
+                    com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
                     "Phân công ca làm việc",
                     "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
                     java.util.Map.of("shiftId", shift.getId().toString())

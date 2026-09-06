@@ -128,7 +128,7 @@ public class ShiftService {
                 try {
                     notificationService.sendNotification(
                             staff.getId(),
-                            "Phân công ca làm việc",
+                            com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Phân công ca làm việc",
                             "Bạn đã được phân công ca làm việc ngày " + savedShift.getShiftDate() + " (" + savedShift.getStartTime() + " - " + savedShift.getEndTime() + ")",
                             java.util.Map.of("shiftId", savedShift.getId().toString())
                     );
@@ -191,7 +191,7 @@ public class ShiftService {
                     try {
                         notificationService.sendNotification(
                                 sa.getStaff().getId(),
-                                "Lịch làm việc đã xuất bản",
+                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Lịch làm việc đã xuất bản",
                                 "Lịch làm việc tuần mới đã được công bố. Ca của bạn: ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
                                 java.util.Map.of("shiftId", shift.getId().toString())
                         );
@@ -264,7 +264,7 @@ public class ShiftService {
                     try {
                         notificationService.sendNotification(
                                 staff.getId(),
-                                "Cập nhật ca làm việc",
+                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Cập nhật ca làm việc",
                                 "Ca làm việc ngày " + saved.getShiftDate() + " (" + saved.getStartTime() + " - " + saved.getEndTime() + ") của bạn đã được cập nhật.",
                                 java.util.Map.of("shiftId", saved.getId().toString())
                         );

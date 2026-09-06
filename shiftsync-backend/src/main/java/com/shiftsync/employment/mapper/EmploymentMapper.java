@@ -18,7 +18,6 @@ public class EmploymentMapper {
                 .storeId(employment.getStore() != null ? employment.getStore().getId() : null)
                 .storeName(employment.getStore() != null ? employment.getStore().getName() : null)
                 .storeAddress(employment.getStore() != null ? employment.getStore().getAddress() : null)
-                .employmentType(employment.getEmploymentType())
                 .contractType(employment.getContractType() != null ? ContractTypeDTO.builder().id(employment.getContractType().getId()).name(employment.getContractType().getName()).maxWeeklyHours(employment.getContractType().getMaxWeeklyHours()).otMultiplier(employment.getContractType().getOtMultiplier()).defaultHourlyRate(employment.getContractType().getDefaultHourlyRate()).build() : null)
                 .hourlyRate(employment.getHourlyRate())
                 .status(employment.getStatus())
