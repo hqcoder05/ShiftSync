@@ -43,7 +43,7 @@ public class MarketplaceController {
     }
 
     @Operation(summary = "Get list of active Open Shifts in a store")
-    @PreAuthorize("isAuthenticated()") // Any authenticated user can view marketplace
+    @PreAuthorize("hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping("/stores/{storeId}/marketplace/shifts")
     public ResponseEntity<List<ShiftDTO>> getOpenShifts(@PathVariable UUID storeId) {
         List<ShiftDTO> openShifts = marketplaceService.getOpenShifts(storeId).stream()
@@ -69,7 +69,7 @@ public class MarketplaceController {
     }
 
     @Operation(summary = "Claim an Open Shift (Employee)")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/stores/{storeId}/marketplace/shifts/{shiftId}/claim")
     public ResponseEntity<Void> claimOpenShift(
             @PathVariable UUID storeId,

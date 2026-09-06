@@ -11,6 +11,7 @@ import com.shiftsync.leave.dto.LeaveRequestDTO;
 import com.shiftsync.leave.entity.LeaveRequest;
 import com.shiftsync.leave.enums.LeaveStatus;
 import com.shiftsync.leave.repository.LeaveRequestRepository;
+import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.store.entity.Store;
@@ -29,14 +30,14 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class LeaveRequestService {
-    private final AuditLogService auditLogService;
-    private final LeaveRequestRepository leaveRequestRepository;
-    private final UserRepository userRepository;
-    private final StoreRepository storeRepository;
-    private final BlackoutDateRepository blackoutDateRepository;
-    private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final com.shiftsync.audit.service.AuditLogService auditLogService;
+    private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
+    private final com.shiftsync.auth.repository.UserRepository userRepository;
+    private final com.shiftsync.store.repository.StoreRepository storeRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+    private final com.shiftsync.availability.repository.BlackoutDateRepository blackoutDateRepository;
+    private final com.shiftsync.shift.repository.ShiftAssignmentRepository shiftAssignmentRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
-
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
         User staff = userRepository.findById(staffId)
@@ -46,6 +47,16 @@ public class LeaveRequestService {
 
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new BusinessException("Start date must be before or equal to end date", HttpStatus.BAD_REQUEST);
+        }
+        
+        boolean isActiveInStore = employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+        if (!isActiveInStore) {
+            throw new BusinessException("Staff is not actively employed in this store", HttpStatus.FORBIDDEN);
+        }
+        
+        List<LeaveRequest> overlapping = leaveRequestRepository.findOverlappingRequests(staffId, request.getStartDate(), request.getEndDate());
+        if (!overlapping.isEmpty()) {
+            throw new BusinessException("Leave request overlaps with an existing pending or approved request", HttpStatus.CONFLICT);
         }
 
         LeaveRequest leaveRequest = LeaveRequest.builder()
