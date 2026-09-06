@@ -1,6 +1,5 @@
 package com.shiftsync.request.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 @Getter

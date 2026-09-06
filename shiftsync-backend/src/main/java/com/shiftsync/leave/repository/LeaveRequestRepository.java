@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID> {
     List<LeaveRequest> findByStoreId(UUID storeId);
     List<LeaveRequest> findByStoreIdAndStatus(UUID storeId, LeaveStatus status);
+    List<LeaveRequest> findByStaffId(UUID staffId);
 }

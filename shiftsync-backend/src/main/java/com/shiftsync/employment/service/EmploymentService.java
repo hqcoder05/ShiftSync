@@ -87,6 +87,23 @@ public class EmploymentService {
         employmentRepository.save(employment);
     }
 
+    @Transactional
+    public EmploymentDTO updateEmployment(UUID storeId, UUID staffId, com.shiftsync.employment.dto.EmploymentUpdateRequest request) {
+        Employment employment = employmentRepository.findByUserIdAndStatus(staffId, EmploymentStatus.ACTIVE)
+                .stream()
+                .filter(e -> e.getStore().getId().equals(storeId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Active employment record not found for this staff and store", HttpStatus.NOT_FOUND));
+
+        ContractType ct = contractTypeRepository.findById(request.getContractTypeId())
+                .orElseThrow(() -> new BusinessException("Contract type not found", HttpStatus.NOT_FOUND));
+
+        employment.setContractType(ct);
+        employment.setHourlyRate(request.getHourlyRate());
+        
+        return EmploymentMapper.toDTO(employmentRepository.save(employment));
+    }
+
     @Transactional(readOnly = true)
     public Page<EmploymentDTO> getStaffByStore(UUID storeId, Pageable pageable) {
         return employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE, pageable)

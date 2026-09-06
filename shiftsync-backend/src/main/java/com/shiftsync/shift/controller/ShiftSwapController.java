@@ -84,4 +84,21 @@ public class ShiftSwapController {
         shiftSwapService.managerRejectSwapRequest(requestId, manager.getId());
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "Get my swap requests (Staff)")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @GetMapping("/users/me/swaps")
+    public ResponseEntity<java.util.List<ShiftSwapRequestDTO>> getMySwapRequests(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(shiftSwapService.getMySwapRequests(userDetails.getId()));
+    }
+
+    @Operation(summary = "Get all swap requests in store (Manager)")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @GetMapping("/stores/{storeId}/swaps")
+    public ResponseEntity<java.util.List<ShiftSwapRequestDTO>> getStoreSwapRequests(
+            @PathVariable UUID storeId,
+            @RequestParam(required = false) com.shiftsync.shift.enums.SwapStatus status) {
+        return ResponseEntity.ok(shiftSwapService.getStoreSwapRequests(storeId, status));
+    }
 }

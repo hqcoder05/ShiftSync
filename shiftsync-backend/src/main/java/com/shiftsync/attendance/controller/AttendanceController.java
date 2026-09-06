@@ -81,6 +81,24 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getStoreAttendance(storeId, start, end));
     }
 
+    @PutMapping("/stores/{storeId}/attendance/{attendanceId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<AttendanceDTO> updateAttendance(
+            @PathVariable UUID storeId,
+            @PathVariable UUID attendanceId,
+            @Valid @RequestBody com.shiftsync.attendance.dto.AttendanceUpdateRequest request) {
+        return ResponseEntity.ok(attendanceService.updateAttendance(storeId, attendanceId, request));
+    }
+
+    @DeleteMapping("/stores/{storeId}/attendance/{attendanceId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<Void> deleteAttendance(
+            @PathVariable UUID storeId,
+            @PathVariable UUID attendanceId) {
+        attendanceService.deleteAttendance(storeId, attendanceId);
+        return ResponseEntity.noContent().build();
+    }
+
     private AttendanceDTO toDTO(Attendance attendance) {
         return AttendanceDTO.builder()
                 .id(attendance.getId())

@@ -73,6 +73,31 @@ public class LeaveRequestService {
         return requests.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
+    public List<LeaveRequestDTO> getMyLeaveRequests(UUID staffId) {
+        return leaveRequestRepository.findByStaffId(staffId).stream()
+                .map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void cancelLeaveRequest(UUID storeId, UUID leaveId, UUID staffId) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
+
+        if (!leaveRequest.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Leave request does not belong to this store", HttpStatus.FORBIDDEN);
+        }
+
+        if (!leaveRequest.getStaff().getId().equals(staffId)) {
+            throw new BusinessException("You can only cancel your own leave requests", HttpStatus.FORBIDDEN);
+        }
+
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+            throw new BusinessException("Only pending leave requests can be cancelled", HttpStatus.BAD_REQUEST);
+        }
+
+        leaveRequestRepository.delete(leaveRequest);
+    }
+
     @Transactional
     public LeaveApproveResponse approveLeaveRequest(UUID storeId, UUID leaveId, UUID managerId) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)

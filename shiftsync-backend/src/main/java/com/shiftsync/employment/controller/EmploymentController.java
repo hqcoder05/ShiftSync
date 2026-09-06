@@ -39,6 +39,18 @@ public class EmploymentController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    @PutMapping("/stores/{storeId}/staff/{staffId}")
+    @Operation(summary = "Update staff employment details")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<EmploymentDTO> updateStaff(
+            @PathVariable UUID storeId,
+            @PathVariable UUID staffId,
+            @Valid @RequestBody com.shiftsync.employment.dto.EmploymentUpdateRequest request) {
+        
+        EmploymentDTO response = employmentService.updateEmployment(storeId, staffId, request);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/stores/{storeId}/staff/{staffId}")
     @Operation(summary = "Remove staff from a store (Soft delete)")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")

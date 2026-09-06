@@ -37,6 +37,15 @@ public class AttendanceAdjustmentController {
         return ResponseEntity.ok(service.createRequest(userDetails.getId(), request));
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "Get my adjustment requests (Staff)")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    public ResponseEntity<List<AdjustmentResponseDTO>> getMyRequests(
+            @PathVariable UUID storeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(service.getMyRequests(storeId, userDetails.getId()));
+    }
+
     @GetMapping
     @Operation(summary = "Get list of adjustment requests (Manager)")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")

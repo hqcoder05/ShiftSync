@@ -15,6 +15,8 @@ import com.shiftsync.store.repository.StoreConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.shiftsync.shared.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -167,6 +169,50 @@ public class AttendanceService {
         attendance.setCheckOutLng(longitude);
         attendance.setCheckOutPhoto(photo);
         return attendanceRepository.save(attendance);
+    }
+
+    @Transactional
+    public com.shiftsync.attendance.dto.AttendanceDTO updateAttendance(UUID storeId, UUID attendanceId, com.shiftsync.attendance.dto.AttendanceUpdateRequest request) {
+        Attendance attendance = attendanceRepository.findById(attendanceId)
+                .orElseThrow(() -> new BusinessException("Attendance not found", HttpStatus.NOT_FOUND));
+
+        if (!attendance.getShiftAssignment().getShift().getStore().getId().equals(storeId)) {
+            throw new BusinessException("Attendance does not belong to the specified store", HttpStatus.BAD_REQUEST);
+        }
+
+        if (request.getCheckInTime() != null) {
+            attendance.setCheckInTime(request.getCheckInTime());
+        }
+        if (request.getCheckOutTime() != null) {
+            attendance.setCheckOutTime(request.getCheckOutTime());
+        }
+
+        // recalculate status
+        StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId).orElseGet(StoreConfiguration::new);
+        Shift shift = attendance.getShiftAssignment().getShift();
+        LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        
+        AttendanceStatus calculatedStatus = AttendanceStatus.PRESENT;
+        if (attendance.getCheckInTime() != null) {
+            if (attendance.getCheckInTime().toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
+                calculatedStatus = AttendanceStatus.LATE;
+            }
+        }
+        attendance.setStatus(calculatedStatus);
+
+        return toDTO(attendanceRepository.save(attendance));
+    }
+
+    @Transactional
+    public void deleteAttendance(UUID storeId, UUID attendanceId) {
+        Attendance attendance = attendanceRepository.findById(attendanceId)
+                .orElseThrow(() -> new BusinessException("Attendance not found", HttpStatus.NOT_FOUND));
+
+        if (!attendance.getShiftAssignment().getShift().getStore().getId().equals(storeId)) {
+            throw new BusinessException("Attendance does not belong to the specified store", HttpStatus.BAD_REQUEST);
+        }
+
+        attendanceRepository.delete(attendance);
     }
 
     @Transactional(readOnly = true)

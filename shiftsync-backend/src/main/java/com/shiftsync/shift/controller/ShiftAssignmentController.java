@@ -41,4 +41,15 @@ public class ShiftAssignmentController {
             @PathVariable UUID shiftId) {
         return ResponseEntity.ok(assignmentService.getAssignmentsByShiftId(storeId, shiftId));
     }
+
+    @Operation(summary = "Remove a staff from a shift (Manager)")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @DeleteMapping("/{staffId}")
+    public ResponseEntity<Void> removeAssignment(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId,
+            @PathVariable UUID staffId) {
+        assignmentService.unassignStaffFromShift(storeId, shiftId, staffId);
+        return ResponseEntity.noContent().build();
+    }
 }
