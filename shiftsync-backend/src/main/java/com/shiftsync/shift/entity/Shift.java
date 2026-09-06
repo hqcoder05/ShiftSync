@@ -59,6 +59,9 @@ public class Shift {
     @Builder.Default
     private boolean isOpen = false;
 
+    @Version
+    private Long version;
+
     @OneToMany(mappedBy = "shift", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ShiftSkillRequirement> requirements = new ArrayList<>();
