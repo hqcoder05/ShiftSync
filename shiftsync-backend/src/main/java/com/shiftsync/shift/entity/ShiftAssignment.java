@@ -2,6 +2,7 @@ package com.shiftsync.shift.entity;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.shift.enums.AssignmentSource;
+import com.shiftsync.layout.entity.StoreZone;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -42,6 +43,10 @@ public class ShiftAssignment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", nullable = false)
     private User staff;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zone_id")
+    private StoreZone zone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
