@@ -44,7 +44,7 @@ public class Attendance {
     @Column(name = "check_in_lng")
     private Double checkInLng;
 
-    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Lob
     @Column(name = "check_in_photo")
     private byte[] checkInPhoto;
 
@@ -57,7 +57,7 @@ public class Attendance {
     @Column(name = "check_out_lng")
     private Double checkOutLng;
 
-    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Lob
     @Column(name = "check_out_photo")
     private byte[] checkOutPhoto;
 

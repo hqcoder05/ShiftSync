@@ -10,6 +10,7 @@ import java.util.UUID;
 public interface ShiftSwapRequestRepository extends JpaRepository<ShiftSwapRequest, UUID> {
     List<ShiftSwapRequest> findByFromStaffIdOrToStaffId(UUID fromStaffId, UUID toStaffId);
     List<ShiftSwapRequest> findByFromShiftId_StoreIdAndStatus(UUID storeId, SwapStatus status);
+    List<ShiftSwapRequest> findByFromShiftId_StoreId(UUID storeId);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(s) FROM ShiftSwapRequest s WHERE s.fromShift.store.id = :storeId " +
            "AND s.fromShift.shiftDate >= :startDate AND s.fromShift.shiftDate <= :endDate")
