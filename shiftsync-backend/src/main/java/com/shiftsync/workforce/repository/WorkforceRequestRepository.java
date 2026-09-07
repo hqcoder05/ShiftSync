@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
 
-@Repository
 public interface WorkforceRequestRepository extends JpaRepository<WorkforceRequest, UUID> {
     List<WorkforceRequest> findByTargetStoreIdOrderByCreatedAtDesc(UUID targetStoreId);
     List<WorkforceRequest> findByRequestingStoreIdOrderByCreatedAtDesc(UUID requestingStoreId);

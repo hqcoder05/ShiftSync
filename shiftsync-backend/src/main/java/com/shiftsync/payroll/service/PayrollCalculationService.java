@@ -103,9 +103,9 @@ public class PayrollCalculationService {
         List<ShiftAssignment> allAssignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
         List<Attendance> allAttendances = attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(storeId, startDate, endDate);
 
-        // Group Assignments by StaffId (Include COMPLETED or PUBLISHED shifts with attendance)
+        // Group Assignments by StaffId
         Map<UUID, List<ShiftAssignment>> assignmentsByStaff = allAssignments.stream()
-                .filter(a -> a.getShift().getStatus() == ShiftStatus.COMPLETED || a.getShift().getStatus() == ShiftStatus.PUBLISHED)
+                .filter(a -> a.getShift().getStatus() == ShiftStatus.COMPLETED)
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId()));
 
         // Group Attendances by ShiftAssignmentId
@@ -223,29 +223,13 @@ public class PayrollCalculationService {
                 LocalDate day1 = checkIn.toLocalDate();
                 LocalDate day2 = checkOut.toLocalDate();
 
-                double actualDurationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
-                
-                // Calculate scheduled hours for the shift
-                double scheduledHours = 0.0;
-                if (assignment.getShift().getStartTime() != null && assignment.getShift().getEndTime() != null) {
-                    if (assignment.getShift().getEndTime().isAfter(assignment.getShift().getStartTime())) {
-                        scheduledHours = Duration.between(assignment.getShift().getStartTime(), assignment.getShift().getEndTime()).toMinutes() / 60.0;
-                    } else {
-                        // Overnight shift
-                        scheduledHours = (24 * 60 - assignment.getShift().getStartTime().toSecondOfDay() / 60 + assignment.getShift().getEndTime().toSecondOfDay() / 60) / 60.0;
-                    }
-                }
-
-                // Rule: Check-in sớm hay check-out trễ vẫn tính lương đúng theo số giờ ca trên lịch
-                double effectiveHours = (scheduledHours > 0) ? scheduledHours : actualDurationHours;
-
                 if (day1.equals(day2)) {
-                    totalAcc.addSegment(effectiveHours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    double durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
+                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                 } else {
                     java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
-                    double day1Ratio = (actualDurationHours > 0) ? (Duration.between(checkIn, midnight).toMinutes() / 60.0) / actualDurationHours : 0.5;
-                    double day1Hours = effectiveHours * day1Ratio;
-                    double day2Hours = effectiveHours - day1Hours;
+                    double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
+                    double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
                     
                     totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                     totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());

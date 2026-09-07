@@ -9,7 +9,6 @@ import com.shiftsync.shift.entity.ShiftSwapRequest;
 import com.shiftsync.shift.enums.AssignmentSource;
 import com.shiftsync.shift.enums.SwapStatus;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
-import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shift.repository.ShiftSwapRequestRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +26,6 @@ public class ShiftSwapService {
 
     private final ShiftSwapRequestRepository shiftSwapRequestRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
-    private final ShiftRepository shiftRepository;
     private final UserRepository userRepository;
     private final ShiftValidationService shiftValidationService;
     private final com.shiftsync.notification.service.NotificationService notificationService;
@@ -187,5 +185,38 @@ public class ShiftSwapService {
             "The shift swap request you accepted has been rejected by the manager.",
             null
         );
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<com.shiftsync.shift.dto.ShiftSwapRequestDTO> getMySwapRequests(UUID staffId) {
+        return shiftSwapRequestRepository.findByFromStaffIdOrToStaffId(staffId, staffId).stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<com.shiftsync.shift.dto.ShiftSwapRequestDTO> getStoreSwapRequests(UUID storeId, SwapStatus status) {
+        java.util.List<ShiftSwapRequest> requests;
+        if (status != null) {
+            requests = shiftSwapRequestRepository.findByFromShiftId_StoreIdAndStatus(storeId, status);
+        } else {
+            requests = shiftSwapRequestRepository.findByFromShiftId_StoreId(storeId);
+        }
+        return requests.stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    private com.shiftsync.shift.dto.ShiftSwapRequestDTO mapToDTO(ShiftSwapRequest swap) {
+        return com.shiftsync.shift.dto.ShiftSwapRequestDTO.builder()
+                .id(swap.getId())
+                .fromStaffId(swap.getFromStaff().getId())
+                .fromShiftId(swap.getFromShift().getId())
+                .toStaffId(swap.getToStaff().getId())
+                .toShiftId(swap.getToShift() != null ? swap.getToShift().getId() : null)
+                .status(swap.getStatus())
+                .approvedById(swap.getApprovedBy() != null ? swap.getApprovedBy().getId() : null)
+                .employeeAccepted(swap.isEmployeeAccepted())
+                .build();
     }
 }

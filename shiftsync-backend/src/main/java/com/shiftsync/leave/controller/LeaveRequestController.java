@@ -43,6 +43,25 @@ public class LeaveRequestController {
         return ResponseEntity.ok(leaveRequestService.getLeaveRequests(storeId, status));
     }
 
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @GetMapping("/my")
+    public ResponseEntity<List<LeaveRequestDTO>> getMyLeaveRequests(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        return ResponseEntity.ok(leaveRequestService.getMyLeaveRequests(userDetails.getId()));
+    }
+
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancelLeaveRequest(
+            @PathVariable UUID storeId,
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        leaveRequestService.cancelLeaveRequest(storeId, id, userDetails.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PutMapping("/{id}/approve")
     public ResponseEntity<LeaveApproveResponse> approveLeaveRequest(

@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface AttendanceAdjustmentRequestRepository extends JpaRepository<AttendanceAdjustmentRequest, UUID> {
     List<AttendanceAdjustmentRequest> findByShiftStoreId(UUID storeId);
     List<AttendanceAdjustmentRequest> findByShiftStoreIdAndStatus(UUID storeId, AdjustmentStatus status);
+    List<AttendanceAdjustmentRequest> findByShiftStoreIdAndStaffId(UUID storeId, UUID staffId);
 }

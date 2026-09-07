@@ -18,7 +18,6 @@ import com.shiftsync.store.entity.Store;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -45,8 +44,6 @@ class ShiftAssignmentServiceTest {
     @Mock private PayrollPeriodRepository payrollPeriodRepository;
     @Mock private ShiftValidationService shiftValidationService;
     @Mock private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
-    
-    // [THÊM MỚI]: Khai báo Mock cho NotificationService
     @Mock private com.shiftsync.notification.service.NotificationService notificationService;
 
     private ShiftAssignmentValidator shiftAssignmentValidator;
@@ -66,9 +63,8 @@ class ShiftAssignmentServiceTest {
             availabilityRepository, blackoutDateRepository, shiftAssignmentRepository, staffSkillRepository, shiftValidationService
         );
         service = new ShiftAssignmentService(
-            shiftRepository, shiftAssignmentRepository, availabilityRepository, blackoutDateRepository, employmentRepository, userRepository,
-            // [THÊM MỚI]: Truyền notificationService vào vị trí thứ 9
-            payrollPeriodRepository, shiftValidationService, notificationService, shiftAssignmentValidator, staffSkillRepository
+            shiftRepository, shiftAssignmentRepository, employmentRepository, userRepository,
+            payrollPeriodRepository, notificationService, shiftAssignmentValidator
         );
 
         storeId = UUID.randomUUID();

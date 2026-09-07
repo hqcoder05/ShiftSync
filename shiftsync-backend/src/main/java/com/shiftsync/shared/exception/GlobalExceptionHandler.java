@@ -2,7 +2,6 @@ package com.shiftsync.shared.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -87,21 +86,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(
             buildResponse("NOT_FOUND", "Resource not found", null), 
             HttpStatus.NOT_FOUND
-        );
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        String message = "Dữ liệu vi phạm ràng buộc duy nhất.";
-        String detail = ex.getMostSpecificCause().getMessage();
-        if (detail != null && detail.contains("email")) {
-            message = "Email này đã tồn tại trong hệ thống. Vui lòng dùng email khác.";
-        } else if (detail != null && detail.contains("phone")) {
-            message = "Số điện thoại này đã được dùng bởi tài khoản khác.";
-        }
-        return new ResponseEntity<>(
-            buildResponse("CONFLICT", message, null),
-            HttpStatus.CONFLICT
         );
     }
 

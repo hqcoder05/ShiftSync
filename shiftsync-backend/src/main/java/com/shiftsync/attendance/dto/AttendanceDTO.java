@@ -28,5 +28,4 @@ public class AttendanceDTO {
     private Double checkOutLng;
     private String checkInPhotoBase64;
     private String checkOutPhotoBase64;
-    private Integer lateMinutes;
 }

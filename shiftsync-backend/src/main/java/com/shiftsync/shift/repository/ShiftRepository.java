@@ -12,8 +12,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ShiftRepository extends JpaRepository<Shift, UUID> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill", "assignments", "assignments.staff"})
     List<Shift> findByStoreId(UUID storeId);
     
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill", "assignments", "assignments.staff"})
     List<Shift> findByStoreIdAndShiftDateBetween(UUID storeId, LocalDate startDate, LocalDate endDate);
     
     Optional<Shift> findByIdAndStoreId(UUID id, UUID storeId);

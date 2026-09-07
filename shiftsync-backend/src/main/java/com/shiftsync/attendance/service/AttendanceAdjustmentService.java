@@ -84,6 +84,12 @@ public class AttendanceAdjustmentService {
         return mapToDTO(requestRepository.save(request));
     }
 
+    public List<AdjustmentResponseDTO> getMyRequests(UUID storeId, UUID staffId) {
+        return requestRepository.findByShiftStoreIdAndStaffId(storeId, staffId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<AdjustmentResponseDTO> getRequests(UUID storeId, AdjustmentStatus status) {
         List<AttendanceAdjustmentRequest> requests;
         if (status != null) {

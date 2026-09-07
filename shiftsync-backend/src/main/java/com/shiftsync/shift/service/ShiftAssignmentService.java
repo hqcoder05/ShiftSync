@@ -1,7 +1,6 @@
 package com.shiftsync.shift.service;
 
-import com.shiftsync.availability.repository.AvailabilityRepository;
-import com.shiftsync.availability.repository.BlackoutDateRepository;
+import com.shiftsync.notification.service.NotificationService;
 import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
@@ -29,15 +28,11 @@ public class ShiftAssignmentService {
 
     private final ShiftRepository shiftRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
-    private final AvailabilityRepository availabilityRepository;
-    private final BlackoutDateRepository blackoutDateRepository;
     private final EmploymentRepository employmentRepository;
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
-    private final ShiftValidationService shiftValidationService;
-    private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final NotificationService notificationService;
     private final ShiftAssignmentValidator shiftAssignmentValidator;
-    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Transactional
     
@@ -73,10 +68,9 @@ public class ShiftAssignmentService {
         assignment = shiftAssignmentRepository.save(assignment);
 
         try {
-            // [SỬA LỖI LẦN CUỐI]: Thêm tham số NotificationType.SHIFT_REMINDER
             notificationService.sendNotification(
                     staff.getId(),
-                    com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
+                    com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
                     "Phân công ca làm việc",
                     "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
                     java.util.Map.of("shiftId", shift.getId().toString())
@@ -91,6 +85,19 @@ public class ShiftAssignmentService {
                 .source(assignment.getSource())
                 .assignedAt(assignment.getAssignedAt())
                 .build();
+    }
+
+    public void unassignStaffFromShift(UUID storeId, UUID shiftId, UUID staffId) {
+        Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
+        
+        ShiftAssignment assignment = shiftAssignmentRepository.findByShiftId(shiftId).stream()
+                .filter(a -> a.getStaff().getId().equals(staffId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Staff is not assigned to this shift", HttpStatus.NOT_FOUND));
+                
+        shiftAssignmentRepository.delete(assignment);
     }
 
     public java.util.List<ShiftAssignmentResponseDTO> getAssignmentsByShiftId(UUID storeId, UUID shiftId) {
