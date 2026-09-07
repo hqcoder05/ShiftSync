@@ -67,8 +67,8 @@ Hệ thống được thiết kế theo kiến trúc **Full-stack Monorepo** (g�
 
 ## 🚀 5. Hướng dẫn cài đặt & Khởi chạy (Local)
 
-Vui lòng xem chi tiết hướng dẫn cài đặt Backend tại:
-👉 [Xem Hướng dẫn cài đặt Backend (SETUP_BACKEND.md)](SETUP_BACKEND.md)
+Vui lòng xem chi tiết hướng dẫn cài đặt toàn bộ hệ thống (Backend, Web, Mobile) tại:
+👉 [Xem Hướng dẫn cài đặt (SETUP.md)](SETUP.md)
 
 ---
 *Dự án Thực tập tốt nghiệp.*
