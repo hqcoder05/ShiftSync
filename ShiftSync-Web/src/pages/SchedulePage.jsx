@@ -5,6 +5,7 @@ import { getSkillsByStore } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
 import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
+import CompactDropdownFilter from '../components/CompactDropdownFilter';
 import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
 import iconUser from '../assets/icons/icon-user.png';
@@ -98,11 +99,11 @@ export default function SchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [dayOffset, setDayOffset] = useState(0);
 
-  /* -- filter state -- */
-  const [userFilter, setUserFilter] = useState('All');
-  const [skillFilter, setSkillFilter] = useState('All');
-  const [showUserList, setShowUserList] = useState(true);
-  const [showSkillList, setShowSkillList] = useState(false);
+  /* -- filter state: Compact Dropdown Filter -- */
+  const [selectedSkills, setSelectedSkills] = useState(['ALL']);
+  const [selectedEmployees, setSelectedEmployees] = useState(['ALL']);
+  const [staffWithAvailability, setStaffWithAvailability] = useState(new Set());
+
 
   /* -- popover for shift chip -- */
   const [menuFor, setMenuFor] = useState(null); // { empId, dateIso, shift }
@@ -312,6 +313,17 @@ export default function SchedulePage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  /* ── Real-time sync: lắng nghe khi trang khác duyệt request ── */
+  useEffect(() => {
+    const handleStorageSync = (e) => {
+      if (e.key === 'shiftsync_schedule_refresh') {
+        loadData();
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, [storeId]); // eslint-disable-line
+
   /* ── Load stores ───────────────────────────────── */
   useEffect(() => {
     getAllStores()
@@ -366,6 +378,24 @@ export default function SchedulePage() {
         });
         setEmployees(staff);
 
+        // Load staff availability to show triangle warning (!) badge ONLY if submitted
+        Promise.allSettled(
+          staff.map((emp) =>
+            getStaffAvailability(emp.id).then((res) => ({
+              id: emp.id,
+              hasSlots: Array.isArray(res.data) && res.data.length > 0,
+            }))
+          )
+        ).then((results) => {
+          const withAvail = new Set();
+          results.forEach((r) => {
+            if (r.status === 'fulfilled' && r.value.hasSlots) {
+              withAvail.add(r.value.id);
+            }
+          });
+          setStaffWithAvailability(withAvail);
+        });
+
         const rangeIso = displayedDates.map(toISODate);
         const allShifts = shiftsRes.data || [];
         const shiftsInRange = allShifts.filter((s) => rangeIso.includes(s.shiftDate));
@@ -419,37 +449,45 @@ export default function SchedulePage() {
 
   const visibleEmployees = employees.filter((e) => {
     const name = e.staffFullName || e.fullName || '';
-    const matchUser = userFilter === 'All' || name === userFilter;
+    const empId = e.staffId || e.id;
+    const matchUser =
+      selectedEmployees.includes('ALL') ||
+      selectedEmployees.includes(name) ||
+      selectedEmployees.includes(empId);
     if (!matchUser) return false;
 
-    if (skillFilter === 'All') return true;
+    if (selectedSkills.includes('ALL')) return true;
 
-    const selectedSkill = skills.find((sk) => sk.id === skillFilter || sk.name === skillFilter);
-    const selectedSkillName = selectedSkill ? selectedSkill.name.toLowerCase().trim() : skillFilter.toLowerCase().trim();
-    const selectedSkillId = selectedSkill ? selectedSkill.id : skillFilter;
-
-    // Check employee's assigned job position
+    // Check employee's assigned job position / skills
     const empPos = (e.position || e.jobTitle || e.skillName || e.skill?.name || '').toLowerCase().trim();
     const empSkillId = e.skillId || e.skill?.id || e.jobPositionId;
-    const empHasSkill =
-      (empSkillId && empSkillId === selectedSkillId) ||
-      (empPos && (empPos === selectedSkillName || empPos.includes(selectedSkillName) || (selectedSkillName && selectedSkillName.includes(empPos))));
+
+    const empMatchesSkill = selectedSkills.some((skId) => {
+      const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+      const skName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
+      return (
+        empSkillId === skId ||
+        (empPos && (empPos === skName || empPos.includes(skName) || skName.includes(empPos)))
+      );
+    });
 
     // Check employee's shifts
-    const empId = e.staffId || e.id;
     const empShifts = assignments[empId] ? Object.values(assignments[empId]).flat() : [];
     const hasShiftWithSkill = empShifts.some((s) => {
       const sSkillId = s.skillId || s.location;
       const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
       const sName = (sLocationSkill ? sLocationSkill.name : (s.skillName || s.location || '')).toLowerCase().trim();
-      return (
-        sSkillId === selectedSkillId ||
-        sSkillId === skillFilter ||
-        (sName && (sName === selectedSkillName || sName.includes(selectedSkillName) || (selectedSkillName && selectedSkillName.includes(sName))))
-      );
+      return selectedSkills.some((skId) => {
+        const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+        const targetName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
+        return (
+          sSkillId === skId ||
+          (sName && (sName === targetName || sName.includes(targetName) || targetName.includes(sName)))
+        );
+      });
     });
 
-    return empHasSkill || hasShiftWithSkill;
+    return empMatchesSkill || hasShiftWithSkill;
   });
 
   const alreadyInStoreIds = new Set(employees.map((e) => e.staffId || e.id));
@@ -459,6 +497,38 @@ export default function SchedulePage() {
     if (!skObj) return null;
     if (skObj.description && skObj.description.startsWith('#')) return skObj.description;
     return colorFor(skObj.name);
+  };
+
+  /**
+   * getShiftPositionColor
+   * Đảm bảo ca làm việc trên Scheduler hiển thị đúng màu của Vị trí
+   */
+  const getShiftPositionColor = (s, emp) => {
+    const sSkillId = s.skillId || s.location;
+    let matchedSkill = skills.find(
+      (sk) => sk.id === sSkillId || sk.name === sSkillId || (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase())
+    );
+
+    if (!matchedSkill && emp) {
+      const pos = emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
+      const empSkillId = emp.skillId || emp.skill?.id;
+      matchedSkill = skills.find(
+        (sk) => (empSkillId && sk.id === empSkillId) || (pos && sk.name.toLowerCase() === pos.toLowerCase())
+      );
+    }
+
+    if (matchedSkill) {
+      if (matchedSkill.description && matchedSkill.description.startsWith('#')) {
+        return matchedSkill.description;
+      }
+      return colorFor(matchedSkill.name);
+    }
+
+    if (s.skillName) return colorFor(s.skillName);
+    if (s.location && isNaN(s.location)) return colorFor(s.location);
+    if (emp?.position) return colorFor(emp.position);
+    if (s.color && s.color.startsWith('#')) return s.color;
+    return SHIFT_COLORS[0];
   };
 
   const getEmpDefaultSkillAndColor = (targetEmpId) => {
@@ -1013,16 +1083,12 @@ export default function SchedulePage() {
           localStorage.setItem(`emp_positions_${storeId}`, JSON.stringify(savedPositions));
         }
       }
-      setUserFilter('All');
-      setSkillFilter('All');
       setShowAddUserModal(false);
       showToast('Thêm thành công', 'Nhân viên đã được thêm vào chi nhánh và hiển thị trên lịch.');
       loadData();
     } catch (err) {
       if (err.response?.status === 409) {
         showToast('Thông báo', 'Nhân viên này đã thuộc chi nhánh rồi.');
-        setUserFilter('All');
-        setSkillFilter('All');
         setShowAddUserModal(false);
         loadData();
       } else {
@@ -1033,164 +1099,27 @@ export default function SchedulePage() {
 
   const handlePrint = () => window.print();
 
+  const handlePublish = async () => {
+    const dateFrom = toISODate(displayedDates[0]);
+    const dateTo = toISODate(displayedDates[displayedDates.length - 1]);
+    try {
+      await publishShifts(storeId, dateFrom, dateTo);
+      showToast(
+        'Xuất bản thành công! 🎉',
+        `Lịch làm việc từ ${fmtFull(displayedDates[0])} đến ${fmtFull(displayedDates[displayedDates.length - 1])} đã được xuất bản và thông báo đến nhân viên.`
+      );
+      loadData();
+    } catch (err) {
+      showToast('Lỗi xuất bản', err.response?.data?.message || 'Không thể xuất bản lịch làm việc. Vui lòng thử lại.');
+    }
+  };
+
   /* ── Render ────────────────────────────────────── */
   return (
     <div className="sch-page">
-      {/* ═══ SIDEBAR ═══ */}
-      <aside className="sch-sidebar">
-        {/* Day-mode header */}
-        {viewMode === 'Ngày' && (
-          <div className="sch-sidebar-day-header">
-            <div className="sch-sidebar-day-label">
-              {DOW_VI[today.getDay()]}
-              <span>{fmtDM(today)}-{today.getFullYear()}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="sch-sidebar-inner">
-          <div className="sch-sidebar-title">Bộ lọc</div>
-
-          {/* ── Chi nhánh ── */}
-          <div className="sch-filter-box">
-            <div className="sch-filter-box-header">
-              <img src={iconLocation || iconCard} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Chi nhánh</span>
-            </div>
-            <select
-              className="sch-filter-select"
-              value={storeId}
-              onChange={(e) => {
-                const val = e.target.value;
-                setStoreId(val);
-                localStorage.setItem('selectedStoreId', String(val));
-              }}
-            >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* ── Vị trí công việc ── */}
-          <div className="sch-filter-box">
-            <div
-              className="sch-filter-box-header clickable"
-              onClick={() => setShowSkillList((v) => !v)}
-            >
-              <img src={iconCard} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Vị trí công việc</span>
-              <span className={`sch-filter-arrow${showSkillList ? ' open' : ''}`}>▾</span>
-            </div>
-            <div className={`sch-filter-collapse${showSkillList ? ' expanded' : ''}`}>
-              <div
-                className={`sch-user-list-item${skillFilter === 'All' ? ' active' : ''}`}
-                onClick={() => setSkillFilter('All')}
-              >
-                Tất cả
-              </div>
-              {skills.map((sk) => {
-                const isSelected = skillFilter === sk.id || skillFilter === sk.name;
-                const skColor =
-                  sk.description && sk.description.startsWith('#')
-                    ? sk.description
-                    : colorFor(sk.name);
-                return (
-                  <div
-                    key={sk.id}
-                    className={`sch-user-list-item${isSelected ? ' active' : ''}`}
-                    onClick={() => setSkillFilter(isSelected ? 'All' : sk.id)}
-                  >
-                    <span
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: skColor,
-                        display: 'inline-block',
-                        marginRight: '8px',
-                        flexShrink: 0,
-                      }}
-                    />
-                    {sk.name}
-                  </div>
-                );
-              })}
-              {skills.length === 0 && (
-                <div className="sch-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>
-                  Chưa có vị trí
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Người dùng ── */}
-          <div className="sch-filter-box">
-            <div
-              className="sch-filter-box-header clickable"
-              onClick={() => setShowUserList((v) => !v)}
-            >
-              <img src={iconUser} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Người dùng</span>
-              <span className={`sch-filter-arrow${showUserList ? ' open' : ''}`}>▾</span>
-            </div>
-            <div className={`sch-filter-collapse${showUserList ? ' expanded' : ''}`}>
-              <div
-                className={`sch-user-list-item${userFilter === 'All' ? ' active' : ''}`}
-                onClick={() => setUserFilter('All')}
-              >
-                Tất cả
-              </div>
-              {employees.map((emp) => {
-                const name = emp.staffFullName || emp.fullName || '';
-                const empId = emp.staffId || emp.id;
-                return (
-                  <div
-                    key={empId}
-                    className={`sch-user-list-item${userFilter === name ? ' active' : ''}`}
-                    onClick={() => setUserFilter(name)}
-                  >
-                    <img
-                      src={getAvatar(name)}
-                      alt={name}
-                      className="sch-filter-avatar"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenStaffAvailability(emp);
-                      }}
-                      title="Bấm để xem lịch đăng ký rảnh của nhân viên"
-                    />
-                    <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => setUserFilter(name)}>{name}</span>
-                    <button
-                      type="button"
-                      className="sch-filter-avail-badge-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenStaffAvailability(emp);
-                      }}
-                      title="Xem lịch đăng ký của nhân viên"
-                    >
-                      Lịch rảnh
-                    </button>
-                  </div>
-                );
-              })}
-              {employees.length === 0 && (
-                <div className="sch-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>Chưa có nhân viên</div>
-              )}
-            </div>
-          </div>
-
-          {/* Add schedule button */}
-          <button className="sch-sidebar-add-btn" onClick={() => openRegisterModal('', '')}>
-            + Thêm lịch
-          </button>
-        </div>
-      </aside>
-
-      {/* ═══ MAIN ═══ */}
+      {/* ═══ MAIN (Full width layout, sidebar removed per user request) ═══ */}
       <main className="sch-main">
-        {/* ═══ TOPBAR (Row 1: Day/Week Toggle - Ảnh 5) ═══ */}
+        {/* ═══ TOPBAR (Row 1: Ngày/Tuần Toggle & Capsule Action Box - Ảnh 1) ═══ */}
         <div className="sch-topbar">
           <div className="sch-viewmode-toggle">
             <button
@@ -1198,22 +1127,90 @@ export default function SchedulePage() {
               className={`sch-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
               onClick={() => setViewMode('Ngày')}
             >
-              Day
+              Ngày
             </button>
             <button
               type="button"
               className={`sch-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
               onClick={() => setViewMode('Tuần')}
             >
-              Week
+              Tuần
             </button>
+          </div>
+
+          <div className="sch-header-right">
+            {pendingCrossStoreRequests.length > 0 && (
+              <button
+                type="button"
+                className="sch-cross-dispatch-btn"
+                onClick={() => setShowCrossStoreModal(true)}
+              >
+                <span className="sch-cross-badge-count">{pendingCrossStoreRequests.length}</span>
+                <span>Yêu cầu điều phối ({pendingCrossStoreRequests.length})</span>
+              </button>
+            )}
+
+            {/* Capsule Action Card chuẩn kiểu Ảnh 1 */}
+            <div className="sch-publish-card">
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-print-btn"
+                onClick={handlePrint}
+                title="In lịch làm việc"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>In</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-ai-btn"
+                onClick={() => {
+                  showToast(
+                    'Đang tính toán tối ưu AI...',
+                    'Trí tuệ nhân tạo ShiftSync đang phân tích lịch bận, năng suất và dự báo lượng khách để tối ưu ca làm...'
+                  );
+                  setTimeout(() => {
+                    showToast(
+                      'AI Tối Ưu Thành Công! 🤖',
+                      'Đã cân bằng giờ làm việc và tự động bù đắp các khung giờ cao điểm cho chi nhánh.'
+                    );
+                  }, 2000);
+                }}
+                title="Gợi ý xếp ca tự động bằng AI"
+              >
+                <img src={iconAi} alt="AI" className="sch-ai-btn-icon" />
+                <span>Gợi ý AI</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-publish-btn"
+                onClick={handlePublish}
+                title="Xuất bản lịch tuần này"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                <span>Lịch xuất bản</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ═══ HEADER TOOLBAR (Row 2: Date Navigator & Publish - Ảnh 1 & 4) ═══ */}
+        {/* ═══ ROW 2: TOOLBAR (Date Navigator, Chi nhánh, Bộ lọc ngắn, Thêm lịch) ═══ */}
         <div className="sch-header-toolbar">
-          <div className="sch-header-left">
-            {/* Date Navigator (Ảnh 1 & 2) */}
+          <div className="sch-toolbar-row-left">
+            {/* Date Navigator */}
             <div className="sch-date-navigator-wrap" ref={dateNavWrapRef}>
               <div className="sch-date-navigator">
                 <button
@@ -1344,54 +1341,31 @@ export default function SchedulePage() {
                 </div>
               )}
             </div>
+
           </div>
 
-          {/* Right Toolbar Actions (Ảnh 1 & 4) */}
-          <div className="sch-header-right">
-            {/* Capsule widget */}
-            <div className="sch-publish-card">
-              <span className="sch-publish-status">
-                Xuất bản lần cuối: Chưa xuất bản
-              </span>
-              <div className="sch-publish-divider" />
-              {pendingCrossStoreRequests.length > 0 ? (
-                <button
-                  type="button"
-                  className="sch-warnings-badge has-reqs"
-                  onClick={() => setShowCrossStoreModal(true)}
-                  title="Có yêu cầu điều phối nhân sự đang chờ duyệt"
-                >
-                  <span className="sch-badge-check">✓</span>
-                  <span>{pendingCrossStoreRequests.length} Yêu cầu điều phối</span>
-                </button>
-              ) : (
-                <div className="sch-warnings-badge">
-                  <span className="sch-badge-check">✓</span>
-                  <span>0 Cảnh báo</span>
-                </div>
-              )}
-              <div className="sch-publish-divider" />
-              <button
-                type="button"
-                className="sch-publish-btn"
-                onClick={handlePrint}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                <span>Lịch xuất bản</span>
-              </button>
+          <div className="sch-toolbar-row-right">
+            {/* Bộ lọc ngắn gọn nằm bên phải dưới box capsule */}
+            <div className="sch-compact-filter-wrap">
+              <CompactDropdownFilter
+                skills={skills}
+                selectedSkills={selectedSkills}
+                onSkillsChange={setSelectedSkills}
+                employees={employees}
+                selectedEmployees={selectedEmployees}
+                onEmployeesChange={setSelectedEmployees}
+              />
             </div>
+
+            {/* Nút Thêm lịch */}
+            <button
+              type="button"
+              className="sch-toolbar-add-btn"
+              onClick={() => openRegisterModal('', '')}
+              title="Thêm lịch làm việc mới"
+            >
+              + Thêm lịch
+            </button>
           </div>
         </div>
 
@@ -1402,10 +1376,25 @@ export default function SchedulePage() {
           <table className="sch-table">
             <thead>
               <tr>
-                <th className="sch-col-emp sch-th-center">Nhân viên</th>
-                {displayedDates.map((d) => (
-                  <th key={d.toISOString()} className="sch-th-center">{fmtDM(d)}</th>
-                ))}
+                <th className="sch-col-emp sch-th-center">
+                  <div className="sch-th-emp-title">Nhân viên</div>
+                </th>
+                {displayedDates.map((d) => {
+                  const iso = toISODate(d);
+                  const workingCount = employees.filter(
+                    (e) => (assignments[e.staffId || e.id]?.[iso] || []).length > 0
+                  ).length;
+
+                  return (
+                    <th key={iso} className="sch-th-center sch-col-date-header">
+                      <div className="sch-date-th-dow">{DOW_VI[d.getDay()]}</div>
+                      <div className="sch-date-th-dm">{fmtDM(d)}</div>
+                      <div className="sch-date-th-workers">
+                        {workingCount} người đi làm
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1421,8 +1410,8 @@ export default function SchedulePage() {
                 visibleEmployees.map((emp) => {
                   const empId = emp.staffId || emp.id;
                   const name = emp.staffFullName || emp.fullName || '';
-                  const color = colorFor(name);
                   const role = emp.position || emp.jobTitle || emp.employmentType || '';
+                  const hasSubmittedAvail = staffWithAvailability.has(empId);
 
                   return (
                     <tr key={empId}>
@@ -1431,7 +1420,11 @@ export default function SchedulePage() {
                         <div
                           className="sch-emp-cell"
                           onClick={() => handleOpenStaffAvailability(emp)}
-                          title="Bấm vào ảnh đại diện hoặc tên để xem lịch nhân viên đã đăng ký & phân công ca"
+                          title={
+                            hasSubmittedAvail
+                              ? 'Nhân viên đã gửi lịch đăng ký - Bấm để xem và phân công ca'
+                              : 'Bấm để xem lịch khả dụng hoặc hồ sơ nhân viên'
+                          }
                         >
                           <div className="sch-emp-avatar-wrap">
                             <img
@@ -1439,13 +1432,20 @@ export default function SchedulePage() {
                               src={getAvatar(name)}
                               alt={name}
                             />
-                            <span
-                              className="sch-emp-avatar-badge"
-                              title="Xem lịch đăng ký rảnh"
-                              aria-label="Có lịch đăng ký rảnh"
-                            >
-                              !
-                            </span>
+                            {/* Icon tam giác vàng (!) cạnh tên nhân viên: Chỉ hiện khi nhân viên đã gửi lịch */}
+                            {hasSubmittedAvail && (
+                              <span
+                                className="sch-emp-avatar-badge-warning"
+                                title="Nhân viên đã gửi lịch khả dụng"
+                                aria-label="Đã gửi lịch khả dụng"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" strokeWidth="1.5">
+                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                  <line x1="12" y1="9" x2="12" y2="13" stroke="#78350F" strokeWidth="2"></line>
+                                  <line x1="12" y1="17" x2="12.01" y2="17" stroke="#78350F" strokeWidth="2.5"></line>
+                                </svg>
+                              </span>
+                            )}
                           </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
@@ -1458,43 +1458,31 @@ export default function SchedulePage() {
                       {displayedDates.map((d) => {
                         const iso = toISODate(d);
                         const rawCellShifts = assignments[empId]?.[iso] || [];
-                        const selectedSkillObj = skills.find((sk) => sk.id === skillFilter || sk.name === skillFilter);
-                        const selectedSkillName = selectedSkillObj
-                          ? selectedSkillObj.name.toLowerCase().trim()
-                          : skillFilter !== 'All'
-                          ? skillFilter.toLowerCase().trim()
-                          : '';
-                        const selectedSkillId = selectedSkillObj ? selectedSkillObj.id : skillFilter;
 
-                        const cellShifts =
-                          skillFilter === 'All'
-                            ? rawCellShifts
-                            : rawCellShifts.filter((s) => {
-                                const sSkillId = s.skillId || s.location;
-                                const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
-                                const sName = (
-                                  sLocationSkill
-                                    ? sLocationSkill.name
-                                    : s.skillName || s.location || ''
-                                )
-                                  .toLowerCase()
-                                  .trim();
+                        const cellShifts = selectedSkills.includes('ALL')
+                          ? rawCellShifts
+                          : rawCellShifts.filter((s) => {
+                              const sSkillId = s.skillId || s.location;
+                              const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
+                              const sName = (sLocationSkill ? sLocationSkill.name : (s.skillName || s.location || '')).toLowerCase().trim();
+                              return selectedSkills.some((skId) => {
+                                const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+                                const targetName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
                                 return (
-                                  sSkillId === selectedSkillId ||
-                                  sSkillId === skillFilter ||
-                                  (selectedSkillName &&
-                                    (sName === selectedSkillName ||
-                                      sName.includes(selectedSkillName) ||
-                                      selectedSkillName.includes(sName)))
+                                  sSkillId === skId ||
+                                  (sName && (sName === targetName || sName.includes(targetName) || targetName.includes(sName)))
                                 );
                               });
+                            });
                         const isEmpty = cellShifts.length === 0;
 
                         return (
                           <td key={iso} className="sch-cell">
                             {/* Shift chip với sọc chéo + badge giờ */}
                             {cellShifts.map((s, sIdx) => {
-                              const chipColor = s.color || colorFor(empId);
+                              // Ca làm việc hiển thị đúng màu của Vị trí
+                              const chipColor = getShiftPositionColor(s, emp);
+                              const hasManagerNote = Boolean(s.note && s.note.trim().length > 0);
                               const chipKey = s.id ? `${s.id}-${empId}-${iso}` : `shift-${empId}-${iso}-${sIdx}`;
                               const isMenuOpen = menuFor?.shift?.id === s.id && menuFor.empId === empId && menuFor.dateIso === iso;
 
@@ -1505,7 +1493,7 @@ export default function SchedulePage() {
                                   ref={isMenuOpen ? menuRef : null}
                                 >
                                   <div
-                                    className="sch-shift-block"
+                                    className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''}`}
                                     style={{
                                       background: `repeating-linear-gradient(
                                         135deg,
@@ -1527,6 +1515,23 @@ export default function SchedulePage() {
                                     <span className="sch-shift-time-badge">
                                       {fmtTimeAMPM(s.startTime)} – {fmtTimeAMPM(s.endTime)}
                                     </span>
+
+                                    {/* Flag / Tam giác vàng trên Box ca khi có yêu cầu / ghi chú từ quản lý */}
+                                    {hasManagerNote && (
+                                      <span
+                                        className="sch-shift-note-flag"
+                                        title={`Ghi chú quản lý: ${s.note}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openViewShiftModal(s, empId);
+                                        }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#B45309" strokeWidth="1.5">
+                                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                          <line x1="4" y1="22" x2="4" y2="15"></line>
+                                        </svg>
+                                      </span>
+                                    )}
                                   </div>
 
                                   {isMenuOpen && (

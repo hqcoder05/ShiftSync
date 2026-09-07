@@ -82,11 +82,43 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Dashboard Filter Bar states
-  const [filterDateMode, setFilterDateMode] = useState('today'); // 'today' | 'custom'
-  const [filterCustomDate, setFilterCustomDate] = useState('');
-  const [filterEmployee, setFilterEmployee] = useState('ALL');
-  const [filterPosition, setFilterPosition] = useState('ALL');
+  // Section-specific filter states (No icons, independent per section)
+  // Section 1: Lịch làm việc hôm nay
+  const [filterS1DateMode, setFilterS1DateMode] = useState('today');
+  const [filterS1CustomDate, setFilterS1CustomDate] = useState('');
+  const [filterS1Employee, setFilterS1Employee] = useState('ALL');
+  const [filterS1WeekOffset, setFilterS1WeekOffset] = useState(0);
+
+  // Section 2: Thông báo chấm công
+  const [filterS2DateMode, setFilterS2DateMode] = useState('today');
+  const [filterS2CustomDate, setFilterS2CustomDate] = useState('');
+  const [filterS2Employee, setFilterS2Employee] = useState('ALL');
+  const [filterS2WeekOffset, setFilterS2WeekOffset] = useState(0);
+
+  // Section 3: Tổng quan hôm nay
+  const [filterS3DateMode, setFilterS3DateMode] = useState('today');
+  const [filterS3CustomDate, setFilterS3CustomDate] = useState('');
+  const [filterS3Employee, setFilterS3Employee] = useState('ALL');
+  const [filterS3WeekOffset, setFilterS3WeekOffset] = useState(0);
+
+  // Section 4: Ca làm việc được phân công
+  const [filterS4DateMode, setFilterS4DateMode] = useState('week');
+  const [filterS4CustomDate, setFilterS4CustomDate] = useState('');
+  const [filterS4Employee, setFilterS4Employee] = useState('ALL');
+  const [filterS4Position, setFilterS4Position] = useState('ALL');
+  const [filterS4WeekOffset, setFilterS4WeekOffset] = useState(0);
+
+  // Section 5: Dự báo lương
+  const [filterS5DateMode, setFilterS5DateMode] = useState('week');
+  const [filterS5CustomDate, setFilterS5CustomDate] = useState('');
+  const [filterS5Employee, setFilterS5Employee] = useState('ALL');
+  const [filterS5WeekOffset, setFilterS5WeekOffset] = useState(0);
+
+  // Section 6: Yêu cầu
+  const [filterS6DateMode, setFilterS6DateMode] = useState('today');
+  const [filterS6CustomDate, setFilterS6CustomDate] = useState('');
+  const [filterS6Employee, setFilterS6Employee] = useState('ALL');
+  const [filterS6WeekOffset, setFilterS6WeekOffset] = useState(0);
 
   // Store skills map: { storeId: [{id, name, description(color)}] }
   const [storeSkillMap, setStoreSkillMap] = useState({});
@@ -97,19 +129,8 @@ export default function DashboardPage() {
 
   const toastTimerRef = useRef(null);
 
-  const currentWeekDates = useMemo(() => getWeekDates(new Date()), []);
   const today = useMemo(() => new Date(), []);
   const todayISO = fmtISO(today);
-
-  const yesterday = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d;
-  }, []);
-  const yesterdayISO = fmtISO(yesterday);
-
-  // Computed active date ISO for filtering
-  const activeDateISO = filterDateMode === 'today' ? todayISO : (filterCustomDate || todayISO);
 
   // 1. Initial load stores & employees
   useEffect(() => {
@@ -168,9 +189,7 @@ export default function DashboardPage() {
 
       // Load attendance
       try {
-        const weekStart = fmtISO(currentWeekDates[0]);
-        const weekEnd = fmtISO(currentWeekDates[6]);
-        const attRes = await getStoreAttendance(selectedStoreId, weekStart, weekEnd);
+        const attRes = await getStoreAttendance(selectedStoreId);
         const attData = Array.isArray(attRes.data) ? attRes.data : (attRes.data?.content || []);
         setAttendanceList(attData);
       } catch (e) {
@@ -191,12 +210,12 @@ export default function DashboardPage() {
     }
 
     loadStoreLiveData();
-  }, [selectedStoreId, currentWeekDates]);
+  }, [selectedStoreId]);
 
   // 3. Load skills for selected store → build skill color map
   useEffect(() => {
     if (!selectedStoreId) return;
-    if (storeSkillMap[selectedStoreId]) return; // already cached
+    if (storeSkillMap[selectedStoreId]) return;
     getSkillsByStore(selectedStoreId)
       .then((res) => {
         const data = res.data;
@@ -216,7 +235,6 @@ export default function DashboardPage() {
     showToast('Đang xuất bảng báo cáo dự báo lương (.xlsx / .csv)...');
   };
 
-  // Helper: get skill color by name from current store
   const getPositionColor = useCallback((skillName) => {
     const skills = storeSkillMap[selectedStoreId] || [];
     const skill = skills.find((sk) => {
@@ -225,17 +243,18 @@ export default function DashboardPage() {
       return n === q || q.includes(n) || n.includes(q);
     });
     if (skill && skill.description && skill.description.startsWith('#')) return skill.description;
-    // Fallback palette
     const FALLBACK = ['#5BC8B8', '#D97FB2', '#D98080', '#C8C84A', '#7AA8D9', '#FFA726', '#AB47BC', '#26A69A'];
     const idx = [...(skillName || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % FALLBACK.length;
     return FALLBACK[idx];
   }, [storeSkillMap, selectedStoreId]);
 
   // =========================================================================
-  // Section 1 Computations: Today's Timeline Shifts
+  // Section 1 Computations: Lịch làm việc hôm nay (Filtered by S1)
   // =========================================================================
+  const s1DateISO = filterS1DateMode === 'today' ? todayISO : (filterS1CustomDate || todayISO);
+
   const timelineData = useMemo(() => {
-    const activeDateShifts = shifts.filter(s => (s.shiftDate === activeDateISO || s.date === activeDateISO));
+    const activeDateShifts = shifts.filter(s => (s.shiftDate === s1DateISO || s.date === s1DateISO));
     const rows = [];
 
     activeDateShifts.forEach((shift) => {
@@ -245,10 +264,7 @@ export default function DashboardPage() {
       const posColor = getPositionColor(skillName);
 
       const pushRow = (empName, rowId) => {
-        // Filter by employee
-        if (filterEmployee !== 'ALL' && empName !== filterEmployee) return;
-        // Filter by position
-        if (filterPosition !== 'ALL' && skillName && !skillName.toLowerCase().includes(filterPosition.toLowerCase())) return;
+        if (filterS1Employee !== 'ALL' && empName !== filterS1Employee) return;
         rows.push({
           id: rowId,
           name: empName,
@@ -273,14 +289,29 @@ export default function DashboardPage() {
     });
 
     return rows;
-  }, [shifts, activeDateISO, filterEmployee, filterPosition, getPositionColor]);
+  }, [shifts, s1DateISO, filterS1Employee, getPositionColor]);
 
   // =========================================================================
-  // Section 2 Computations: Attendance Notifications
+  // Section 2 Computations: Thông báo chấm công (Filtered by S2)
   // =========================================================================
+  const s2DateISO = filterS2DateMode === 'today' ? todayISO : (filterS2CustomDate || todayISO);
+
   const { todayAttendance, yesterdayAttendance } = useMemo(() => {
-    const todayItems = attendanceList.filter(a => (a.shiftDate === todayISO || a.date === todayISO || a.attendanceDate === todayISO));
-    const yestItems = attendanceList.filter(a => (a.shiftDate === yesterdayISO || a.date === yesterdayISO || a.attendanceDate === yesterdayISO));
+    const s2TargetDate = new Date(s2DateISO);
+    const s2PrevDate = new Date(s2TargetDate);
+    s2PrevDate.setDate(s2PrevDate.getDate() - 1);
+    const s2PrevISO = fmtISO(s2PrevDate);
+
+    let filteredAtt = attendanceList;
+    if (filterS2Employee !== 'ALL') {
+      filteredAtt = filteredAtt.filter(a => {
+        const name = a.staffName || a.employeeName || '';
+        return name === filterS2Employee;
+      });
+    }
+
+    const todayItems = filteredAtt.filter(a => (a.shiftDate === s2DateISO || a.date === s2DateISO || a.attendanceDate === s2DateISO));
+    const yestItems = filteredAtt.filter(a => (a.shiftDate === s2PrevISO || a.date === s2PrevISO || a.attendanceDate === s2PrevISO));
 
     const formatAttItem = (att, idx) => {
       let statusClass = 'late';
@@ -300,13 +331,13 @@ export default function DashboardPage() {
       const checkInFormatted = att.checkInTime ? new Date(att.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
 
       return {
-        id: `real-att-${att.id || idx}`,
+        id: att.id || `att-${idx}`,
+        name: empName,
+        avatar: getAvatar(empName),
         type: typeLabel,
         statusClass,
-        name: empName,
-        date: fmtDM(new Date(att.shiftDate || att.date || att.attendanceDate || todayISO)),
-        time: checkInFormatted,
-        avatar: getAvatar(empName)
+        date: fmtDM(new Date(att.shiftDate || att.date || s2DateISO)),
+        time: checkInFormatted ? `(lúc ${checkInFormatted})` : ''
       };
     };
 
@@ -314,24 +345,31 @@ export default function DashboardPage() {
       todayAttendance: todayItems.map(formatAttItem),
       yesterdayAttendance: yestItems.map(formatAttItem)
     };
-  }, [attendanceList, todayISO, yesterdayISO]);
+  }, [attendanceList, s2DateISO, filterS2Employee]);
 
   // =========================================================================
-  // Section 3 Computations: Real KPIs
+  // Section 3 Computations: Tổng quan hôm nay (Filtered by S3)
   // =========================================================================
+  const s3DateISO = filterS3DateMode === 'today' ? todayISO : (filterS3CustomDate || todayISO);
+
   const kpis = useMemo(() => {
-    const todayShifts = shifts.filter(s => (s.shiftDate === todayISO || s.date === todayISO));
+    let dayShifts = shifts.filter(s => (s.shiftDate === s3DateISO || s.date === s3DateISO));
+    if (filterS3Employee !== 'ALL') {
+      dayShifts = dayShifts.filter(s => {
+        if (s.staffName === filterS3Employee) return true;
+        if (s.shiftAssignments?.some(a => (a.staffName || a.employeeName) === filterS3Employee)) return true;
+        return false;
+      });
+    }
+
     let openShifts = 0;
     let totalRequired = 0;
     let totalAssigned = 0;
     let totalScheduledHours = 0;
 
-    todayShifts.forEach(s => {
+    dayShifts.forEach(s => {
       const required = s.requiredStaff || 1;
-      const assigned = (s.shiftAssignments && s.shiftAssignments.length > 0) 
-        ? s.shiftAssignments.length 
-        : (s.staffId ? 1 : 0);
-
+      const assigned = (s.shiftAssignments && s.shiftAssignments.length) || (s.staffId ? 1 : 0);
       totalRequired += required;
       totalAssigned += assigned;
       if (assigned < required) {
@@ -341,23 +379,29 @@ export default function DashboardPage() {
       if (s.startTime && s.endTime) {
         const startH = parseInt(s.startTime.slice(0, 2), 10);
         const endH = parseInt(s.endTime.slice(0, 2), 10);
-        let diff = endH - startH;
-        if (diff < 0) diff += 24;
-        totalScheduledHours += diff * (assigned > 0 ? assigned : 1);
+        const dur = Math.max(0, endH - startH);
+        totalScheduledHours += dur * Math.max(1, assigned);
       }
     });
 
     const shiftCoverage = totalRequired > 0 ? Math.round((totalAssigned / totalRequired) * 100) : 100;
     const laborCost = totalScheduledHours > 0 ? (totalScheduledHours * 30000).toLocaleString('vi-VN') + ' đ' : '0 đ';
 
-    const todayAtt = attendanceList.filter(a => (a.shiftDate === todayISO || a.date === todayISO));
+    let todayAtt = attendanceList.filter(a => (a.shiftDate === s3DateISO || a.date === s3DateISO));
+    if (filterS3Employee !== 'ALL') {
+      todayAtt = todayAtt.filter(a => (a.staffName || a.employeeName) === filterS3Employee);
+    }
     const lateAtt = todayAtt.filter(a => a.status === 'LATE');
     const absentAtt = todayAtt.filter(a => a.status === 'ABSENT');
 
     const lateRate = todayAtt.length > 0 ? ((lateAtt.length / todayAtt.length) * 100).toFixed(1) + '%' : '0.0%';
     const absentRate = totalAssigned > 0 ? ((absentAtt.length / totalAssigned) * 100).toFixed(1) + '%' : '0.0%';
 
-    const pendingRequests = requestsList.filter(r => r.status === 'Đang chờ phê duyệt' || r.status === 'PENDING').length;
+    let filteredReqs = requestsList;
+    if (filterS3Employee !== 'ALL') {
+      filteredReqs = filteredReqs.filter(r => (r.staffName || r.employeeName || r.userFullName) === filterS3Employee);
+    }
+    const pendingRequests = filteredReqs.filter(r => r.status === 'Đang chờ phê duyệt' || r.status === 'PENDING').length;
 
     return {
       openShifts: `${openShifts} ca`,
@@ -367,22 +411,39 @@ export default function DashboardPage() {
       absentRate,
       pendingRequests: `${pendingRequests} yêu cầu`
     };
-  }, [shifts, attendanceList, requestsList, todayISO]);
+  }, [shifts, attendanceList, requestsList, s3DateISO, filterS3Employee]);
 
   // =========================================================================
-  // Section 4 Computations: Stacked Bar Chart by Day & Position
+  // Section 4 Computations: Ca làm việc được phân công (Filtered by S4)
   // =========================================================================
-  // Build dynamic skill buckets from current store's skills
   const currentStoreSkills = useMemo(() => {
     return (storeSkillMap[selectedStoreId] || []);
   }, [storeSkillMap, selectedStoreId]);
 
-  const stackedChartDays = useMemo(() => {
-    return currentWeekDates.map((dateObj) => {
-      const dISO = fmtISO(dateObj);
-      const dayShifts = shifts.filter(s => (s.shiftDate === dISO || s.date === dISO));
+  const s4DateObj = useMemo(() => {
+    const base = filterS4DateMode === 'custom' && filterS4CustomDate
+      ? new Date(filterS4CustomDate)
+      : new Date();
+    const d = new Date(base);
+    d.setDate(d.getDate() + filterS4WeekOffset * 7);
+    return d;
+  }, [filterS4DateMode, filterS4CustomDate, filterS4WeekOffset]);
 
-      // Dynamic buckets per actual store skills
+  const s4WeekDates = useMemo(() => getWeekDates(s4DateObj), [s4DateObj]);
+
+  const stackedChartDays = useMemo(() => {
+    return s4WeekDates.map((dateObj) => {
+      const dISO = fmtISO(dateObj);
+      let dayShifts = shifts.filter(s => (s.shiftDate === dISO || s.date === dISO));
+
+      if (filterS4Employee !== 'ALL') {
+        dayShifts = dayShifts.filter(s => {
+          if (s.staffName === filterS4Employee) return true;
+          if (s.shiftAssignments?.some(a => (a.staffName || a.employeeName) === filterS4Employee)) return true;
+          return false;
+        });
+      }
+
       const buckets = {};
       currentStoreSkills.forEach(sk => { buckets[sk.name] = 0; });
       const otherKey = '__other__';
@@ -393,8 +454,7 @@ export default function DashboardPage() {
           ? s.shiftAssignments.length
           : (s.requiredStaff || 1);
         const skillName = s.skillName || s.requiredSkillName || '';
-        // Filter by position if selected
-        if (filterPosition !== 'ALL' && skillName && !skillName.toLowerCase().includes(filterPosition.toLowerCase())) return;
+        if (filterS4Position !== 'ALL' && skillName && !skillName.toLowerCase().includes(filterS4Position.toLowerCase())) return;
         const matchedSkill = currentStoreSkills.find(sk => {
           const n = sk.name.toLowerCase();
           const q = skillName.toLowerCase();
@@ -421,11 +481,22 @@ export default function DashboardPage() {
 
       return { date: fmtDM(dateObj), total, breakdown, segments };
     });
-  }, [shifts, currentWeekDates, currentStoreSkills, filterPosition, getPositionColor]);
+  }, [shifts, s4WeekDates, currentStoreSkills, filterS4Employee, filterS4Position, getPositionColor]);
 
   // =========================================================================
-  // Section 5 Computations: Real Salary & Accurate Curve Placement
+  // Section 5 Computations: Dự báo lương (Filtered by S5)
   // =========================================================================
+  const s5DateObj = useMemo(() => {
+    const base = filterS5DateMode === 'custom' && filterS5CustomDate
+      ? new Date(filterS5CustomDate)
+      : new Date();
+    const d = new Date(base);
+    d.setDate(d.getDate() + filterS5WeekOffset * 7);
+    return d;
+  }, [filterS5DateMode, filterS5CustomDate, filterS5WeekOffset]);
+
+  const s5WeekDates = useMemo(() => getWeekDates(s5DateObj), [s5DateObj]);
+
   const {
     salaryDates,
     scheduledPoints,
@@ -433,73 +504,81 @@ export default function DashboardPage() {
     scheduledSvgPath,
     actualSvgPath,
     totalSchedWeek,
-    totalActualWeek,
-    maxScaleValue
+    totalActualWeek
   } = useMemo(() => {
-    const dates = currentWeekDates.map(d => fmtDM(d));
+    const dates = s5WeekDates.map(d => fmtDM(d));
     let totalSched = 0;
     let totalAct = 0;
 
-    // 1. Calculate raw hours per day
-    const rawSched = currentWeekDates.map((dateObj) => {
+    const rawSched = s5WeekDates.map((dateObj) => {
       const dISO = fmtISO(dateObj);
-      const dayShifts = shifts.filter(s => (s.shiftDate === dISO || s.date === dISO));
+      let dayShifts = shifts.filter(s => (s.shiftDate === dISO || s.date === dISO));
+      if (filterS5Employee !== 'ALL') {
+        dayShifts = dayShifts.filter(s => {
+          if (s.staffName === filterS5Employee) return true;
+          if (s.shiftAssignments?.some(a => (a.staffName || a.employeeName) === filterS5Employee)) return true;
+          return false;
+        });
+      }
       let dayHours = 0;
       dayShifts.forEach(s => {
         if (s.startTime && s.endTime) {
           const startH = parseInt(s.startTime.slice(0, 2), 10);
           const endH = parseInt(s.endTime.slice(0, 2), 10);
-          let diff = endH - startH;
-          if (diff < 0) diff += 24;
-          const assignedCount = (s.shiftAssignments && s.shiftAssignments.length > 0)
+          const dur = Math.max(0, endH - startH);
+          const numAssigned = (s.shiftAssignments && s.shiftAssignments.length > 0)
             ? s.shiftAssignments.length
             : (s.staffId ? 1 : 1);
-          dayHours += diff * assignedCount;
+          dayHours += dur * numAssigned;
         }
       });
       totalSched += dayHours;
       return dayHours;
     });
 
-    const rawAct = currentWeekDates.map((dateObj) => {
+    const rawActual = s5WeekDates.map((dateObj) => {
       const dISO = fmtISO(dateObj);
-      const dayAtt = attendanceList.filter(a => (a.shiftDate === dISO || a.date === dISO));
-      let actHours = 0;
+      let dayAtt = attendanceList.filter(a => (a.shiftDate === dISO || a.date === dISO));
+      if (filterS5Employee !== 'ALL') {
+        dayAtt = dayAtt.filter(a => (a.staffName || a.employeeName) === filterS5Employee);
+      }
+      let dayHours = 0;
       dayAtt.forEach(a => {
         if (a.checkInTime && a.checkOutTime) {
-          const diffMs = new Date(a.checkOutTime) - new Date(a.checkInTime);
-          if (diffMs > 0) actHours += diffMs / 3600000;
+          const durMs = new Date(a.checkOutTime) - new Date(a.checkInTime);
+          const h = Math.max(0, durMs / (1000 * 60 * 60));
+          dayHours += h;
+        } else if (a.status === 'PRESENT') {
+          dayHours += 8;
         }
       });
-      totalAct += actHours;
-      return actHours > 0 ? Number(actHours.toFixed(1)) : null;
+      totalAct += dayHours;
+      return Math.round(dayHours * 10) / 10;
     });
 
-    // 2. Determine max scale dynamically (minimum 8)
-    const maxVal = Math.max(8, ...rawSched, ...rawAct.filter(v => v !== null));
+    const maxDataVal = Math.max(...rawSched, ...rawActual, 0);
+    const maxVal = Math.max(8, Math.ceil((maxDataVal + 1) / 2) * 2);
 
-    // 3. Exact SVG coordinate calculations
-    // SVG width: 920, height: 300
-    // Plot area: X from 80 to 860 (step = 130), Y from 30 (maxVal) to 220 (0 hours)
-    const plotHeight = 190;
-    const baselineY = 220;
+    const getYCoord = (h) => {
+      const topY = 30;
+      const bottomY = 220;
+      const clamped = Math.max(0, Math.min(maxVal, h));
+      return bottomY - (clamped / maxVal) * (bottomY - topY);
+    };
 
-    const schedPts = currentWeekDates.map((_, idx) => {
-      const x = 80 + idx * 130;
-      const h = rawSched[idx];
-      const y = Number((baselineY - (h / maxVal) * plotHeight).toFixed(2));
-      return { x, y, hours: h, date: dates[idx] };
-    });
+    const schedPts = rawSched.map((h, i) => ({
+      x: 80 + i * 130,
+      y: getYCoord(h),
+      hours: h,
+      date: dates[i]
+    }));
 
-    const actPts = [];
-    currentWeekDates.forEach((_, idx) => {
-      const actH = rawAct[idx];
-      if (actH !== null && actH !== undefined) {
-        const x = 80 + idx * 130;
-        const y = Number((baselineY - (actH / maxVal) * plotHeight).toFixed(2));
-        actPts.push({ x, y, hours: actH, date: dates[idx] });
-      }
-    });
+    const actPts = rawActual.map((h, i) => ({
+      x: 80 + i * 130,
+      y: getYCoord(h),
+      hours: h,
+      date: dates[i]
+    }));
 
     return {
       salaryDates: dates,
@@ -508,21 +587,33 @@ export default function DashboardPage() {
       scheduledSvgPath: getSvgSmoothPath(schedPts),
       actualSvgPath: getSvgSmoothPath(actPts),
       totalSchedWeek: Math.round(totalSched),
-      totalActualWeek: Math.round(totalAct),
-      maxScaleValue: maxVal
+      totalActualWeek: Math.round(totalAct)
     };
-  }, [shifts, attendanceList, currentWeekDates]);
+  }, [shifts, attendanceList, s5WeekDates, filterS5Employee]);
 
   // =========================================================================
-  // Section 6 Computations: Real Requests by Category
+  // Section 6 Computations: Yêu cầu (Filtered by S6)
   // =========================================================================
+  const s6DateISO = filterS6DateMode === 'today' ? todayISO : (filterS6CustomDate || '');
+
   const requestCategoryCounts = useMemo(() => {
     let attendanceCount = 0;
     let leaveCount = 0;
     let swapCount = 0;
     let payrollCount = 0;
 
-    requestsList.forEach(r => {
+    let targetReqs = requestsList;
+    if (filterS6Employee !== 'ALL') {
+      targetReqs = targetReqs.filter(r => (r.staffName || r.employeeName || r.userFullName) === filterS6Employee);
+    }
+    if (s6DateISO) {
+      targetReqs = targetReqs.filter(r => {
+        const d = r.createdAt || r.date || r.shiftDate || '';
+        return d.startsWith(s6DateISO);
+      });
+    }
+
+    targetReqs.forEach(r => {
       const cat = r.typeCategory || '';
       const type = (r.requestType || '').toLowerCase();
       if (cat === 'attendance' || type.includes('chấm công') || type.includes('điểm danh') || type.includes('tăng ca')) {
@@ -537,46 +628,13 @@ export default function DashboardPage() {
     });
 
     return [
-      {
-        id: 'req-cat-1',
-        title: 'Chấm công & Điểm danh',
-        pillClass: 'db-pill-pink',
-        countClass: attendanceCount > 0 ? 'db-count-pink' : 'db-count-zero',
-        desc: 'Quản lý các yêu cầu điều chỉnh giờ vào/ra ca, xin đi trễ, về sớm và đăng ký tăng ca.',
-        count: attendanceCount,
-        filterKey: 'attendance'
-      },
-      {
-        id: 'req-cat-2',
-        title: 'Nghỉ phép & Vắng mặt',
-        pillClass: 'db-pill-green',
-        countClass: leaveCount > 0 ? 'db-count-green' : 'db-count-zero',
-        desc: 'Tiếp nhận các đơn xin nghỉ phép, nghỉ bệnh hoặc báo vắng mặt đột xuất.',
-        count: leaveCount,
-        filterKey: 'leave'
-      },
-      {
-        id: 'req-cat-3',
-        title: 'Lịch làm & Đổi ca',
-        pillClass: 'db-pill-blue',
-        countClass: swapCount > 0 ? 'db-count-blue' : 'db-count-zero',
-        desc: 'Xử lý việc hoán đổi ca giữa các nhân viên, đăng ký ca trống và cập nhật lịch rảnh/bận.',
-        count: swapCount,
-        filterKey: 'swap'
-      },
-      {
-        id: 'req-cat-4',
-        title: 'Lương & Nhân sự',
-        pillClass: 'db-pill-yellow',
-        countClass: payrollCount > 0 ? 'db-count-yellow' : 'db-count-zero',
-        desc: 'Tiếp nhận phản hồi bảng lương, xin ứng lương và yêu cầu điều chuyển chi nhánh.',
-        count: payrollCount,
-        filterKey: 'payroll'
-      }
+      { id: 'req-cat-1', title: 'Chấm công', pillClass: 'db-pill-pink', countClass: attendanceCount > 0 ? 'db-count-pink' : 'db-count-zero', desc: 'Điều chỉnh giờ, đi trễ, về sớm, tăng ca.', count: attendanceCount, filterKey: 'attendance' },
+      { id: 'req-cat-2', title: 'Nghỉ phép', pillClass: 'db-pill-green', countClass: leaveCount > 0 ? 'db-count-green' : 'db-count-zero', desc: 'Nghỉ phép, nghỉ bệnh, báo vắng.', count: leaveCount, filterKey: 'leave' },
+      { id: 'req-cat-3', title: 'Đổi ca', pillClass: 'db-pill-blue', countClass: swapCount > 0 ? 'db-count-blue' : 'db-count-zero', desc: 'Hoán đổi ca, nhận ca trống.', count: swapCount, filterKey: 'swap' },
+      { id: 'req-cat-4', title: 'Lương & NS', pillClass: 'db-pill-yellow', countClass: payrollCount > 0 ? 'db-count-yellow' : 'db-count-zero', desc: 'Bảng lương, ứng lương, điều chuyển.', count: payrollCount, filterKey: 'payroll' }
     ];
-  }, [requestsList]);
+  }, [requestsList, filterS6Employee, s6DateISO]);
 
-  // Current store name for display
   const currentStoreName = useMemo(() => {
     const s = stores.find(st => String(st.id) === String(selectedStoreId));
     return s ? s.name : '';
@@ -584,10 +642,8 @@ export default function DashboardPage() {
 
   return (
     <div className="db-page">
-      {/* Black Toast Notification */}
       {toastMessage && <div className="black-toast">{toastMessage}</div>}
 
-      {/* Sub-header Brand Strip */}
       <div className="db-brand-bar">
         <div className="db-brand-left">
           <div className="db-brand-logo-wrap">
@@ -600,88 +656,44 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Filter Bar ── */}
-      <div className="db-filter-bar">
-        {/* Bộ lọc ngày */}
-        <div className="db-filter-group">
-          <button
-            id="filter-today-btn"
-            className={`db-filter-btn ${filterDateMode === 'today' ? 'active' : ''}`}
-            onClick={() => { setFilterDateMode('today'); setFilterCustomDate(''); }}
-          >
-            📅 Hôm nay
-          </button>
-          <div className="db-filter-date-wrap">
-            <input
-              id="filter-custom-date"
-              type="date"
-              className={`db-filter-date-input ${filterDateMode === 'custom' ? 'active' : ''}`}
-              value={filterCustomDate}
-              onChange={(e) => {
-                setFilterCustomDate(e.target.value);
-                setFilterDateMode(e.target.value ? 'custom' : 'today');
-              }}
-              title="Chọn ngày khác"
-            />
-          </div>
-        </div>
-
-        <div className="db-filter-divider" />
-
-        {/* Lọc theo Nhân viên */}
-        <div className="db-filter-group">
-          <label className="db-filter-label">👤 Nhân viên</label>
-          <select
-            id="filter-employee-select"
-            className="db-filter-select"
-            value={filterEmployee}
-            onChange={(e) => setFilterEmployee(e.target.value)}
-          >
-            <option value="ALL">Tất cả</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.fullName}>
-                {emp.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Lọc theo Vị trí */}
-        <div className="db-filter-group">
-          <label className="db-filter-label">🏷️ Vị trí</label>
-          <select
-            id="filter-position-select"
-            className="db-filter-select"
-            value={filterPosition}
-            onChange={(e) => setFilterPosition(e.target.value)}
-          >
-            <option value="ALL">Tất cả vị trí</option>
-            {currentStoreSkills.map((sk) => (
-              <option key={sk.id} value={sk.name}>
-                {sk.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {(filterEmployee !== 'ALL' || filterPosition !== 'ALL' || filterDateMode === 'custom') && (
-          <button
-            className="db-filter-clear"
-            onClick={() => { setFilterEmployee('ALL'); setFilterPosition('ALL'); setFilterDateMode('today'); setFilterCustomDate(''); }}
-          >
-            ✕ Xoá bộ lọc
-          </button>
-        )}
-      </div>
-
       <div className="db-container">
         {/* =================================================================
-            1. Lịch làm việc hôm nay (Schedule Timeline)
+            1. Lịch làm việc hôm nay
             ================================================================= */}
         <section className="db-card" id="today-schedule">
           <div className="db-card-header">
             <h2 className="db-card-title">Lịch làm việc hôm nay</h2>
             <div className="db-card-controls">
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS1DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS1DateMode('today'); setFilterS1CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS1DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS1CustomDate}
+                  onChange={(e) => {
+                    setFilterS1CustomDate(e.target.value);
+                    setFilterS1DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn ngày tháng"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS1Employee}
+                  onChange={(e) => setFilterS1Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 className="db-control-btn"
                 onClick={() => navigate('/schedule')}
@@ -697,9 +709,7 @@ export default function DashboardPage() {
                 <tr className="db-timeline-header-row">
                   <th className="db-timeline-th-name">Tên</th>
                   {TIMELINE_HOURS.map((h, i) => (
-                    <th key={i} className="db-timeline-th-hour">
-                      {h}
-                    </th>
+                    <th key={i} className="db-timeline-th-hour">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -707,7 +717,7 @@ export default function DashboardPage() {
                 {timelineData.length === 0 ? (
                   <tr>
                     <td colSpan={15} style={{ textAlign: 'center', padding: '36px', color: '#666671' }}>
-                      Hôm nay chưa có ca làm việc nào được phân công tại chi nhánh này.{' '}
+                      Không có ca làm việc phù hợp với bộ lọc hiện tại.{' '}
                       <button
                         className="db-kpi-link"
                         style={{ marginLeft: '8px' }}
@@ -729,11 +739,7 @@ export default function DashboardPage() {
                       <tr key={row.id} className="db-timeline-row">
                         <td className="db-timeline-name-cell">
                           <div className="db-timeline-name-flex">
-                            <img
-                              src={row.avatar}
-                              alt={row.name}
-                              className="db-timeline-avatar"
-                            />
+                            <img src={row.avatar} alt={row.name} className="db-timeline-avatar" />
                             <div>
                               <span>{row.name}</span>
                               <span className="db-timeline-role-badge" style={{ backgroundColor: row.color + '22', color: row.color, borderColor: row.color + '44' }}>
@@ -744,9 +750,7 @@ export default function DashboardPage() {
                         </td>
                         <td colSpan={14} className="db-timeline-grid-cell">
                           <div className="db-timeline-grid-lines">
-                            {Array.from({ length: 14 }).map((_, idx) => (
-                              <div key={idx} className="db-timeline-grid-col" />
-                            ))}
+                            {Array.from({ length: 14 }).map((_, idx) => <div key={idx} className="db-timeline-grid-col" />)}
                           </div>
                           <div
                             className="db-shift-bar"
@@ -770,94 +774,86 @@ export default function DashboardPage() {
         </section>
 
         {/* =================================================================
-            2. Thông báo chấm công (Attendance Notifications)
+            2. Thông báo chấm công
             ================================================================= */}
         <section className="db-card" id="attendance-notifications">
           <div className="db-card-header">
             <h2 className="db-card-title">Thông báo chấm công</h2>
             <div className="db-card-controls">
-              <button className="db-control-btn">Hôm nay</button>
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS2DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS2DateMode('today'); setFilterS2CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS2DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS2CustomDate}
+                  onChange={(e) => {
+                    setFilterS2CustomDate(e.target.value);
+                    setFilterS2DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn ngày tháng"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS2Employee}
+                  onChange={(e) => setFilterS2Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
+
               <button
-                className="db-cal-icon-btn"
+                className="db-control-btn"
                 onClick={() => navigate('/attendance')}
-                title="Mở bảng điểm danh"
               >
-                <img src={iconCalendar} alt="Lịch" />
+                Mở bảng chấm công
               </button>
             </div>
           </div>
 
           <div className="db-att-section">
-            {/* Group: Hôm nay */}
-            <div className="db-att-group-title-bar">Hôm nay</div>
+            <div className="db-att-group-title-bar">
+              {filterS2DateMode === 'today' ? 'Hôm nay' : filterS2CustomDate}
+            </div>
             {todayAttendance.length === 0 ? (
               <p style={{ color: '#666671', padding: '12px 18px', margin: '0 0 16px 0' }}>
-                Không có thông báo chấm công nào cho hôm nay.
+                Không có thông báo chấm công nào cho ngày này.
               </p>
             ) : (
               <div className="db-att-cards-grid">
                 {todayAttendance.map((item) => (
-                  <div
-                    key={item.id}
-                    className="db-att-item-card"
-                    onClick={() => navigate('/attendance')}
-                  >
-                    {item.avatar ? (
-                      <img
-                        src={item.avatar}
-                        alt={item.name}
-                        className="db-att-item-avatar"
-                      />
-                    ) : (
-                      <div className="db-att-item-avatar-placeholder">
-                        {item.name.slice(0, 2)}
-                      </div>
-                    )}
+                  <div key={item.id} className="db-att-item-card" onClick={() => navigate('/attendance')}>
+                    {item.avatar ? <img src={item.avatar} alt={item.name} className="db-att-item-avatar" /> : <div className="db-att-item-avatar-placeholder">{item.name.slice(0, 2)}</div>}
                     <div className="db-att-item-info">
-                      <span className={`db-att-item-status ${item.statusClass}`}>
-                        {item.type}
-                      </span>
-                      <span className="db-att-item-meta">
-                        {item.name} {item.date} {item.time}
-                      </span>
+                      <span className={`db-att-item-status ${item.statusClass}`}>{item.type}</span>
+                      <span className="db-att-item-meta">{item.name} {item.date} {item.time}</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Group: Hôm qua */}
-            <div className="db-att-group-title-bar">Hôm qua</div>
+            <div className="db-att-group-title-bar">Ngày trước đó</div>
             {yesterdayAttendance.length === 0 ? (
               <p style={{ color: '#666671', padding: '12px 18px', margin: 0 }}>
-                Không có thông báo vi phạm chấm công hôm qua.
+                Không có thông báo chấm công ngày trước đó.
               </p>
             ) : (
               <div className="db-att-cards-grid">
                 {yesterdayAttendance.map((item) => (
-                  <div
-                    key={item.id}
-                    className="db-att-item-card"
-                    onClick={() => navigate('/attendance')}
-                  >
-                    {item.avatar ? (
-                      <img
-                        src={item.avatar}
-                        alt={item.name}
-                        className="db-att-item-avatar"
-                      />
-                    ) : (
-                      <div className="db-att-item-avatar-placeholder">
-                        {item.name.substring(0, 2)}
-                      </div>
-                    )}
+                  <div key={item.id} className="db-att-item-card" onClick={() => navigate('/attendance')}>
+                    {item.avatar ? <img src={item.avatar} alt={item.name} className="db-att-item-avatar" /> : <div className="db-att-item-avatar-placeholder">{item.name.substring(0, 2)}</div>}
                     <div className="db-att-item-info">
-                      <span className={`db-att-item-status ${item.statusClass}`}>
-                        {item.type}
-                      </span>
-                      <span className="db-att-item-meta">
-                        {item.name} {item.date} {item.time}
-                      </span>
+                      <span className={`db-att-item-status ${item.statusClass}`}>{item.type}</span>
+                      <span className="db-att-item-meta">{item.name} {item.date} {item.time}</span>
                     </div>
                   </div>
                 ))}
@@ -867,117 +863,116 @@ export default function DashboardPage() {
         </section>
 
         {/* =================================================================
-            3. Tổng quan hôm nay (Today's Overview / KPI Summary)
+            3. Tổng quan hôm nay
             ================================================================= */}
         <section className="db-card" id="today-overview">
           <div className="db-card-header">
             <h2 className="db-card-title">Tổng quan hôm nay</h2>
             <div className="db-card-controls">
-              <button className="db-control-btn">Hôm nay</button>
-              <button
-                className="db-cal-icon-btn"
-                onClick={() => navigate('/schedule')}
-                title="Lịch"
-              >
-                <img src={iconCalendar} alt="Lịch" />
-              </button>
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS3DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS3DateMode('today'); setFilterS3CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS3DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS3CustomDate}
+                  onChange={(e) => {
+                    setFilterS3CustomDate(e.target.value);
+                    setFilterS3DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn ngày tháng"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS3Employee}
+                  onChange={(e) => setFilterS3Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
           <div className="db-kpi-grid">
-            {/* KPI 1 */}
             <div className="db-kpi-card">
-              <span className="db-kpi-label">Ca trống chưa lấp: {kpis.openShifts}</span>
-              <button
-                className="db-kpi-link"
-                onClick={() => navigate('/schedule')}
-              >
-                Xem lịch trình hôm nay
-              </button>
+              <span className="db-kpi-label">Ca trống: {kpis.openShifts}</span>
+              <button className="db-kpi-link" onClick={() => navigate('/schedule')}>Xem lịch trình &rarr;</button>
             </div>
-
-            {/* KPI 2 */}
             <div className="db-kpi-card">
               <span className="db-kpi-label">Độ phủ ca: {kpis.shiftCoverage}</span>
-              <button
-                className="db-kpi-link"
-                onClick={() => navigate('/schedule')}
-              >
-                Xem lịch trình hôm nay
-              </button>
+              <button className="db-kpi-link" onClick={() => navigate('/schedule')}>Xem lịch trình &rarr;</button>
             </div>
-
-            {/* KPI 3 */}
             <div className="db-kpi-card">
               <span className="db-kpi-label">Chi phí lao động: {kpis.laborCost}</span>
             </div>
-
-            {/* KPI 4 */}
             <div className="db-kpi-card">
               <span className="db-kpi-label">Tỷ lệ đi trễ: {kpis.lateRate}</span>
-              <button
-                className="db-kpi-link"
-                onClick={() => navigate('/attendance')}
-              >
-                Xem lịch trình hôm nay
-              </button>
+              <button className="db-kpi-link" onClick={() => navigate('/attendance')}>Xem chi tiết &rarr;</button>
             </div>
-
-            {/* KPI 5 */}
             <div className="db-kpi-card">
               <span className="db-kpi-label">Tỷ lệ vắng mặt: {kpis.absentRate}</span>
-              <button
-                className="db-kpi-link"
-                onClick={() => navigate('/attendance')}
-              >
-                Xem lịch trình hôm nay
-              </button>
+              <button className="db-kpi-link" onClick={() => navigate('/attendance')}>Xem chi tiết &rarr;</button>
             </div>
-
-            {/* KPI 6 */}
             <div className="db-kpi-card">
               <span className="db-kpi-label">Cần duyệt: {kpis.pendingRequests}</span>
-              <button
-                className="db-kpi-link"
-                onClick={() => navigate('/requests')}
-              >
-                Xem yêu cầu đang chờ xử lý
-              </button>
+              <button className="db-kpi-link" onClick={() => navigate('/requests')}>Xem yêu cầu &rarr;</button>
             </div>
           </div>
         </section>
 
         {/* =================================================================
-            4. Ca làm việc được phân công (Assigned Shifts - Stacked Bar Chart)
+            4. Ca làm việc được phân công
             ================================================================= */}
         <section className="db-card" id="assigned-shifts">
           <div className="db-card-header">
             <h2 className="db-card-title">Ca làm việc được phân công</h2>
             <div className="db-card-controls">
-              <button className="db-cal-icon-btn" title="Lọc ngày">
-                <img src={iconCalendar} alt="Lịch" />
-              </button>
-              <span className="db-control-btn" style={{ cursor: 'default', opacity: 0.7 }}>
-                {filterDateMode === 'today' ? 'Hôm nay' : filterCustomDate}
-              </span>
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS4DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS4DateMode('today'); setFilterS4CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS4DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS4CustomDate}
+                  onChange={(e) => {
+                    setFilterS4CustomDate(e.target.value);
+                    setFilterS4DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn tuần theo ngày"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS4Employee}
+                  onChange={(e) => setFilterS4Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
           <div className="db-assigned-layout">
-            {/* Chart Area */}
             <div className="db-chart-left">
               <div className="db-stacked-chart-container">
-                {/* Y-Axis scale numbers */}
                 <div className="db-y-axis">
-                  <span>9</span>
-                  <span>7</span>
-                  <span>5</span>
-                  <span>3</span>
-                  <span>2</span>
-                  <span>1</span>
+                  <span>9</span><span>7</span><span>5</span><span>3</span><span>2</span><span>1</span>
                 </div>
-
-                {/* Bars */}
                 <div className="db-bars-area">
                   {stackedChartDays.map((col, idx) => {
                     const isHovered = hoveredBarIndex === idx;
@@ -992,53 +987,27 @@ export default function DashboardPage() {
                         onMouseLeave={() => setHoveredBarIndex(null)}
                       >
                         <span className="db-bar-total-num">{col.total}</span>
-
-                        {/* Tooltip on hover */}
                         {isHovered && (
                           <div className="db-bar-tooltip">
                             <div className="db-bar-tooltip-title">{col.date}</div>
-                            <div className="db-bar-tooltip-item">
-                              <span>Cashier :</span>
-                              <strong>{col.breakdown.cashier}</strong>
-                            </div>
-                            <div className="db-bar-tooltip-item">
-                              <span>Barista :</span>
-                              <strong>{col.breakdown.barista}</strong>
-                            </div>
-                            <div className="db-bar-tooltip-item">
-                              <span>Server :</span>
-                              <strong>{col.breakdown.server}</strong>
-                            </div>
-                            <div className="db-bar-tooltip-item">
-                              <span>Parking Staff :</span>
-                              <strong>{col.breakdown.parking}</strong>
-                            </div>
+                            {col.segments.map(seg => (
+                              <div key={seg.key} className="db-bar-tooltip-item">
+                                <span>{seg.key} :</span>
+                                <strong>{seg.val}</strong>
+                              </div>
+                            ))}
+                            {col.segments.length === 0 && <div className="db-bar-tooltip-item"><span>Chưa có ca nào</span></div>}
                           </div>
                         )}
-
-                        <div
-                          className="db-stacked-bar"
-                          style={{ height: `${Math.max(16, totalHeightPx)}px` }}
-                        >
+                        <div className="db-stacked-bar" style={{ height: `${Math.max(16, totalHeightPx)}px` }}>
                           {col.segments.length === 0 ? (
-                            <div
-                              className="db-bar-segment"
-                              style={{ height: '100%', backgroundColor: '#E2E8F0' }}
-                            />
+                            <div className="db-bar-segment" style={{ height: '100%', backgroundColor: '#E2E8F0' }} />
                           ) : (
                             col.segments.map((seg, sIdx) => (
-                              <div
-                                key={sIdx}
-                                className="db-bar-segment"
-                                style={{
-                                  height: `${seg.val * 28}px`,
-                                  backgroundColor: seg.color
-                                }}
-                              />
+                              <div key={sIdx} className="db-bar-segment" style={{ height: `${seg.val * 28}px`, backgroundColor: seg.color }} />
                             ))
                           )}
                         </div>
-
                         <span className="db-bar-date-label">{col.date}</span>
                       </div>
                     );
@@ -1047,22 +1016,19 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right Legend Container — dynamic from store skills */}
             <div className="db-legend-box">
               <div className="db-legend-title-bar">Vị trí</div>
               <div className="db-legend-list">
                 {currentStoreSkills.length > 0 ? (
                   currentStoreSkills.map((sk) => {
-                    const color = (sk.description && sk.description.startsWith('#'))
-                      ? sk.description
-                      : getPositionColor(sk.name);
+                    const color = (sk.description && sk.description.startsWith('#')) ? sk.description : getPositionColor(sk.name);
                     return (
                       <div
                         key={sk.id}
-                        className={`db-legend-item ${filterPosition === sk.name ? 'active-legend' : ''}`}
-                        onClick={() => setFilterPosition(filterPosition === sk.name ? 'ALL' : sk.name)}
+                        className={`db-legend-item ${filterS4Position === sk.name ? 'active-legend' : ''}`}
+                        onClick={() => setFilterS4Position(filterS4Position === sk.name ? 'ALL' : sk.name)}
                         style={{ cursor: 'pointer' }}
-                        title={`Lọc: ${sk.name}`}
+                        title={`Lọc theo: ${sk.name}`}
                       >
                         <div className="db-legend-dot" style={{ backgroundColor: color }} />
                         <span>{sk.name}</span>
@@ -1070,7 +1036,6 @@ export default function DashboardPage() {
                     );
                   })
                 ) : (
-                  // Fallback static legend nếu chưa load skills
                   ['#D97FB2', '#5BC8B8', '#C8C84A', '#D98080'].map((c, i) => (
                     <div key={i} className="db-legend-item">
                       <div className="db-legend-dot" style={{ backgroundColor: c }} />
@@ -1084,20 +1049,42 @@ export default function DashboardPage() {
         </section>
 
         {/* =================================================================
-            5. Dự báo lương (Salary Forecast - Accurate Smooth SVG Chart)
+            5. Dự báo lương
             ================================================================= */}
         <section className="db-card" id="salary-forecast">
           <div className="db-card-header">
             <h2 className="db-card-title">Dự báo lương</h2>
             <div className="db-card-controls">
-              <button className="db-cal-icon-btn" title="Chọn khoảng thời gian">
-                <img src={iconCalendar} alt="Lịch" />
-              </button>
-              <button className="db-control-btn">Hôm nay</button>
-              <button className="db-control-btn">Nhân Viên</button>
-              <button className="db-export-btn" onClick={handleExportSalary}>
-                Xuất
-              </button>
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS5DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS5DateMode('today'); setFilterS5CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS5DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS5CustomDate}
+                  onChange={(e) => {
+                    setFilterS5CustomDate(e.target.value);
+                    setFilterS5DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn tuần theo ngày"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS5Employee}
+                  onChange={(e) => setFilterS5Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
+              <button className="db-export-btn" onClick={handleExportSalary}>Xuất</button>
             </div>
           </div>
 
@@ -1106,14 +1093,8 @@ export default function DashboardPage() {
             <div className="db-salary-stat-item">Thực làm: {totalActualWeek} giờ</div>
           </div>
 
-          {/* SVG Smooth Curve Line Chart */}
           <div className="db-salary-chart-wrap">
-            <svg
-              className="db-salary-svg"
-              viewBox="0 0 920 300"
-              preserveAspectRatio="none"
-            >
-              {/* Horizontal Grid lines */}
+            <svg className="db-salary-svg" viewBox="0 0 920 300" preserveAspectRatio="none">
               {[
                 { y: 30, val: 8 },
                 { y: 77.5, val: 6 },
@@ -1122,187 +1103,84 @@ export default function DashboardPage() {
                 { y: 220, val: 0 }
               ].map((grid, i) => (
                 <g key={`grid-${i}`}>
-                  <line
-                    x1="60"
-                    y1={grid.y}
-                    x2="880"
-                    y2={grid.y}
-                    stroke="rgba(188, 182, 183, 0.35)"
-                    strokeWidth={grid.val === 0 ? "1.5" : "1"}
-                  />
-                  <text
-                    x="35"
-                    y={grid.y + 4}
-                    fill="#666671"
-                    fontSize="13"
-                    fontWeight="500"
-                    textAnchor="middle"
-                  >
-                    {grid.val}
-                  </text>
+                  <line x1="60" y1={grid.y} x2="880" y2={grid.y} stroke="rgba(188, 182, 183, 0.35)" strokeWidth={grid.val === 0 ? "1.5" : "1"} />
+                  <text x="35" y={grid.y + 4} fill="#666671" fontSize="13" fontWeight="500" textAnchor="middle">{grid.val}</text>
                 </g>
               ))}
-
-              {/* Green Line Path: Lịch xếp (Smoothly passes through EVERY scheduled point) */}
-              {scheduledSvgPath && (
-                <path
-                  d={scheduledSvgPath}
-                  fill="none"
-                  stroke="#469034"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Blue Line Path: Thực làm (Smoothly passes through EVERY actual point) */}
-              {actualSvgPath && (
-                <path
-                  d={actualSvgPath}
-                  fill="none"
-                  stroke="#3B82F6"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Green Data Point Circles (Mathematically on the green curve) */}
+              {scheduledSvgPath && <path d={scheduledSvgPath} fill="none" stroke="#469034" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+              {actualSvgPath && <path d={actualSvgPath} fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
               {scheduledPoints.map((pt, idx) => (
-                <g
-                  key={`sched-pt-${idx}`}
-                  onMouseEnter={() => setHoveredLineIndex({ x: pt.x, y: pt.y, scheduled: pt.hours, date: pt.date })}
-                  onMouseLeave={() => setHoveredLineIndex(null)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={hoveredLineIndex?.date === pt.date ? 6 : 4.5}
-                    fill="#FFFFFF"
-                    stroke="#469034"
-                    strokeWidth="2.5"
-                  />
+                <g key={`sched-pt-${idx}`} onMouseEnter={() => setHoveredLineIndex({ x: pt.x, y: pt.y, scheduled: pt.hours, date: pt.date })} onMouseLeave={() => setHoveredLineIndex(null)} style={{ cursor: 'pointer' }}>
+                  <circle cx={pt.x} cy={pt.y} r={hoveredLineIndex?.date === pt.date ? 6 : 4.5} fill="#FFFFFF" stroke="#469034" strokeWidth="2.5" />
                 </g>
               ))}
-
-              {/* Blue Data Point Circles (Mathematically on the blue curve) */}
               {actualPoints.map((pt, idx) => (
-                <g
-                  key={`act-pt-${idx}`}
-                  onMouseEnter={() => setHoveredLineIndex({ x: pt.x, y: pt.y, actual: pt.hours, date: pt.date })}
-                  onMouseLeave={() => setHoveredLineIndex(null)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={hoveredLineIndex?.date === pt.date ? 6 : 4.5}
-                    fill="#FFFFFF"
-                    stroke="#3B82F6"
-                    strokeWidth="2.5"
-                  />
+                <g key={`act-pt-${idx}`} onMouseEnter={() => setHoveredLineIndex({ x: pt.x, y: pt.y, actual: pt.hours, date: pt.date })} onMouseLeave={() => setHoveredLineIndex(null)} style={{ cursor: 'pointer' }}>
+                  <circle cx={pt.x} cy={pt.y} r={hoveredLineIndex?.date === pt.date ? 6 : 4.5} fill="#FFFFFF" stroke="#3B82F6" strokeWidth="2.5" />
                 </g>
               ))}
-
-              {/* X Axis Date labels (Positioned cleanly at y=260, well below the 0 baseline line) */}
               {salaryDates.map((dStr, idx) => {
                 const xPos = 80 + idx * 130;
-                return (
-                  <text
-                    key={`date-lbl-${idx}`}
-                    x={xPos}
-                    y="262"
-                    fill="#666671"
-                    fontSize="14"
-                    fontWeight="500"
-                    textAnchor="middle"
-                  >
-                    {dStr}
-                  </text>
-                );
+                return <text key={`date-lbl-${idx}`} x={xPos} y="262" fill="#666671" fontSize="14" fontWeight="500" textAnchor="middle">{dStr}</text>;
               })}
             </svg>
-
-            {/* Hover Tooltip for Line Chart */}
             {hoveredLineIndex && (
-              <div
-                className="db-line-tooltip"
-                style={{
-                  left: `${(hoveredLineIndex.x / 920) * 100}%`,
-                  top: `${(hoveredLineIndex.y / 300) * 100}%`
-                }}
-              >
+              <div className="db-line-tooltip" style={{ left: `${(hoveredLineIndex.x / 920) * 100}%`, top: `${(hoveredLineIndex.y / 300) * 100}%` }}>
                 <div className="db-line-tooltip-date">{hoveredLineIndex.date}</div>
-                {hoveredLineIndex.scheduled !== undefined && (
-                  <div className="db-line-tooltip-row" style={{ color: '#469034' }}>
-                    <span>Lịch xếp:</span>
-                    <strong>{hoveredLineIndex.scheduled} giờ</strong>
-                  </div>
-                )}
-                {hoveredLineIndex.actual !== undefined && (
-                  <div className="db-line-tooltip-row" style={{ color: '#3B82F6' }}>
-                    <span>Thực làm:</span>
-                    <strong>{hoveredLineIndex.actual} giờ</strong>
-                  </div>
-                )}
+                {hoveredLineIndex.scheduled !== undefined && <div className="db-line-tooltip-row" style={{ color: '#469034' }}><span>Lịch xếp:</span><strong>{hoveredLineIndex.scheduled} giờ</strong></div>}
+                {hoveredLineIndex.actual !== undefined && <div className="db-line-tooltip-row" style={{ color: '#3B82F6' }}><span>Thực làm:</span><strong>{hoveredLineIndex.actual} giờ</strong></div>}
               </div>
             )}
-          </div>
-
-          <div className="db-chart-legend-bottom">
-            <div className="db-chart-legend-item">
-              <div
-                className="db-line-dot-indicator"
-                style={{ backgroundColor: '#469034' }}
-              />
-              <span>Lịch xếp</span>
-            </div>
-            <div className="db-chart-legend-item">
-              <div
-                className="db-line-dot-indicator"
-                style={{ backgroundColor: '#3B82F6' }}
-              />
-              <span>Thực làm</span>
-            </div>
           </div>
         </section>
 
         {/* =================================================================
-            6. Yêu cầu (Requests Breakdown)
+            6. Yêu cầu
             ================================================================= */}
         <section className="db-card" id="dashboard-requests">
           <div className="db-card-header">
             <h2 className="db-card-title">Yêu cầu</h2>
             <div className="db-card-controls">
-              <button
-                className="db-cal-icon-btn"
-                onClick={() => navigate('/requests')}
-                title="Lịch yêu cầu"
-              >
-                <img src={iconCalendar} alt="Lịch" />
-              </button>
-              <button className="db-control-btn">Hôm nay</button>
-              <button className="db-control-btn">Nhân viên</button>
+              <div className="db-sec-filter">
+                <button
+                  type="button"
+                  className={`db-sec-filter-btn ${filterS6DateMode === 'today' ? 'active' : ''}`}
+                  onClick={() => { setFilterS6DateMode('today'); setFilterS6CustomDate(''); }}
+                >
+                  Hôm nay
+                </button>
+                <input
+                  type="date"
+                  className={`db-sec-filter-date ${filterS6DateMode === 'custom' ? 'active' : ''}`}
+                  value={filterS6CustomDate}
+                  onChange={(e) => {
+                    setFilterS6CustomDate(e.target.value);
+                    setFilterS6DateMode(e.target.value ? 'custom' : 'today');
+                  }}
+                  title="Chọn ngày tháng"
+                />
+                <select
+                  className="db-sec-filter-select"
+                  value={filterS6Employee}
+                  onChange={(e) => setFilterS6Employee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả nhân viên</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.fullName}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
+              <button className="db-control-btn" onClick={() => navigate('/requests')}>Quản lý yêu cầu</button>
             </div>
           </div>
-
           <div className="db-requests-list">
             {requestCategoryCounts.map((item) => (
-              <div
-                key={item.id}
-                className="db-request-row"
-                onClick={() => navigate(`/requests?tab=${item.filterKey}`)}
-              >
+              <div key={item.id} className="db-request-row" onClick={() => navigate(`/requests?tab=${item.filterKey}`)}>
                 <div className="db-request-left">
-                  <span className={`db-req-pill ${item.pillClass}`}>
-                    {item.title}
-                  </span>
+                  <span className={`db-req-pill ${item.pillClass}`}>{item.title}</span>
                   <span className="db-req-desc">{item.desc}</span>
                 </div>
-                <div className={`db-req-count-circle ${item.countClass}`}>
-                  {item.count}
-                </div>
+                <div className={`db-req-count-circle ${item.countClass}`}>{item.count}</div>
               </div>
             ))}
           </div>

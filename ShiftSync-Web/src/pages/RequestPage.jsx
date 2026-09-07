@@ -27,6 +27,13 @@ const fmtDMY = (d) => {
   return `${day}-${month}-${year}`;
 };
 
+const fmtDM = (d) => {
+  if (!d) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+};
+
 const toISODate = (d) => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -39,6 +46,9 @@ export default function RequestPage() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Checkbox selection state for batch export
+  const [selectedIds, setSelectedIds] = useState([]);
 
   // Filter Box 1: Types
   const [filterTypes, setFilterTypes] = useState({
@@ -264,12 +274,61 @@ export default function RequestPage() {
     return true;
   });
 
-  // Handle Approve / Reject
+  // Checkbox selection handlers
+  const handleToggleSelectAll = () => {
+    if (filteredRequests.length > 0 && selectedIds.length === filteredRequests.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredRequests.map(r => r.id));
+    }
+  };
+
+  const handleToggleSelect = (id, e) => {
+    if (e) e.stopPropagation();
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // Batch / Selected CSV Export
+  const handleExportSelected = () => {
+    const itemsToExport = selectedIds.length > 0
+      ? requests.filter(r => selectedIds.includes(r.id))
+      : filteredRequests;
+
+    if (itemsToExport.length === 0) {
+      alert('Không có yêu cầu nào để xuất.');
+      return;
+    }
+
+    const headers = ['Mã yêu cầu', 'Nhân viên', 'Loại yêu cầu', 'Trạng thái', 'Ngày yêu cầu', 'Nội dung'];
+    const csvRows = itemsToExport.map(r => [
+      `"${r.id || ''}"`,
+      `"${r.requesterName || ''}"`,
+      `"${r.requestType || ''}"`,
+      `"${r.status || ''}"`,
+      `"${r.requestDate || r.startDate || ''}"`,
+      `"${(r.content || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `danh_sach_yeu_cau_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification(`✓ Đã xuất thành công ${itemsToExport.length} yêu cầu!`);
+  };
+
+  // Handle Approve / Reject with cross-tab Real-time Sync
   const handleApprove = async (id) => {
     try {
       await updateRequestStatus(id, 'Đã phê duyệt');
       await loadData();
       setSelectedRequest(null);
+      // Real-time sync: trigger schedule refresh on Web SchedulePage & Mobile
+      localStorage.setItem('shiftsync_schedule_refresh', String(Date.now()));
+      window.dispatchEvent(new Event('storage'));
       showNotification('✓ Đã phê duyệt yêu cầu thành công!');
     } catch (e) {
       showNotification('❌ Có lỗi xảy ra khi phê duyệt.');
@@ -281,6 +340,9 @@ export default function RequestPage() {
       await updateRequestStatus(id, 'Đã từ chối');
       await loadData();
       setSelectedRequest(null);
+      // Real-time sync trigger
+      localStorage.setItem('shiftsync_schedule_refresh', String(Date.now()));
+      window.dispatchEvent(new Event('storage'));
       showNotification('✓ Đã từ chối yêu cầu.');
     } catch (e) {
       showNotification('❌ Có lỗi xảy ra khi từ chối.');
@@ -527,11 +589,34 @@ export default function RequestPage() {
                   <line x1="8" y1="2" x2="8" y2="6"></line>
                   <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-                <span>{selectedDate ? fmtDMY(selectedDate) : 'Lịch tuần'}</span>
+                <span>
+                  {selectedWeek
+                    ? `Tuần ${fmtDM(selectedWeek[0])} - ${fmtDM(selectedWeek[6])}`
+                    : selectedDate
+                    ? fmtDMY(selectedDate)
+                    : 'Lịch tuần'}
+                </span>
                 {/* Arrow down */}
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
+              </button>
+
+              <div className="req-capsule-divider" />
+
+              {/* Export Selected / All Button inside capsule */}
+              <button
+                type="button"
+                className="req-capsule-export-btn"
+                onClick={handleExportSelected}
+                title={selectedIds.length > 0 ? `Xuất ${selectedIds.length} yêu cầu đã chọn ra CSV` : 'Xuất danh sách yêu cầu ra file CSV'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Xuất {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
               </button>
 
               <div className="req-capsule-divider" />
@@ -644,20 +729,29 @@ export default function RequestPage() {
           <table className="req-table">
             <thead>
               <tr>
-                <th style={{ width: '28%' }}>Người yêu cầu</th>
-                <th style={{ width: '26%' }}>Loại yêu cầu</th>
-                <th style={{ width: '26%' }}>Trạng thái</th>
-                <th style={{ width: '20%' }}>Ngày yêu cầu</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    className="req-checkbox"
+                    checked={filteredRequests.length > 0 && selectedIds.length === filteredRequests.length}
+                    onChange={handleToggleSelectAll}
+                    title="Chọn tất cả"
+                  />
+                </th>
+                <th style={{ width: '27%' }}>Người yêu cầu</th>
+                <th style={{ width: '25%' }}>Loại yêu cầu</th>
+                <th style={{ width: '25%' }}>Trạng thái</th>
+                <th style={{ width: '19%' }}>Ngày yêu cầu</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="4" className="req-empty">Đang tải danh sách yêu cầu...</td>
+                  <td colSpan="5" className="req-empty">Đang tải danh sách yêu cầu...</td>
                 </tr>
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="req-empty">
+                  <td colSpan="5" className="req-empty">
                     <span>Không tìm thấy yêu cầu nào phù hợp.</span>
                   </td>
                 </tr>
@@ -666,8 +760,17 @@ export default function RequestPage() {
                   <tr 
                     key={item.id}
                     onClick={() => setSelectedRequest(item)}
+                    className={selectedIds.includes(item.id) ? 'req-row-selected' : ''}
                     title="Nhấn để xem chi tiết và duyệt"
                   >
+                    <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        className="req-checkbox"
+                        checked={selectedIds.includes(item.id)}
+                        onChange={(e) => handleToggleSelect(item.id, e)}
+                      />
+                    </td>
                     <td>
                       <div className="req-user-cell">
                         <img 

@@ -417,7 +417,45 @@ Tai lieu nay ghi nhan chi tiet toan bo qua trinh su dung tri tue nhan tao (AI) v
    * Commit Message: fix(all): remove all mock/dummy data, bind real database models, fix test integration
    * Nhanh Git: duyen-frontend
 
+----------------------------------------------------------------------------------------------
+## Phien lam viec: [2026-09-07] - Giai doan 2: Nang cap Trang Scheduler, Attendance & Bo loc Dashboard Doc lap
 
+1. Cong cu va phien ban / Mo hinh su dung:
+   * IDE: Google Antigravity IDE
+   * Mo hinh AI: Gemini 3.7 Flash & Claude 3.7 Sonnet
+   * Plugins: Modern Web Guidance, React DevTools
 
+2. Muc tieu va Ngu canh phien lam viec:
+   * Ngu canh: Hoan thien Giai doan 2 theo yeu cau cua nguoi dung:
+     - Dashboard: Xoa toan bo icon/emoji o bo loc; xoa thanh bo loc chung o dau trang; moi section trong 6 muc deu co bo loc doc lap (Hom nay, Ngay thang, Nhan vien).
+     - Scheduler & Attendance: Gom cac bo loc thanh 1 Box dropdown filter gon nhe (CompactDropdownFilter) gom Nguoi dung, Vi tri, nut All, Only, nut Go mau xanh.
+     - Scheduler: Chuyen nut Day/Week thanh Ngay/Tuan. Cot ngay hien thi 3 thong tin: Thu o tren, Ngay/Thang o duoi, va tong so nguoi di lam trong ngay. Restyle popup/modal hien dai theo vibe ShiftSync.
+     - Logic ca lam viec & Canh bao: Ca lam viec hien thi dung mau vi tri/skill; tam giac vang tren avatar chi hien khi nhan vien da gui availability; co/tam giac tren ca hien khi co ghi chu cua quan ly.
 
+3. Prompt goc va cac Prompt hieu chinh:
+   * Prompt goc: "Giai đoạn 2: Nâng cấp Trang Scheduler & Attendance: xóa hết các icon bên bộ lọc dashboard đi với kiểu bộ lọc đó sai rồi là mỗi mục đều có bộ lọc riêng... Gom các bộ lọc trên Scheduler & Attendance thành 1 Box xổ xuống (chứa Người dùng, Vị trí)... Đổi chữ Day / Week thành Ngày / Tuần... Cột ngày hiển thị: Thứ ở trên, Ngày/Tháng ở dưới + Hiển thị tổng số người đi làm trong ngày. Re-style lại giao diện Popup/Modal... Ca làm việc hiển thị đúng màu của Vị trí... Icon tam giác vàng chỉ hiện khi nhân viên đã gửi lịch khả dụng... Flag trên ca hiện khi có note..."
 
+4. Tep / Thanh phan ma nguon lien quan:
+   * Web Components: `src/components/CompactDropdownFilter.jsx`, `src/components/CompactDropdownFilter.css`.
+   * Web Pages: `src/pages/DashboardPage.jsx`, `src/pages/DashboardPage.css`, `src/pages/SchedulePage.jsx`, `src/pages/SchedulePage.css`, `src/pages/AttendancePageLive.jsx`, `src/pages/AttendancePageLive.css`.
+
+5. Ket qua AI tra ve:
+   * `CompactDropdownFilter` hoan thien theo dung mockup anh nguoi dung cung cap.
+   * `DashboardPage` co 6 bo loc doc lap cho ca 6 section, khong con icon/emoji, logic tinh toan loc chuan xac theo tung section.
+   * `SchedulePage` va `AttendancePageLive` tich hop dropdown filter gon nhe, doi toggle thanh Ngay/Tuan.
+   * Header cot ngay hien thi Thu, Ngay/Thang, badge "X nguoi di lam".
+   * Avatar nhan vien hien tam giac vang chi khi co availability duoc gui tu mobile. Ca lam viec co co/flag khi quan ly co note, va dung mau vi tri skill.
+   * Toan bo modal/popup duoc nang cap giao dien sang trong, backdrop blur, bo goc 16px, shadow mem mai.
+
+6. Phan chap nhan, chinh sua hoac loai bo:
+   * Chap nhan: Toan bo yeu cau thiet ke, logic canh bao, mau sac va bo loc cua nguoi dung.
+
+7. Ly do chinh sua:
+   * Nang cao trai nghiem nguoi dung, chuan hoa giao dien quan tri theo tieu chuan hien dai va nghiep vu thuc te.
+
+8. Phuong phap kiem thu & Xac minh:
+   * Web Build: `npm run build` thanh cong 100% trong 779ms voi 0 loi, 0 canh bao.
+
+9. Commit tuong ung:
+   * Commit Message: feat(scheduler, attendance, dashboard): independent section filters, compact dropdown filter, position colors, availability warning, modern modals
+   * Nhanh Git: duyen-frontend

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
+import { getSkillsByStore } from '../services/skillService';
 import { getStoreAttendance, updateAttendanceRecord } from '../services/attendanceService';
+import CompactDropdownFilter from '../components/CompactDropdownFilter';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
@@ -108,8 +110,9 @@ export default function AttendancePageLive() {
   const [storeId, setStoreId] = useState('');
   const [showStoreList, setShowStoreList] = useState(false);
   const [employees, setEmployees] = useState([]);
-  const [userFilter, setUserFilter] = useState('All');
-  const [showUserList, setShowUserList] = useState(true);
+  const [skills, setSkills] = useState([]);
+  const [selectedPositions, setSelectedPositions] = useState(['ALL']);
+  const [selectedEmployees, setSelectedEmployees] = useState(['ALL']);
 
   // Date Navigation State
   const [viewMode, setViewMode] = useState('Tuần'); // 'Ngày' | 'Tuần'
@@ -212,6 +215,16 @@ export default function AttendancePageLive() {
       })
       .catch(() => setError('Không tải được danh sách nhân viên'));
   }, []);
+
+  // Load skills for selected store
+  useEffect(() => {
+    if (!storeId) return;
+    getSkillsByStore(storeId)
+      .then((res) => {
+        setSkills(res.data || []);
+      })
+      .catch(() => setSkills([]));
+  }, [storeId]);
 
   // Load attendance data
   useEffect(() => {
@@ -354,11 +367,42 @@ export default function AttendancePageLive() {
   // Current selected store object
   const currentStore = stores.find((s) => s.id === storeId);
 
-  // Filter rows by selected user name
+  // Filter rows by compact dropdown (positions & employees)
   const visibleRows = useMemo(() => {
-    if (userFilter === 'All') return rows;
-    return rows.filter((r) => (r.staffName || '').trim() === userFilter.trim());
-  }, [rows, userFilter]);
+    return rows.filter((r) => {
+      // Match employee
+      if (!selectedEmployees.includes('ALL')) {
+        const matchEmp = selectedEmployees.some((selId) => {
+          const emp = employees.find((e) => String(e.id || e.staffId) === String(selId));
+          return (
+            String(r.staffId) === String(selId) ||
+            (emp && (emp.staffFullName || emp.fullName) === r.staffName)
+          );
+        });
+        if (!matchEmp) return false;
+      }
+
+      // Match position/skill
+      if (!selectedPositions.includes('ALL')) {
+        const emp = employees.find(
+          (e) => String(e.id || e.staffId) === String(r.staffId) || (e.staffFullName || e.fullName) === r.staffName
+        );
+        const skillId = emp?.skillId || emp?.skill?.id;
+        const skillName = emp?.skillName || emp?.position || r.position || r.skillName;
+        const matchPos = selectedPositions.some((posId) => {
+          const skObj = skills.find((s) => String(s.id) === String(posId));
+          return (
+            String(skillId) === String(posId) ||
+            (skObj && skObj.name === skillName) ||
+            String(r.skillId) === String(posId)
+          );
+        });
+        if (!matchPos) return false;
+      }
+
+      return true;
+    });
+  }, [rows, selectedEmployees, selectedPositions, employees, skills]);
 
   // Calculate total hours for filtered employee
   const totalFilteredHours = useMemo(() => {
@@ -398,114 +442,7 @@ export default function AttendancePageLive() {
 
   return (
     <div className="att-page">
-      {/* ═══ SIDEBAR (Bộ lọc y hệt bên trang Schedule) ═══ */}
-      <aside className="att-sidebar">
-        {/* Day-mode header shown at top of sidebar */}
-        {viewMode === 'Ngày' && (
-          <div className="att-sidebar-day-header">
-            <div className="att-sidebar-day-label">
-              {DOW_VI[today.getDay()]}
-              <span>{fmtDM(today)}-{today.getFullYear()}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="att-sidebar-inner">
-          <div className="att-sidebar-title">Bộ lọc</div>
-
-          {/* ── Chi nhánh (Box 1) ── */}
-          <div className="att-filter-box" ref={storeFilterRef}>
-            <div
-              className="att-filter-box-header clickable"
-              onClick={() => setShowStoreList((v) => !v)}
-            >
-              <span className="att-filter-label">Chi nhánh</span>
-              <span className={`att-filter-arrow${showStoreList ? ' open' : ''}`}>▾</span>
-            </div>
-
-            {/* List các chi nhánh xổ xuống */}
-            <div className={`att-filter-collapse${showStoreList ? ' expanded' : ''}`}>
-              {stores.map((s) => {
-                const isSelected = storeId === s.id;
-                return (
-                  <div
-                    key={s.id}
-                    className={`att-user-list-item${isSelected ? ' active' : ''}`}
-                    onClick={() => {
-                      setStoreId(s.id);
-                      localStorage.setItem('selectedStoreId', String(s.id));
-                      setShowStoreList(false);
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>{s.name}</span>
-                    {isSelected && <span style={{ color: '#256b1f', fontWeight: 'bold' }}>✓</span>}
-                  </div>
-                );
-              })}
-              {stores.length === 0 && (
-                <div className="att-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>
-                  Đang tải chi nhánh...
-                </div>
-              )}
-            </div>
-
-            {/* Current Selected Store Name display when collapsed */}
-            {!showStoreList && (
-              <div
-                className="att-selected-branch-preview"
-                onClick={() => setShowStoreList(true)}
-              >
-                {currentStore?.name || 'Chọn chi nhánh...'}
-              </div>
-            )}
-          </div>
-
-          {/* ── Người dùng (Box 2: Collapsible y hệt trang Schedule) ── */}
-          <div className="att-filter-box">
-            <div
-              className="att-filter-box-header clickable"
-              onClick={() => setShowUserList((v) => !v)}
-            >
-              <span className="att-filter-label">Người dùng</span>
-              <span className={`att-filter-arrow${showUserList ? ' open' : ''}`}>▾</span>
-            </div>
-            <div className={`att-filter-collapse${showUserList ? ' expanded' : ''}`}>
-              <div
-                className={`att-user-list-item${userFilter === 'All' ? ' active' : ''}`}
-                onClick={() => setUserFilter('All')}
-              >
-                Tất cả
-              </div>
-              {employees.map((emp) => {
-                const name = emp.staffFullName || emp.fullName || '';
-                const empId = emp.staffId || emp.id;
-                const isSelected = userFilter === name;
-                return (
-                  <div
-                    key={empId}
-                    className={`att-user-list-item${isSelected ? ' active' : ''}`}
-                    onClick={() => setUserFilter(isSelected ? 'All' : name)}
-                  >
-                    <img
-                      src={AVATARS[name] || DEFAULT_AVATAR}
-                      alt={name}
-                      className="att-filter-avatar"
-                    />
-                    <span style={{ flex: 1 }}>{name}</span>
-                  </div>
-                );
-              })}
-              {employees.length === 0 && (
-                <div className="att-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>
-                  Chưa có nhân viên
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* ═══ MAIN CONTENT ═══ */}
+      {/* ═══ MAIN CONTENT (Full width, sidebar ảnh 3 đã xóa) ═══ */}
       <main className="att-main">
         {/* ═══ TOPBAR (Row 1: Day/Week Toggle & Tóm tắt bảng lương) ═══ */}
         <div className="att-topbar">
@@ -515,14 +452,14 @@ export default function AttendancePageLive() {
               className={`att-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
               onClick={() => setViewMode('Ngày')}
             >
-              Day
+              Ngày
             </button>
             <button
               type="button"
               className={`att-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
               onClick={() => setViewMode('Tuần')}
             >
-              Week
+              Tuần
             </button>
           </div>
 
@@ -549,123 +486,139 @@ export default function AttendancePageLive() {
           </div>
         </div>
 
-        {/* ═══ HEADER TOOLBAR (Row 2: Date Navigator & Calendar Popover) ═══ */}
+        {/* ═══ HEADER TOOLBAR (Row 2: Date Navigator & Inline Compact Filters) ═══ */}
         <div className="att-header-toolbar">
-          <div className="att-date-navigator-wrap" ref={dateNavWrapRef}>
-            <div className="att-date-navigator">
-              <button
-                type="button"
-                className="att-date-nav-arrow"
-                onClick={handlePrevDate}
-                title="Trước"
-              >
-                ‹
-              </button>
-              <div
-                className="att-date-nav-center"
-                onClick={openCalendarPopover}
-                title="Bấm 1 lần để xem lịch • Bấm ngày để chọn tuần • Bấm đúp để chọn ngày"
-              >
-                <span>
-                  {viewMode === 'Ngày'
-                    ? fmtDateRangeText(today)
-                    : `${fmtDateRangeText(weekDatesFull[0])}`}
-                </span>
-                {viewMode === 'Tuần' && (
-                  <>
-                    <span className="att-date-arrow-sep">→</span>
-                    <span>{fmtDateRangeText(weekDatesFull[6])}</span>
-                  </>
-                )}
+          <div className="att-toolbar-row-left">
+            <div className="att-date-navigator-wrap" ref={dateNavWrapRef}>
+              <div className="att-date-navigator">
+                <button
+                  type="button"
+                  className="att-date-nav-arrow"
+                  onClick={handlePrevDate}
+                  title="Trước"
+                >
+                  ‹
+                </button>
+                <div
+                  className="att-date-nav-center"
+                  onClick={openCalendarPopover}
+                  title="Bấm 1 lần để xem lịch • Bấm ngày để chọn tuần • Bấm đúp để chọn ngày"
+                >
+                  <span>
+                    {viewMode === 'Ngày'
+                      ? fmtDateRangeText(today)
+                      : `${fmtDateRangeText(weekDatesFull[0])}`}
+                  </span>
+                  {viewMode === 'Tuần' && (
+                    <>
+                      <span className="att-date-arrow-sep">→</span>
+                      <span>{fmtDateRangeText(weekDatesFull[6])}</span>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="att-date-nav-arrow"
+                  onClick={handleNextDate}
+                  title="Sau"
+                >
+                  ›
+                </button>
               </div>
+
               <button
                 type="button"
-                className="att-date-nav-arrow"
-                onClick={handleNextDate}
-                title="Sau"
+                className="att-today-btn"
+                onClick={handleTodayClick}
               >
-                ›
+                Hôm nay
               </button>
-            </div>
 
-            <button
-              type="button"
-              className="att-today-btn"
-              onClick={handleTodayClick}
-            >
-              Hôm nay
-            </button>
-
-            {/* ── Datepicker Popover (Y hệt trang Schedule) ── */}
-            {showCalendarPopover && (
-              <div className="att-calendar-popover" onClick={(e) => e.stopPropagation()}>
-                <div className="att-cal-popover-header">
-                  <div className="att-cal-month-year">
-                    <span>{MONTH_NAMES_VI[calMonth]} ▾</span>
-                    <span>{calYear} ▾</span>
-                  </div>
-                  <div className="att-cal-header-nav">
-                    <button
-                      type="button"
-                      className="att-cal-nav-btn"
-                      onClick={handleCalPrevMonth}
-                      title="Tháng trước"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      type="button"
-                      className="att-cal-nav-btn"
-                      onClick={handleCalNextMonth}
-                      title="Tháng sau"
-                    >
-                      ›
-                    </button>
-                  </div>
-                </div>
-
-                <div className="att-cal-weekdays">
-                  <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
-                </div>
-
-                <div className="att-cal-grid">
-                  {getCalendarWeeks(calYear, calMonth).map((week, wIdx) => {
-                    const isCurWeek = week.some((d) => {
-                      const curMonday = weekDatesFull[0];
-                      const dMon = getWeekDates(d)[0];
-                      return dMon.toDateString() === curMonday.toDateString();
-                    });
-
-                    return (
-                      <div
-                        key={wIdx}
-                        className={`att-cal-week-row ${isCurWeek && viewMode === 'Tuần' ? 'selected' : ''}`}
-                        onClick={() => handleSelectWeek(week[0])}
+              {/* ── Datepicker Popover ── */}
+              {showCalendarPopover && (
+                <div className="att-calendar-popover" onClick={(e) => e.stopPropagation()}>
+                  <div className="att-cal-popover-header">
+                    <div className="att-cal-month-year">
+                      <span>{MONTH_NAMES_VI[calMonth]} ▾</span>
+                      <span>{calYear} ▾</span>
+                    </div>
+                    <div className="att-cal-header-nav">
+                      <button
+                        type="button"
+                        className="att-cal-nav-btn"
+                        onClick={handleCalPrevMonth}
+                        title="Tháng trước"
                       >
-                        {week.map((dateObj, dIdx) => {
-                          const isCurMonth = dateObj.getMonth() === calMonth;
-                          const isTodayDate = dateObj.toDateString() === new Date().toDateString();
-                          const isSelDay = viewMode === 'Ngày' && dateObj.toDateString() === today.toDateString();
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        className="att-cal-nav-btn"
+                        onClick={handleCalNextMonth}
+                        title="Tháng sau"
+                      >
+                        ›
+                      </button>
+                    </div>
+                  </div>
 
-                          return (
-                            <div
-                              key={dIdx}
-                              className={`att-cal-day-cell ${isCurMonth ? '' : 'outside'} ${isTodayDate ? 'today' : ''} ${isSelDay ? 'selected' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCalendarDayClick(dateObj);
-                              }}
-                            >
-                              <span>{dateObj.getDate()}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                  <div className="att-cal-weekdays">
+                    <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+                  </div>
+
+                  <div className="att-cal-grid">
+                    {getCalendarWeeks(calYear, calMonth).map((week, wIdx) => {
+                      const isCurWeek = week.some((d) => {
+                        const curMonday = weekDatesFull[0];
+                        const dMon = getWeekDates(d)[0];
+                        return dMon.toDateString() === curMonday.toDateString();
+                      });
+
+                      return (
+                        <div
+                          key={wIdx}
+                          className={`att-cal-week-row ${isCurWeek && viewMode === 'Tuần' ? 'selected' : ''}`}
+                          onClick={() => handleSelectWeek(week[0])}
+                        >
+                          {week.map((dateObj, dIdx) => {
+                            const isCurMonth = dateObj.getMonth() === calMonth;
+                            const isTodayDate = dateObj.toDateString() === new Date().toDateString();
+                            const isSelDay = viewMode === 'Ngày' && dateObj.toDateString() === today.toDateString();
+
+                            return (
+                              <div
+                                key={dIdx}
+                                className={`att-cal-day-cell ${isCurMonth ? '' : 'outside'} ${isTodayDate ? 'today' : ''} ${isSelDay ? 'selected' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCalendarDayClick(dateObj);
+                                }}
+                              >
+                                <span>{dateObj.getDate()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          <div className="att-toolbar-row-right">
+            {/* Bộ lọc vị trí & nhân viên */}
+            <div className="att-compact-filter-wrap">
+              <CompactDropdownFilter
+                skills={skills}
+                selectedSkills={selectedPositions}
+                onSkillsChange={setSelectedPositions}
+                employees={employees}
+                selectedEmployees={selectedEmployees}
+                onEmployeesChange={setSelectedEmployees}
+              />
+            </div>
           </div>
         </div>
 

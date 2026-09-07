@@ -200,7 +200,7 @@ export default function ScheduleScreen({ navigation }) {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchScheduleData();
     });
-    const interval = setInterval(fetchScheduleData, 10000); // Tự động cập nhật khi quản lý sửa lịch trên Web
+    const interval = setInterval(fetchScheduleData, 5000); // Tự động cập nhật tức thì (5s) khi quản lý sửa/duyệt lịch trên Web
     return () => {
       unsubscribe();
       clearInterval(interval);
@@ -257,6 +257,8 @@ export default function ScheduleScreen({ navigation }) {
             location: s.storeAddress || s.storeName || 'Highlands D9/71 Tây Thạnh',
             role,
             color: theme.color,
+            note: s.note || '',
+            hasFlag: Boolean(s.note && s.note.trim().length > 0),
           };
         });
         setLiveMyShifts(mapped);
@@ -294,6 +296,8 @@ export default function ScheduleScreen({ navigation }) {
               location: s.storeAddress || s.storeName || 'Highlands D9/71 Tây Thạnh',
               role,
               color: theme.color,
+              note: s.note || '',
+              hasFlag: Boolean(s.note && s.note.trim().length > 0),
             };
           });
           setLiveStoreShifts(mappedStore);
@@ -668,7 +672,15 @@ export default function ScheduleScreen({ navigation }) {
 
                         {/* Cột phải: Thông tin ca */}
                         <View style={styles.shiftDetailCol}>
-                          <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
+                            {shift.hasFlag && (
+                              <View style={styles.shiftFlagBadge}>
+                                <Text style={styles.shiftFlagIcon}>🚩</Text>
+                                <Text style={styles.shiftFlagText} numberOfLines={1}>Cảnh báo</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={styles.shiftLocationText} numberOfLines={1}>
                             {shift.location}
                           </Text>
@@ -745,6 +757,14 @@ export default function ScheduleScreen({ navigation }) {
                 </View>
               </View>
             </View>
+
+            {/* Ghi chú quản lý nếu có cờ cảnh báo */}
+            {activeSelectedShift?.hasFlag && (
+              <View style={styles.popupManagerNoteBox}>
+                <Text style={styles.popupManagerNoteTitle}>🚩 Ghi chú / Cảnh báo từ quản lý:</Text>
+                <Text style={styles.popupManagerNoteText}>{activeSelectedShift.note}</Text>
+              </View>
+            )}
 
             {/* Đường kẻ ngang (Line 132) */}
             <View style={styles.popupDivider} />
@@ -1842,5 +1862,45 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: '#888888',
+  },
+
+  // ── Shift Note Flag Badge ──
+  shiftFlagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    gap: 3,
+  },
+  shiftFlagIcon: {
+    fontSize: 10,
+  },
+  shiftFlagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  popupManagerNoteBox: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  popupManagerNoteTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+    marginBottom: 3,
+  },
+  popupManagerNoteText: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
   },
 });
