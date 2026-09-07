@@ -2,12 +2,12 @@ package com.shiftsync.layout.repository;
 
 import com.shiftsync.layout.entity.StoreLayout;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+
 
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
+
 public interface StoreLayoutRepository extends JpaRepository<StoreLayout, UUID> {
     Optional<StoreLayout> findByStoreId(UUID storeId);
 }
