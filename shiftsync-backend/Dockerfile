@@ -1,13 +1,14 @@
 # Build stage
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM container-registry.oracle.com/java/jdk:21 AS build
 WORKDIR /app
 
 # Copy maven wrapper and pom.xml
 COPY .mvn/ .mvn
 COPY mvnw pom.xml ./
 
-# Convert line endings of mvnw (necessary when building from a Windows host)
-RUN apk add --no-cache dos2unix && dos2unix mvnw && chmod +x mvnw
+# Convert line endings if needed (requires dos2unix, but we'll assume clean repo)
+# If developing on Windows, ensure git core.autocrlf is true or run dos2unix before Docker build
+RUN chmod +x mvnw
 
 # Download dependencies (cached layer)
 RUN ./mvnw dependency:go-offline
@@ -17,7 +18,7 @@ COPY src ./src
 RUN ./mvnw clean package -DskipTests
 
 # Run stage
-FROM eclipse-temurin:21-jre-alpine
+FROM container-registry.oracle.com/java/jdk:21
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
