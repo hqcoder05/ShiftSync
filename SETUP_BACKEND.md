@@ -1,145 +1,83 @@
-# Hướng Dẫn Cài Đặt Và Chạy ShiftSync Backend (Từ Con Số 0)
+# ⚙️ Hướng dẫn cài đặt và chạy ShiftSync Backend
 
-Tài liệu này dành cho máy tính **chưa từng cài đặt công cụ lập trình nào**. Hãy làm theo từng bước để có thể chạy được dự án ShiftSync Backend.
+Tài liệu này hướng dẫn chi tiết cách chạy phần **Backend (Spring Boot)** của hệ thống ShiftSync trên máy tính cá nhân (Local).
+
+## 📌 1. Yêu cầu hệ thống (Prerequisites)
+
+- **Java Development Kit (JDK) 21**
+- **Maven 3.9+** (hoặc dùng `mvnw` đi kèm source code)
+- **PostgreSQL 16+** (Cài đặt trực tiếp hoặc chạy qua Docker)
+- **IDE:** IntelliJ IDEA (khuyên dùng) hoặc VS Code.
 
 ---
 
-## Phần 1: Cài đặt các công cụ cần thiết (Prerequisites)
+## 🗄️ 2. Thiết lập Cơ sở dữ liệu (PostgreSQL)
 
-Bạn cần cài đặt Git, Java 21 (JDK), Maven và Docker. Dưới đây là hướng dẫn theo từng hệ điều hành:
+Bạn cần tạo một Database trống trên PostgreSQL trước khi khởi chạy ứng dụng. Spring Boot kết hợp với Flyway sẽ tự động chạy các file SQL để tạo bảng và cấu trúc schema.
 
-### 1. Dành cho Windows
-- **Git:** Tải và cài đặt từ [Git for Windows](https://git-scm.com/download/win).
-- **Java 21:** 
-  - Tải [Eclipse Temurin JDK 21 (.msi)](https://adoptium.net/temurin/releases/?version=21). 
-  - Khi cài đặt, chọn "Will be installed on local hard drive" ở mục **"Set JAVA_HOME variable"** để tự động cấu hình biến môi trường.
-- **Maven:** 
-  - Tải file zip từ [Apache Maven](https://maven.apache.org/download.cgi) và giải nén (VD: `C:\apache-maven-3.9.x`).
-  - Mở Environment Variables, thêm đường dẫn `C:\apache-maven-3.9.x\bin` vào biến `Path`.
-- **Docker Desktop:** Tải và cài đặt [Docker Desktop cho Windows](https://docs.docker.com/desktop/install/windows-install/).
+1. Mở pgAdmin hoặc công cụ quản lý Database của bạn (DBeaver, DataGrip...).
+2. Tạo database mới với tên: `shiftsync`
+3. Username và Password mặc định mà hệ thống đang dùng là `postgres` / `postgres`. Nếu bạn dùng password khác, xem tiếp Bước 3.
 
-### 2. Dành cho macOS
-- **Cách nhanh nhất (Sử dụng Homebrew):**
-  Mở Terminal và chạy các lệnh sau:
-  ```bash
-  # Cài đặt Homebrew (nếu chưa có)
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  
-  # Cài đặt Git và Maven
-  brew install git maven
-  
-  # Cài đặt Java 21
-  brew install openjdk@21
-  sudo ln -sfn /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-21.jdk
-  
-  # Cài đặt Docker Desktop
-  brew install --cask docker
-  ```
-  Sau khi cài xong, mở ứng dụng Docker trong Launchpad để khởi động.
+---
 
-### 3. Dành cho Linux (Ubuntu/Debian)
-Mở Terminal và chạy các lệnh sau:
-```bash
-# Cập nhật package list
-sudo apt update
+## 🛠️ 3. Cấu hình biến môi trường (`application.properties`)
 
-# Cài đặt Git
-sudo apt install git -y
+Di chuyển vào thư mục `shiftsync-backend/src/main/resources`.
+Mở file `application.properties`, tìm cấu hình Datasource. Nếu cấu hình CSDL của bạn khác mặc định, hãy sửa lại ở đây:
 
-# Cài đặt Java 21
-sudo apt install openjdk-21-jdk -y
-
-# Cài đặt Maven
-sudo apt install maven -y
-
-# Cài đặt Docker và Docker Compose
-sudo apt install docker.io docker-compose-v2 -y
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-```
-*(Lưu ý: Với Linux, bạn cần đăng xuất và đăng nhập lại sau khi add user vào group docker)*.
-
-### Kiểm tra cài đặt (Dành cho mọi HĐH)
-Mở Terminal (hoặc Command Prompt) mới và gõ các lệnh sau để đảm bảo mọi thứ đã được cài đặt thành công:
-```bash
-git --version
-java -version    # Phải báo phiên bản 21.x.x
-mvn -version
-docker --version
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/shiftsync
+spring.datasource.username=postgres
+spring.datasource.password=123456  # Sửa thành mật khẩu PostgreSQL của máy bạn
 ```
 
 ---
 
-## Phần 2: Khởi chạy dự án
+## ▶️ 4. Khởi chạy ứng dụng (Run Application)
 
-### Bước 1: Tải mã nguồn (Clone Source Code)
-1. Mở Command Prompt (hoặc Git Bash).
-2. Di chuyển đến thư mục bạn muốn lưu code, ví dụ: `cd D:\`
-3. Gõ lệnh:
-   ```bash
-   git clone <URL_CUA_REPO_GITHUB_CUA_BAN>
-   ```
-4. Di chuyển vào thư mục code:
-   ```bash
-   cd ShiftSync\shiftsync-backend
-   ```
+Có 2 cách phổ biến để chạy Backend:
 
-### Bước 2: Chạy dự án (Chọn 1 trong 2 cách)
+### Cách 1: Chạy bằng IntelliJ IDEA (Khuyên dùng)
+1. Mở thư mục con `shiftsync-backend` bằng IntelliJ IDEA.
+2. Đợi IDE tải xong các thư viện Maven (Sync Maven).
+3. Mở file `ShiftsyncBackendApplication.java` nằm trong `src/main/java/com/shiftsync`.
+4. Bấm nút ▶️ **Run** màu xanh.
 
-Đảm bảo ứng dụng **Docker Desktop đang được mở và hoạt động** trước khi thực hiện.
-
-👉 **LƯU Ý QUAN TRỌNG TRƯỚC KHI CHẠY:**
-Hệ thống yêu cầu các biến môi trường để hoạt động. Trong thư mục `shiftsync-backend`, hãy **Copy file `.env.example` và đổi tên bản sao thành `.env`**. (Bạn có thể để nguyên các giá trị mặc định bên trong file `.env` nếu chỉ muốn chạy thử ở local).
-
-#### Cách 1: Chạy toàn bộ bằng Docker (Khuyên dùng nhất - Nhanh gọn)
-Nếu bạn chỉ muốn bật hệ thống lên để xem và test API mà không có nhu cầu sửa code ngay, hãy dùng cách này. Docker sẽ tự động bật Database, Redis và cả Backend của chúng ta.
-
-Tại thư mục `shiftsync-backend`, chạy lệnh:
+### Cách 2: Chạy bằng Terminal (Command Line)
+Mở Terminal, di chuyển vào thư mục `shiftsync-backend` và gõ lệnh sau:
 ```bash
-docker compose up -d --build
+# Trên Windows (PowerShell/CMD)
+.\mvnw spring-boot:run
+
+# Trên Mac/Linux
+./mvnw spring-boot:run
 ```
-Chờ một chút để Docker tải ảnh và khởi động (có thể mất vài phút cho lần đầu). Khi chạy xong, ứng dụng đã hoàn toàn sẵn sàng!
 
-#### Cách 2: Chạy ở chế độ Lập trình / Debug (Dev Mode)
-Nếu bạn là Coder, muốn trực tiếp gõ lệnh chạy Backend bằng Java để sửa code và xem log lỗi, hãy làm theo cách này (Chỉ dùng Docker để chạy DB và Redis).
-
-1. Bật Database và Redis (không bật Backend trong Docker):
-   ```bash
-   docker compose up -d postgres redis
-   ```
-2. Tải thư viện và chạy ứng dụng Spring Boot bằng Maven:
-   ```bash
-   mvn spring-boot:run
-   ```
-*(Quá trình tải thư viện lần đầu sẽ hơi lâu, hãy kiên nhẫn)*.
-Nếu bạn thấy dòng chữ `Started ShiftsyncBackendApplication in x seconds`, xin chúc mừng, server đã chạy thành công!
+⏳ Khi Terminal hiện dòng chữ `Started ShiftsyncBackendApplication in ... seconds`, server đã khởi động thành công và đang lắng nghe ở cổng **8080**.
 
 ---
 
-## Phần 3: Kiểm tra API
+## 🧪 5. Kiểm tra API (Swagger UI)
 
-Mở trình duyệt web của bạn và truy cập vào địa chỉ sau để xem tài liệu API (Swagger UI):
+Khi server đang chạy, bạn mở trình duyệt web và truy cập vào đường link sau để xem giao diện tài liệu API (OpenAPI) và test trực tiếp:
 
 👉 **http://localhost:8080/swagger-ui.html**
 
-Tại đây, bạn có thể xem tất cả các API của dự án (Auth, User, Store) và có thể click "Try it out" để test trực tiếp!
+Tại đây, bạn có thể xem tất cả các nhóm API (Auth, Store, Shift, Attendance...) và dùng nút "Try it out" để thử nghiệm gửi request.
 
 ---
 
-## Các lệnh xử lý sự cố thường gặp (Troubleshooting)
+## 🆘 Các lỗi thường gặp (Troubleshooting)
 
-**1. Lỗi "Port 8080 was already in use" khi chạy Maven:**
-Lỗi này chắc chắn xảy ra nếu bạn vừa chạy Cách 1 xong lại nhảy sang chạy Cách 2. Do ứng dụng đang chạy ngầm trong Docker chiếm cổng 8080.
-- Xử lý: Tắt Backend trong Docker bằng lệnh `docker stop shiftsync-backend`, rồi chạy lại Maven.
+**1. Lỗi "Port 8080 was already in use":**
+Điều này có nghĩa là đang có một ứng dụng khác trên máy bạn chiếm dụng cổng 8080.
+- Xử lý: Bạn có thể đổi cổng chạy app trong `application.properties` (ví dụ `server.port=8081`) hoặc tìm và tắt tiến trình đang chiếm cổng 8080.
 
-**2. Tắt dự án:** 
-- Nếu dùng **Cách 1**, hãy vào thư mục `shiftsync-backend` và gõ: `docker compose down`
-- Nếu dùng **Cách 2**, nhấn `Ctrl + C` ở cửa sổ cmd đang chạy Maven, sau đó gõ `docker compose down` để tắt CSDL.
+**2. Lỗi "Connection to localhost:5432 refused":**
+Spring Boot không thể kết nối tới PostgreSQL.
+- Xử lý: Hãy kiểm tra xem PostgreSQL server đã được bật chưa, và thông tin port, username, password trong file `application.properties` đã chính xác chưa.
 
-**3. Reset lại toàn bộ Data của Database:**
-Trường hợp dữ liệu bị lỗi, bạn có thể xoá sạch database đi để tạo lại từ đầu bằng lệnh:
-```bash
-docker compose down -v
-docker compose up -d
-```
-(Lưu ý: Hành động này sẽ xoá toàn bộ dữ liệu bạn đã tạo thử nghiệm).
+**3. Lỗi "FlywayException: Validate failed":**
+Xảy ra khi cấu trúc các file SQL Migration bị sửa đổi không khớp với trạng thái hiện tại của Database.
+- Xử lý: Cách nhanh nhất ở môi trường Dev là vào PostgreSQL, Xóa hoàn toàn database `shiftsync` (Drop Database) và tạo lại một cái trống. Sau đó chạy lại ứng dụng để Flyway tự tạo lại cấu trúc từ đầu.
