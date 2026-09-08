@@ -48,6 +48,9 @@ public class ShiftAssignment {
     @JoinColumn(name = "zone_id")
     private StoreZone zone;
 
+    @Column(name = "required_skill_id")
+    private UUID requiredSkillId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

@@ -23,5 +23,6 @@ public class EmploymentDTO {
     private EmploymentStatus status;
     private LocalDate joinedDate;
     private LocalDate leftDate;
+    private String systemRole;
 }
 

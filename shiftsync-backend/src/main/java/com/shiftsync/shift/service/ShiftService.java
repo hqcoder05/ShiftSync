@@ -29,7 +29,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -48,8 +50,6 @@ public class ShiftService {
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
 
-    @Transactional(readOnly = true)
-    
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
         if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
                 storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
@@ -57,6 +57,7 @@ public class ShiftService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<ShiftDTO> getShiftsByStoreId(UUID storeId, ShiftStatus statusFilter, boolean isStaff) {
         verifyStoreExists(storeId);
         return shiftRepository.findByStoreId(storeId).stream()
@@ -316,15 +317,36 @@ public class ShiftService {
     private ShiftDTO mapToDTO(Shift entity) {
         List<ShiftAssignment> assignments = entity.getAssignments() != null ? entity.getAssignments() : new java.util.ArrayList<>();
         
+        Map<UUID, String> skillNameMap = entity.getRequirements() != null
+                ? entity.getRequirements().stream()
+                        .filter(r -> r.getSkill() != null)
+                        .collect(Collectors.toMap(r -> r.getSkill().getId(), r -> r.getSkill().getName(), (k1, k2) -> k1))
+                : java.util.Collections.emptyMap();
+
         List<com.shiftsync.shift.dto.ShiftAssignmentResponseDTO> assignmentDTOs = assignments.stream()
-                .map(a -> com.shiftsync.shift.dto.ShiftAssignmentResponseDTO.builder()
-                        .id(a.getId())
-                        .shiftId(a.getShift().getId())
-                        .staffId(a.getStaff().getId())
-                        .staffName(a.getStaff().getFullName())
-                        .source(a.getSource())
-                        .assignedAt(a.getAssignedAt())
-                        .build())
+                .map(a -> {
+                    String skillName = null;
+                    if (a.getRequiredSkillId() != null) {
+                        skillName = skillNameMap.get(a.getRequiredSkillId());
+                        if (skillName == null) {
+                            skillName = skillRepository.findById(a.getRequiredSkillId())
+                                    .map(com.shiftsync.skill.entity.Skill::getName)
+                                    .orElse(null);
+                        }
+                    }
+                    return com.shiftsync.shift.dto.ShiftAssignmentResponseDTO.builder()
+                            .id(a.getId())
+                            .shiftId(a.getShift().getId())
+                            .staffId(a.getStaff().getId())
+                            .staffName(a.getStaff().getFullName())
+                            .requiredSkillId(a.getRequiredSkillId())
+                            .skillName(skillName)
+                            .zoneId(a.getZone() != null ? a.getZone().getId() : null)
+                            .zoneName(a.getZone() != null ? a.getZone().getName() : null)
+                            .source(a.getSource())
+                            .assignedAt(a.getAssignedAt())
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         List<ShiftSkillRequirementDTO> reqDTOs = entity.getRequirements().stream()

@@ -14,6 +14,10 @@ public class ShiftAssignmentResponseDTO {
     private UUID shiftId;
     private UUID staffId;
     private String staffName;
+    private UUID requiredSkillId;
+    private String skillName;
+    private UUID zoneId;
+    private String zoneName;
     private AssignmentSource source;
     private OffsetDateTime assignedAt;
 }

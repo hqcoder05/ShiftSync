@@ -5,8 +5,10 @@ import com.shiftsync.skill.dto.SkillDTO;
 import com.shiftsync.skill.dto.SkillRequest;
 import com.shiftsync.skill.entity.Skill;
 import com.shiftsync.skill.repository.SkillRepository;
+import com.shiftsync.skill.repository.StaffSkillRepository;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,8 @@ public class SkillService {
 
     private final SkillRepository skillRepository;
     private final StoreRepository storeRepository;
+    private final StaffSkillRepository staffSkillRepository;
+    private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public List<SkillDTO> getSkillsByStoreId(UUID storeId) {
@@ -68,12 +72,34 @@ public class SkillService {
     public void deleteSkill(UUID storeId, UUID skillId) {
         Skill skill = skillRepository.findByIdAndStoreId(skillId, storeId)
                 .orElseThrow(() -> new BusinessException("Skill not found in this store", HttpStatus.NOT_FOUND));
-        
-        try {
-            skillRepository.delete(skill);
-        } catch (Exception e) {
-            throw new BusinessException("Cannot delete skill because it is being referenced by other records", HttpStatus.CONFLICT);
+
+        // Check if this skill is referenced in shift requirements (future/current shifts)
+        Long shiftReqCount = (Long) entityManager
+                .createNativeQuery("SELECT COUNT(*) FROM shift_skill_requirement WHERE skill_id = :skillId")
+                .setParameter("skillId", skillId)
+                .getSingleResult();
+        if (shiftReqCount > 0) {
+            throw new BusinessException(
+                "Không thể xóa vai trò này vì đang được sử dụng trong " + shiftReqCount + " ca làm việc. "
+                    + "Hãy xóa yêu cầu ca làm trước.",
+                HttpStatus.CONFLICT);
         }
+
+        // Check if referenced in shift assignments
+        Long assignCount = (Long) entityManager
+                .createNativeQuery("SELECT COUNT(*) FROM shift_assignment WHERE required_skill_id = :skillId AND deleted = false")
+                .setParameter("skillId", skillId)
+                .getSingleResult();
+        if (assignCount > 0) {
+            throw new BusinessException(
+                "Không thể xóa vai trò này vì có " + assignCount + " nhân viên đang được phân công với vai trò này.",
+                HttpStatus.CONFLICT);
+        }
+
+        // Safe to delete staff_skill associations first (these are just employee profiles)
+        staffSkillRepository.deleteAll(staffSkillRepository.findBySkillId(skillId));
+
+        skillRepository.delete(skill);
     }
 
     private void verifyStoreExists(UUID storeId) {

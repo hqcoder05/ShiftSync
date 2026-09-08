@@ -41,4 +41,20 @@ public class SchedulerConfiguration {
     @Column(name = "availability_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
     private BigDecimal availabilityWeight = new BigDecimal("0.300");
+
+    // Lỗi 6: Validate tổng trọng số scoring = 1.000 (cho phép sai số 0.001)
+    @PrePersist
+    @PreUpdate
+    public void validateWeights() {
+        BigDecimal sum = (fairnessWeight != null ? fairnessWeight : BigDecimal.ZERO)
+                .add(skillWeight != null ? skillWeight : BigDecimal.ZERO)
+                .add(hourWeight != null ? hourWeight : BigDecimal.ZERO)
+                .add(restTimeWeight != null ? restTimeWeight : BigDecimal.ZERO)
+                .add(availabilityWeight != null ? availabilityWeight : BigDecimal.ZERO);
+        if (sum.subtract(BigDecimal.ONE).abs().compareTo(new BigDecimal("0.001")) > 0) {
+            throw new com.shiftsync.shared.exception.BusinessException(
+                    "Total scheduler weights must equal 1.000 (within 0.001 tolerance)",
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+    }
 }

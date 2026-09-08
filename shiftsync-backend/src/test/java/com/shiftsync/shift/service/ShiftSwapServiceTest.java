@@ -38,7 +38,7 @@ class ShiftSwapServiceTest {
         
         when(shiftSwapRequestRepository.findById(requestId)).thenReturn(Optional.of(req));
 
-        BusinessException ex = assertThrows(BusinessException.class, 
+        assertThrows(BusinessException.class, 
                 () -> shiftSwapService.managerApproveSwapRequest(requestId, UUID.randomUUID()));
     }
 }

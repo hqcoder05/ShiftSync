@@ -31,12 +31,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LeaveRequestService {
     private final com.shiftsync.audit.service.AuditLogService auditLogService;
-    private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
-    private final com.shiftsync.auth.repository.UserRepository userRepository;
-    private final com.shiftsync.store.repository.StoreRepository storeRepository;
-    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
-    private final com.shiftsync.availability.repository.BlackoutDateRepository blackoutDateRepository;
-    private final com.shiftsync.shift.repository.ShiftAssignmentRepository shiftAssignmentRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final UserRepository userRepository;
+    private final StoreRepository storeRepository;
+    private final EmploymentRepository employmentRepository;
+    private final BlackoutDateRepository blackoutDateRepository;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {

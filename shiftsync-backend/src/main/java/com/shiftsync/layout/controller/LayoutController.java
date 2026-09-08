@@ -2,6 +2,7 @@ package com.shiftsync.layout.controller;
 
 import com.shiftsync.layout.dto.CreateLayoutRequest;
 import com.shiftsync.layout.dto.CreateZoneRequest;
+import com.shiftsync.layout.dto.SpatialAllocationResultDto;
 import com.shiftsync.layout.dto.StoreLayoutDto;
 import com.shiftsync.layout.dto.StoreZoneDto;
 import com.shiftsync.layout.entity.StoreLayout;
@@ -124,11 +125,27 @@ public class LayoutController {
         return ResponseEntity.ok(dtos);
     }
 
+    @Operation(summary = "Delete a 3D zone from a store")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @DeleteMapping("/zones/{zoneId}")
+    public ResponseEntity<Void> deleteZone(@PathVariable UUID storeId, @PathVariable UUID zoneId) {
+        StoreZone zone = storeZoneRepository.findById(zoneId)
+                .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
+
+        // IDOR Prevention: zone must belong to the requested store
+        if (!zone.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Zone does not belong to the requested store", HttpStatus.FORBIDDEN);
+        }
+
+        storeZoneRepository.delete(zone);
+        return ResponseEntity.noContent().build();
+    }
+
     @Operation(summary = "Run 3D Spatial Allocation for a shift")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/shifts/{shiftId}/allocate-zones")
-    public ResponseEntity<Void> allocateZones(@PathVariable UUID storeId, @PathVariable UUID shiftId) {
-        spatialAllocationService.allocateZonesForShift(shiftId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<SpatialAllocationResultDto> allocateZones(@PathVariable UUID storeId, @PathVariable UUID shiftId) {
+        SpatialAllocationResultDto result = spatialAllocationService.allocateZonesForShift(storeId, shiftId);
+        return ResponseEntity.ok(result);
     }
 }

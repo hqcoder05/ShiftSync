@@ -10,4 +10,8 @@ public interface StaffSkillRepository extends JpaRepository<StaffSkill, UUID> {
     List<StaffSkill> findByStaffId(UUID staffId);
     
     List<StaffSkill> findByStaffIdIn(List<UUID> staffIds);
+
+    boolean existsBySkillId(UUID skillId);
+
+    List<StaffSkill> findBySkillId(UUID skillId);
 }

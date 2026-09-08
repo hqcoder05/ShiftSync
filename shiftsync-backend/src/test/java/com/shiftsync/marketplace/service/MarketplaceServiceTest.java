@@ -2,10 +2,7 @@ package com.shiftsync.marketplace.service;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
-import com.shiftsync.employment.entity.Employment;
-import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
-import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
@@ -15,7 +12,6 @@ import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shift.service.ShiftValidationService;
 import com.shiftsync.skill.entity.Skill;
-import com.shiftsync.skill.entity.StaffSkill;
 import com.shiftsync.skill.repository.StaffSkillRepository;
 import com.shiftsync.store.entity.Store;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,19 +22,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;

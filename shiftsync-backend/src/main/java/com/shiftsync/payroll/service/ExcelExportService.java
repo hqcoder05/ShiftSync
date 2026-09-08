@@ -1,7 +1,6 @@
 package com.shiftsync.payroll.service;
 
 import com.shiftsync.payroll.entity.Payroll;
-import com.shiftsync.payroll.entity.PayrollPeriod;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.repository.PayrollRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,7 @@ public class ExcelExportService {
     @Transactional(readOnly = true)
     public byte[] generatePayrollExcel(UUID periodId, UUID storeId) {
         // IDOR Check
-        PayrollPeriod period = payrollPeriodRepository.findByIdAndStoreId(periodId, storeId)
+        payrollPeriodRepository.findByIdAndStoreId(periodId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Payroll Period not found or access denied"));
 
         List<Payroll> payslips = payrollRepository.findByPayrollPeriodId(periodId);

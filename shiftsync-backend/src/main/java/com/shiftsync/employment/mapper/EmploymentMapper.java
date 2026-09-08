@@ -23,6 +23,7 @@ public class EmploymentMapper {
                 .status(employment.getStatus())
                 .joinedDate(employment.getJoinedDate())
                 .leftDate(employment.getLeftDate())
+                .systemRole(employment.getUser() != null && employment.getUser().getSystemRole() != null ? employment.getUser().getSystemRole().name() : "STAFF")
                 .build();
     }
 }

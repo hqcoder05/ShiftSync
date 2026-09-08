@@ -170,40 +170,68 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>default-compile</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<annotationProcessorPaths>
-								<path>
-									<groupId>org.projectlombok</groupId>
-									<artifactId>lombok</artifactId>
-								</path>
-							</annotationProcessorPaths>
-						</configuration>
-					</execution>
-					<execution>
-						<id>default-testCompile</id>
-						<phase>test-compile</phase>
-						<goals>
-							<goal>testCompile</goal>
-						</goals>
-						<configuration>
-							<annotationProcessorPaths>
-								<path>
-									<groupId>org.projectlombok</groupId>
-									<artifactId>lombok</artifactId>
-								</path>
-							</annotationProcessorPaths>
-						</configuration>
-					</execution>
-				</executions>
+				<!-- Mặc định loại bỏ các class benchmark CP-SAT để CI/Docker không cần OR-Tools native libs.
+				     Kích hoạt profile cpsat-benchmark để biên dịch đầy đủ: mvn test -P cpsat-benchmark -->
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+					<testExcludes>
+						<testExclude>**/CpSat*</testExclude>
+						<testExclude>**/ScheduleComparisonBenchmark*</testExclude>
+						<testExclude>**/Scenario2Benchmark*</testExclude>
+						<testExclude>**/Scenario3Benchmark*</testExclude>
+					</testExcludes>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
 
+	<profiles>
+		<!-- Profile riêng cho benchmark / PoC CP-SAT (Google OR-Tools).
+		     KHÔNG kích hoạt mặc định để đảm bảo tương thích đa nền tảng (Linux, Docker, CI).
+		     Kích hoạt: mvn test -P cpsat-benchmark
+		     Hoặc chạy benchmark: mvn test-compile org.codehaus.mojo:exec-maven-plugin:3.1.0:java -Dexec.mainClass="com.shiftsync.shift.service.ScheduleComparisonBenchmark" -Dexec.classpathScope="test" -P cpsat-benchmark -->
+		<profile>
+			<id>cpsat-benchmark</id>
+			<dependencies>
+				<!-- OR-Tools Core Java Wrapper -->
+				<dependency>
+					<groupId>com.google.ortools</groupId>
+					<artifactId>ortools-java</artifactId>
+					<version>9.11.4210</version>
+					<scope>test</scope>
+				</dependency>
+				<!-- Native library cho Windows x86-64 -->
+				<dependency>
+					<groupId>com.google.ortools</groupId>
+					<artifactId>ortools-win32-x86-64</artifactId>
+					<version>9.11.4210</version>
+					<scope>test</scope>
+				</dependency>
+				<!-- Native library cho Linux x86-64 (CI GitHub Actions & Docker) -->
+				<dependency>
+					<groupId>com.google.ortools</groupId>
+					<artifactId>ortools-linux-x86-64</artifactId>
+					<version>9.11.4210</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<!-- Xóa testExcludes để biên dịch đầy đủ các class CP-SAT benchmark -->
+							<testExcludes combine.self="override"/>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>
