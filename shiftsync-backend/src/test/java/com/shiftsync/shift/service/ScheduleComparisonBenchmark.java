@@ -9,6 +9,8 @@ import com.shiftsync.store.entity.StoreConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.junit.jupiter.api.Test;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -22,9 +24,7 @@ import java.util.*;
  *   3. Lon: 200 nhan vien / 500 slots
  *
  * Cach chay:
- *   mvn test-compile org.codehaus.mojo:exec-maven-plugin:3.1.0:java \
- *       -Dexec.mainClass="com.shiftsync.shift.service.ScheduleComparisonBenchmark" \
- *       -Dexec.classpathScope="test" -P cpsat-benchmark
+ *   mvn test -Dtest=ScheduleComparisonBenchmark
  */
 public class ScheduleComparisonBenchmark {
 
@@ -59,6 +59,7 @@ public class ScheduleComparisonBenchmark {
         new ScheduleComparisonBenchmark().runAllScenarios();
     }
 
+    @Test
     public void runAllScenarios() {
         System.out.println("=========================================================================================");
         System.out.println("          SHIFTSYNC: BENCHMARK THUC NGHIEM AUTO-SCHEDULING (GREEDY VS CP-SAT)            ");
@@ -154,8 +155,10 @@ public class ScheduleComparisonBenchmark {
 
             final AutoScheduleService.Slot finalSlot = bestSlot;
             AutoScheduleService.StaffData best = bestCandidates.stream()
-                    .max(Comparator.comparingDouble(e ->
-                            greedyService.calculateScore(e, finalSlot, schedConfig, minRestHours)))
+                    .max(Comparator.comparingDouble((AutoScheduleService.StaffData e) ->
+                            greedyService.calculateScore(e, finalSlot, schedConfig, minRestHours))
+                            .thenComparing(Comparator.comparingDouble(AutoScheduleService.StaffData::getAssignedHours).reversed())
+                            .thenComparing(e -> (long) java.util.Objects.hash(finalSlot.getShift().getId(), e.getEmployment().getUser().getId())))
                     .orElse(bestCandidates.get(0));
 
             double score = greedyService.calculateScore(best, finalSlot, schedConfig, minRestHours);

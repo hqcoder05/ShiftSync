@@ -260,7 +260,8 @@ public class AutoScheduleService {
             Slot finalSlot = bestSlot;
             StaffData bestEmp = bestSlotCandidates.stream()
                     .max(Comparator.comparingDouble((StaffData empData) -> calculateScore(empData, finalSlot, schedConfig, storeConfig.getMinRestHours()))
-                            .thenComparing(empData -> empData.getEmployment().getUser().getId().toString().hashCode() * -1)) // Deterministic tie-break
+                            .thenComparing(Comparator.comparingDouble(StaffData::getAssignedHours).reversed()) // Tie-break 1: ưu tiên nhân viên có ít giờ hơn trong đợt này
+                            .thenComparing(empData -> (long) java.util.Objects.hash(finalSlot.getShift().getId(), empData.getEmployment().getUser().getId()))) // Tie-break 2: hash động theo ca để không thiên vị cố định
                     .orElse(bestSlotCandidates.get(0));
 
             // 8. Make Assignment
@@ -372,8 +373,8 @@ public class AutoScheduleService {
                     continue;
                 }
 
-                // (c) Tìm staffY (≠ staffX) thỏa mãn HC1-HC5 cho otherShift (bao gồm HC1 Skill Match đầy đủ)
-                StaffData staffY = null;
+                // (c) Tìm staffY (≠ staffX) thỏa mãn HC1-HC5 cho otherShift — ưu tiên người có ít giờ tháng nhất (fairness)
+                List<StaffData> staffYCandidates = new ArrayList<>();
                 for (StaffData candidate : staffMap.values()) {
                     UUID candidateId = candidate.getEmployment().getUser().getId();
                     if (candidateId.equals(staffXId)) continue;
@@ -384,10 +385,14 @@ public class AutoScheduleService {
                             && (getWeeklyHours(candidate, otherShift.getShiftDate()) + otherDuration <= candidate.getMaxWeeklyHours())
                             && satisfiesRestTime(candidate.getCurrentSchedule(), otherShift, minRestHours);
                     if (candidateCanTakeOther) {
-                        staffY = candidate;
-                        break;
+                        staffYCandidates.add(candidate);
                     }
                 }
+
+                StaffData staffY = staffYCandidates.stream()
+                        .min(Comparator.comparingDouble(StaffData::getMonthlyAssignedHours)
+                                .thenComparing(StaffData::getAssignedHours))
+                        .orElse(null);
 
                 if (staffY == null) {
                     // Không tìm được staffY, khôi phục lịch staffX
@@ -527,6 +532,23 @@ public class AutoScheduleService {
 
             validCandidates.add(empData);
         }
+
+        // Soft Fairness Cap: loại bớt ứng viên có giờ tháng vượt quá 1.3x trung bình nhóm,
+        // CHỈ áp dụng khi có > 1 ứng viên hợp lệ để không bao giờ bỏ trống ca
+        if (validCandidates.size() > 1) {
+            double teamAvg = validCandidates.stream()
+                    .mapToDouble(StaffData::getMonthlyAssignedHours)
+                    .average()
+                    .orElse(0.0);
+            double cap = teamAvg * 1.3;
+            List<StaffData> fairCandidates = validCandidates.stream()
+                    .filter(e -> e.getMonthlyAssignedHours() <= cap)
+                    .collect(Collectors.toList());
+            if (!fairCandidates.isEmpty()) {
+                validCandidates = fairCandidates;
+            }
+        }
+
         return validCandidates;
     }
 
@@ -627,27 +649,22 @@ public class AutoScheduleService {
         return Math.min(1.0, (minGap - minRestHours) / (24.0 - minRestHours));
     }
 
+    /**
+     * Trả về điểm khả dụng cho nhân viên với ca làm việc.
+     *
+     * <p><b>Lý do thay đổi (fix phân bổ không đều):</b> Công thức cũ
+     * ({@code shiftMinutes / availMinutes}) vô tình phạt nhân viên đăng ký
+     * khung giờ rộng (linh hoạt) và thưởng nhân viên khai báo hẹp/khớp sát —
+     * ngược với mục tiêu công bằng. Vì HC2 ({@link #isUnavailable}) đã đảm bảo
+     * chỉ những ứng viên đã pass coverage mới đến bước scoring, hàm này
+     * chỉ cần trả {@code 1.0} cho mọi ứng viên hợp lệ.
+     *
+     * @param empData  dữ liệu nhân viên
+     * @param newShift ca làm việc cần đánh giá
+     * @return luôn trả về 1.0 (đã được HC2 đảm bảo coverage)
+     */
     double getAvailabilityScore(StaffData empData, Shift newShift) {
-        short shiftDayOfWeek = (short) (newShift.getShiftDate().getDayOfWeek().getValue() % 7);
-        long shiftMinutes = java.time.Duration.between(newShift.getStartTime(), newShift.getEndTime()).toMinutes();
-        if (shiftMinutes <= 0) shiftMinutes += 24 * 60; // Handle overnight
-
-        double maxScore = 0.0;
-        for (Availability a : empData.getAvailabilities()) {
-            if (a.getDayOfWeek() == shiftDayOfWeek 
-                && !a.getStartTime().isAfter(newShift.getStartTime()) 
-                && !a.getEndTime().isBefore(newShift.getEndTime())) {
-                
-                long availMinutes = java.time.Duration.between(a.getStartTime(), a.getEndTime()).toMinutes();
-                if (availMinutes <= 0) availMinutes += 24 * 60;
-                
-                double score = (double) shiftMinutes / availMinutes;
-                if (score > maxScore) {
-                    maxScore = score;
-                }
-            }
-        }
-        return maxScore > 0 ? maxScore : 1.0;
+        return 1.0;
     }
 
     double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {

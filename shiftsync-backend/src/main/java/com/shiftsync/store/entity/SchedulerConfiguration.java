@@ -24,11 +24,11 @@ public class SchedulerConfiguration {
 
     @Column(name = "fairness_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
-    private BigDecimal fairnessWeight = new BigDecimal("0.100");
+    private BigDecimal fairnessWeight = new BigDecimal("0.200");
 
     @Column(name = "skill_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
-    private BigDecimal skillWeight = new BigDecimal("0.300");
+    private BigDecimal skillWeight = new BigDecimal("0.250");
 
     @Column(name = "hour_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
@@ -36,11 +36,11 @@ public class SchedulerConfiguration {
 
     @Column(name = "rest_time_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
-    private BigDecimal restTimeWeight = new BigDecimal("0.100");
+    private BigDecimal restTimeWeight = new BigDecimal("0.150");
 
     @Column(name = "availability_weight", nullable = false, precision = 4, scale = 3)
     @Builder.Default
-    private BigDecimal availabilityWeight = new BigDecimal("0.300");
+    private BigDecimal availabilityWeight = new BigDecimal("0.200");
 
     // Lỗi 6: Validate tổng trọng số scoring = 1.000 (cho phép sai số 0.001)
     @PrePersist

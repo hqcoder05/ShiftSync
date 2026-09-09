@@ -188,6 +188,10 @@ class AutoScheduleServiceTest {
 
     @Test
     void testGetAvailabilityScore() {
+        // Sau fix phân bổ không đều: getAvailabilityScore() luôn trả 1.0
+        // vì HC2 (isUnavailable) đã đảm bảo chỉ ứng viên đủ điều kiện mới
+        // đến bước scoring. Công thức shiftMinutes/availMinutes cũ bị loại bỏ
+        // do nó phạt nhân viên khai báo khung giờ rộng (linh hoạt).
         AutoScheduleService.StaffData empData = new AutoScheduleService.StaffData();
         
         Availability avail = Availability.builder()
@@ -204,7 +208,11 @@ class AutoScheduleServiceTest {
                 .build();
                 
         double score = service.getAvailabilityScore(empData, shift);
-        assertEquals(8.0 / 10.0, score, 0.001); // 8 hours shift / 10 hours avail
+        assertEquals(1.0, score, 0.001, "getAvailabilityScore() phải luôn trả 1.0 sau fix");
+
+        // Nhân viên không có avail hoặc avail rộng cũng đều nhận 1.0
+        empData.setAvailabilities(List.of());
+        assertEquals(1.0, service.getAvailabilityScore(empData, shift), 0.001);
     }
 
     @Test
@@ -240,20 +248,32 @@ class AutoScheduleServiceTest {
     }
 
     @Test
-    void testTieBreakDeterministic() {
+    void testTieBreakPreferFewerHours() {
+        // Sau fix: tie-break ưu tiên nhân viên có ít giờ được gán hơn (assignedHours thấp hơn).
+        // Dùng Comparator.comparingDouble(StaffData::getAssignedHours).reversed() trong .max()
+        // -> khi score bằng nhau, nhân viên có assignedHours nhỏ hơn sẽ thắng tie-break.
         AutoScheduleService.StaffData emp1 = new AutoScheduleService.StaffData();
         User u1 = new User(); u1.setId(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"));
         Employment e1 = new Employment(); e1.setUser(u1);
         emp1.setEmployment(e1);
-        
+        emp1.setAssignedHours(10.0); // Nhiều giờ hơn
+
         AutoScheduleService.StaffData emp2 = new AutoScheduleService.StaffData();
         User u2 = new User(); u2.setId(java.util.UUID.fromString("00000000-0000-0000-0000-000000000002"));
         Employment e2 = new Employment(); e2.setUser(u2);
         emp2.setEmployment(e2);
-        
-        int hash1 = u1.getId().toString().hashCode() * -1;
-        int hash2 = u2.getId().toString().hashCode() * -1;
-        org.junit.jupiter.api.Assertions.assertNotEquals(hash1, hash2);
+        emp2.setAssignedHours(5.0); // Ít giờ hơn -> phải thắng
+
+        java.util.Comparator<AutoScheduleService.StaffData> comparator =
+                java.util.Comparator.comparingDouble(AutoScheduleService.StaffData::getAssignedHours).reversed();
+
+        AutoScheduleService.StaffData winner = java.util.stream.Stream.of(emp1, emp2)
+                .max(comparator)
+                .orElse(null);
+
+        org.junit.jupiter.api.Assertions.assertNotNull(winner);
+        assertEquals(u2.getId(), winner.getEmployment().getUser().getId(),
+                "Tie-break phải chọn nhân viên có ít giờ hơn (emp2 = 5h)");
     }
 
     // ==========================================
@@ -971,4 +991,195 @@ class AutoScheduleServiceTest {
         org.junit.jupiter.api.Assertions.assertTrue(staffXData.getCurrentSchedule().contains(shiftB));
         org.junit.jupiter.api.Assertions.assertTrue(staffYData.getCurrentSchedule().contains(shiftA));
     }
+
+    // ==========================================
+    // BỘ TEST KIỂM THỬ FAIRNESS CAP (PHÂN BỔ ĐỀU)
+    // ==========================================
+
+    /**
+     * Kiểm tra fairness cap trong findValidCandidates: khi 1 nhân viên đã làm nhiều giờ hơn
+     * 1.3× trung bình nhóm, họ phải bị loại khỏi danh sách ứng viên (khi vẫn còn ứng viên khác).
+     */
+    @Test
+    void testFairnessCap_FiltersOverloadedCandidate() {
+        UUID sId = UUID.randomUUID();
+        LocalDate shiftDate = LocalDate.of(2026, 9, 14); // Monday
+        short shiftDay = (short) (shiftDate.getDayOfWeek().getValue() % 7);
+
+        // Staff A - 0h
+        AutoScheduleService.StaffData staffA = new AutoScheduleService.StaffData();
+        User userA = User.builder().id(UUID.randomUUID()).fullName("A").systemRole(SystemRole.STAFF).build();
+        Employment empA = Employment.builder().user(userA)
+                .contractType(ContractType.builder().id(UUID.randomUUID()).name("FT").maxWeeklyHours(48)
+                        .otMultiplier(BigDecimal.valueOf(1.5)).defaultHourlyRate(BigDecimal.valueOf(20)).build())
+                .build();
+        staffA.setEmployment(empA);
+        staffA.setMonthlyAssignedHours(0.0);
+        staffA.setAssignedHours(0.0);
+        staffA.setCurrentSchedule(new ArrayList<>());
+        staffA.setBlackoutDates(new ArrayList<>());
+        staffA.setSkills(List.of(StaffSkill.builder().staffId(userA.getId()).skillId(sId).level("EXPERT").build()));
+        staffA.setAvailabilities(List.of(Availability.builder().user(userA).dayOfWeek(shiftDay)
+                .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
+
+        // Staff B - 0h
+        AutoScheduleService.StaffData staffB = new AutoScheduleService.StaffData();
+        User userB = User.builder().id(UUID.randomUUID()).fullName("B").systemRole(SystemRole.STAFF).build();
+        Employment empB = Employment.builder().user(userB)
+                .contractType(ContractType.builder().id(UUID.randomUUID()).name("FT").maxWeeklyHours(48)
+                        .otMultiplier(BigDecimal.valueOf(1.5)).defaultHourlyRate(BigDecimal.valueOf(20)).build())
+                .build();
+        staffB.setEmployment(empB);
+        staffB.setMonthlyAssignedHours(0.0);
+        staffB.setAssignedHours(0.0);
+        staffB.setCurrentSchedule(new ArrayList<>());
+        staffB.setBlackoutDates(new ArrayList<>());
+        staffB.setSkills(List.of(StaffSkill.builder().staffId(userB.getId()).skillId(sId).level("EXPERT").build()));
+        staffB.setAvailabilities(List.of(Availability.builder().user(userB).dayOfWeek(shiftDay)
+                .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
+
+        // Staff C - 100h (quá tải: teamAvg = (0+0+100)/3 = 33.3, cap = 33.3*1.3 = 43.3 -> 100 > 43.3 -> excluded)
+        AutoScheduleService.StaffData staffC = new AutoScheduleService.StaffData();
+        User userC = User.builder().id(UUID.randomUUID()).fullName("C").systemRole(SystemRole.STAFF).build();
+        Employment empC = Employment.builder().user(userC)
+                .contractType(ContractType.builder().id(UUID.randomUUID()).name("FT").maxWeeklyHours(48)
+                        .otMultiplier(BigDecimal.valueOf(1.5)).defaultHourlyRate(BigDecimal.valueOf(20)).build())
+                .build();
+        staffC.setEmployment(empC);
+        staffC.setMonthlyAssignedHours(100.0);
+        staffC.setAssignedHours(0.0);
+        staffC.setCurrentSchedule(new ArrayList<>());
+        staffC.setBlackoutDates(new ArrayList<>());
+        staffC.setSkills(List.of(StaffSkill.builder().staffId(userC.getId()).skillId(sId).level("EXPERT").build()));
+        staffC.setAvailabilities(List.of(Availability.builder().user(userC).dayOfWeek(shiftDay)
+                .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
+
+        Shift shift = Shift.builder()
+                .id(UUID.randomUUID())
+                .shiftDate(shiftDate)
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(12, 0))
+                .status(ShiftStatus.DRAFT)
+                .requirements(new ArrayList<>())
+                .build();
+
+        AutoScheduleService.Slot slot = new AutoScheduleService.Slot(shift, sId);
+
+        List<AutoScheduleService.StaffData> candidates = service.findValidCandidates(
+                slot, List.of(staffA, staffB, staffC), 0);
+
+        // Staff C phải bị loại bởi fairness cap
+        assertEquals(2, candidates.size(), "Fairness cap phải loại Staff C ra khỏi danh sách ứng viên");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                candidates.stream().noneMatch(e -> e.getEmployment().getUser().getId().equals(userC.getId())),
+                "Staff C không được xuất hiện trong danh sách ứng viên");
+    }
+
+    /**
+     * Kiểm tra phân bổ ca đều: 1 shift cần 3 slot cùng skill, 5 nhân viên có skill và availability như nhau.
+     * Kết quả phải phân bổ cho 3 nhân viên khác nhau, không dồn.
+     */
+    @Test
+    void testFairnessEquality_3SlotsFrom5Candidates() {
+        StoreConfiguration storeConfig = StoreConfiguration.builder().minRestHours(0).build();
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(storeConfig));
+
+        SchedulerConfiguration schedConfig = SchedulerConfiguration.builder()
+                .skillWeight(BigDecimal.valueOf(0.25))
+                .hourWeight(BigDecimal.valueOf(0.20))
+                .fairnessWeight(BigDecimal.valueOf(0.20))
+                .restTimeWeight(BigDecimal.valueOf(0.15))
+                .availabilityWeight(BigDecimal.valueOf(0.20))
+                .build();
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(schedConfig));
+
+        LocalDate shiftDate = LocalDate.of(2026, 9, 14); // Monday
+        short shiftDay = (short) (shiftDate.getDayOfWeek().getValue() % 7);
+
+        AutoScheduleRequest request = new AutoScheduleRequest();
+        request.setStartDate(shiftDate);
+        request.setEndDate(shiftDate);
+
+        ContractType contract = ContractType.builder()
+                .id(UUID.randomUUID()).name("FULL_TIME").maxWeeklyHours(48)
+                .otMultiplier(BigDecimal.valueOf(1.5)).defaultHourlyRate(BigDecimal.valueOf(20.0))
+                .build();
+
+        UUID commonSkillId = UUID.randomUUID();
+        Skill commonSkill = Skill.builder().id(commonSkillId).build();
+
+        List<Employment> employments = new ArrayList<>();
+        List<StaffSkill> allSkills = new ArrayList<>();
+        List<Availability> allAvail = new ArrayList<>();
+
+        for (int i = 1; i <= 5; i++) {
+            User u = User.builder()
+                    .id(UUID.randomUUID())
+                    .fullName("Staff" + i)
+                    .systemRole(SystemRole.STAFF)
+                    .build();
+            Employment emp = Employment.builder().user(u).contractType(contract).build();
+            employments.add(emp);
+
+            StaffSkill ss = StaffSkill.builder()
+                    .staffId(u.getId())
+                    .skillId(commonSkillId)
+                    .level("INTERMEDIATE")
+                    .build();
+            allSkills.add(ss);
+
+            Availability av = Availability.builder()
+                    .user(u)
+                    .dayOfWeek(shiftDay)
+                    .startTime(LocalTime.of(6, 0))
+                    .endTime(LocalTime.of(22, 0))
+                    .build();
+            allAvail.add(av);
+        }
+
+        when(employmentRepository.findByStoreIdAndStatus(eq(storeId), eq(EmploymentStatus.ACTIVE)))
+                .thenReturn(employments);
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(allSkills);
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(allAvail);
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any()))
+                .thenReturn(List.of());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any()))
+                .thenReturn(List.of());
+
+        Shift shift = Shift.builder()
+                .id(UUID.randomUUID())
+                .shiftDate(shiftDate)
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(16, 0))
+                .status(ShiftStatus.DRAFT)
+                .requirements(List.of(
+                        ShiftSkillRequirement.builder().skill(commonSkill).requiredCount(3).build()
+                ))
+                .build();
+
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, shiftDate, shiftDate))
+                .thenReturn(List.of(shift));
+        when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(List.of());
+
+        // Act
+        service.autoSchedule(storeId, request);
+
+        // Assert
+        verify(shiftAssignmentRepository).saveAll(assignmentsCaptor.capture());
+        List<ShiftAssignment> saved = assignmentsCaptor.getValue();
+
+        assertEquals(3, saved.size(), "Phải gán đủ 3 slot");
+
+        Map<UUID, Long> countByStaff = saved.stream()
+                .collect(Collectors.groupingBy(a -> a.getStaff().getId(), Collectors.counting()));
+
+        // Mỗi nhân viên chỉ được nhận tối đa 1 slot
+        countByStaff.values().forEach(count ->
+                org.junit.jupiter.api.Assertions.assertTrue(count <= 1,
+                        "Mỗi nhân viên chỉ được nhận tối đa 1 slot trong cùng 1 shift: " + count));
+
+        // Phải phân bổ cho 3 nhân viên khác nhau
+        assertEquals(3, countByStaff.size(), "Phải chọn 3 nhân viên khác nhau");
+    }
 }
+
