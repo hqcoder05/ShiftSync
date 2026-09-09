@@ -757,12 +757,19 @@ export default function DashboardPage() {
                             style={{
                               left: `${leftPercent}%`,
                               width: `${widthPercent}%`,
-                              backgroundColor: row.color,
-                              opacity: 0.85,
+                              background: `repeating-linear-gradient(
+                                135deg,
+                                ${row.color}cc,
+                                ${row.color}cc 6px,
+                                ${row.color}99 6px,
+                                ${row.color}99 12px
+                              )`,
+                              boxShadow: `0 2px 6px ${row.color}55`,
                             }}
                             onClick={() => navigate('/schedule')}
                             title={`${row.name} (${row.role}): ${row.timeText}`}
                           />
+
                         </td>
                       </tr>
                     );

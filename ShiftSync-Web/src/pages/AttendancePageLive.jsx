@@ -830,7 +830,7 @@ export default function AttendancePageLive() {
               </table>
 
               {/* ── Summary Footer when filtering single user ── */}
-              {userFilter !== 'All' && visibleRows.length > 0 && (
+              {!selectedEmployees.includes('ALL') && visibleRows.length > 0 && (
                 <div className="att-table-footer">
                   <span>Tổng thời gian làm việc:</span>
                   <strong>{totalFilteredHours.toFixed(1)} Giờ</strong>

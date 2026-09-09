@@ -1049,12 +1049,18 @@
 }
 
 /* Date table header styling */
-.sch-date-th-cell {
+/* ── Date column header: top row (day name + worker count) ── */
+.sch-col-date-header {
+  padding: 10px 12px 8px !important;
+  text-align: left !important;
+  vertical-align: top !important;
+}
+.sch-date-th-top-row {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
 }
 .sch-date-th-dow {
   font-size: 13.5px;
@@ -1062,24 +1068,26 @@
   color: #1e293b;
   letter-spacing: -0.01em;
 }
-.sch-date-th-dm {
+.sch-date-th-workers-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 12px;
   font-weight: 500;
   color: #64748b;
 }
-.sch-date-th-workers {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: #15803d;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 9999px;
-  padding: 2px 8px;
-  margin-top: 4px;
+.sch-date-th-dm {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 3px;
+  text-align: left;
 }
+/* Keep old .sch-date-th-workers hidden in case it's referenced elsewhere */
+.sch-date-th-workers {
+  display: none;
+}
+
 
 /* Employee avatar badge warning */
 .sch-emp-avatar-wrap {

@@ -1387,12 +1387,19 @@ export default function SchedulePage() {
 
                   return (
                     <th key={iso} className="sch-th-center sch-col-date-header">
-                      <div className="sch-date-th-dow">{DOW_VI[d.getDay()]}</div>
-                      <div className="sch-date-th-dm">{fmtDM(d)}</div>
-                      <div className="sch-date-th-workers">
-                        {workingCount} người đi làm
+                      <div className="sch-date-th-top-row">
+                        <span className="sch-date-th-dow">{DOW_VI[d.getDay()]}</span>
+                        <span className="sch-date-th-workers-inline">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.55}}>
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                          </svg>
+                          {workingCount}
+                        </span>
                       </div>
+                      <div className="sch-date-th-dm">Ngày {d.getDate()} tháng {d.getMonth() + 1}</div>
                     </th>
+
                   );
                 })}
               </tr>
