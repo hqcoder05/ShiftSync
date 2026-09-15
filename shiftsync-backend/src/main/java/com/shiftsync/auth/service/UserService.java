@@ -79,11 +79,23 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
+        if (request.getAvatarId() != null) {
+            user.setAvatarId(request.getAvatarId());
+        }
 
         if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
 
+        User updatedUser = userRepository.save(user);
+        return UserMapper.toDTO(updatedUser);
+    }
+
+    @Transactional
+    public UserDTO updateUserAvatar(UUID id, String avatarId) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("User not found with id: " + id, HttpStatus.NOT_FOUND));
+        user.setAvatarId(avatarId);
         User updatedUser = userRepository.save(user);
         return UserMapper.toDTO(updatedUser);
     }

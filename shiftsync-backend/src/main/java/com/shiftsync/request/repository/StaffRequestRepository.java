@@ -13,4 +13,6 @@ public interface StaffRequestRepository extends JpaRepository<StaffRequest, UUID
     List<StaffRequest> findByStatusOrderByCreatedAtDesc(String status);
 
     List<StaffRequest> findByTypeCategoryOrderByCreatedAtDesc(String typeCategory);
+
+    List<StaffRequest> findByRequesterNameOrderByCreatedAtDesc(String requesterName);
 }

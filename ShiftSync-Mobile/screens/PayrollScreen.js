@@ -13,12 +13,12 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { getMyPayslips } from '../services/payrollService';
 import { getMyShifts } from '../services/shiftService';
-import { getMyAttendanceHistory } from '../services/attendanceService';
+import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 
-// Assets
 import calendarIcon from '../assets/Calendar.png';
 import payrollIcon from '../assets/luong.png';
+import FlowerMascot3D from '../components/FlowerMascot3D';
 
 const formatVND = (num) => {
   if (num === null || num === undefined) return '0 VNĐ';
@@ -45,10 +45,25 @@ export default function PayrollScreen({ navigation }) {
         // ignore
       }
 
-      // 2. Fetch completed shifts/attendance to calculate live current month
       let completedHours = 0;
       let completedDays = 0;
       let userRole = 'Nhân viên';
+      let userHourlyRate = 25000;
+
+      try {
+        const profileRes = await getMyProfile();
+        if (profileRes?.data?.id) {
+          const storeRes = await getMyStores(profileRes.data.id);
+          const stores = storeRes?.data || [];
+          if (stores.length > 0) {
+            const r = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
+            if (r) userHourlyRate = Number(r);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
       try {
         const { data: shifts } = await getMyShifts();
         if (shifts && Array.isArray(shifts)) {
@@ -86,7 +101,7 @@ export default function PayrollScreen({ navigation }) {
             title: `Phiếu lương tháng ${month}`,
             periodRange: `${p.periodStartDate || '01/08/26'} – ${p.periodEndDate || '31/08/26'}`,
             role: userRole,
-            hourlyRate: workedH ? Math.round(baseAmt / workedH) : 26000,
+            hourlyRate: workedH ? Math.round(baseAmt / workedH) : userHourlyRate,
             totalShifts: Math.round(workedH / 8) || completedDays || 1,
             completedShifts: Math.round(workedH / 8) || completedDays || 1,
             scheduledHours: workedH || Math.round(completedHours) || 8,
@@ -108,7 +123,7 @@ export default function PayrollScreen({ navigation }) {
         const lastDay = new Date(currentYear, currentMonth, 0).getDate();
         const endStr = `${lastDay}/${String(currentMonth).padStart(2, '0')}/${String(currentYear).slice(2)}`;
         const worked = Math.round(completedHours);
-        const hourlyRate = 26000;
+        const hourlyRate = userHourlyRate;
         const baseAmt = worked * hourlyRate;
         const allowance = 120000;
         const deduction = 0;
@@ -206,9 +221,8 @@ export default function PayrollScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Right Column Art */}
               <View style={styles.greenCardRight}>
-                <Image source={payrollIcon} style={styles.heroCoinIllustration} />
+                <FlowerMascot3D width={190} height={165} interactive={true} />
               </View>
             </View>
 
@@ -598,9 +612,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   greenCardRight: {
-    flex: 0.9,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 195,
   },
   heroCoinIllustration: {
     width: 130,

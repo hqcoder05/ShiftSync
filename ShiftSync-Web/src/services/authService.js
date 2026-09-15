@@ -21,9 +21,20 @@ export const login = async (email, password) => {
   return response.data;
 };
 
-export const logout = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('userRole');
-  localStorage.removeItem('userEmail');
+export const logout = async () => {
+  try {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      await api.post('/auth/logout', { refreshToken });
+    }
+  } catch (e) {
+    // ignore logout API errors - always clear local storage
+    console.warn('Backend logout error (ignored):', e.message);
+  } finally {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('selectedStoreId');
+  }
 };

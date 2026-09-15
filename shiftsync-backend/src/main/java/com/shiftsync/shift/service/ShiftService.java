@@ -114,6 +114,17 @@ public class ShiftService {
                 .availabilityDeadline(deadline)
                 .build();
 
+        if (request.getSkillId() != null) {
+            skillRepository.findById(request.getSkillId()).ifPresent(skill -> {
+                ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                        .shift(shift)
+                        .skill(skill)
+                        .requiredCount(1)
+                        .build();
+                shift.setRequirements(List.of(req));
+            });
+        }
+
         Shift savedShift = shiftRepository.save(shift);
 
         if (request.getStaffId() != null) {
@@ -247,6 +258,17 @@ public class ShiftService {
             shift.setAvailabilityDeadline(request.getAvailabilityDeadline());
         }
 
+        if (request.getSkillId() != null) {
+            skillRepository.findById(request.getSkillId()).ifPresent(skill -> {
+                ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                        .shift(shift)
+                        .skill(skill)
+                        .requiredCount(1)
+                        .build();
+                shift.setRequirements(List.of(req));
+            });
+        }
+
         Shift saved = shiftRepository.save(shift);
 
         if (request.getStaffId() != null) {
@@ -347,7 +369,12 @@ public class ShiftService {
             assignedStaffName = staff.getFullName();
         }
 
-        String primarySkillName = entity.getRequirements().isEmpty() ? null : entity.getRequirements().get(0).getSkill().getName();
+        Skill primarySkill = entity.getRequirements().isEmpty() ? null : entity.getRequirements().get(0).getSkill();
+        UUID primarySkillId = primarySkill != null ? primarySkill.getId() : null;
+        String primarySkillName = primarySkill != null ? primarySkill.getName() : null;
+        String primarySkillColor = (primarySkill != null && primarySkill.getDescription() != null && primarySkill.getDescription().startsWith("#"))
+                ? primarySkill.getDescription()
+                : null;
         int totalRequiredStaff = entity.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum();
 
         return ShiftDTO.builder()
@@ -363,7 +390,9 @@ public class ShiftService {
                 .shiftAssignments(assignmentDTOs)
                 .staffId(assignedStaffId)
                 .staffName(assignedStaffName)
+                .skillId(primarySkillId)
                 .skillName(primarySkillName)
+                .color(primarySkillColor)
                 .requiredStaff(totalRequiredStaff)
                 .build();
     }

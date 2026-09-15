@@ -793,6 +793,50 @@
   vertical-align: middle;
 }
 
+/* ── Date column header v3 — Bố cục chuẩn 100% Ảnh 5 ── */
+.sch-date-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+  text-align: left;
+}
+.sch-date-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.sch-date-card-dow {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.1px;
+}
+.sch-date-card-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+}
+.sch-date-card-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.1px;
+}
+.sch-col-date-today .sch-date-card-dow {
+  color: #15803d;
+}
+.sch-col-date-today .sch-date-card-sub {
+  color: #16a34a;
+}
+.sch-col-date-today {
+  background: #f0fdf4 !important;
+}
+
 /* Body rows */
 .sch-table tbody tr {
   transition: background-color 0.15s ease;

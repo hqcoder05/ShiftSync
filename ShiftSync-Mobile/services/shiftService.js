@@ -9,10 +9,10 @@ export const getMyShifts = () => {
   return api.get('/users/me/shifts');
 };
 
-export const getShiftRegistrations = (storeId, shiftId) => {
-  return api.get(`/stores/${storeId}/shifts/${shiftId}/registrations`);
-};
+// ✅ Endpoint đúng: /assignments (đã xóa /registrations không tồn tại)
+export const getShiftAssignments = (storeId, shiftId) =>
+  api.get(`/stores/${storeId}/shifts/${shiftId}/assignments`);
 
-export const registerShift = (storeId, shiftId) => {
-  return api.post(`/stores/${storeId}/shifts/${shiftId}/registrations`);
-};
+// ✅ Marketplace: nhân viên nhận ca trống
+export const claimOpenShift = (storeId, shiftId) =>
+  api.post(`/stores/${storeId}/marketplace/shifts/${shiftId}/claim`);

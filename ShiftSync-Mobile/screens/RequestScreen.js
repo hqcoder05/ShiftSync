@@ -92,7 +92,13 @@ export default function RequestScreen({ navigation, route }) {
 
   useEffect(() => {
     loadData();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', loadData);
+    const interval = setInterval(loadData, 6000); // Tự động làm mới khi Quản lý xử lý trên Web
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [navigation]);
 
   useEffect(() => {
     // Check if opened with an action from ScheduleScreen
@@ -143,11 +149,12 @@ export default function RequestScreen({ navigation, route }) {
           const monthStr = String(d.getMonth() + 1).padStart(2, '0');
           return {
             id: s.id || `shift-${idx}`,
+            shiftDate: s.shiftDate,
             dayLabel: `${dow} (${dayStr}/${monthStr})`,
             timeRange: `${String(s.startTime).slice(0, 5)} - ${String(s.endTime).slice(0, 5)}`,
             location: s.storeAddress || s.storeName || 'Highlands Tây Thạnh Tân Phú',
             role: s.skillName || s.requiredSkillName || 'Barista',
-            color: '#8DD9CC',
+            color: s.color || '#8DD9CC',
           };
         });
 

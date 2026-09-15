@@ -31,8 +31,19 @@ export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) 
         navigation.navigate('Availability');
       }
     } else {
-      // In main tab stack
-      navigation.navigate(destination);
+      // In main tab stack ('Dashboard', 'Schedule', 'Request')
+      const state = navigation.getState?.();
+      const routeNames = state?.routeNames || [];
+      if (routeNames.includes(destination)) {
+        navigation.navigate(destination);
+      } else {
+        const parent = navigation.getParent?.();
+        if (parent) {
+          parent.navigate('MainTabs', { screen: destination });
+        } else {
+          navigation.navigate('MainTabs', { screen: destination });
+        }
+      }
     }
   };
 
@@ -52,10 +63,12 @@ export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) 
           >
             <Image
               source={icon}
+              resizeMode="contain"
+              tintColor={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.72)'}
               style={[
                 styles.navIcon,
                 screen === 'Request' && styles.navIconReports,
-                isActive ? styles.navIconActive : styles.navIconInactive,
+                isActive && styles.navIconActive,
               ]}
             />
           </Pressable>
@@ -102,17 +115,12 @@ const styles = StyleSheet.create({
   navIcon: {
     width: 28,
     height: 28,
-    resizeMode: 'contain',
   },
   navIconReports: {
     width: 38,
     height: 38,
   },
   navIconActive: {
-    tintColor: '#FFFFFF',
     transform: [{ scale: 1.05 }],
-  },
-  navIconInactive: {
-    tintColor: 'rgba(255, 255, 255, 0.72)',
   },
 });

@@ -8,6 +8,9 @@ const CURRENT_LAN_IP = '192.168.0.113';
 // Tự động trích xuất IP host mà Expo Go đang kết nối, hoặc dùng fallback CURRENT_LAN_IP
 const getHostIp = () => {
   if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      return window.location.hostname;
+    }
     return 'localhost';
   }
   const scriptURL = NativeModules?.SourceCode?.scriptURL;
@@ -27,7 +30,7 @@ export const getBaseUrl = () => {
 
 const api = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 20000,
+  timeout: 10000,
 });
 
 api.interceptors.request.use(async (config) => {

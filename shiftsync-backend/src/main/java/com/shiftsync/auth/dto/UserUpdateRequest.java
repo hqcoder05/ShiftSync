@@ -31,4 +31,7 @@ public class UserUpdateRequest {
     @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d@$!%*?&]{8,}$", message = "Password must contain at least one letter and one number")
     @Schema(description = "Optional new password. Leave empty if password is unchanged.", example = "newPassword123")
     private String password;
+
+    @Schema(description = "User 3D avatar identifier", example = "rose")
+    private String avatarId;
 }

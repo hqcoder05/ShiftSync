@@ -127,26 +127,40 @@ public class StaffRequestService {
 
     @Transactional
     public StaffRequestDTO createRequest(StaffRequestCreateDTO dto) {
+        String reqType = dto.getRequestType();
+        if (reqType == null || reqType.isBlank()) {
+            if ("SWAP".equalsIgnoreCase(dto.getType())) reqType = "Yêu cầu đổi ca";
+            else if ("ABSENT".equalsIgnoreCase(dto.getType())) reqType = "Yêu cầu xin vắng";
+            else if ("LEAVE".equalsIgnoreCase(dto.getType())) reqType = "Yêu cầu nghỉ";
+            else if ("SUPPORT".equalsIgnoreCase(dto.getType())) reqType = "Yêu cầu hỗ trợ";
+            else reqType = "Yêu cầu khác";
+        }
+
         String category = dto.getTypeCategory();
         if (category == null || category.isBlank()) {
-            String rt = dto.getRequestType().toLowerCase();
-            if (rt.contains("nghÃ¡Â»â€°")) category = "leave";
-            else if (rt.contains("Ã„â€˜Ã¡Â»â€¢i") || rt.contains("hoÃƒÂ¡n")) category = "swap";
-            else if (rt.contains("vÃ¡ÂºÂ¯ng")) category = "absence";
+            String rt = reqType.toLowerCase();
+            if (rt.contains("nghỉ") || "leave".equalsIgnoreCase(dto.getType())) category = "leave";
+            else if (rt.contains("đổi") || rt.contains("hoán") || "swap".equalsIgnoreCase(dto.getType())) category = "swap";
+            else if (rt.contains("vắng") || "absent".equalsIgnoreCase(dto.getType()) || "absence".equalsIgnoreCase(dto.getType())) category = "absence";
             else category = "support";
         }
 
+        String contentText = dto.getContent();
+        if (contentText == null || contentText.isBlank()) {
+            contentText = dto.getReason() != null ? dto.getReason() : "Yêu cầu từ nhân viên";
+        }
+
         StaffRequest req = StaffRequest.builder()
-            .requesterName(dto.getRequesterName() != null ? dto.getRequesterName() : "Paul. Lee")
-            .avatarKey(dto.getAvatarKey() != null ? dto.getAvatarKey() : "paul")
-            .requestType(dto.getRequestType())
+            .requesterName(dto.getRequesterName() != null ? dto.getRequesterName() : "Nhân viên")
+            .avatarKey(dto.getAvatarKey() != null ? dto.getAvatarKey() : "dilan")
+            .requestType(reqType)
             .typeCategory(category)
             .status(com.shiftsync.request.enums.RequestStatus.PENDING)
-            .recipient(dto.getRecipient())
+            .recipient(dto.getRecipient() != null ? dto.getRecipient() : "Quản lý cửa hàng")
             .startDate(dto.getStartDate() != null ? dto.getStartDate() : LocalDate.now())
-            .endDate(dto.getEndDate() != null ? dto.getEndDate() : LocalDate.now())
-            .shiftInfo(dto.getShiftInfo() != null ? dto.getShiftInfo() : "Ca tiÃƒÂªu chuÃ¡ÂºÂ©n")
-            .content(dto.getContent())
+            .endDate(dto.getEndDate() != null ? dto.getEndDate() : (dto.getStartDate() != null ? dto.getStartDate() : LocalDate.now()))
+            .shiftInfo(dto.getShiftInfo() != null ? dto.getShiftInfo() : "Ca làm việc")
+            .content(contentText)
             .build();
 
         StaffRequest saved = staffRequestRepository.save(req);
@@ -161,6 +175,17 @@ public class StaffRequestService {
         req.setStatus(newStatus);
         StaffRequest updated = staffRequestRepository.save(req);
         return mapToDTO(updated);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffRequestDTO> getMyRequests(String requesterName) {
+        if (requesterName == null || requesterName.trim().isEmpty()) {
+            return List.of();
+        }
+        return staffRequestRepository.findByRequesterNameOrderByCreatedAtDesc(requesterName)
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
     }
 
     private StaffRequestDTO mapToDTO(StaffRequest entity) {

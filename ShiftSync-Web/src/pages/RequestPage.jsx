@@ -5,7 +5,22 @@ import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import './RequestPage.css';
+
+const getAvatarId = (name = '', avatarId = null) => {
+  if (avatarId) return avatarId;
+  const n = (name || '').toLowerCase();
+  if (n.includes('paul')) return 'paul';
+  if (n.includes('thia') || n.includes('vivi')) return 'thia';
+  if (n.includes('mew')) return 'mew';
+  if (n.includes('dilan')) return 'dilan';
+  if (n.includes('alex')) return 'alex';
+  if (n.includes('kai')) return 'kai';
+  if (n.includes('maya')) return 'maya';
+  if (n.includes('leo')) return 'leo';
+  return 'dilan';
+};
 
 const MONTH_NAMES_VI = [
   'Tháng Một', 'Tháng Hai', 'Tháng Ba', 'Tháng Tư', 'Tháng Năm', 'Tháng Sáu',
@@ -323,7 +338,7 @@ export default function RequestPage() {
   // Handle Approve / Reject with cross-tab Real-time Sync
   const handleApprove = async (id) => {
     try {
-      await updateRequestStatus(id, 'Đã phê duyệt');
+      await updateRequestStatus(id, 'APPROVED'); // ✅ gửi enum Backend
       await loadData();
       setSelectedRequest(null);
       // Real-time sync: trigger schedule refresh on Web SchedulePage & Mobile
@@ -337,7 +352,7 @@ export default function RequestPage() {
 
   const handleReject = async (id) => {
     try {
-      await updateRequestStatus(id, 'Đã từ chối');
+      await updateRequestStatus(id, 'REJECTED'); // ✅ gửi enum Backend
       await loadData();
       setSelectedRequest(null);
       // Real-time sync trigger
@@ -773,11 +788,13 @@ export default function RequestPage() {
                     </td>
                     <td>
                       <div className="req-user-cell">
-                        <img 
-                          src={getAvatar(item.requesterName)} 
-                          alt={item.requesterName} 
-                          className="req-avatar-img" 
-                        />
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                          <Avatar3DWeb 
+                            avatarId={item.avatarId || getAvatarId(item.requesterName)} 
+                            size={34} 
+                            interactive={false} 
+                          />
+                        </div>
                         <span className="req-user-name">{item.requesterName}</span>
                       </div>
                     </td>
@@ -798,11 +815,13 @@ export default function RequestPage() {
           <div className="req-modal-detail" onClick={(e) => e.stopPropagation()}>
             <div className="req-modal-detail-header">
               <div className="req-modal-user-info">
-                <img 
-                  src={getAvatar(selectedRequest.requesterName)} 
-                  alt={selectedRequest.requesterName} 
-                  className="req-modal-avatar-lg" 
-                />
+                <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                  <Avatar3DWeb 
+                    avatarId={selectedRequest.avatarId || getAvatarId(selectedRequest.requesterName)} 
+                    size={56} 
+                    interactive={false} 
+                  />
+                </div>
                 <div className="req-modal-username-wrap">
                   <span className="req-modal-username">{selectedRequest.requesterName}</span>
                   {selectedRequest.recipient && (

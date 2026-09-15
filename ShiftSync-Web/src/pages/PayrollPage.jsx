@@ -8,9 +8,9 @@ import {
   updatePayrollStatus,
 } from '../services/payrollService';
 import './PayrollPage.css';
+import Payroll3DCharacterWeb from '../components/Payroll3DCharacterWeb';
 
 // Illustrations & Avatars
-import luongIllustration from '../assets/illustrations/luong.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
@@ -93,18 +93,25 @@ export default function PayrollPage() {
       .then(({ data }) => {
         if (data && Array.isArray(data) && data.length > 0) {
           const mapped = data.map((ps, idx) => {
-            const hRate = ps.baseAmount && ps.totalHours ? Math.round(Number(ps.baseAmount) / Number(ps.totalHours)) : baseHourlyRate;
             return {
               id: ps.id || `ps-${idx}`,
               name: ps.staffName || `Nhân viên #${idx + 1}`,
               role: ps.role || 'Nhân viên',
+              // ✅ Dùng trực tiếp số tiền từ Backend PayrollDTO
               hours: Number(ps.totalHours || 0) - Number(ps.otHours || 0),
               otHours: Number(ps.otHours || 0),
               totalHours: Number(ps.totalHours || 0),
               bonus: Number(ps.holidayAmount || 0),
-              allowance: 150000,
-              deduction: 0,
-              hourlyRate: hRate || baseHourlyRate,
+              // ✅ Bỏ hardcode 150000, đọc từ backend
+              allowance: Number(ps.allowanceAmount || 0),
+              deduction: Number(ps.deductionAmount || 0),
+              hourlyRate: ps.baseAmount && ps.totalHours
+                ? Math.round(Number(ps.baseAmount) / Number(ps.totalHours))
+                : baseHourlyRate,
+              // ✅ Lưu trữ original backend amounts để tính tổng đúng
+              baseAmount: Number(ps.baseAmount || 0),
+              otAmount: Number(ps.otAmount || 0),
+              totalAmount: Number(ps.totalAmount || 0),
             };
           });
           setStaffData(mapped);
@@ -450,13 +457,9 @@ export default function PayrollPage() {
         <div className="pay-modal-backdrop" onClick={() => setShowExportModal(false)}>
           <div className="pay-export-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="pay-export-grid">
-              {/* Left Column: Illustration luong.png */}
-              <div className="pay-export-left">
-                <img
-                  src={luongIllustration}
-                  alt="Xuất bảng lương"
-                  className="pay-export-illustration"
-                />
+              {/* Left Column: 3D Low-Poly Character holding gold coin */}
+              <div className="pay-export-left" style={{ overflow: 'visible', padding: '6px 0' }}>
+                <Payroll3DCharacterWeb width={300} height={320} interactive={true} />
               </div>
 
               {/* Center Green Divider */}

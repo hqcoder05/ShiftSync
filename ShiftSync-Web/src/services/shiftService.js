@@ -5,8 +5,15 @@ export const getShiftsForStore = (storeId, status) => {
   return api.get(`/stores/${storeId}/shifts${q}`);
 };
 
-export const getShiftRegistrations = (storeId, shiftId) =>
-  api.get(`/stores/${storeId}/shifts/${shiftId}/registrations`);
+// ✅ Endpoint đúng: /assignments (không phải /registrations)
+export const getShiftAssignments = (storeId, shiftId) =>
+  api.get(`/stores/${storeId}/shifts/${shiftId}/assignments`);
+
+export const assignStaffToShift = (storeId, shiftId, staffId) =>
+  api.post(`/stores/${storeId}/shifts/${shiftId}/assignments`, { staffId });
+
+export const unassignStaffFromShift = (storeId, shiftId, staffId) =>
+  api.delete(`/stores/${storeId}/shifts/${shiftId}/assignments/${staffId}`);
 
 export const createShift = (storeId, data) =>
   api.post(`/stores/${storeId}/shifts`, data);
@@ -19,3 +26,7 @@ export const publishShifts = (storeId, startDate, endDate) =>
 
 export const deleteShift = (storeId, shiftId) =>
   api.delete(`/stores/${storeId}/shifts/${shiftId}`);
+
+// ✅ Marketplace: nhân viên nhận ca trống
+export const claimOpenShift = (storeId, shiftId) =>
+  api.post(`/stores/${storeId}/marketplace/shifts/${shiftId}/claim`);

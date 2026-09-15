@@ -15,8 +15,8 @@ public class StaffRequestCreateDTO {
     private String requesterName;
     private String avatarKey;
 
-    @NotBlank(message = "Request type is required")
     private String requestType;
+    private String type;
 
     private String typeCategory;
     private String recipient;
@@ -24,6 +24,6 @@ public class StaffRequestCreateDTO {
     private LocalDate endDate;
     private String shiftInfo;
 
-    @NotBlank(message = "Content / message is required")
     private String content;
+    private String reason;
 }

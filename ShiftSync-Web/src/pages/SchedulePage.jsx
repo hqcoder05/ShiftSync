@@ -6,6 +6,7 @@ import { getEmployees, updateEmployee } from '../services/employeeService';
 import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
 import CompactDropdownFilter from '../components/CompactDropdownFilter';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
 import iconUser from '../assets/icons/icon-user.png';
@@ -39,6 +40,20 @@ const AVATAR_MAP = {
 const DEFAULT_AVATAR = avatarPaul; // fallback khi không khớp tên
 
 const getAvatar = (name = '') => AVATAR_MAP[name] || DEFAULT_AVATAR;
+
+const getAvatarId = (name = '', avatarId = null) => {
+  if (avatarId) return avatarId;
+  const n = (name || '').toLowerCase();
+  if (n.includes('paul')) return 'paul';
+  if (n.includes('thia') || n.includes('vivi')) return 'thia';
+  if (n.includes('mew')) return 'mew';
+  if (n.includes('dilan')) return 'dilan';
+  if (n.includes('alex')) return 'alex';
+  if (n.includes('kai')) return 'kai';
+  if (n.includes('maya')) return 'maya';
+  if (n.includes('leo')) return 'leo';
+  return 'dilan';
+};
 
 // DOW labels in Vietnamese
 const DOW_VI = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -504,6 +519,9 @@ export default function SchedulePage() {
    * Đảm bảo ca làm việc trên Scheduler hiển thị đúng màu của Vị trí
    */
   const getShiftPositionColor = (s, emp) => {
+    // ✅ Priority 1: Backend-stored color (set when manager assigns position with color)
+    if (s.color && s.color.startsWith('#')) return s.color;
+
     const sSkillId = s.skillId || s.location;
     let matchedSkill = skills.find(
       (sk) => sk.id === sSkillId || sk.name === sSkillId || (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase())
@@ -517,6 +535,7 @@ export default function SchedulePage() {
       );
     }
 
+    // ✅ Priority 2: Color from the matched Skill's description field
     if (matchedSkill) {
       if (matchedSkill.description && matchedSkill.description.startsWith('#')) {
         return matchedSkill.description;
@@ -527,7 +546,6 @@ export default function SchedulePage() {
     if (s.skillName) return colorFor(s.skillName);
     if (s.location && isNaN(s.location)) return colorFor(s.location);
     if (emp?.position) return colorFor(emp.position);
-    if (s.color && s.color.startsWith('#')) return s.color;
     return SHIFT_COLORS[0];
   };
 
@@ -584,13 +602,17 @@ export default function SchedulePage() {
       if (typeof t === 'string') return t.slice(0, 5);
       return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
     };
+    const shiftSkillId = shift.skillId || shift.location || '';
+    const matchedSkill = skills.find((s) => s.id === shiftSkillId || s.name === shiftSkillId);
+    const resolvedColor = shift.color || (matchedSkill ? getSkillColor(matchedSkill) : SHIFT_COLORS[0]);
+
     setRegisterForm({
       staffId: empId || shift.staffId || '',
       shiftDate: shift.shiftDate || '',
       startTime: fmtT(shift.startTime),
       endTime: fmtT(shift.endTime),
-      color: shift.color || SHIFT_COLORS[0],
-      location: shift.location || '',
+      color: resolvedColor,
+      location: matchedSkill ? matchedSkill.id : shiftSkillId,
       branch: shift.storeId || storeId,
       note: shift.note || '',
       clockIn: shift.clockIn ?? true,
@@ -1384,22 +1406,26 @@ export default function SchedulePage() {
                   const workingCount = employees.filter(
                     (e) => (assignments[e.staffId || e.id]?.[iso] || []).length > 0
                   ).length;
+                  const isToday = iso === toISODate(new Date());
 
                   return (
-                    <th key={iso} className="sch-th-center sch-col-date-header">
-                      <div className="sch-date-th-top-row">
-                        <span className="sch-date-th-dow">{DOW_VI[d.getDay()]}</span>
-                        <span className="sch-date-th-workers-inline">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.55}}>
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                          </svg>
-                          {workingCount}
-                        </span>
+                    <th key={iso} className={`sch-col-date-header ${isToday ? 'sch-col-date-today' : ''}`}>
+                      {/* Bố cục chuẩn 100% Ảnh 5: Hàng 1 (Thứ & icon Người + số lượng) • Hàng 2 (Ngày X tháng Y) */}
+                      <div className="sch-date-card-header">
+                        <div className="sch-date-card-top">
+                          <span className="sch-date-card-dow">{DOW_VI[d.getDay()]}</span>
+                          <span className="sch-date-card-count">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="#4b5563" style={{ verticalAlign: '-2px' }}>
+                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                            <span>{workingCount}</span>
+                          </span>
+                        </div>
+                        <div className="sch-date-card-sub">
+                          Ngày {d.getDate()} tháng {d.getMonth() + 1}
+                        </div>
                       </div>
-                      <div className="sch-date-th-dm">Ngày {d.getDate()} tháng {d.getMonth() + 1}</div>
                     </th>
-
                   );
                 })}
               </tr>
@@ -1434,25 +1460,29 @@ export default function SchedulePage() {
                           }
                         >
                           <div className="sch-emp-avatar-wrap">
-                            <img
-                              className="sch-emp-avatar"
-                              src={getAvatar(name)}
-                              alt={name}
-                            />
-                            {/* Icon tam giác vàng (!) cạnh tên nhân viên: Chỉ hiện khi nhân viên đã gửi lịch */}
-                            {hasSubmittedAvail && (
-                              <span
-                                className="sch-emp-avatar-badge-warning"
-                                title="Nhân viên đã gửi lịch khả dụng"
-                                aria-label="Đã gửi lịch khả dụng"
-                              >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" strokeWidth="1.5">
-                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                                  <line x1="12" y1="9" x2="12" y2="13" stroke="#78350F" strokeWidth="2"></line>
-                                  <line x1="12" y1="17" x2="12.01" y2="17" stroke="#78350F" strokeWidth="2.5"></line>
-                                </svg>
-                              </span>
-                            )}
+                            {/* Avatar 3D Low-Poly đồng nhất với Dashboard và Profile */}
+                            <div style={{ flexShrink: 0, position: 'relative' }}>
+                              <Avatar3DWeb
+                                avatarId={emp.avatarId || getAvatarId(name)}
+                                size={40}
+                                interactive={false}
+                              />
+                              {/* Icon tam giác vàng (!) cạnh tên nhân viên: Chỉ hiện khi nhân viên đã gửi lịch */}
+                              {hasSubmittedAvail && (
+                                <span
+                                  className="sch-emp-avatar-badge-warning"
+                                  title="Nhân viên đã gửi lịch khả dụng"
+                                  aria-label="Đã gửi lịch khả dụng"
+                                  style={{ position: 'absolute', top: -2, right: -2, zIndex: 2 }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" strokeWidth="1.5">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13" stroke="#78350F" strokeWidth="2"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="#78350F" strokeWidth="2.5"></line>
+                                  </svg>
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
@@ -2056,11 +2086,13 @@ export default function SchedulePage() {
             </div>
 
             <div className="sch-view-emp-header">
-              <img
-                src={getAvatar(viewingShift.staffName)}
-                alt={viewingShift.staffName}
-                className="sch-view-avatar"
-              />
+              <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                <Avatar3DWeb
+                  avatarId={viewingShift.avatarId || getAvatarId(viewingShift.staffName)}
+                  size={48}
+                  interactive={false}
+                />
+              </div>
               <div>
                 <div className="sch-view-emp-name">{viewingShift.staffName}</div>
                 <div className="sch-view-emp-role">{viewingShift.staffRole}</div>
@@ -2168,11 +2200,13 @@ export default function SchedulePage() {
                   <div key={req.id} className="sch-cross-card">
                     <div className="sch-cross-card-header">
                       <div className="sch-cross-user-info">
-                        <img
-                          src={getAvatar(req.staffName)}
-                          alt={req.staffName}
-                          className="sch-cross-avatar"
-                        />
+                        <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                          <Avatar3DWeb
+                            avatarId={req.avatarId || getAvatarId(req.staffName)}
+                            size={44}
+                            interactive={false}
+                          />
+                        </div>
                         <div>
                           <div className="sch-cross-name">{req.staffName}</div>
                           <div className="sch-cross-from">
@@ -2252,11 +2286,13 @@ export default function SchedulePage() {
           <div className="sch-modal sch-avail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sch-modal-header">
               <div className="sch-avail-modal-emp-info">
-                <img
-                  src={getAvatar(selectedStaffForAvail.name)}
-                  alt={selectedStaffForAvail.name}
-                  className="sch-avail-modal-avatar"
-                />
+                <div style={{ width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                  <Avatar3DWeb
+                    avatarId={selectedStaffForAvail.avatarId || getAvatarId(selectedStaffForAvail.name)}
+                    size={52}
+                    interactive={false}
+                  />
+                </div>
                 <div>
                   <span className="sch-avail-modal-eyebrow">LỊCH KHẢ DỤNG</span>
                   <h2 className="sch-avail-modal-title">

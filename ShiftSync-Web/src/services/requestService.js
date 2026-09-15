@@ -1,119 +1,65 @@
 import api from './api';
 
-const STORAGE_KEY = 'shiftsync_requests_data';
-
 /**
  * Lấy danh sách yêu cầu từ Backend API (/api/requests).
- * Nếu BE trả về mảng rỗng [], trả về [] (không chèn dữ liệu ảo).
+ * Chỉ ADMIN/MANAGER mới gọi được endpoint này.
  */
-export const getRequests = async () => {
-  try {
-    const response = await api.get('/requests');
-    if (response.data !== undefined && response.data !== null) {
-      const data = Array.isArray(response.data) ? response.data : (response.data?.content || []);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      return data;
-    }
-  } catch (e) {
-    console.info('Backend /api/requests offline, reading local cache:', e.message);
-  }
+export const getRequests = async (status, typeCategory, search) => {
+  const params = {};
+  if (status) params.status = status;
+  if (typeCategory) params.typeCategory = typeCategory;
+  if (search) params.search = search;
+  const response = await api.get('/requests', { params });
+  const data = response.data;
+  return Array.isArray(data) ? data : (data?.content || []);
+};
 
-  // Fallback to localStorage cache nếu backend offline
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.warn('Error reading local requests cache:', e);
-  }
-
-  return [];
+/**
+ * Lấy danh sách yêu cầu của chính người dùng đang đăng nhập.
+ * Dùng cho nhân viên (STAFF) - endpoint /api/requests/me
+ */
+export const getMyRequests = async () => {
+  const response = await api.get('/requests/me');
+  const data = response.data;
+  return Array.isArray(data) ? data : (data?.content || []);
 };
 
 /**
  * Gửi yêu cầu mới lên Backend API (/api/requests).
+ * requesterName sẽ được tự động gán từ JWT token bởi Backend.
  */
 export const createRequest = async (requestData) => {
   const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = now.getFullYear();
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-
-  const currentUserEmail = localStorage.getItem('userEmail') || 'staff';
-  const defaultRequester = currentUserEmail.split('@')[0] || 'Nhân viên';
-
   const payload = {
-    requesterName: requestData.requesterName || defaultRequester,
+    requesterName: requestData.requesterName || '',
     avatarKey: requestData.avatarKey || 'paul',
     requestType: requestData.requestType || 'Yêu cầu hỗ trợ',
     typeCategory: requestData.typeCategory || 'support',
     recipient: requestData.recipient || 'Quản lý cửa hàng',
-    startDate: requestData.startDate || `${year}-${month}-${day}`,
-    endDate: requestData.endDate || `${year}-${month}-${day}`,
+    startDate: requestData.startDate || now.toISOString().slice(0, 10),
+    endDate: requestData.endDate || now.toISOString().slice(0, 10),
     shiftInfo: requestData.shiftInfo || 'Ca tiêu chuẩn',
     content: requestData.content || ''
   };
-
-  try {
-    const response = await api.post('/requests', payload);
-    if (response.data) {
-      // Sync local cache
-      const current = await getRequests();
-      const updated = [response.data, ...current.filter(c => c.id !== response.data.id)];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return response.data;
-    }
-  } catch (e) {
-    console.info('Backend createRequest API offline, saving to localStorage:', e.message);
-  }
-
-  // Fallback to client-side localStorage khi offline
-  const current = await getRequests();
-  const newReq = {
-    id: `req-${Date.now()}`,
-    ...payload,
-    status: 'Đang chờ phê duyệt',
-    requestDate: `${day}-${month}-${year}`,
-    requestTime: `Ngày ${day} tháng ${month} năm ${year} vào ${hours}h:${minutes}p`
-  };
-
-  const updated = [newReq, ...current];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return newReq;
+  const response = await api.post('/requests', payload);
+  return response.data;
 };
 
 /**
  * Cập nhật trạng thái yêu cầu (Phê duyệt / Từ chối).
+ * ✅ Gửi đúng Enum Backend: APPROVED | REJECTED | PENDING
  */
 export const updateRequestStatus = async (id, newStatus) => {
-  try {
-    const response = await api.put(`/requests/${id}/status`, { status: newStatus });
-    if (response.data) {
-      const current = await getRequests();
-      const updated = current.map(item => item.id === id ? { ...item, ...response.data, status: newStatus } : item);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return response.data;
-    }
-  } catch (e) {
-    console.info('Backend updateRequestStatus API offline, updating localStorage:', e.message);
-  }
-
-  // Fallback to client-side localStorage khi offline
-  const current = await getRequests();
-  const updated = current.map(item => {
-    if (item.id === id) {
-      return { ...item, status: newStatus };
-    }
-    return item;
-  });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return updated.find(i => i.id === id);
-};
-
-export const resetDefaultRequests = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  return [];
+  // Chuẩn hoá sang Enum Backend
+  const ENUM_MAP = {
+    'APPROVED': 'APPROVED',
+    'REJECTED': 'REJECTED',
+    'PENDING': 'PENDING',
+    'Đã phê duyệt': 'APPROVED',
+    'Đã từ chối': 'REJECTED',
+    'Đang chờ phê duyệt': 'PENDING',
+  };
+  const status = ENUM_MAP[newStatus] || newStatus;
+  const response = await api.put(`/requests/${id}/status`, { status });
+  return response.data;
 };

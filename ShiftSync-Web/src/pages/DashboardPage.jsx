@@ -6,12 +6,14 @@ import { getShiftsForStore } from '../services/shiftService';
 import { getRequests } from '../services/requestService';
 import { getStoreAttendance } from '../services/attendanceService';
 import { getSkillsByStore } from '../services/skillService';
+import { getStoreDashboardMetrics } from '../services/dashboardService';
 
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import iconCalendar from '../assets/icons/icon-calendar.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import './DashboardPage.css';
 
 const AVATAR_MAP = {
@@ -76,9 +78,35 @@ export default function DashboardPage() {
   const [stores, setStores] = useState([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [employees, setEmployees] = useState([]);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState(() => localStorage.getItem('userAvatarId') || 'dilan');
+  const [currentUserName, setCurrentUserName] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      return u.fullName || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    const handleAvatarUpdate = (e) => {
+      const newAv = e.detail?.avatarId;
+      if (newAv) {
+        setCurrentUserAvatar(newAv);
+      }
+      try {
+        const u = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        if (u.fullName) setCurrentUserName(u.fullName);
+      } catch {}
+    };
+    window.addEventListener('avatarUpdated', handleAvatarUpdate);
+    return () => window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+  }, []);
+
   const [shifts, setShifts] = useState([]);
   const [attendanceList, setAttendanceList] = useState([]);
   const [requestsList, setRequestsList] = useState([]);
+  const [backendKpis, setBackendKpis] = useState(null); // ✅ KPI từ Backend API
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
@@ -204,6 +232,15 @@ export default function DashboardPage() {
       } catch (e) {
         console.info('Error loading requests:', e);
         setRequestsList([]);
+      }
+
+      // ✅ Load backend KPI metrics (chi phí nhân sự thực tế)
+      try {
+        const kpiRes = await getStoreDashboardMetrics(selectedStoreId, todayISO, todayISO);
+        setBackendKpis(kpiRes.data || null);
+      } catch (e) {
+        console.info('Backend dashboard metrics not available, using local calc:', e.message);
+        setBackendKpis(null);
       } finally {
         setLoading(false);
       }
@@ -248,6 +285,20 @@ export default function DashboardPage() {
     return FALLBACK[idx];
   }, [storeSkillMap, selectedStoreId]);
 
+  const empAvatarMap = useMemo(() => {
+    const map = {};
+    employees.forEach((emp) => {
+      if (emp.fullName) {
+        map[emp.fullName] = emp.avatarId || (emp.fullName.toLowerCase().includes('paul') ? 'paul' : emp.fullName.toLowerCase().includes('mew') ? 'mew' : emp.fullName.toLowerCase().includes('thia') ? 'thia' : 'dilan');
+      }
+    });
+    // Luôn ưu tiên avatar mới nhất của tài khoản hiện tại
+    if (currentUserName && currentUserAvatar) {
+      map[currentUserName] = currentUserAvatar;
+    }
+    return map;
+  }, [employees, currentUserName, currentUserAvatar]);
+
   // =========================================================================
   // Section 1 Computations: Lịch làm việc hôm nay (Filtered by S1)
   // =========================================================================
@@ -269,6 +320,7 @@ export default function DashboardPage() {
           id: rowId,
           name: empName,
           avatar: getAvatar(empName),
+          avatarId: empAvatarMap[empName] || 'dilan',
           role: skillName || 'Staff',
           startHour: Math.max(6, Math.min(19, startH)),
           endHour: Math.max(6, Math.min(19, endH)),
@@ -385,7 +437,10 @@ export default function DashboardPage() {
     });
 
     const shiftCoverage = totalRequired > 0 ? Math.round((totalAssigned / totalRequired) * 100) : 100;
-    const laborCost = totalScheduledHours > 0 ? (totalScheduledHours * 30000).toLocaleString('vi-VN') + ' đ' : '0 đ';
+    // ✅ Ưu tiên chi phí từ Backend, fallback sang tính local nếu backend chưa có
+    const laborCost = backendKpis?.laborCost
+      ? Number(backendKpis.laborCost).toLocaleString('vi-VN') + ' đ'
+      : (totalScheduledHours > 0 ? (totalScheduledHours * 30000).toLocaleString('vi-VN') + ' đ' : '0 đ');
 
     let todayAtt = attendanceList.filter(a => (a.shiftDate === s3DateISO || a.date === s3DateISO));
     if (filterS3Employee !== 'ALL') {
@@ -411,7 +466,7 @@ export default function DashboardPage() {
       absentRate,
       pendingRequests: `${pendingRequests} yêu cầu`
     };
-  }, [shifts, attendanceList, requestsList, s3DateISO, filterS3Employee]);
+  }, [shifts, attendanceList, requestsList, backendKpis, s3DateISO, filterS3Employee]);
 
   // =========================================================================
   // Section 4 Computations: Ca làm việc được phân công (Filtered by S4)
@@ -646,9 +701,6 @@ export default function DashboardPage() {
 
       <div className="db-brand-bar">
         <div className="db-brand-left">
-          <div className="db-brand-logo-wrap">
-            <img src={avatarPaul} alt="ShiftSync Logo" className="db-brand-logo-img" />
-          </div>
           <span className="db-brand-title">ShiftSync</span>
           {currentStoreName && (
             <span className="db-brand-store-badge">{currentStoreName}</span>
@@ -739,7 +791,7 @@ export default function DashboardPage() {
                       <tr key={row.id} className="db-timeline-row">
                         <td className="db-timeline-name-cell">
                           <div className="db-timeline-name-flex">
-                            <img src={row.avatar} alt={row.name} className="db-timeline-avatar" />
+                            <Avatar3DWeb avatarId={row.avatarId || empAvatarMap[row.name] || 'dilan'} size={38} />
                             <div>
                               <span>{row.name}</span>
                               <span className="db-timeline-role-badge" style={{ backgroundColor: row.color + '22', color: row.color, borderColor: row.color + '44' }}>
@@ -838,7 +890,7 @@ export default function DashboardPage() {
               <div className="db-att-cards-grid">
                 {todayAttendance.map((item) => (
                   <div key={item.id} className="db-att-item-card" onClick={() => navigate('/attendance')}>
-                    {item.avatar ? <img src={item.avatar} alt={item.name} className="db-att-item-avatar" /> : <div className="db-att-item-avatar-placeholder">{item.name.slice(0, 2)}</div>}
+                    <Avatar3DWeb avatarId={empAvatarMap[item.name] || 'dilan'} size={38} />
                     <div className="db-att-item-info">
                       <span className={`db-att-item-status ${item.statusClass}`}>{item.type}</span>
                       <span className="db-att-item-meta">{item.name} {item.date} {item.time}</span>
@@ -857,7 +909,7 @@ export default function DashboardPage() {
               <div className="db-att-cards-grid">
                 {yesterdayAttendance.map((item) => (
                   <div key={item.id} className="db-att-item-card" onClick={() => navigate('/attendance')}>
-                    {item.avatar ? <img src={item.avatar} alt={item.name} className="db-att-item-avatar" /> : <div className="db-att-item-avatar-placeholder">{item.name.substring(0, 2)}</div>}
+                    <Avatar3DWeb avatarId={empAvatarMap[item.name] || 'dilan'} size={38} />
                     <div className="db-att-item-info">
                       <span className={`db-att-item-status ${item.statusClass}`}>{item.type}</span>
                       <span className="db-att-item-meta">{item.name} {item.date} {item.time}</span>

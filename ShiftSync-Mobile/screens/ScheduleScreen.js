@@ -182,6 +182,8 @@ export default function ScheduleScreen({ navigation }) {
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
   const [liveStoreShifts, setLiveStoreShifts] = useState([]);
+  // ── Current user ──
+  const [currentUserName, setCurrentUserName] = useState('');
 
   const weekDays = getWeekDates(weekOffset);
   const startDay = weekDays[0];
@@ -223,6 +225,9 @@ export default function ScheduleScreen({ navigation }) {
       try {
         const { data: user } = await getMyProfile();
         currentUser = user;
+        if (user?.fullName || user?.name) {
+          setCurrentUserName(user.fullName || user.name);
+        }
         if (user?.id) {
           const { data: stores } = await getMyStores(user.id);
           const activeStore = stores?.find((s) => s.status === 'ACTIVE') || stores?.[0];
@@ -246,7 +251,7 @@ export default function ScheduleScreen({ navigation }) {
             return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
           };
           const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-          const theme = ROLE_THEMES[role] || ROLE_THEMES.Barista || ROLE_THEMES.Default;
+          const shiftColor = s.color || s.requirements?.[0]?.skill?.description || (ROLE_THEMES[role]?.color) || '#8DD9CC';
           return {
             id: s.id || `live-my-${idx}`,
             shiftDate: s.shiftDate,
@@ -256,7 +261,7 @@ export default function ScheduleScreen({ navigation }) {
             timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
             location: s.storeAddress || s.storeName || 'Highlands D9/71 Tây Thạnh',
             role,
-            color: theme.color,
+            color: shiftColor,
             note: s.note || '',
             hasFlag: Boolean(s.note && s.note.trim().length > 0),
           };
@@ -285,7 +290,7 @@ export default function ScheduleScreen({ navigation }) {
               return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
             };
             const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-            const theme = ROLE_THEMES[role] || ROLE_THEMES.Barista || ROLE_THEMES.Default;
+            const shiftColor = s.color || s.requirements?.[0]?.skill?.description || (ROLE_THEMES[role]?.color) || '#8DD9CC';
             return {
               id: s.id || `live-store-${idx}`,
               shiftDate: s.shiftDate,
@@ -295,7 +300,7 @@ export default function ScheduleScreen({ navigation }) {
               timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
               location: s.storeAddress || s.storeName || 'Highlands D9/71 Tây Thạnh',
               role,
-              color: theme.color,
+              color: shiftColor,
               note: s.note || '',
               hasFlag: Boolean(s.note && s.note.trim().length > 0),
             };
@@ -362,7 +367,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'SWAP',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         targetStaffName: selectedSwapStaff,
         shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
         reason: `Yêu cầu đổi ca trực với bạn ${selectedSwapStaff}`,
@@ -390,7 +395,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'ABSENT',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
         reason: absentReason.trim(),
       });
@@ -414,7 +419,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserName || 'Nhân viên',
         startDate,
         endDate,
         reason: leaveReason.trim(),
@@ -429,9 +434,27 @@ export default function ScheduleScreen({ navigation }) {
     }
   };
 
-  const getRoleTheme = (role = '') => {
-    if (!role || typeof role !== 'string') return ROLE_THEMES.Default;
-    return ROLE_THEMES[role] || ROLE_THEMES.Default;
+  const getRoleTheme = (roleOrShift = '') => {
+    let color = '';
+    let roleName = '';
+    if (typeof roleOrShift === 'object' && roleOrShift !== null) {
+      color = roleOrShift.color;
+      roleName = roleOrShift.role || '';
+    } else {
+      roleName = roleOrShift;
+    }
+
+    if (!color) {
+      color = ROLE_THEMES[roleName]?.color || '#8DD9CC';
+    }
+
+    return {
+      color,
+      cardBg: color.startsWith('#') ? `${color}1A` : 'rgba(141, 217, 204, 0.15)',
+      activeBorder: color,
+      activeBg: color.startsWith('#') ? `${color}33` : 'rgba(141, 217, 204, 0.25)',
+      dotColor: color,
+    };
   };
 
   const displayDays = selectedDayIndex !== null
@@ -641,7 +664,7 @@ export default function ScheduleScreen({ navigation }) {
 
                   {/* Danh sách ca trực trong ngày */}
                   {dayShifts.map((shift) => {
-                    const theme = getRoleTheme(shift.role);
+                    const theme = getRoleTheme(shift);
                     const isSelected = activeSelectedShift?.id === shift.id && actionBoxVisible;
 
                     return (
@@ -736,7 +759,7 @@ export default function ScheduleScreen({ navigation }) {
               <View
                 style={[
                   styles.popupVerticalBar,
-                  { backgroundColor: getRoleTheme(activeSelectedShift?.role).color }
+                  { backgroundColor: getRoleTheme(activeSelectedShift).color }
                 ]}
               />
 
@@ -750,7 +773,7 @@ export default function ScheduleScreen({ navigation }) {
                   <View
                     style={[
                       styles.popupRoleDot,
-                      { backgroundColor: getRoleTheme(activeSelectedShift?.role).dotColor }
+                      { backgroundColor: getRoleTheme(activeSelectedShift).dotColor }
                     ]}
                   />
                   <Text style={styles.popupRoleText}>{activeSelectedShift?.role || 'Nhân viên'}</Text>

@@ -4,20 +4,16 @@ import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '..
 import { getAllStores } from '../services/storeService';
 import { assignStaffToStore, getStoresByStaff } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
+import { getContractTypes } from '../services/contractTypeService';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
-import townIllustration from '../assets/illustrations/town-illustration.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { AVATAR_OPTIONS } from '../components/avatarConfigs';
 import './EmployeesPage.css';
 
 const ROLES = ['ADMIN', 'MANAGER', 'STAFF'];
-const EMPLOYMENT_TYPES = [
-  { value: 'FULL_TIME', label: 'Toàn thời gian' },
-  { value: 'PART_TIME', label: 'Bán thời gian' },
-  { value: 'SEASONAL', label: 'Thời vụ' },
-  { value: 'INTERN', label: 'Thực tập' },
-];
 
 const AVATAR_MAP = {
   'Paul. Lee': avatarPaul,
@@ -41,8 +37,9 @@ export default function EmployeesPage() {
   const [savedUserId, setSavedUserId] = useState(null);
 
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
-  const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
+  const [assignForm, setAssignForm] = useState({ storeId: '', contractTypeId: '', hourlyRate: '', joinedDate: '', skillId: '' });
   const [skills, setSkills] = useState([]);
+  const [contractTypes, setContractTypes] = useState([]);
 
   // Black Toast
   const [toastMsg, setToastMsg] = useState('');
@@ -71,6 +68,26 @@ export default function EmployeesPage() {
     }
   };
 
+  useEffect(() => {
+    const handleAvatarUpdate = (e) => {
+      const newAv = e.detail?.avatarId;
+      const currentUserStr = localStorage.getItem('currentUser');
+      if (newAv && currentUserStr) {
+        try {
+          const u = JSON.parse(currentUserStr);
+          setEmployees(prev => prev.map(emp => {
+            if (emp.id === u.id || emp.email === u.email || emp.fullName === u.fullName) {
+              return { ...emp, avatarId: newAv };
+            }
+            return emp;
+          }));
+        } catch {}
+      }
+    };
+    window.addEventListener('avatarUpdated', handleAvatarUpdate);
+    return () => window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+  }, []);
+
   const fetchStores = async () => {
     try { 
       const res = await getAllStores(); 
@@ -85,6 +102,21 @@ export default function EmployeesPage() {
   useEffect(() => { fetchEmployees(); }, [page, search]);
   useEffect(() => { fetchStores(); }, []);
 
+  // Tải contract types khi storeId thay đổi
+  const fetchContractTypes = async (storeId) => {
+    if (!storeId) { setContractTypes([]); return; }
+    try {
+      const res = await getContractTypes(storeId);
+      const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      setContractTypes(list);
+      return list;
+    } catch (e) {
+      console.warn('Không tải được loại hợp đồng:', e);
+      setContractTypes([]);
+      return [];
+    }
+  };
+
   const openCreate = () => {
     setEditing(null); 
     setSavedUserId(null); 
@@ -92,13 +124,25 @@ export default function EmployeesPage() {
     setError('');
     const defaultStoreId = localStorage.getItem('selectedStoreId') || (stores[0]?.id || '');
     setForm({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
-    setAssignForm({
-      storeId: defaultStoreId,
-      employmentType: 'FULL_TIME',
-      hourlyRate: '25000',
-      joinedDate: new Date().toISOString().split('T')[0],
-      skillId: ''
-    });
+    if (defaultStoreId) {
+      fetchContractTypes(defaultStoreId).then(ctList => {
+        setAssignForm({
+          storeId: defaultStoreId,
+          contractTypeId: ctList?.[0]?.id || '',
+          hourlyRate: '25000',
+          joinedDate: new Date().toISOString().split('T')[0],
+          skillId: ''
+        });
+      });
+    } else {
+      setAssignForm({
+        storeId: defaultStoreId,
+        contractTypeId: '',
+        hourlyRate: '25000',
+        joinedDate: new Date().toISOString().split('T')[0],
+        skillId: ''
+      });
+    }
     if (defaultStoreId) {
       getSkillsByStore(defaultStoreId)
         .then(res => setSkills(Array.isArray(res.data) ? res.data : (res.data?.content || [])))
@@ -139,9 +183,11 @@ export default function EmployeesPage() {
             setSkills([]);
           }
         }
+        // ✅ Gửi contractTypeId (UUID) thay vì employmentType string
+        const ctId = activeSt.contractTypeId || activeSt.contractType?.id || '';
         setAssignForm({
           storeId: initialStoreId,
-          employmentType: activeSt.employmentType || (activeSt.contractType?.name) || 'FULL_TIME',
+          contractTypeId: ctId,
           hourlyRate: activeSt.hourlyRate != null ? String(activeSt.hourlyRate) : '25000',
           joinedDate: activeSt.joinedDate || new Date().toISOString().split('T')[0],
           skillId: activeSt.skillId ? String(activeSt.skillId) : ''
@@ -157,7 +203,7 @@ export default function EmployeesPage() {
         }
         setAssignForm({
           storeId: defaultStoreId,
-          employmentType: 'FULL_TIME',
+          contractTypeId: '',
           hourlyRate: '25000',
           joinedDate: new Date().toISOString().split('T')[0],
           skillId: ''
@@ -172,7 +218,7 @@ export default function EmployeesPage() {
       }
       setAssignForm({
         storeId: defaultStoreId,
-        employmentType: 'FULL_TIME',
+        contractTypeId: '',
         hourlyRate: '25000',
         joinedDate: new Date().toISOString().split('T')[0],
         skillId: ''
@@ -238,9 +284,10 @@ export default function EmployeesPage() {
     if (!assignForm.storeId) { setError('Vui lòng chọn chi nhánh'); return; }
 
     try {
+      // ✅ Gửi contractTypeId (UUID) thay vì employmentType string
       await assignStaffToStore(assignForm.storeId, {
         staffId: savedUserId,
-        employmentType: assignForm.employmentType,
+        contractTypeId: assignForm.contractTypeId || null,
         hourlyRate: Number(assignForm.hourlyRate),
         joinedDate: assignForm.joinedDate,
         skillId: assignForm.skillId ? assignForm.skillId : null,
@@ -295,11 +342,10 @@ export default function EmployeesPage() {
             ) : (
               employees.map(emp => (
                 <div className="emp-row" key={emp.id || emp.email}>
-                  <span className="emp-name">
-                    <img
-                      className="emp-avatar"
-                      src={AVATAR_MAP[emp.fullName] || DEFAULT_AVATAR}
-                      alt={emp.fullName || 'Avatar'}
+                  <span className="emp-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Avatar3DWeb
+                      avatarId={emp.avatarId || (emp.fullName?.toLowerCase().includes('paul') ? 'paul' : emp.fullName?.toLowerCase().includes('mew') ? 'mew' : emp.fullName?.toLowerCase().includes('thia') ? 'thia' : 'dilan')}
+                      size={36}
                     />
                     {emp.fullName}
                   </span>
@@ -370,18 +416,24 @@ export default function EmployeesPage() {
                   <form className="emp-form-grid" onSubmit={handleSaveAssignment}>
                     <h2>Phân công & Tiền lương</h2>
                     <label>Chi nhánh
-                      <select required value={assignForm.storeId} onChange={e => {
+                      <select required value={assignForm.storeId} onChange={async e => {
                         const sid = e.target.value;
-                        setAssignForm({...assignForm, storeId: sid, skillId: ''});
+                        setAssignForm({...assignForm, storeId: sid, skillId: '', contractTypeId: ''});
                         if (sid) {
+                          // Load skills
                           getSkillsByStore(sid)
                             .then(res => {
                               const d = res.data;
                               setSkills(Array.isArray(d) ? d : (d.content || []));
                             })
                             .catch(() => setSkills([]));
+                          // Load contract types cho chi nhánh mới
+                          fetchContractTypes(sid).then(ctList => {
+                            setAssignForm(prev => ({...prev, storeId: sid, skillId: '', contractTypeId: ctList?.[0]?.id || ''}));
+                          });
                         } else {
                           setSkills([]);
+                          setContractTypes([]);
                         }
                       }}>
                         <option value="">-- Chọn chi nhánh --</option>
@@ -394,9 +446,10 @@ export default function EmployeesPage() {
                         {skills.map(sk => <option key={sk.id} value={sk.id}>{sk.name}</option>)}
                       </select>
                     </label>
-                    <label>Loại hình
-                      <select value={assignForm.employmentType} onChange={e => setAssignForm({...assignForm, employmentType: e.target.value})}>
-                        {EMPLOYMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    <label>Loại hợp đồng
+                      <select value={assignForm.contractTypeId} onChange={e => setAssignForm({...assignForm, contractTypeId: e.target.value})}>
+                        <option value="">-- Chọn loại hợp đồng --</option>
+                        {contractTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name || ct.typeName}</option>)}
                       </select>
                     </label>
                     <label>Lương theo giờ (VNĐ)
