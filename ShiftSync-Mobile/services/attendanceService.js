@@ -1,6 +1,7 @@
 import api from './api';
 
 export const getMyAttendance = () => api.get('/attendance/me');
+export const getMyAttendanceHistory = () => api.get('/attendance/me');
 export const getMyShifts = () => api.get('/users/me/shifts');
 
 export const submitSelfieAttendance = ({ shiftId, latitude, longitude, photoUri, forcedStatus }) => {
@@ -16,3 +17,9 @@ export const submitSelfieAttendance = ({ shiftId, latitude, longitude, photoUri,
   }
   return api.post('/attendance/selfie', data);
 };
+
+export const scanAttendance = (qrData) =>
+  api.post('/attendance/scan', typeof qrData === 'string' ? { qrCode: qrData } : qrData);
+
+export const getAttendanceQrCode = (storeId, shiftId) =>
+  api.get(`/stores/${storeId}/shifts/${shiftId}/attendance/qr`);

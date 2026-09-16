@@ -65,4 +65,9 @@ public class User {
     protected void onUpdate() {
         updatedAt = OffsetDateTime.now();
     }
+
+    @Transient
+    public String getAvatarUrl() {
+        return null;
+    }
 }

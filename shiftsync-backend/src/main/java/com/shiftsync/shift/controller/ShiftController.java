@@ -32,16 +32,17 @@ public class ShiftController {
     private final ShiftService shiftService;
     private final AutoScheduleService autoScheduleService;
 
-    @Operation(summary = "Get all shifts for a store")
+    @Operation(summary = "Get all shifts for a store with optional date and status filter")
     @PreAuthorize("@storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping
     public ResponseEntity<List<ShiftDTO>> getShiftsByStoreId(
             @PathVariable UUID storeId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date,
             @RequestParam(required = false) ShiftStatus status,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         
-        boolean isStaff = userDetails.getUser().getSystemRole() == SystemRole.STAFF;
-        return ResponseEntity.ok(shiftService.getShiftsByStoreId(storeId, status, isStaff));
+        boolean isStaff = userDetails != null && userDetails.getUser() != null && userDetails.getUser().getSystemRole() == SystemRole.STAFF;
+        return ResponseEntity.ok(shiftService.getShiftsByStoreId(storeId, date, status, isStaff));
     }
 
     @Operation(summary = "Get my assigned shifts in this store")
@@ -71,6 +72,16 @@ public class ShiftController {
             @Valid @RequestBody List<ShiftRequirementRequest> requirements) {
         return ResponseEntity.ok(shiftService.setShiftRequirements(storeId, shiftId, requirements));
     }
+
+    @Operation(summary = "Bulk configure demand planning for shifts across a date range or specific date")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PostMapping("/demand-planning")
+    public ResponseEntity<com.shiftsync.shift.dto.BulkDemandPlanningResponse> saveBulkDemandPlanning(
+            @PathVariable UUID storeId,
+            @Valid @RequestBody com.shiftsync.shift.dto.BulkDemandPlanningRequest request) {
+        return ResponseEntity.ok(shiftService.saveBulkDemandPlanning(storeId, request));
+    }
+
 
     @Operation(summary = "Publish shifts for a specific date range")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")

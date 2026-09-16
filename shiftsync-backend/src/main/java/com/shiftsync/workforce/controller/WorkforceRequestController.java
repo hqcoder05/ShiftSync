@@ -1,5 +1,6 @@
 package com.shiftsync.workforce.controller;
 
+import com.shiftsync.employment.dto.EmploymentDTO;
 import com.shiftsync.shared.security.CustomUserDetails;
 import com.shiftsync.workforce.dto.WorkforceProposalCreateDTO;
 import com.shiftsync.workforce.dto.WorkforceProposalResponseDTO;
@@ -75,6 +76,14 @@ public class WorkforceRequestController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(workforceRequestService.proposeStaff(storeId, id, dto, userDetails.getId()));
+    }
+
+    @GetMapping("/{id}/eligible-staff")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<List<EmploymentDTO>> getEligibleStaff(
+            @PathVariable UUID storeId,
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(workforceRequestService.getEligibleStaffForRequest(storeId, id));
     }
 }
 

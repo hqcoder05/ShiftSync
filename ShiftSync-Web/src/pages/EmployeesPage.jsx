@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
@@ -28,6 +29,7 @@ const AVATAR_MAP = {
 const DEFAULT_AVATAR = avatarPaul;
 
 export default function EmployeesPage() {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [stores, setStores] = useState([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -123,14 +125,13 @@ export default function EmployeesPage() {
     });
 
     const defaultStoreId = localStorage.getItem('selectedStoreId') || (stores[0]?.id || '');
-    let initialStoreId = defaultStoreId;
 
     try {
       const res = await getStoresByStaff(emp.id);
       const stList = Array.isArray(res.data) ? res.data : (res.data?.content || []);
       const activeSt = stList.find(s => s.status === 'ACTIVE') || stList[0];
       if (activeSt) {
-        initialStoreId = activeSt.storeId || defaultStoreId;
+        const initialStoreId = activeSt.storeId || defaultStoreId;
         if (initialStoreId) {
           try {
             const sRes = await getSkillsByStore(initialStoreId);
@@ -264,13 +265,24 @@ export default function EmployeesPage() {
     }
   };
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showModal) {
+        setShowModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModal]);
+
   return (
     <div className="emp-page">
       {/* Black Toast */}
       {toastMsg && <div className="black-toast">{toastMsg}</div>}
 
       <Sidebar
-        search={{ value: search, onChange: setSearch, placeholder: 'Tìm kiếm' }}
+        search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
         pageNav={{
           currentTo: '/employees',
           options: [
@@ -281,131 +293,394 @@ export default function EmployeesPage() {
       />
 
       <main className="emp-main">
-        <h1>Người dùng</h1>
-        {error && !showModal && <p className="emp-error" style={{ color: 'red' }}>{error}</p>}
-        {loading ? <p>Đang tải...</p> : (
-          <div className="emp-table-card">
-            <div className="emp-table-header">
-              <span>Nhân viên</span><span>Vai trò</span><span>Email</span><span></span>
-            </div>
-            {employees.length === 0 ? (
-              <div className="emp-empty" style={{ padding: '20px', textAlign: 'center' }}>
-                Chưa có dữ liệu người dùng
-              </div>
-            ) : (
-              employees.map(emp => (
-                <div className="emp-row" key={emp.id || emp.email}>
-                  <span className="emp-name">
-                    <img
-                      className="emp-avatar"
-                      src={AVATAR_MAP[emp.fullName] || DEFAULT_AVATAR}
-                      alt={emp.fullName || 'Avatar'}
-                    />
-                    {emp.fullName}
-                  </span>
-                  <span>{emp.role || emp.systemRole}</span>
-                  <span>{emp.email}</span>
-                  <span className="emp-actions">
-                    <button onClick={() => openEdit(emp)}>Sửa</button>
-                    <button onClick={() => handleDelete(emp.id)}>Xoá</button>
-                  </span>
-                </div>
-              ))
-            )}
-            <button className="emp-add-btn" onClick={openCreate}>+ Add User</button>
+        {/* Page Header with Add CTA */}
+        <div className="emp-header-row">
+          <div className="emp-title-col">
+            <h1>Quản lý người dùng</h1>
+            <p className="emp-subtitle">Danh sách tất cả tài khoản nhân viên, quản lý và phân quyền hệ thống</p>
+          </div>
+          <button type="button" className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated" onClick={openCreate}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Thêm nhân viên</span>
+          </button>
+        </div>
+
+        {error && !showModal && (
+          <div className="emp-error-banner" role="alert">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
           </div>
         )}
+
+        {loading ? (
+          <div className="emp-loading-card ss-card-25d">
+            <span className="ss-spinner" style={{ borderColor: '#cbd5e1', borderTopColor: '#51A33D', width: '28px', height: '28px' }} />
+            <span>Đang tải danh sách nhân viên...</span>
+          </div>
+        ) : (
+          <div className="emp-table-card ss-card-25d">
+            <div className="emp-table-header">
+              <span className="col-emp">Nhân viên</span>
+              <span className="col-role">Vai trò hệ thống</span>
+              <span className="col-email">Email liên hệ</span>
+              <span className="col-actions">Thao tác</span>
+            </div>
+
+            {employees.length === 0 ? (
+              <div className="emp-empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="emp-empty-icon">
+                  <circle cx="12" cy="8" r="5" />
+                  <path d="M20 21a8 8 0 0 0-16 0" />
+                </svg>
+                <div className="emp-empty-title">Chưa có người dùng nào</div>
+                <p className="emp-empty-desc">Không tìm thấy nhân viên phù hợp với từ khoá hoặc chưa có nhân viên được tạo.</p>
+                <button type="button" className="ss-btn ss-btn-primary ss-btn-sm" onClick={openCreate}>
+                  + Tạo nhân viên mới
+                </button>
+              </div>
+            ) : (
+              employees.map(emp => {
+                const roleStr = (emp.role || emp.systemRole || 'STAFF').toUpperCase();
+                const roleBadgeClass = roleStr === 'ADMIN' ? 'badge-admin' : roleStr === 'MANAGER' ? 'badge-manager' : 'badge-staff';
+                return (
+                  <div className="emp-row" key={emp.id || emp.email}>
+                    <div
+                      className="emp-name col-emp"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/employees/${emp.id || emp.email}`)}
+                      title="Xem và chỉnh sửa hồ sơ chi tiết"
+                    >
+                      <img
+                        className="emp-avatar"
+                        src={AVATAR_MAP[emp.fullName] || DEFAULT_AVATAR}
+                        alt={emp.fullName || 'Avatar'}
+                      />
+                      <div className="emp-name-details">
+                        <span className="emp-name-text">{emp.fullName || 'Chưa đặt tên'}</span>
+                        {emp.phone && <span className="emp-phone-text">{emp.phone}</span>}
+                      </div>
+                    </div>
+
+                    <div className="col-role">
+                      <span className={`emp-role-badge ${roleBadgeClass}`}>
+                        {roleStr}
+                      </span>
+                    </div>
+
+                    <div className="col-email">
+                      <span className="emp-email-text">{emp.email}</span>
+                    </div>
+
+                    <div className="emp-actions col-actions">
+                      <button
+                        type="button"
+                        className="emp-action-btn edit"
+                        onClick={() => navigate(`/employees/${emp.id || emp.email}`)}
+                        title="Chỉnh sửa thông tin chi tiết"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                        <span>Sửa</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="emp-action-btn delete"
+                        onClick={() => handleDelete(emp.id)}
+                        title="Xoá người dùng"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                        <span>Xoá</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            <button type="button" className="emp-add-footer-btn" onClick={openCreate}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Thêm nhân viên mới</span>
+            </button>
+          </div>
+        )}
+
+        {/* Pagination bar */}
         <div className="emp-pagination">
-          <button disabled={page === 0} onClick={() => setPage(p => p - 1)}>Trước</button>
-          <span>Trang {page + 1}/{totalPages || 1}</span>
-          <button disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}>Sau</button>
+          <button
+            type="button"
+            className="ss-btn ss-btn-outline ss-btn-sm"
+            disabled={page === 0}
+            onClick={() => setPage(p => p - 1)}
+          >
+            ← Trang trước
+          </button>
+          <span className="emp-pagination-text">Trang <strong>{page + 1}</strong> / {totalPages || 1}</span>
+          <button
+            type="button"
+            className="ss-btn ss-btn-outline ss-btn-sm"
+            disabled={page + 1 >= totalPages}
+            onClick={() => setPage(p => p + 1)}
+          >
+            Trang sau →
+          </button>
         </div>
       </main>
 
+      {/* Accessible Modal Dialog */}
       {showModal && (
-        <div className="emp-modal-overlay" onClick={() => setShowModal(false)}>
+        <div
+          className="emp-modal-overlay"
+          onClick={() => setShowModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="emp-modal-title"
+        >
           <div className="emp-modal" onClick={e => e.stopPropagation()}>
-            <button className="emp-modal-close" onClick={() => setShowModal(false)}>✕</button>
+            <button
+              type="button"
+              className="emp-modal-close"
+              onClick={() => setShowModal(false)}
+              aria-label="Đóng cửa sổ"
+            >
+              ✕
+            </button>
+
             <div className="emp-modal-body">
-              <nav className="emp-tabs">
-                <button 
-                  className={activeTab === 'hoso' ? 'active' : ''} 
+              <nav className="emp-tabs" aria-label="Tab thông tin">
+                <button
+                  type="button"
+                  className={activeTab === 'hoso' ? 'active' : ''}
                   onClick={() => { setError(''); setActiveTab('hoso'); }}
                 >
-                  Hồ sơ
+                  1. Hồ sơ cá nhân
                 </button>
-                <button 
-                  className={activeTab === 'phancong' ? 'active' : ''} 
-                  onClick={() => { setError(''); setActiveTab('phancong'); }} 
+                <button
+                  type="button"
+                  className={activeTab === 'phancong' ? 'active' : ''}
+                  onClick={() => { setError(''); setActiveTab('phancong'); }}
                   disabled={!savedUserId}
+                  title={!savedUserId ? 'Vui lòng lưu hồ sơ trước' : ''}
                 >
-                  Phân công
+                  2. Phân công & Lương
                 </button>
               </nav>
 
-              {error && <p className="emp-error" style={{ color: 'red', margin: '10px 0' }}>{error}</p>}
+              {error && (
+                <div className="emp-error-banner" role="alert" style={{ marginBottom: '16px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>{error}</span>
+                </div>
+              )}
 
               <div className="emp-tab-content">
                 {activeTab === 'hoso' && (
                   <form className="emp-form-grid" onSubmit={handleSaveProfile}>
-                    <h2>{editing ? 'Sửa hồ sơ' : 'Thêm người'}</h2>
-                    <label>Họ tên<input required value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})} /></label>
-                    <label>Email<input type="email" required value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></label>
-                    <label>Số điện thoại<input value={form.phone} placeholder="Nhập đủ 10 số (VD: 0912345678)" onChange={e => setForm({...form, phone: e.target.value})} /></label>
-                    <label>{editing ? 'Mật khẩu mới (bỏ trống nếu giữ nguyên)' : 'Mật khẩu'}
-                      <input type="password" required={!editing} value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
-                    </label>
+                    <h2 id="emp-modal-title" className="emp-modal-title">
+                      {editing ? 'Chỉnh sửa hồ sơ người dùng' : 'Thêm mới người dùng'}
+                    </h2>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-fullname">
+                        Họ và tên <span className="ss-label-required">*</span>
+                      </label>
+                      <input
+                        id="emp-fullname"
+                        className="ss-input"
+                        required
+                        placeholder="VD: Nguyễn Văn A"
+                        value={form.fullName}
+                        onChange={e => setForm({...form, fullName: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-email">
+                        Email liên hệ <span className="ss-label-required">*</span>
+                      </label>
+                      <input
+                        id="emp-email"
+                        type="email"
+                        className="ss-input"
+                        required
+                        placeholder="name@shiftsync.com"
+                        value={form.email}
+                        onChange={e => setForm({...form, email: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-phone">
+                        Số điện thoại
+                      </label>
+                      <input
+                        id="emp-phone"
+                        className="ss-input"
+                        placeholder="Nhập 10 số (VD: 0912345678)"
+                        value={form.phone}
+                        onChange={e => setForm({...form, phone: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-password">
+                        {editing ? 'Mật khẩu mới (bỏ trống nếu giữ nguyên)' : 'Mật khẩu'} {!editing && <span className="ss-label-required">*</span>}
+                      </label>
+                      <input
+                        id="emp-password"
+                        type="password"
+                        className="ss-input"
+                        required={!editing}
+                        placeholder={editing ? 'Nhập nếu muốn đổi' : 'Tối thiểu 6 ký tự'}
+                        value={form.password}
+                        onChange={e => setForm({...form, password: e.target.value})}
+                      />
+                    </div>
+
                     {!editing && (
-                      <label>Vai trò
-                        <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                      <div className="ss-form-group">
+                        <label className="ss-label" htmlFor="emp-role">
+                          Vai trò hệ thống <span className="ss-label-required">*</span>
+                        </label>
+                        <select
+                          id="emp-role"
+                          className="ss-select"
+                          value={form.role}
+                          onChange={e => setForm({...form, role: e.target.value})}
+                        >
                           {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
-                      </label>
+                      </div>
                     )}
-                    <button className="emp-save-btn" type="submit">Lưu</button>
+
+                    <div className="emp-modal-actions">
+                      <button type="button" className="ss-btn ss-btn-outline" onClick={() => setShowModal(false)}>
+                        Huỷ bỏ
+                      </button>
+                      <button type="submit" className="ss-btn ss-btn-primary">
+                        {editing ? 'Cập nhật hồ sơ' : 'Lưu & Tiếp tục'}
+                      </button>
+                    </div>
                   </form>
                 )}
 
                 {activeTab === 'phancong' && (
                   <form className="emp-form-grid" onSubmit={handleSaveAssignment}>
-                    <h2>Phân công & Tiền lương</h2>
-                    <label>Chi nhánh
-                      <select required value={assignForm.storeId} onChange={e => {
-                        const sid = e.target.value;
-                        setAssignForm({...assignForm, storeId: sid, skillId: ''});
-                        if (sid) {
-                          getSkillsByStore(sid)
-                            .then(res => {
-                              const d = res.data;
-                              setSkills(Array.isArray(d) ? d : (d.content || []));
-                            })
-                            .catch(() => setSkills([]));
-                        } else {
-                          setSkills([]);
-                        }
-                      }}>
+                    <h2 id="emp-modal-title" className="emp-modal-title">Phân công cửa hàng & Lương</h2>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-store">
+                        Chi nhánh làm việc <span className="ss-label-required">*</span>
+                      </label>
+                      <select
+                        id="emp-store"
+                        className="ss-select"
+                        required
+                        value={assignForm.storeId}
+                        onChange={e => {
+                          const sid = e.target.value;
+                          setAssignForm({...assignForm, storeId: sid, skillId: ''});
+                          if (sid) {
+                            getSkillsByStore(sid)
+                              .then(res => {
+                                const d = res.data;
+                                setSkills(Array.isArray(d) ? d : (d.content || []));
+                              })
+                              .catch(() => setSkills([]));
+                          } else {
+                            setSkills([]);
+                          }
+                        }}
+                      >
                         <option value="">-- Chọn chi nhánh --</option>
                         {stores.map(s => <option key={s.id} value={s.id}>{s.name || s.storeName}</option>)}
                       </select>
-                    </label>
-                    <label>Vị trí công việc
-                      <select value={assignForm.skillId} onChange={e => setAssignForm({...assignForm, skillId: e.target.value})}>
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-skill">
+                        Vị trí chuyên môn
+                      </label>
+                      <select
+                        id="emp-skill"
+                        className="ss-select"
+                        value={assignForm.skillId}
+                        onChange={e => setAssignForm({...assignForm, skillId: e.target.value})}
+                      >
                         <option value="">-- Chọn vị trí --</option>
                         {skills.map(sk => <option key={sk.id} value={sk.id}>{sk.name}</option>)}
                       </select>
-                    </label>
-                    <label>Loại hình
-                      <select value={assignForm.employmentType} onChange={e => setAssignForm({...assignForm, employmentType: e.target.value})}>
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-type">
+                        Loại hình hợp đồng
+                      </label>
+                      <select
+                        id="emp-type"
+                        className="ss-select"
+                        value={assignForm.employmentType}
+                        onChange={e => setAssignForm({...assignForm, employmentType: e.target.value})}
+                      >
                         {EMPLOYMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
-                    </label>
-                    <label>Lương theo giờ (VNĐ)
-                      <input required type="number" min="0" value={assignForm.hourlyRate} onChange={e => setAssignForm({...assignForm, hourlyRate: e.target.value})} />
-                    </label>
-                    <label>Ngày vào làm
-                      <input required type="date" value={assignForm.joinedDate} onChange={e => setAssignForm({...assignForm, joinedDate: e.target.value})} />
-                    </label>
-                    <button className="emp-save-btn" type="submit">Lưu</button>
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-rate">
+                        Lương theo giờ (VNĐ) <span className="ss-label-required">*</span>
+                      </label>
+                      <input
+                        id="emp-rate"
+                        className="ss-input"
+                        required
+                        type="number"
+                        min="0"
+                        placeholder="VD: 25000"
+                        value={assignForm.hourlyRate}
+                        onChange={e => setAssignForm({...assignForm, hourlyRate: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="ss-form-group">
+                      <label className="ss-label" htmlFor="emp-joined">
+                        Ngày bắt đầu làm việc <span className="ss-label-required">*</span>
+                      </label>
+                      <input
+                        id="emp-joined"
+                        className="ss-input"
+                        required
+                        type="date"
+                        value={assignForm.joinedDate}
+                        onChange={e => setAssignForm({...assignForm, joinedDate: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="emp-modal-actions">
+                      <button type="button" className="ss-btn ss-btn-outline" onClick={() => setShowModal(false)}>
+                        Huỷ bỏ
+                      </button>
+                      <button type="submit" className="ss-btn ss-btn-primary">
+                        Lưu phân công
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>

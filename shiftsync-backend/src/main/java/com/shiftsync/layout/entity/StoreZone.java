@@ -37,4 +37,34 @@ public class StoreZone {
 
     @Column(name = "capacity", nullable = false)
     private Integer capacity;
+
+    @Column(name = "code")
+    private String code;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "zone_type", nullable = false)
+    @Builder.Default
+    private com.shiftsync.layout.enums.SpatialType zoneType = com.shiftsync.layout.enums.SpatialType.ZONE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_zone_id")
+    private StoreZone parentZone;
+
+    @Column(name = "color")
+    private String color;
+
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "width_dim")
+    @Builder.Default
+    private Double widthDim = 3.0;
+
+    @Column(name = "length_dim")
+    @Builder.Default
+    private Double lengthDim = 4.0;
+
+    @Column(name = "height_dim")
+    @Builder.Default
+    private Double heightDim = 2.8;
 }

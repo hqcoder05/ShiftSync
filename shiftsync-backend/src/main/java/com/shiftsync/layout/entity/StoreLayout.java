@@ -32,4 +32,29 @@ public class StoreLayout {
     @Column(name = "height", nullable = false)
     private Double height;
 
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 1L;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private java.time.OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private java.time.OffsetDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = java.time.OffsetDateTime.now();
+        updatedAt = java.time.OffsetDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = java.time.OffsetDateTime.now();
+    }
+
 }

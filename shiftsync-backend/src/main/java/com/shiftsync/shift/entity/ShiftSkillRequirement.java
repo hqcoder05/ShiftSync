@@ -29,4 +29,12 @@ public class ShiftSkillRequirement {
 
     @Column(name = "required_count", nullable = false)
     private int requiredCount;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zone_id")
+    private com.shiftsync.layout.entity.StoreZone zone;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workstation_id")
+    private com.shiftsync.layout.entity.Workstation workstation;
 }

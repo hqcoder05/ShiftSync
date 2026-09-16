@@ -1,5 +1,6 @@
 package com.shiftsync.notification.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -7,6 +8,7 @@ import lombok.Data;
 public class RegisterTokenRequest {
     
     @NotBlank(message = "FCM Token is required")
+    @JsonAlias("token")
     private String fcmToken;
     
     private String deviceType; // "android", "ios", "web"

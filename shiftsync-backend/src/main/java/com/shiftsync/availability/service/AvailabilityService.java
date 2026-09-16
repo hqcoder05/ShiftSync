@@ -21,10 +21,31 @@ public class AvailabilityService {
 
     private final AvailabilityRepository availabilityRepository;
     private final UserRepository userRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
 
-    public AvailabilityService(AvailabilityRepository availabilityRepository, UserRepository userRepository) {
+    public AvailabilityService(AvailabilityRepository availabilityRepository, 
+                               UserRepository userRepository,
+                               com.shiftsync.employment.repository.EmploymentRepository employmentRepository) {
         this.availabilityRepository = availabilityRepository;
         this.userRepository = userRepository;
+        this.employmentRepository = employmentRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AvailabilityResponse> getStoreStaffAvailability(UUID storeId) {
+        List<com.shiftsync.employment.entity.Employment> employments = 
+            employmentRepository.findByStoreIdAndStatus(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+        List<UUID> userIds = employments.stream()
+                .map(e -> e.getUser().getId())
+                .distinct()
+                .collect(Collectors.toList());
+        if (userIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return availabilityRepository.findByUser_IdIn(userIds)
+                .stream()
+                .map(AvailabilityMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

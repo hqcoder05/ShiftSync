@@ -6,7 +6,9 @@ import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
+import com.shiftsync.skill.entity.Skill;
 import com.shiftsync.skill.entity.StaffSkill;
+import com.shiftsync.skill.repository.SkillRepository;
 import com.shiftsync.skill.repository.StaffSkillRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,10 +26,77 @@ public class ShiftAssignmentValidator {
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final StaffSkillRepository staffSkillRepository;
+    private final SkillRepository skillRepository;
     private final ShiftValidationService shiftValidationService;
 
     @Transactional(readOnly = true)
+    public boolean isEligible(Shift shift, UUID staffId) {
+        if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {
+            return false;
+        }
+
+        try {
+            shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
+        } catch (Exception e) {
+            return false;
+        }
+
+        short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
+        boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
+        if (!covers) {
+            return false;
+        }
+
+        boolean hasBlackout = blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate());
+        if (hasBlackout) {
+            return false;
+        }
+
+        if (shift.getRequirements() != null && !shift.getRequirements().isEmpty()) {
+            int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shift.getId());
+            int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
+            if (currentAssignedCount >= maxSlots) {
+                return false;
+            }
+
+            List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
+            boolean hasAnyRequiredSkill = false;
+            boolean hasValidUnexpiredSkill = false;
+
+            for (ShiftSkillRequirement req : shift.getRequirements()) {
+                for (StaffSkill staffSkill : staffSkills) {
+                    boolean skillMatches = staffSkill.getSkillId().equals(req.getSkill().getId());
+                    if (!skillMatches) {
+                        Skill s = skillRepository.findById(staffSkill.getSkillId()).orElse(null);
+                        if (s != null && s.getName() != null && req.getSkill() != null && req.getSkill().getName() != null) {
+                            skillMatches = s.getName().trim().equalsIgnoreCase(req.getSkill().getName().trim());
+                        }
+                    }
+
+                    if (skillMatches) {
+                        hasAnyRequiredSkill = true;
+                        if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
+                            hasValidUnexpiredSkill = true;
+                        }
+                    }
+                }
+            }
+
+            if (!hasAnyRequiredSkill || !hasValidUnexpiredSkill) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    @Transactional(readOnly = true)
     public void validateEligibility(Shift shift, UUID staffId) {
+        validateEligibility(shift, staffId, false);
+    }
+
+    @Transactional(readOnly = true)
+    public void validateEligibility(Shift shift, UUID staffId, boolean overrideAvailability) {
         // Check if already assigned
         if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {
             throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);
@@ -37,10 +106,12 @@ public class ShiftAssignmentValidator {
         shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
 
         // Availability Check
-        short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
-        boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
-        if (!covers) {
-            throw new BusinessException("Staff not available: Shift time is outside registered availability", HttpStatus.BAD_REQUEST);
+        if (!overrideAvailability) {
+            short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
+            boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
+            if (!covers) {
+                throw new BusinessException("Staff not available: Shift time is outside registered availability", HttpStatus.BAD_REQUEST);
+            }
         }
 
         // Blackout Date Check
@@ -68,7 +139,15 @@ public class ShiftAssignmentValidator {
 
             for (ShiftSkillRequirement req : shift.getRequirements()) {
                 for (StaffSkill staffSkill : staffSkills) {
-                    if (staffSkill.getSkillId().equals(req.getSkill().getId())) {
+                    boolean skillMatches = staffSkill.getSkillId().equals(req.getSkill().getId());
+                    if (!skillMatches) {
+                        Skill s = skillRepository.findById(staffSkill.getSkillId()).orElse(null);
+                        if (s != null && s.getName() != null && req.getSkill() != null && req.getSkill().getName() != null) {
+                            skillMatches = s.getName().trim().equalsIgnoreCase(req.getSkill().getName().trim());
+                        }
+                    }
+
+                    if (skillMatches) {
                         hasAnyRequiredSkill = true; // Level 1 passed
                         
                         if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {

@@ -35,6 +35,7 @@ public class AttendanceService {
     private final ShiftRepository shiftRepository;
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
 
     private static final long QR_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -141,7 +142,12 @@ public class AttendanceService {
                 .status(status)
                 .build();
 
-        return attendanceRepository.save(attendance);
+        Attendance saved = attendanceRepository.save(attendance);
+        try {
+            UUID storeId = assignment.getShift().getStore().getId();
+            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "CHECK_IN", "staffId", assignment.getStaff().getId()));
+        } catch (Exception ignored) {}
+        return saved;
     }
 
     private Attendance processCheckOut(Attendance attendance, LocalDateTime shiftEnd, LocalDateTime now, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
@@ -168,7 +174,12 @@ public class AttendanceService {
         attendance.setCheckOutLat(latitude);
         attendance.setCheckOutLng(longitude);
         attendance.setCheckOutPhoto(photo);
-        return attendanceRepository.save(attendance);
+        Attendance saved = attendanceRepository.save(attendance);
+        try {
+            UUID storeId = attendance.getShiftAssignment().getShift().getStore().getId();
+            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "CHECK_OUT", "staffId", attendance.getShiftAssignment().getStaff().getId()));
+        } catch (Exception ignored) {}
+        return saved;
     }
 
     @Transactional
@@ -200,7 +211,11 @@ public class AttendanceService {
         }
         attendance.setStatus(calculatedStatus);
 
-        return toDTO(attendanceRepository.save(attendance));
+        com.shiftsync.attendance.dto.AttendanceDTO result = toDTO(attendanceRepository.save(attendance));
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "UPDATE", "attendanceId", attendanceId));
+        } catch (Exception ignored) {}
+        return result;
     }
 
     @Transactional

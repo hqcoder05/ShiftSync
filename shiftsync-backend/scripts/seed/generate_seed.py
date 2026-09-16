@@ -89,8 +89,6 @@ VALUES
     ('b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Barista', 'Mastery of espresso machines and beverage crafting'),
     ('b0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Cashier', 'Point of Sale operations and cash reconciliation'),
     ('b0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Waiter', 'Customer service and floor order management'),
-    ('b0000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Kitchen', 'Food preparation, hygiene, and kitchen equipment handling'),
-    ('b0000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Shift Leader', 'Operational supervision, opening/closing, and conflict resolution'),
     ('b0000000-0000-0000-0000-000000000006', '77777777-7777-7777-7777-777777777777', 'Barista', 'Barista for Riverside store');
 """)
 
@@ -108,11 +106,17 @@ VALUES
 """)
 
     # 20 Active Employees
+    vn_names = [
+        'Nguyễn Văn An', 'Trần Thị Bích', 'Lê Hoàng Cường', 'Phạm Minh Đức', 'Hoàng Thu Hà',
+        'Vũ Đình Khang', 'Đặng Mai Linh', 'Bùi Quốc Nam', 'Ngô Phương Oanh', 'Dương Tiến Phát',
+        'Hồ Thanh Quang', 'Lý Hải Sơn', 'Đỗ Trọng Tấn', 'Mai Kiều Uyên', 'Trịnh Hoài Vân',
+        'Lương Bảo Xuân', 'Võ Quỳnh Yên', 'Phan Gia Bảo', 'Đoàn Tuấn Kiệt', 'Tô Thùy Trang'
+    ]
     emp_inserts = []
     for i in range(1, 21):
         num_str = f"{i:02d}"
         staff_id = f"10000000-0000-0000-0000-0000000000{num_str}"
-        name = f"Employee {num_str}"
+        name = vn_names[i - 1]
         email = f"emp{num_str}@shiftsync.com"
         phone = f"+849010000{num_str}"
         emp_inserts.append(f"    ('{staff_id}', '{name}', '{email}', '{phone}', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'STAFF'::system_role_enum, NOW(), NOW(), 0, false)")
@@ -131,26 +135,26 @@ VALUES
 """)
 
     emp_configs = [
-        (1, "c7000000-0000-0000-0000-000000000001", 35.00), # Full-Time Lead
+        (1, "c7000000-0000-0000-0000-000000000001", 35.00), # Full-Time Senior Specialist
         (2, "c7000000-0000-0000-0000-000000000001", 32.00), # Full-Time Senior Barista
         (3, "c7000000-0000-0000-0000-000000000001", 30.00), # Full-Time Barista
         (4, "c7000000-0000-0000-0000-000000000001", 30.00), # Full-Time Cashier
-        (5, "c7000000-0000-0000-0000-000000000001", 30.00), # Full-Time Kitchen Head
+        (5, "c7000000-0000-0000-0000-000000000001", 30.00), # Full-Time Barista & Cashier
         (6, "c7000000-0000-0000-0000-000000000002", 22.00), # Part-Time Morning Barista
         (7, "c7000000-0000-0000-0000-000000000002", 22.00), # Part-Time Morning Cashier
         (8, "c7000000-0000-0000-0000-000000000002", 20.00), # Part-Time Evening Waiter
         (9, "c7000000-0000-0000-0000-000000000002", 20.00), # Part-Time Evening Waiter
         (10, "c7000000-0000-0000-0000-000000000002", 24.00), # Part-Time Evening Dual-Skill
-        (11, "c7000000-0000-0000-0000-000000000003", 26.00), # Seasonal Kitchen
+        (11, "c7000000-0000-0000-0000-000000000003", 26.00), # Seasonal Cashier & Waiter
         (12, "c7000000-0000-0000-0000-000000000003", 25.00), # Seasonal Waiter
         (13, "c7000000-0000-0000-0000-000000000003", 25.00), # Seasonal Cashier
         (14, "c7000000-0000-0000-0000-000000000003", 27.00), # Seasonal Barista
         (15, "c7000000-0000-0000-0000-000000000004", 16.00), # Intern Waiter Trainee
-        (16, "c7000000-0000-0000-0000-000000000004", 15.00), # Intern Kitchen Trainee
+        (16, "c7000000-0000-0000-0000-000000000004", 15.00), # Intern Waiter Trainee
         (17, "c7000000-0000-0000-0000-000000000001", 32.00), # Full-Time Triple-Skill Senior
-        (18, "c7000000-0000-0000-0000-000000000001", 34.00), # Full-Time Lead & Kitchen
+        (18, "c7000000-0000-0000-0000-000000000001", 34.00), # Full-Time Senior Specialist
         (19, "c7000000-0000-0000-0000-000000000002", 21.00), # Part-Time Weekend Only
-        (20, "c7000000-0000-0000-0000-000000000001", 38.00), # Full-Time All-Rounder (All 5 Skills EXPERT)
+        (20, "c7000000-0000-0000-0000-000000000001", 38.00), # Full-Time All-Rounder (Barista, Cashier, Waiter EXPERT)
     ]
 
     emp_rows = []
@@ -166,23 +170,21 @@ VALUES
     sk1 = 'b0000000-0000-0000-0000-000000000001' # Barista
     sk2 = 'b0000000-0000-0000-0000-000000000002' # Cashier
     sk3 = 'b0000000-0000-0000-0000-000000000003' # Waiter
-    sk4 = 'b0000000-0000-0000-0000-000000000004' # Kitchen
-    sk5 = 'b0000000-0000-0000-0000-000000000005' # Shift Leader
     sk6 = 'b0000000-0000-0000-0000-000000000006' # Barista Store 2
 
     staff_skills_data = [
         ('70000000-0000-0000-0000-000000000001', sk6, 'ADVANCED'),
-        ('10000000-0000-0000-0000-000000000001', sk5, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000001', sk1, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000001', sk2, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000001', sk3, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000002', sk1, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000002', sk2, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000003', sk1, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000003', sk3, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000004', sk2, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000004', sk3, 'BEGINNER'),
-        ('10000000-0000-0000-0000-000000000005', sk4, 'EXPERT'),
-        ('10000000-0000-0000-0000-000000000005', sk5, 'BEGINNER'),
+        ('10000000-0000-0000-0000-000000000005', sk1, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000005', sk2, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000006', sk1, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000006', sk3, 'BEGINNER'),
         ('10000000-0000-0000-0000-000000000007', sk2, 'ADVANCED'),
@@ -192,24 +194,23 @@ VALUES
         ('10000000-0000-0000-0000-000000000009', sk3, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000010', sk1, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000010', sk2, 'INTERMEDIATE'),
-        ('10000000-0000-0000-0000-000000000011', sk4, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000011', sk2, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000011', sk3, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000012', sk3, 'BEGINNER'),
         ('10000000-0000-0000-0000-000000000013', sk2, 'BEGINNER'),
         ('10000000-0000-0000-0000-000000000014', sk1, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000015', sk3, 'BEGINNER'),
-        ('10000000-0000-0000-0000-000000000016', sk4, 'BEGINNER'),
+        ('10000000-0000-0000-0000-000000000016', sk2, 'BEGINNER'),
         ('10000000-0000-0000-0000-000000000016', sk3, 'INTERMEDIATE'),
         ('10000000-0000-0000-0000-000000000017', sk1, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000017', sk2, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000017', sk3, 'ADVANCED'),
-        ('10000000-0000-0000-0000-000000000018', sk5, 'ADVANCED'),
-        ('10000000-0000-0000-0000-000000000018', sk4, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000018', sk1, 'ADVANCED'),
+        ('10000000-0000-0000-0000-000000000018', sk3, 'ADVANCED'),
         ('10000000-0000-0000-0000-000000000019', sk1, 'BEGINNER'),
         ('10000000-0000-0000-0000-000000000020', sk1, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000020', sk2, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000020', sk3, 'EXPERT'),
-        ('10000000-0000-0000-0000-000000000020', sk4, 'EXPERT'),
-        ('10000000-0000-0000-0000-000000000020', sk5, 'EXPERT'),
         # Quoc Staff (Store 1 Multi-Skill Staff)
         ('10000000-0000-0000-0000-000000000099', sk1, 'EXPERT'),
         ('10000000-0000-0000-0000-000000000099', sk2, 'ADVANCED'),
@@ -231,15 +232,15 @@ VALUES
     a_slot = ('14:00:00', '23:00:00')
 
     staff_avail_map = {
-        # Emp 01 (Lead): Mon, Tue, Fri afternoon (24h)
-        '10000000-0000-0000-0000-000000000001': [(1, a_slot), (2, a_slot), (5, a_slot)],
+        # Emp 01 (Senior Specialist): Mon, Tue, Fri, Sun afternoon (32h)
+        '10000000-0000-0000-0000-000000000001': [(1, a_slot), (2, a_slot), (5, a_slot), (0, a_slot)],
         # Emp 02 (Barista): Tue, Thu morning, Sat afternoon (24h)
         '10000000-0000-0000-0000-000000000002': [(2, m_slot), (4, m_slot), (6, a_slot)],
         # Emp 03 (Waiter/Barista): Wed morning, Fri morning, Sun afternoon (24h)
         '10000000-0000-0000-0000-000000000003': [(3, m_slot), (5, m_slot), (0, a_slot)],
         # Emp 04 (Cashier): Mon, Fri morning (16h)
         '10000000-0000-0000-0000-000000000004': [(1, m_slot), (5, m_slot)],
-        # Emp 05 (Kitchen): Wed, Fri, Sun afternoon (24h) - (Leave on Mon-Tue 07-08/09)
+        # Emp 05 (Barista & Cashier): Wed, Fri, Sun afternoon (24h) - (Leave on Mon-Tue 07-08/09)
         '10000000-0000-0000-0000-000000000005': [(3, a_slot), (5, a_slot), (0, a_slot)],
         # Emp 06 (Part-time Barista): Mon, Wed morning (16h)
         '10000000-0000-0000-0000-000000000006': [(1, m_slot), (3, m_slot)],
@@ -251,8 +252,8 @@ VALUES
         '10000000-0000-0000-0000-000000000009': [(6, m_slot)],
         # Emp 10 (Part-time Barista): Mon, Thu afternoon (16h)
         '10000000-0000-0000-0000-000000000010': [(1, a_slot), (4, a_slot)],
-        # Emp 11 (Seasonal Kitchen): Mon, Thu afternoon (16h)
-        '10000000-0000-0000-0000-000000000011': [(1, a_slot), (4, a_slot)],
+        # Emp 11 (Seasonal Cashier & Waiter): Mon, Thu, Sat afternoon (24h)
+        '10000000-0000-0000-0000-000000000011': [(1, a_slot), (4, a_slot), (6, a_slot)],
         # Emp 12 (Seasonal Waiter): Sat morning (8h)
         '10000000-0000-0000-0000-000000000012': [(6, m_slot)],
         # Emp 13 (Seasonal Cashier): Wed, Sat morning (16h)
@@ -265,11 +266,11 @@ VALUES
         '10000000-0000-0000-0000-000000000016': [(1, m_slot), (0, m_slot)],
         # Emp 17 (Full-time Barista): Wed, Sat afternoon (16h)
         '10000000-0000-0000-0000-000000000017': [(3, a_slot), (6, a_slot)],
-        # Emp 18 (Full-time Lead/Kitchen): Tue, Sat afternoon (Kitchen), Wed, Thu afternoon (Lead) (32h)
+        # Emp 18 (Full-time Senior Specialist): Tue, Wed, Thu, Sat afternoon (32h)
         '10000000-0000-0000-0000-000000000018': [(2, a_slot), (3, a_slot), (4, a_slot), (6, a_slot)],
-        # Emp 19 (Weekend Barista): Sat, Sun morning (16h)
-        '10000000-0000-0000-0000-000000000019': [(6, m_slot), (0, m_slot)],
-        # Emp 20 (All-Rounder Lead): Sat, Sun afternoon (16h)
+        # Emp 19 (Weekend Barista): Fri, Sat, Sun morning (24h)
+        '10000000-0000-0000-0000-000000000019': [(5, m_slot), (6, m_slot), (0, m_slot)],
+        # Emp 20 (All-Rounder Specialist): Sat, Sun afternoon (16h)
         '10000000-0000-0000-0000-000000000020': [(6, a_slot), (0, a_slot)],
         # Quoc Staff (Barista): Sat, Sun morning (16h)
         '10000000-0000-0000-0000-000000000099': [(6, m_slot), (0, m_slot)],
@@ -301,7 +302,7 @@ VALUES
     ('d1000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'POS & Cashier', 8.0, 3.0, 0.0, 3),
     ('d1000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Dining Hall Ground', 14.0, 8.0, 0.0, 8),
     ('d1000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Mezzanine Balcony', 14.0, 8.0, 3.5, 6),
-    ('d1000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Kitchen & Bakery', 4.0, 12.0, 0.0, 4);
+    ('d1000000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Outdoor Patio', 4.0, 12.0, 0.0, 4);
 """)
 
     # 11. Shift Templates
@@ -361,20 +362,20 @@ VALUES
             requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_m_id, sk3, 1))
             req_idx += 1
 
-        # Afternoon: 1 Barista, 1 Kitchen, 1 Shift Leader (on weekends 2 Barista)
+        # Afternoon: 1 Barista, 1 Cashier, 1 Waiter (on weekends 2 Barista, 1 Cashier, 2 Waiter)
         if day_name in ['Saturday', 'Sunday']:
             requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk1, 2))
             req_idx += 1
-            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk4, 1))
+            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk2, 1))
             req_idx += 1
-            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk5, 1))
+            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk3, 2))
             req_idx += 1
         else:
             requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk1, 1))
             req_idx += 1
-            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk4, 1))
+            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk2, 1))
             req_idx += 1
-            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk5, 1))
+            requirements_data.append((f"f2000000-0000-0000-0000-{req_idx:012d}", sh_a_id, sk3, 1))
             req_idx += 1
 
     shift_rows = []

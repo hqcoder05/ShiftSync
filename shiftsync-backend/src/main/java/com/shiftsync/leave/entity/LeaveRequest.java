@@ -53,6 +53,9 @@ public class LeaveRequest {
     @Column(name = "reason")
     private String reason;
 
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private User approvedBy;

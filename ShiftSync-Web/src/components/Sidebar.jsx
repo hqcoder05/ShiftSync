@@ -35,18 +35,27 @@ function Dropdown({ icon, value, options, onSelect, small }) {
 
   return (
     <div className={'ss-dropdown' + (small ? ' ss-dropdown-small' : '')} ref={ref}>
-      <button type="button" className={'ss-box' + (open ? ' ss-box-open' : '')} onClick={() => setOpen(o => !o)}>
-        <span className="ss-box-icon">{icon || <CardIcon />}</span>
+      <button
+        type="button"
+        className={'ss-box' + (open ? ' ss-box-open' : '')}
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="ss-box-icon" aria-hidden="true">{icon || <CardIcon />}</span>
         <span className="ss-box-value">{current?.label || ''}</span>
-        <span className={'ss-box-arrow' + (open ? ' ss-box-arrow-open' : '')}><ChevronIcon /></span>
+        <span className={'ss-box-arrow' + (open ? ' ss-box-arrow-open' : '')} aria-hidden="true"><ChevronIcon /></span>
       </button>
       {open && (
-        <div className="ss-dropdown-panel">
+        <div className="ss-dropdown-panel" role="listbox">
           {options.map(o => (
             <div
               key={o.value}
               className={'ss-dropdown-option' + (o.value === value ? ' selected' : '')}
               onClick={() => { onSelect(o.value); setOpen(false); }}
+              role="option"
+              aria-selected={o.value === value}
+              tabIndex={0}
             >
               {o.label}
             </div>

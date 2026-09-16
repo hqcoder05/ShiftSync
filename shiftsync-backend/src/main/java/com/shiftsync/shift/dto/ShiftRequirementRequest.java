@@ -17,4 +17,8 @@ public class ShiftRequirementRequest {
     @Min(value = 1, message = "Required count must be at least 1")
     @Schema(description = "Number of staff required for this role", example = "2")
     private int requiredCount;
+
+    @Schema(description = "Target Zone ID for 3D layout (Optional)")
+    private UUID zoneId;
 }
+

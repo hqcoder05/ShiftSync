@@ -21,6 +21,7 @@ import java.util.UUID;
 public class MarketplaceController {
 
     private final MarketplaceService marketplaceService;
+    private final com.shiftsync.shift.service.ShiftService shiftService;
 
     @Operation(summary = "Publish an understaffed shift to the Marketplace")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
@@ -47,29 +48,13 @@ public class MarketplaceController {
     @GetMapping("/stores/{storeId}/marketplace/shifts")
     public ResponseEntity<List<ShiftDTO>> getOpenShifts(@PathVariable UUID storeId) {
         List<ShiftDTO> openShifts = marketplaceService.getOpenShifts(storeId).stream()
-                .map(shift -> ShiftDTO.builder()
-                        .id(shift.getId())
-                        .storeId(shift.getStore().getId())
-                        .shiftDate(shift.getShiftDate())
-                        .startTime(shift.getStartTime())
-                        .endTime(shift.getEndTime())
-                        .status(shift.getStatus())
-                        .availabilityDeadline(shift.getAvailabilityDeadline())
-                        .skillRequirements(shift.getRequirements() != null ? shift.getRequirements().stream()
-                                .map(r -> ShiftSkillRequirementDTO.builder()
-                                        .id(r.getId())
-                                        .skillName(r.getSkill().getName())
-                                        .skillId(r.getSkill().getId())
-                                        .requiredStaff(r.getRequiredCount())
-                                        .build())
-                                .collect(Collectors.toList()) : (java.util.List<ShiftSkillRequirementDTO>) null)
-                        .build())
-                .collect(java.util.stream.Collectors.toList());
+                .map(shiftService::mapToDTO)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(openShifts);
     }
 
     @Operation(summary = "Claim an Open Shift (Employee)")
-    @PreAuthorize("hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('STAFF') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/stores/{storeId}/marketplace/shifts/{shiftId}/claim")
     public ResponseEntity<Void> claimOpenShift(
             @PathVariable UUID storeId,

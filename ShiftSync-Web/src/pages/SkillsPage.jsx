@@ -105,7 +105,35 @@ export default function SkillsPage() {
 
       <main className="skill-main">
         <h1>Vị trí công việc</h1>
-        {error && <p className="skill-error">{error}</p>}
+        {error && (
+          <div style={{
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            color: '#991B1B',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <span>⚠️ {error}</span>
+            <button
+              onClick={() => setError('')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#991B1B',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '16px'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className="skill-table-card">
           <div className="skill-table-header">
             <span>Tên vị trí</span>

@@ -13,7 +13,7 @@
 /* ---------- Page Layout ---------- */
 .att-page {
   display: flex;
-  font-family: var(--att-font);
+  font-family: var(--ss-font);
   min-height: calc(100vh - 56px);
   background: #ffffff;
   padding: 24px;
@@ -234,7 +234,7 @@
   cursor: pointer;
   color: #256b1f;
   background: transparent;
-  font-family: var(--att-font);
+  font-family: var(--ss-font);
   transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -422,7 +422,7 @@
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  font-family: var(--att-font);
+  font-family: var(--ss-font);
 }
 
 .att-today-btn:hover {

@@ -16,6 +16,8 @@ import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shift.service.ShiftAssignmentValidator;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
+import com.shiftsync.employment.dto.EmploymentDTO;
+import com.shiftsync.shared.security.SystemRole;
 import com.shiftsync.workforce.dto.*;
 import com.shiftsync.workforce.entity.WorkforceProposal;
 import com.shiftsync.workforce.entity.WorkforceRequest;
@@ -140,6 +142,10 @@ public class WorkforceRequestService {
             throw new BusinessException("Staff is not active at your store", HttpStatus.BAD_REQUEST);
         }
 
+        if (staff.getSystemRole() != com.shiftsync.shared.security.SystemRole.STAFF) {
+            throw new BusinessException("Only employees with STAFF role can be proposed for workforce requests", HttpStatus.BAD_REQUEST);
+        }
+
         shiftAssignmentValidator.validateEligibility(request.getShift(), staff.getId());
 
         WorkforceProposal proposal = WorkforceProposal.builder()
@@ -257,6 +263,40 @@ public class WorkforceRequestService {
                 .map(this::mapProposalToDTO).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<EmploymentDTO> getEligibleStaffForRequest(UUID targetStoreId, UUID requestId) {
+        WorkforceRequest request = getRequest(requestId);
+        if (!request.getTargetStore().getId().equals(targetStoreId)) {
+            throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
+        }
+
+        List<com.shiftsync.employment.entity.Employment> employments =
+                employmentRepository.findByStoreIdAndStatus(targetStoreId, EmploymentStatus.ACTIVE);
+
+        List<EmploymentDTO> eligibleList = new java.util.ArrayList<>();
+        for (com.shiftsync.employment.entity.Employment emp : employments) {
+            User user = emp.getUser();
+            if (user == null || user.getSystemRole() != SystemRole.STAFF) {
+                continue;
+            }
+
+            if (shiftAssignmentValidator.isEligible(request.getShift(), user.getId())) {
+                eligibleList.add(EmploymentDTO.builder()
+                        .id(emp.getId())
+                        .staffId(user.getId())
+                        .staffFullName(user.getFullName())
+                        .staffEmail(user.getEmail())
+                        .storeId(targetStoreId)
+                        .storeName(emp.getStore() != null ? emp.getStore().getName() : null)
+                        .systemRole(user.getSystemRole().name())
+                        .hourlyRate(emp.getHourlyRate())
+                        .status(emp.getStatus())
+                        .build());
+            }
+        }
+        return eligibleList;
+    }
+
     private WorkforceRequest getRequest(UUID id) {
         return workforceRequestRepository.findById(id).orElseThrow(() -> new BusinessException("Workforce request not found", HttpStatus.NOT_FOUND));
     }
@@ -268,10 +308,16 @@ public class WorkforceRequestService {
         return WorkforceRequestResponseDTO.builder()
                 .id(request.getId())
                 .requestingStoreId(request.getRequestingStore().getId())
+                .requestingStoreName(request.getRequestingStore().getName())
                 .targetStoreId(request.getTargetStore().getId())
+                .targetStoreName(request.getTargetStore().getName())
                 .shiftId(request.getShift().getId())
+                .shiftDate(request.getShift().getShiftDate())
+                .shiftStartTime(request.getShift().getStartTime())
+                .shiftEndTime(request.getShift().getEndTime())
                 .status(request.getStatus())
                 .createdBy(request.getCreatedBy().getId())
+                .creatorName(request.getCreatedBy().getFullName())
                 .createdAt(request.getCreatedAt())
                 .updatedAt(request.getUpdatedAt())
                 .proposals(proposals)
@@ -283,8 +329,11 @@ public class WorkforceRequestService {
                 .id(proposal.getId())
                 .workforceRequestId(proposal.getWorkforceRequest().getId())
                 .staffId(proposal.getStaff().getId())
+                .staffName(proposal.getStaff().getFullName())
+                .staffEmail(proposal.getStaff().getEmail())
                 .status(proposal.getStatus())
                 .proposedBy(proposal.getProposedBy().getId())
+                .proposedByName(proposal.getProposedBy().getFullName())
                 .createdAt(proposal.getCreatedAt())
                 .respondedAt(proposal.getRespondedAt())
                 .build();

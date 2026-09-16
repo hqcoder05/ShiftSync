@@ -515,7 +515,7 @@ export default function ScheduleScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── 2. Bộ chuyển Tab: My shifts | Schedule (Rectangle 576/577) ── */}
+        {/* ── 2. Bộ chuyển Tab: My shifts | Schedule | Sàn ca (Rectangle 576/577) ── */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -550,6 +550,26 @@ export default function ScheduleScreen({ navigation }) {
               ]}
             >
               Schedule
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabBtn,
+              styles.tabBtnMarketplace,
+            ]}
+            onPress={() => {
+              const parent = navigation.getParent?.();
+              if (parent) {
+                parent.navigate('Marketplace');
+              } else {
+                navigation.navigate('Marketplace');
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.tabTextMarketplace}>
+              🛒 Sàn ca
             </Text>
           </TouchableOpacity>
         </View>
@@ -1283,6 +1303,16 @@ const styles = StyleSheet.create({
   },
   tabTextInactive: {
     color: '#64748B',
+  },
+  tabBtnMarketplace: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  tabTextMarketplace: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#15803D',
   },
 
   // ── Week Strip Card (Rectangle 578) ──

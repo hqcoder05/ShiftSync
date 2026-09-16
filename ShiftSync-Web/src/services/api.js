@@ -12,19 +12,39 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      // Nếu không có token hoặc token không hợp lệ / hết hạn
-      if (!token || error.response.status === 401) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userEmail');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+    const status = error.response?.status;
+    if (error.response && (status === 401 || status === 403) && !originalRequest._retry) {
+      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error);
+      }
+      originalRequest._retry = true;
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const res = await axios.post('http://localhost:8080/api/auth/refresh', { refreshToken });
+          if (res.data && res.data.accessToken) {
+            localStorage.setItem('accessToken', res.data.accessToken);
+            if (res.data.refreshToken) {
+              localStorage.setItem('refreshToken', res.data.refreshToken);
+            }
+            originalRequest.headers.Authorization = `Bearer ${res.data.accessToken}`;
+            return api(originalRequest);
+          }
+        } catch (refreshErr) {
+          console.warn('Refresh token failed:', refreshErr.message);
         }
+      }
+
+      // If refresh failed or no token, clean up and redirect
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userEmail');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

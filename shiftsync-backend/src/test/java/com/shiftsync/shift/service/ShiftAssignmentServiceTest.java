@@ -44,6 +44,8 @@ class ShiftAssignmentServiceTest {
     @Mock private PayrollPeriodRepository payrollPeriodRepository;
     @Mock private ShiftValidationService shiftValidationService;
     @Mock private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
+    @Mock private com.shiftsync.layout.repository.StoreZoneRepository storeZoneRepository;
+    @Mock private com.shiftsync.skill.repository.SkillRepository skillRepository;
     @Mock private com.shiftsync.notification.service.NotificationService notificationService;
 
     private ShiftAssignmentValidator shiftAssignmentValidator;
@@ -60,11 +62,12 @@ class ShiftAssignmentServiceTest {
     @BeforeEach
     void setup() {
         shiftAssignmentValidator = new ShiftAssignmentValidator(
-            availabilityRepository, blackoutDateRepository, shiftAssignmentRepository, staffSkillRepository, shiftValidationService
+            availabilityRepository, blackoutDateRepository, shiftAssignmentRepository, staffSkillRepository, skillRepository, shiftValidationService
         );
         service = new ShiftAssignmentService(
             shiftRepository, shiftAssignmentRepository, employmentRepository, userRepository,
-            payrollPeriodRepository, notificationService, shiftAssignmentValidator
+            payrollPeriodRepository, notificationService, shiftAssignmentValidator,
+            staffSkillRepository, storeZoneRepository, skillRepository
         );
 
         storeId = UUID.randomUUID();

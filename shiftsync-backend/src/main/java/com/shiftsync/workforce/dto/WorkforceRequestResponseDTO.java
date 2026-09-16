@@ -13,10 +13,16 @@ import java.util.List;
 public class WorkforceRequestResponseDTO {
     private UUID id;
     private UUID requestingStoreId;
+    private String requestingStoreName;
     private UUID targetStoreId;
+    private String targetStoreName;
     private UUID shiftId;
+    private java.time.LocalDate shiftDate;
+    private java.time.LocalTime shiftStartTime;
+    private java.time.LocalTime shiftEndTime;
     private WorkforceRequestStatus status;
     private UUID createdBy;
+    private String creatorName;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<WorkforceProposalResponseDTO> proposals;

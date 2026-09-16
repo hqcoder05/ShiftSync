@@ -65,6 +65,14 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException ex) {
+        return new ResponseEntity<>(
+            buildResponse("UNSUPPORTED_MEDIA_TYPE", "Content-Type is not supported: " + ex.getContentType(), null), 
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE
+        );
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
         return new ResponseEntity<>(
@@ -86,6 +94,25 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(
             buildResponse("NOT_FOUND", "Resource not found", null), 
             HttpStatus.NOT_FOUND
+        );
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        String message = String.format("Parameter '%s' should be of type %s", ex.getName(), requiredType);
+        return new ResponseEntity<>(
+            buildResponse("BAD_REQUEST", message, null), 
+            HttpStatus.BAD_REQUEST
+        );
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return new ResponseEntity<>(
+            buildResponse("BAD_REQUEST", ex.getMessage(), null), 
+            HttpStatus.BAD_REQUEST
         );
     }
 

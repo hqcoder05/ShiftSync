@@ -12,6 +12,8 @@ public class StoreMapper {
         return StoreDTO.builder()
                 .id(store.getId())
                 .name(store.getName())
+                .category(store.getCategory())
+                .format(store.getFormat())
                 .address(store.getAddress())
                 .latitude(store.getLatitude())
                 .longitude(store.getLongitude())

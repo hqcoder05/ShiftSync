@@ -13,8 +13,11 @@ public class WorkforceProposalResponseDTO {
     private UUID id;
     private UUID workforceRequestId;
     private UUID staffId;
+    private String staffName;
+    private String staffEmail;
     private WorkforceProposalStatus status;
     private UUID proposedBy;
+    private String proposedByName;
     private OffsetDateTime createdAt;
     private OffsetDateTime respondedAt;
 }

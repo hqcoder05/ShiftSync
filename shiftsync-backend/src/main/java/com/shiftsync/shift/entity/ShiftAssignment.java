@@ -48,6 +48,10 @@ public class ShiftAssignment {
     @JoinColumn(name = "zone_id")
     private StoreZone zone;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workstation_id")
+    private com.shiftsync.layout.entity.Workstation workstation;
+
     @Column(name = "required_skill_id")
     private UUID requiredSkillId;
 

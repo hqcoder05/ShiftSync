@@ -5,6 +5,7 @@ import com.shiftsync.layout.entity.StoreLayout;
 import com.shiftsync.layout.entity.StoreZone;
 import com.shiftsync.layout.repository.StoreLayoutRepository;
 import com.shiftsync.layout.repository.StoreZoneRepository;
+import com.shiftsync.layout.repository.WorkstationRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
@@ -35,6 +36,9 @@ public class SpatialAllocationServiceTest {
     private StoreLayoutRepository storeLayoutRepository;
 
     @Mock
+    private WorkstationRepository workstationRepository;
+
+    @Mock
     private ShiftRepository shiftRepository;
 
     @Mock
@@ -42,6 +46,9 @@ public class SpatialAllocationServiceTest {
 
     @Mock
     private SkillRepository skillRepository;
+
+    @Mock
+    private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @InjectMocks
     private SpatialAllocationService spatialAllocationService;
@@ -270,30 +277,31 @@ public class SpatialAllocationServiceTest {
 
     @Test
     void testAllocateZones_MatchesSkillToCorrespondingZone() {
-        // Skill-affinity test: Barista -> Barista Counter, Kitchen -> Kitchen & Bakery
+        // Explicit zone targeting: requirements declare which zone each skill maps to
         when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(shift));
 
-        UUID skillBaristaId = UUID.randomUUID();
-        UUID skillKitchenId = UUID.randomUUID();
+        UUID skillCashierId = UUID.randomUUID();
+        UUID skillPrepId = UUID.randomUUID();
 
-        com.shiftsync.skill.entity.Skill skillBarista = com.shiftsync.skill.entity.Skill.builder().id(skillBaristaId).name("Barista").build();
-        com.shiftsync.skill.entity.Skill skillKitchen = com.shiftsync.skill.entity.Skill.builder().id(skillKitchenId).name("Kitchen").build();
+        com.shiftsync.skill.entity.Skill skillCashier = com.shiftsync.skill.entity.Skill.builder().id(skillCashierId).name("Cashier").build();
+        com.shiftsync.skill.entity.Skill skillPrep = com.shiftsync.skill.entity.Skill.builder().id(skillPrepId).name("Prep").build();
 
+        StoreZone zoneFront = StoreZone.builder().id(UUID.randomUUID()).name("Front Counter").x(2.0).y(2.0).z(0.0).capacity(2).build();
+        StoreZone zoneBack = StoreZone.builder().id(UUID.randomUUID()).name("Back of House").x(8.0).y(8.0).z(0.0).capacity(2).build();
+        StoreZone zoneFloor = StoreZone.builder().id(UUID.randomUUID()).name("Sales Floor").x(5.0).y(5.0).z(0.0).capacity(5).build();
+
+        // Requirements explicitly target zones (the generic domain pattern)
         com.shiftsync.shift.entity.ShiftSkillRequirement req1 = com.shiftsync.shift.entity.ShiftSkillRequirement.builder()
-                .id(UUID.randomUUID()).shift(shift).skill(skillBarista).requiredCount(1).build();
+                .id(UUID.randomUUID()).shift(shift).skill(skillCashier).requiredCount(1).zone(zoneFront).build();
         com.shiftsync.shift.entity.ShiftSkillRequirement req2 = com.shiftsync.shift.entity.ShiftSkillRequirement.builder()
-                .id(UUID.randomUUID()).shift(shift).skill(skillKitchen).requiredCount(1).build();
+                .id(UUID.randomUUID()).shift(shift).skill(skillPrep).requiredCount(1).zone(zoneBack).build();
         shift.setRequirements(new ArrayList<>(Arrays.asList(req1, req2)));
 
-        ShiftAssignment a1 = new ShiftAssignment(); a1.setId(UUID.randomUUID()); a1.setRequiredSkillId(skillBaristaId);
-        ShiftAssignment a2 = new ShiftAssignment(); a2.setId(UUID.randomUUID()); a2.setRequiredSkillId(skillKitchenId);
+        ShiftAssignment a1 = new ShiftAssignment(); a1.setId(UUID.randomUUID()); a1.setRequiredSkillId(skillCashierId);
+        ShiftAssignment a2 = new ShiftAssignment(); a2.setId(UUID.randomUUID()); a2.setRequiredSkillId(skillPrepId);
         when(shiftAssignmentRepository.findByShiftId(shiftId)).thenReturn(new ArrayList<>(Arrays.asList(a1, a2)));
 
-        StoreZone zoneBarista = StoreZone.builder().id(UUID.randomUUID()).name("Barista Counter").x(2.0).y(2.0).z(0.0).capacity(2).build();
-        StoreZone zoneKitchen = StoreZone.builder().id(UUID.randomUUID()).name("Kitchen & Bakery").x(8.0).y(8.0).z(0.0).capacity(2).build();
-        StoreZone zoneDining = StoreZone.builder().id(UUID.randomUUID()).name("Dining Hall Ground").x(5.0).y(5.0).z(0.0).capacity(5).build();
-
-        when(storeZoneRepository.findByStoreId(store.getId())).thenReturn(new ArrayList<>(Arrays.asList(zoneBarista, zoneKitchen, zoneDining)));
+        when(storeZoneRepository.findByStoreId(store.getId())).thenReturn(new ArrayList<>(Arrays.asList(zoneFront, zoneBack, zoneFloor)));
         when(storeLayoutRepository.findByStoreId(store.getId())).thenReturn(Optional.of(layout));
 
         SpatialAllocationResultDto result = spatialAllocationService.allocateZonesForShift(store.getId(), shiftId);
@@ -303,7 +311,8 @@ public class SpatialAllocationServiceTest {
         assertEquals(2, result.getAllocatedStaffCount());
         assertEquals(2, result.getOccupiedZonesCount());
 
-        assertEquals(zoneBarista.getId(), a1.getZone().getId());
-        assertEquals(zoneKitchen.getId(), a2.getZone().getId());
+        // Verify explicit zone targeting works: each assignment lands in its designated zone
+        assertEquals(zoneFront.getId(), a1.getZone().getId());
+        assertEquals(zoneBack.getId(), a2.getZone().getId());
     }
 }

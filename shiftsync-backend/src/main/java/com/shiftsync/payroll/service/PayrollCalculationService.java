@@ -46,6 +46,7 @@ public class PayrollCalculationService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final AttendanceRepository attendanceRepository;
     private final StoreRepository storeRepository;
+    private final com.shiftsync.skill.repository.SkillRepository skillRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
 
     
@@ -84,8 +85,8 @@ public class PayrollCalculationService {
                         java.util.Map.of("status", "DRAFT (Regenerated)"));
                 }
             }
-            // Delete old payrolls for this period so we can regenerate
-            payrollRepository.deleteByPayrollPeriod(existingOpt.get());
+            // Hard delete old payrolls for this period so we can regenerate cleanly
+            payrollRepository.hardDeleteByPayrollPeriodId(existingOpt.get().getId());
         }
 
 
@@ -96,37 +97,49 @@ public class PayrollCalculationService {
         Map<LocalDate, BigDecimal> holidayMap = holidayRepository.findByHolidayDateBetween(startDate, endDate)
                 .stream().collect(Collectors.toMap(Holiday::getHolidayDate, Holiday::getRateMultiplier));
 
-        // 2. Fetch employments (Active + Inactive in case they left but have unpaid shifts)
-        List<Employment> employments = employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE);
+        // 2. Fetch skills for position rate resolution
+        Map<UUID, com.shiftsync.skill.entity.Skill> skillMap = skillRepository.findByStoreId(storeId)
+                .stream().collect(Collectors.toMap(com.shiftsync.skill.entity.Skill::getId, s -> s));
+
+        // 3. Fetch employments (Active STAFF only - managers do not receive shift-based hourly payroll)
+        List<Employment> employments = employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE).stream()
+                .filter(e -> e.getUser().getSystemRole() == com.shiftsync.shared.security.SystemRole.STAFF)
+                .toList();
         
-        // 3. Bulk Fetch ShiftAssignments and Attendances to avoid N+1
+        // 4. Bulk Fetch ShiftAssignments and Attendances to avoid N+1
         List<ShiftAssignment> allAssignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
         List<Attendance> allAttendances = attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(storeId, startDate, endDate);
 
         // Group Assignments by StaffId
         Map<UUID, List<ShiftAssignment>> assignmentsByStaff = allAssignments.stream()
-                .filter(a -> a.getShift().getStatus() == ShiftStatus.COMPLETED)
+                .filter(a -> a.getShift().getStatus() == ShiftStatus.COMPLETED || a.getShift().getStatus() == ShiftStatus.PUBLISHED)
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId()));
 
         // Group Attendances by ShiftAssignmentId
         Map<UUID, Attendance> attendanceMap = allAttendances.stream()
                 .collect(Collectors.toMap(a -> a.getShiftAssignment().getId(), a -> a, (a1, a2) -> a1));
         
-        // Creating the PayrollPeriod
-        PayrollPeriod payrollPeriod = PayrollPeriod.builder()
-                .store(store)
-                .startDate(startDate)
-                .endDate(endDate)
-                .status(PayrollPeriodStatus.DRAFT)
-                .build();
-        
-        payrollPeriod = payrollPeriodRepository.save(payrollPeriod);
+        // Reusing or Creating the PayrollPeriod
+        PayrollPeriod payrollPeriod;
+        if (existingOpt.isPresent()) {
+            payrollPeriod = existingOpt.get();
+            payrollPeriod.setStatus(PayrollPeriodStatus.DRAFT);
+            payrollPeriod = payrollPeriodRepository.save(payrollPeriod);
+        } else {
+            payrollPeriod = PayrollPeriod.builder()
+                    .store(store)
+                    .startDate(startDate)
+                    .endDate(endDate)
+                    .status(PayrollPeriodStatus.DRAFT)
+                    .build();
+            payrollPeriod = payrollPeriodRepository.save(payrollPeriod);
+        }
 
         List<Payroll> payrolls = new ArrayList<>();
 
         for (Employment emp : employments) {
             List<ShiftAssignment> empAssignments = assignmentsByStaff.getOrDefault(emp.getUser().getId(), Collections.emptyList());
-            Payroll payroll = calculateForEmployee(emp, payrollPeriod, empAssignments, attendanceMap, holidayMap);
+            Payroll payroll = calculateForEmployee(emp, payrollPeriod, empAssignments, attendanceMap, holidayMap, skillMap);
             payrolls.add(payroll);
         }
 
@@ -147,7 +160,36 @@ public class PayrollCalculationService {
         }
     }
 
-    private Payroll calculateForEmployee(Employment emp, PayrollPeriod period, List<ShiftAssignment> assignments, Map<UUID, Attendance> attendanceMap, Map<LocalDate, BigDecimal> holidayMap) {
+    private BigDecimal resolvePositionHourlyRate(ShiftAssignment assignment, Map<UUID, com.shiftsync.skill.entity.Skill> skillMap, Employment emp) {
+        String posName = "";
+        if (assignment.getRequiredSkillId() != null && skillMap.containsKey(assignment.getRequiredSkillId())) {
+            posName = skillMap.get(assignment.getRequiredSkillId()).getName();
+        } else if (assignment.getZone() != null && assignment.getZone().getName() != null) {
+            posName = assignment.getZone().getName();
+        } else if (assignment.getWorkstation() != null && assignment.getWorkstation().getName() != null) {
+            posName = assignment.getWorkstation().getName();
+        }
+
+        if (posName != null && !posName.isBlank()) {
+            String lower = posName.toLowerCase();
+            if (lower.contains("bếp") || lower.contains("kitchen")) {
+                return BigDecimal.valueOf(30000);
+            } else if (lower.contains("barista") || lower.contains("pha chế")) {
+                return BigDecimal.valueOf(28000);
+            } else if (lower.contains("thu ngân") || lower.contains("cashier")) {
+                return BigDecimal.valueOf(26000);
+            } else if (lower.contains("waiter") || lower.contains("phục vụ") || lower.contains("sảnh") || lower.contains("bàn")) {
+                return BigDecimal.valueOf(25000);
+            }
+        }
+
+        if (emp != null && emp.getHourlyRate() != null && emp.getHourlyRate().compareTo(BigDecimal.ZERO) > 0) {
+            return emp.getHourlyRate();
+        }
+        return BigDecimal.valueOf(23000); // Mặc định 23k
+    }
+
+    private Payroll calculateForEmployee(Employment emp, PayrollPeriod period, List<ShiftAssignment> assignments, Map<UUID, Attendance> attendanceMap, Map<LocalDate, BigDecimal> holidayMap, Map<UUID, com.shiftsync.skill.entity.Skill> skillMap) {
         if (assignments.isEmpty()) {
             return buildEmptyPayroll(period, emp);
         }
@@ -157,7 +199,6 @@ public class PayrollCalculationService {
                 .collect(Collectors.groupingBy(a -> a.getShift().getShiftDate().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
 
         int maxWeeklyHours = emp.getContractType().getMaxWeeklyHours();
-        BigDecimal hourlyRate = emp.getHourlyRate();
 
         class PayrollAccumulator {
             BigDecimal totalBaseAmt = BigDecimal.ZERO;
@@ -213,26 +254,37 @@ public class PayrollCalculationService {
             totalAcc.hoursWorkedThisWeek = 0.0; // Reset weekly hours
 
             for (ShiftAssignment assignment : weekShifts) {
+                BigDecimal shiftHourlyRate = resolvePositionHourlyRate(assignment, skillMap, emp);
+
                 Attendance att = attendanceMap.get(assignment.getId());
-                if (att == null || att.getCheckInTime() == null || att.getCheckOutTime() == null) {
-                    continue;
-                }
+                double durationHours;
+                LocalDate day1;
+                LocalDate day2;
 
-                java.time.OffsetDateTime checkIn = att.getCheckInTime();
-                java.time.OffsetDateTime checkOut = att.getCheckOutTime();
-                LocalDate day1 = checkIn.toLocalDate();
-                LocalDate day2 = checkOut.toLocalDate();
+                if (att != null && att.getCheckInTime() != null && att.getCheckOutTime() != null) {
+                    java.time.OffsetDateTime checkIn = att.getCheckInTime();
+                    java.time.OffsetDateTime checkOut = att.getCheckOutTime();
+                    day1 = checkIn.toLocalDate();
+                    day2 = checkOut.toLocalDate();
 
-                if (day1.equals(day2)) {
-                    double durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
-                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
-                } else {
-                    java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
-                    double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
-                    double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
-                    
-                    totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
-                    totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, hourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    if (day1.equals(day2)) {
+                        durationHours = Duration.between(checkIn, checkOut).toMinutes() / 60.0;
+                        totalAcc.addSegment(durationHours, day1, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    } else {
+                        java.time.OffsetDateTime midnight = day2.atStartOfDay().atOffset(checkOut.getOffset());
+                        double day1Hours = Duration.between(checkIn, midnight).toMinutes() / 60.0;
+                        double day2Hours = Duration.between(midnight, checkOut).toMinutes() / 60.0;
+                        
+                        totalAcc.addSegment(day1Hours, day1, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                        totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
+                    }
+                } else if (assignment.getShift() != null) {
+                    // Fallback to scheduled shift hours
+                    day1 = assignment.getShift().getShiftDate();
+                    java.time.LocalTime st = assignment.getShift().getStartTime();
+                    java.time.LocalTime et = assignment.getShift().getEndTime();
+                    durationHours = (et.isAfter(st) ? Duration.between(st, et) : Duration.between(st, et.plusHours(24))).toMinutes() / 60.0;
+                    totalAcc.addSegment(durationHours, day1, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                 }
             }
         }

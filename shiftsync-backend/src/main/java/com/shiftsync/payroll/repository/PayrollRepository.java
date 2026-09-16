@@ -11,6 +11,11 @@ import java.util.UUID;
 public interface PayrollRepository extends JpaRepository<Payroll, UUID> {
     List<Payroll> findByPayrollPeriodId(UUID payrollPeriodId);
     void deleteByPayrollPeriod(com.shiftsync.payroll.entity.PayrollPeriod payrollPeriod);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = "DELETE FROM payroll WHERE payroll_period_id = :periodId", nativeQuery = true)
+    void hardDeleteByPayrollPeriodId(@org.springframework.data.repository.query.Param("periodId") UUID periodId);
+
     List<Payroll> findByStaffIdOrderByPayrollPeriod_StartDateDesc(UUID staffId);
     Optional<Payroll> findByIdAndStaffId(UUID id, UUID staffId);
 

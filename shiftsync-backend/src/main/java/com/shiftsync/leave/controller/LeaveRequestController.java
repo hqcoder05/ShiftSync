@@ -77,8 +77,21 @@ public class LeaveRequestController {
     public ResponseEntity<LeaveRequestDTO> rejectLeaveRequest(
             @PathVariable UUID storeId,
             @PathVariable UUID id,
+            @RequestBody(required = false) com.shiftsync.leave.dto.LeaveRejectRequest request,
             @AuthenticationPrincipal CustomUserDetails manager) {
         
-        return ResponseEntity.ok(leaveRequestService.rejectLeaveRequest(storeId, id, manager.getId()));
+        String rejectionReason = request != null ? request.getReason() : null;
+        return ResponseEntity.ok(leaveRequestService.rejectLeaveRequest(storeId, id, manager.getId(), rejectionReason));
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)) or hasRole('STAFF')")
+    @PutMapping("/{id}/reason")
+    public ResponseEntity<LeaveRequestDTO> updateLeaveReason(
+            @PathVariable UUID storeId,
+            @PathVariable UUID id,
+            @Valid @RequestBody com.shiftsync.leave.dto.LeaveUpdateReasonRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        return ResponseEntity.ok(leaveRequestService.updateLeaveReason(storeId, id, userDetails.getId(), request.getReason()));
     }
 }

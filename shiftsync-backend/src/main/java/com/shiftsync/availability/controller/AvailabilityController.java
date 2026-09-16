@@ -72,6 +72,14 @@ public class AvailabilityController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/stores/{storeId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @Operation(summary = "Get all staff availability for a store", description = "Fetches all declared free time slots for all active staff in a store.")
+    @ApiResponse(responseCode = "200", description = "List retrieved successfully")
+    public ResponseEntity<List<AvailabilityResponse>> getStoreStaffAvailability(@PathVariable UUID storeId) {
+        return ResponseEntity.ok(availabilityService.getStoreStaffAvailability(storeId));
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete an availability slot", description = "Removes an availability slot from the system.")
     @ApiResponses({

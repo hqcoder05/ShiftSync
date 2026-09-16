@@ -65,6 +65,13 @@ public class StoreController {
         }
     }
 
+    @GetMapping("/directory")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get list of all stores for partner selection", description = "Returns active store directory for cross-store collaboration and borrowing.")
+    public ResponseEntity<java.util.List<StoreDTO>> getStoreDirectory() {
+        return ResponseEntity.ok(storeService.getStoreDirectory());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #id)")
     @Operation(summary = "Get store details by ID", description = "Fetches details of a specific store branch by its UUID.")

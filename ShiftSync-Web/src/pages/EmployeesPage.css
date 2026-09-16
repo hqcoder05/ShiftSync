@@ -1,36 +1,435 @@
-.emp-page { display: flex; font-family: var(--ss-font); gap: 24px; }
-.emp-main { flex: 1; }
-.emp-main h1 { font-size: 28px; font-weight: 600; color: #333; margin-bottom: 16px; }
-.emp-error { color: #c0392b; margin-bottom: 12px; }
+/* ============================================================
+   ShiftSync Employees Page Styling
+   ============================================================ */
 
-.emp-table-card { background: #fff; border: 1px solid var(--ss-border); border-radius: 10px; overflow: hidden; }
-.emp-table-header, .emp-row { display: grid; grid-template-columns: 2fr 1fr 2fr 1fr; padding: 16px 24px; align-items: center; }
-.emp-table-header { background: rgba(240,236,236,0.7); font-weight: 500; }
-.emp-row { border-top: 1px solid var(--ss-border); color: var(--ss-text-muted); }
-.emp-name { display: flex; align-items: center; gap: 12px; color: #333; }
-.emp-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.emp-actions button { margin-right: 8px; border: none; background: none; color: var(--ss-accent); cursor: pointer; }
+.emp-page {
+  display: flex;
+  font-family: var(--ss-font);
+  gap: 24px;
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
 
-.emp-add-btn { width: 100%; padding: 16px 24px; border: none; background: none; color: var(--ss-accent); font-weight: 500; text-align: left; cursor: pointer; }
-.emp-add-btn:hover { background: var(--ss-accent-bg); }
-.emp-pagination { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+.emp-main {
+  flex: 1;
+  min-width: 0;
+}
 
-.emp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.emp-modal { background: #fff; border-radius: 10px; width: 700px; max-width: 90vw; padding: 24px; position: relative; overflow: hidden; }
-.emp-modal-close { position: absolute; top: 16px; right: 16px; border: none; background: none; font-size: 20px; cursor: pointer; z-index: 2; }
-.emp-modal-body { display: flex; gap: 24px; }
-.emp-tabs { display: flex; flex-direction: column; gap: 8px; width: 160px; border-right: 2px solid #eee; }
-.emp-tabs button { text-align: left; padding: 12px 0; border: none; background: none; cursor: pointer; font-size: 16px; color: rgba(51,51,51,0.5); }
-.emp-tabs button.active { color: #333; border-bottom: 2px solid var(--ss-accent); }
-.emp-tabs button:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Page Header Row */
+.emp-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+}
 
-.emp-tab-content { flex: 1; }
-.emp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.emp-form-grid h2 { grid-column: span 2; font-size: 20px; }
-.emp-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #333; }
-.emp-form-grid input, .emp-form-grid select { border: 1.5px solid var(--ss-border); border-radius: 7px; padding: 10px; }
-.emp-disabled-note input { background: #f5f5f5; color: #999; }
-.emp-save-btn { grid-column: span 2; margin-top: 8px; padding: 14px; border-radius: 10px; border: 2px solid var(--ss-accent); background: var(--ss-accent-bg); font-weight: 600; cursor: pointer; width: fit-content; justify-self: end; }
-.emp-save-btn:hover { background: var(--ss-accent); color: #fff; }
+.emp-title-col h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+}
 
-.emp-modal-illustration { width: 100%; display: block; margin-top: 24px; }
+.emp-subtitle {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+.emp-top-add-btn {
+  flex-shrink: 0;
+}
+
+/* Error banner */
+.emp-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* Loading Card */
+.emp-loading-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 60px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Table Card */
+.emp-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--ss-shadow-xs);
+}
+
+.emp-table-header {
+  display: grid;
+  grid-template-columns: 2.2fr 1.2fr 2fr 140px;
+  padding: 12px 20px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-items: center;
+}
+
+.emp-row {
+  display: grid;
+  grid-template-columns: 2.2fr 1.2fr 2fr 140px;
+  padding: 14px 20px;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.12s ease;
+}
+
+.emp-row:last-of-type {
+  border-bottom: none;
+}
+
+.emp-row:hover {
+  background-color: #f8fafc;
+}
+
+/* Columns */
+.col-emp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.emp-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1.5px solid #e2e8f0;
+}
+
+.emp-name-details {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.emp-name-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.emp-phone-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Role Badges */
+.emp-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.badge-admin {
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.badge-manager {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-staff {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.emp-email-text {
+  font-size: 13.5px;
+  color: #475569;
+}
+
+/* Action buttons */
+.emp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--ss-font);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.emp-action-btn.edit {
+  color: #51A33D;
+  border-color: #dcfce7;
+  background-color: #f0fdf4;
+}
+
+.emp-action-btn.edit:hover {
+  background-color: #51A33D;
+  color: #ffffff;
+}
+
+.emp-action-btn.delete {
+  color: #dc2626;
+  border-color: #fee2e2;
+  background-color: #fef2f2;
+}
+
+.emp-action-btn.delete:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+/* Table Footer Action */
+.emp-add-footer-btn {
+  width: 100%;
+  padding: 13px 20px;
+  border: none;
+  border-top: 1px solid #f1f5f9;
+  background-color: #ffffff;
+  color: #51A33D;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: var(--ss-font);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.emp-add-footer-btn:hover {
+  background-color: #f0fdf4;
+}
+
+/* Empty State */
+.emp-empty-state {
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.emp-empty-icon {
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.emp-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.emp-empty-desc {
+  font-size: 13.5px;
+  color: #64748b;
+  max-width: 380px;
+  margin-bottom: 16px;
+}
+
+/* Pagination */
+.emp-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.emp-pagination-text {
+  font-size: 13px;
+  color: #475569;
+}
+
+/* Modal Dialog */
+.emp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 20px;
+}
+
+.emp-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 720px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 28px;
+  position: relative;
+  box-shadow: var(--ss-shadow-xl);
+}
+
+.emp-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.emp-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.emp-modal-body {
+  display: flex;
+  gap: 24px;
+}
+
+.emp-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 170px;
+  flex-shrink: 0;
+  border-right: 1px solid #e2e8f0;
+  padding-right: 16px;
+}
+
+.emp-tabs button {
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+
+.emp-tabs button:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.emp-tabs button.active {
+  background-color: #f0fdf4;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.emp-tabs button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.emp-tab-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.emp-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 16px;
+}
+
+.emp-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.emp-modal-illustration {
+  width: 100%;
+  display: block;
+  margin-top: 24px;
+  border-radius: 8px;
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .emp-page {
+    flex-direction: column;
+    padding: 16px;
+  }
+  .emp-table-header {
+    display: none;
+  }
+  .emp-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px;
+  }
+  .emp-modal-body {
+    flex-direction: column;
+  }
+  .emp-tabs {
+    width: 100%;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+  }
+}

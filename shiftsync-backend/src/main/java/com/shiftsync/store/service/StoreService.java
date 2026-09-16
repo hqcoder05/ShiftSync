@@ -1,6 +1,6 @@
 package com.shiftsync.store.service;
-import com.shiftsync.audit.service.AuditLogService;
 
+import com.shiftsync.audit.service.AuditLogService;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.store.dto.StoreCreateRequest;
 import com.shiftsync.store.dto.StoreDTO;
@@ -14,12 +14,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class StoreService {
     private final AuditLogService auditLogService;
-
     private final StoreRepository storeRepository;
 
     public StoreService(StoreRepository storeRepository, AuditLogService auditLogService) {
@@ -33,6 +33,8 @@ public class StoreService {
 
         Store store = Store.builder()
                 .name(request.getName())
+                .category(request.getCategory() != null ? request.getCategory() : com.shiftsync.store.enums.StoreCategory.FOOD_BEVERAGE)
+                .format(request.getFormat() != null ? request.getFormat() : "Standard")
                 .address(request.getAddress())
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
@@ -42,6 +44,13 @@ public class StoreService {
 
         Store savedStore = storeRepository.save(store);
         return StoreMapper.toDTO(savedStore);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StoreDTO> getStoreDirectory() {
+        return storeRepository.findAll().stream()
+                .map(StoreMapper::toDTO)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -60,8 +69,11 @@ public class StoreService {
 
     @Transactional(readOnly = true)
     public Page<StoreDTO> getMyStores(UUID staffId, String search, Pageable pageable) {
-        String searchQuery = (search == null || search.trim().isEmpty()) ? null : search.trim();
-        return storeRepository.findStoresByStaffId(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, searchQuery, pageable)
+        if (search == null || search.trim().isEmpty()) {
+            return storeRepository.findStoresByStaffId(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, pageable)
+                    .map(StoreMapper::toDTO);
+        }
+        return storeRepository.findStoresByStaffIdWithSearch(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, search.trim(), pageable)
                 .map(StoreMapper::toDTO);
     }
 
@@ -80,6 +92,8 @@ public class StoreService {
         validateStoreBusinessRules(request);
 
         if (request.getName() != null) store.setName(request.getName());
+        if (request.getCategory() != null) store.setCategory(request.getCategory());
+        if (request.getFormat() != null) store.setFormat(request.getFormat());
         if (request.getAddress() != null) store.setAddress(request.getAddress());
         if (request.getLatitude() != null) store.setLatitude(request.getLatitude());
         if (request.getLongitude() != null) store.setLongitude(request.getLongitude());
@@ -106,7 +120,6 @@ public class StoreService {
         auditLogService.log(actorId, "SOFT_DELETE", "Store", id, 
                 java.util.Map.of("name", store.getName(), "address", store.getAddress()), 
                 java.util.Map.of("deleted", true));
-
     }
 
     private void validateStoreBusinessRules(StoreCreateRequest request) {

@@ -3,13 +3,20 @@ package com.shiftsync.layout.service;
 import com.shiftsync.layout.dto.SpatialAllocationResultDto;
 import com.shiftsync.layout.entity.StoreLayout;
 import com.shiftsync.layout.entity.StoreZone;
+import com.shiftsync.layout.entity.Workstation;
 import com.shiftsync.layout.repository.StoreLayoutRepository;
 import com.shiftsync.layout.repository.StoreZoneRepository;
+import com.shiftsync.layout.repository.WorkstationRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
+import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
+import com.shiftsync.skill.entity.Skill;
+import com.shiftsync.skill.entity.StaffSkill;
+import com.shiftsync.skill.repository.SkillRepository;
+import com.shiftsync.skill.repository.StaffSkillRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -26,13 +33,12 @@ public class SpatialAllocationService {
 
     private final StoreZoneRepository storeZoneRepository;
     private final StoreLayoutRepository storeLayoutRepository;
+    private final WorkstationRepository workstationRepository;
     private final ShiftRepository shiftRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
-    private final com.shiftsync.skill.repository.SkillRepository skillRepository;
+    private final StaffSkillRepository staffSkillRepository;
+    private final SkillRepository skillRepository;
 
-    /**
-     * Backward-compatible overload without storeId check (resolves storeId from shift).
-     */
     @Transactional(rollbackFor = Exception.class)
     public SpatialAllocationResultDto allocateZonesForShift(UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
@@ -40,17 +46,11 @@ public class SpatialAllocationService {
         return allocateZonesForShift(shift.getStore().getId(), shiftId);
     }
 
-    /**
-     * Thuật toán 3D Greedy Max-Min Dispersion với kiểm tra quyền Store (Chống IDOR),
-     * bảo toàn ràng buộc cứng sức chứa (Hard Capacity Constraint),
-     * và tính lũy đẳng (Idempotency).
-     */
     @Transactional(rollbackFor = Exception.class)
     public SpatialAllocationResultDto allocateZonesForShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
-        // 1. Security / IDOR Prevention: Shift must belong to the requested store
         if (storeId != null && !shift.getStore().getId().equals(storeId)) {
             throw new BusinessException("Shift does not belong to the requested store", HttpStatus.FORBIDDEN);
         }
@@ -60,7 +60,6 @@ public class SpatialAllocationService {
             throw new BusinessException("No 3D zones configured for this store", HttpStatus.BAD_REQUEST);
         }
 
-        // Sort zones deterministically by ID to guarantee 100% deterministic tie-breaking
         allZones.sort(Comparator.comparing(StoreZone::getId));
 
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
@@ -90,7 +89,6 @@ public class SpatialAllocationService {
         Double centerY = layout != null ? layout.getWidth() / 2 : 0.0;
         Double centerZ = layout != null ? layout.getHeight() / 2 : 0.0;
 
-        // Clone the capacities so we can decrement them as we assign
         List<ZoneCandidate> candidates = allZones.stream()
                 .map(z -> new ZoneCandidate(z, z.getCapacity()))
                 .collect(Collectors.toList());
@@ -99,27 +97,63 @@ public class SpatialAllocationService {
         int allocatedCount = 0;
         int unallocatedCount = 0;
 
-        Map<UUID, String> skillNameMap = shift.getRequirements() != null
-                ? shift.getRequirements().stream()
-                        .filter(r -> r.getSkill() != null)
-                        .collect(Collectors.toMap(r -> r.getSkill().getId(), r -> r.getSkill().getName(), (k1, k2) -> k1))
-                : Collections.emptyMap();
+        // Build spatial requirement lookup (from explicit ShiftSkillRequirement)
+        Map<UUID, StoreZone> skillTargetZoneMap = new HashMap<>();
+        Map<UUID, Workstation> skillTargetWsMap = new HashMap<>();
+        if (shift.getRequirements() != null) {
+            for (ShiftSkillRequirement req : shift.getRequirements()) {
+                if (req.getSkill() != null) {
+                    if (req.getZone() != null) {
+                        skillTargetZoneMap.put(req.getSkill().getId(), req.getZone());
+                    }
+                    if (req.getWorkstation() != null) {
+                        skillTargetWsMap.put(req.getSkill().getId(), req.getWorkstation());
+                        if (req.getWorkstation().getZone() != null && req.getZone() == null) {
+                            skillTargetZoneMap.put(req.getSkill().getId(), req.getWorkstation().getZone());
+                        }
+                    }
+                }
+            }
+        }
 
         for (ShiftAssignment assignment : assignments) {
             StoreZone chosenZone = null;
+            Workstation chosenWs = null;
 
-            // 1. First priority: Allocate to zone corresponding to assigned skill/role
+            // 1. First priority: Explicit requirement target from ShiftSkillRequirement
             if (assignment.getRequiredSkillId() != null) {
-                String skillName = skillNameMap.get(assignment.getRequiredSkillId());
-                if (skillName == null && skillRepository != null) {
-                    try {
-                        skillName = skillRepository.findById(assignment.getRequiredSkillId())
-                                .map(com.shiftsync.skill.entity.Skill::getName)
-                                .orElse(null);
-                    } catch (Exception ignored) {}
+                StoreZone targetZone = skillTargetZoneMap.get(assignment.getRequiredSkillId());
+                if (targetZone != null) {
+                    var match = candidates.stream()
+                            .filter(c -> c.zone.getId().equals(targetZone.getId()) && c.availableCapacity > 0)
+                            .findFirst()
+                            .orElse(null);
+                    if (match != null) {
+                        chosenZone = match.zone;
+                    }
                 }
-                if (skillName != null) {
-                    chosenZone = findMatchingZoneForSkill(skillName, candidates);
+                chosenWs = skillTargetWsMap.get(assignment.getRequiredSkillId());
+            }
+
+            // 1b. Semantic skill matching based on staff's skills (e.g. Barista -> Barista Counter, Cashier -> POS)
+            if (chosenZone == null && assignment.getStaff() != null) {
+                List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(assignment.getStaff().getId());
+                for (StaffSkill ss : staffSkills) {
+                    Skill sk = skillRepository.findById(ss.getSkillId()).orElse(null);
+                    if (sk != null) {
+                        String sName = sk.getName().toLowerCase();
+                        var match = candidates.stream()
+                                .filter(c -> c.availableCapacity > 0 && isZoneMatchingSkill(c.zone, sName))
+                                .findFirst()
+                                .orElse(null);
+                        if (match != null) {
+                            chosenZone = match.zone;
+                            if (assignment.getRequiredSkillId() == null) {
+                                assignment.setRequiredSkillId(sk.getId());
+                            }
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -130,25 +164,26 @@ public class SpatialAllocationService {
             
             if (chosenZone != null) {
                 assignment.setZone(chosenZone);
+                if (chosenWs != null) {
+                    assignment.setWorkstation(chosenWs);
+                }
                 selectedZones.add(chosenZone);
                 allocatedCount++;
 
-                // Decrement available capacity
                 final UUID chosenId = chosenZone.getId();
                 candidates.stream()
                         .filter(c -> c.zone.getId().equals(chosenId))
                         .findFirst()
                         .ifPresent(c -> c.availableCapacity--);
             } else {
-                // Hard constraint: Zone capacity strictly respected, DO NOT silently overbook
                 assignment.setZone(null);
+                assignment.setWorkstation(null);
                 unallocatedCount++;
             }
         }
         
         shiftAssignmentRepository.saveAll(assignments);
 
-        // Build detailed occupancy metrics
         Map<UUID, Long> zoneStaffCountMap = assignments.stream()
                 .filter(a -> a.getZone() != null)
                 .collect(Collectors.groupingBy(a -> a.getZone().getId(), Collectors.counting()));
@@ -212,24 +247,16 @@ public class SpatialAllocationService {
                 .build();
     }
 
-    /**
-     * Greedy Max-Min 3D Euclidean Dispersion.
-     * Selects candidate that has available capacity and maximizes the minimum 3D Euclidean distance
-     * to already selected zones.
-     * Returns null if all zones have reached maximum capacity.
-     */
     private StoreZone selectBestZoneMaxMinDispersion(List<ZoneCandidate> candidates, List<StoreZone> alreadySelected, Double centerX, Double centerY, Double centerZ) {
         List<ZoneCandidate> availableCandidates = candidates.stream()
                 .filter(c -> c.availableCapacity > 0)
                 .collect(Collectors.toList());
 
         if (availableCandidates.isEmpty()) {
-            // Hard constraint: Respect zone capacity, return null instead of overbooking
             return null;
         }
 
         if (alreadySelected.isEmpty()) {
-            // First choice: pick the zone closest to center, with deterministic tie-breaking
             return availableCandidates.stream()
                     .min((c1, c2) -> {
                         int comp = Double.compare(
@@ -243,8 +270,6 @@ public class SpatialAllocationService {
                     .orElse(availableCandidates.get(0).zone);
         }
 
-        // Greedy Max-Min Dispersion
-        // Find candidate that maximizes the minimum distance to already selected zones
         ZoneCandidate bestCandidate = null;
         double maxMinDistance = -1.0;
 
@@ -262,7 +287,6 @@ public class SpatialAllocationService {
                 maxMinDistance = minDistanceToSelected;
                 bestCandidate = candidate;
             } else if (Math.abs(minDistanceToSelected - maxMinDistance) <= 1e-6 && bestCandidate != null) {
-                // Deterministic tie-breaker: compare zone UUID
                 if (candidate.zone.getId().compareTo(bestCandidate.zone.getId()) < 0) {
                     bestCandidate = candidate;
                 }
@@ -275,38 +299,36 @@ public class SpatialAllocationService {
         return bestCandidate != null ? bestCandidate.zone : availableCandidates.get(0).zone;
     }
 
-    /**
-     * Map assigned skill role to corresponding physical store zone with capacity check.
-     */
-    private StoreZone findMatchingZoneForSkill(String skillName, List<ZoneCandidate> candidates) {
-        if (skillName == null || skillName.isBlank()) return null;
-        String s = skillName.toLowerCase().trim();
-        for (ZoneCandidate c : candidates) {
-            if (c.availableCapacity <= 0) continue;
-            String z = c.zone.getName().toLowerCase();
-            if (s.contains("barista") || s.contains("pha chế")) {
-                if (z.contains("barista") || z.contains("pha chế") || z.contains("counter")) return c.zone;
-            } else if (s.contains("cashier") || s.contains("pos") || s.contains("thu ngân")) {
-                if (z.contains("pos") || z.contains("cashier") || z.contains("thu ngân")) return c.zone;
-            } else if (s.contains("kitchen") || s.contains("bếp") || s.contains("cook") || s.contains("bakery")) {
-                if (z.contains("kitchen") || z.contains("bếp") || z.contains("bakery")) return c.zone;
-            } else if (s.contains("waiter") || s.contains("phục vụ") || s.contains("server")) {
-                if (z.contains("dining") || z.contains("mezzanine") || z.contains("bàn") || z.contains("phục vụ")) return c.zone;
-            } else if (s.contains("leader") || s.contains("quản lý") || s.contains("supervisor") || s.contains("trưởng ca")) {
-                if (z.contains("leader") || z.contains("pos") || z.contains("counter") || z.contains("dining")) return c.zone;
-            } else if (z.contains(s) || s.contains(z)) {
-                return c.zone;
-            }
-        }
-        return null;
-    }
-
     private double distance(StoreZone z, Double x, Double y, Double zCoord) {
         double dx = z.getX() - (x != null ? x : 0.0);
         double dy = z.getY() - (y != null ? y : 0.0);
         double dz = z.getZ() - (zCoord != null ? zCoord : 0.0);
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
+
+    private boolean isZoneMatchingSkill(StoreZone zone, String skillName) {
+        String zName = (zone.getName() != null ? zone.getName() : "").toLowerCase();
+        String zCode = (zone.getCode() != null ? zone.getCode() : "").toLowerCase();
+        String zType = (zone.getZoneType() != null ? zone.getZoneType().name() : "").toLowerCase();
+
+        if (skillName.contains("barista") || skillName.contains("pha chế") || skillName.contains("cà phê")) {
+            return zName.contains("barista") || zName.contains("pha chế") || zCode.contains("barista") || zType.contains("counter");
+        }
+        if (skillName.contains("cashier") || skillName.contains("thu ngân") || skillName.contains("pos") || skillName.contains("checkout")) {
+            return zName.contains("cashier") || zName.contains("thu ngân") || zName.contains("pos") || zCode.contains("pos") || zType.contains("counter");
+        }
+        if (skillName.contains("kitchen") || skillName.contains("bếp") || skillName.contains("bánh") || skillName.contains("bakery")) {
+            return zName.contains("kitchen") || zName.contains("bếp") || zName.contains("bakery");
+        }
+        if (skillName.contains("waiter") || skillName.contains("phục vụ") || skillName.contains("server")) {
+            return zName.contains("dining") || zName.contains("sảnh") || zType.contains("seating");
+        }
+        if (skillName.contains("leader") || skillName.contains("trưởng ca") || skillName.contains("supervisor")) {
+            return zName.contains("pos") || zName.contains("cashier") || zName.contains("barista") || zName.contains("service");
+        }
+        return false;
+    }
+
 
     private static class ZoneCandidate {
         StoreZone zone;

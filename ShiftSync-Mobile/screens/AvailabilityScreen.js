@@ -80,7 +80,7 @@ export default function AvailabilityScreen({ navigation }) {
         'Khung giờ rảnh của bạn đã được gửi đến Quản lý. Khi Quản lý duyệt và phân công ca, ca làm việc sẽ hiển thị ngay trên ứng dụng của bạn.',
         [
           { text: 'Đăng ký tiếp', onPress: () => {} },
-          { text: 'Xem lịch ca', onPress: () => navigation.navigate('Schedule') },
+          { text: 'Xem lịch ca', onPress: () => navigation.navigate('MainTabs', { screen: 'Schedule' }) },
         ]
       );
       loadAvailability();
@@ -118,7 +118,7 @@ export default function AvailabilityScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.myShiftsBtn}
-          onPress={() => navigation.navigate('Schedule')}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Schedule' })}
           activeOpacity={0.8}
         >
           <Text style={styles.myShiftsText}>Xem lịch ca làm việc</Text>

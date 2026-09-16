@@ -11,7 +11,17 @@
 .skill-add-btn { width: 100%; padding: 16px 24px; border: none; background: none; color: var(--ss-accent); text-align: left; cursor: pointer; }
 .skill-add-btn:hover { background: var(--ss-accent-bg); }
 
-.skill-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.skill-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 20px;
+}
 .skill-modal { background: #fff; border-radius: 10px; width: 460px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .skill-modal-header { display: flex; justify-content: space-between; align-items: center; }
 .skill-modal-header h2 { font-size: 22px; font-weight: 700; color: #222; margin: 0; }

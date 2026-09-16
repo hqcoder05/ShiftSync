@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.Optional;
 import java.util.List;
+import java.util.UUID;
 import com.shiftsync.notification.service.NotificationPreferenceService;
 
 @RestController
@@ -32,6 +33,7 @@ public class NotificationController {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final NotificationPreferenceService preferenceService;
+    private final com.shiftsync.notification.service.SseEmitterService sseEmitterService;
 
     @Operation(summary = "Register FCM token for current user")
     @PostMapping("/users/me/fcm-token")
@@ -90,5 +92,48 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody com.shiftsync.notification.dto.UpdatePreferenceRequest request) {
         return ResponseEntity.ok(preferenceService.updatePreference(userDetails.getId(), request));
+    }
+
+    @Operation(summary = "Get in-app notifications for current user")
+    @GetMapping("/users/me/notifications")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<com.shiftsync.notification.dto.InAppNotificationDTO>> getMyNotifications(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(notificationService.getUserNotifications(userDetails.getId()));
+    }
+
+    @Operation(summary = "Get unread notifications count for current user")
+    @GetMapping("/users/me/notifications/unread-count")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getUnreadCount(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        long count = notificationService.getUnreadCount(userDetails.getId());
+        return ResponseEntity.ok(Map.of("unreadCount", count));
+    }
+
+    @Operation(summary = "Mark a notification as read")
+    @PutMapping("/users/me/notifications/{id}/read")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<com.shiftsync.notification.dto.InAppNotificationDTO> markAsRead(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(notificationService.markAsRead(userDetails.getId(), id));
+    }
+
+    @Operation(summary = "Mark all notifications as read")
+    @PutMapping("/users/me/notifications/read-all")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> markAllAsRead(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        notificationService.markAllAsRead(userDetails.getId());
+        return ResponseEntity.ok(Map.of("message", "All notifications marked as read"));
+    }
+
+    @Operation(summary = "Subscribe to realtime notifications via Server-Sent Events (SSE)")
+    @GetMapping(value = "/users/me/notifications/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamNotifications(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return sseEmitterService.subscribe(userDetails.getId());
     }
 }

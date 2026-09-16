@@ -61,6 +61,10 @@ public class MarketplaceService {
         }
 
         shift.setOpen(true);
+        if (shift.getAvailabilityDeadline() == null || shift.getAvailabilityDeadline().isBefore(java.time.ZonedDateTime.now())) {
+            java.time.ZonedDateTime deadline = shift.getShiftDate().atTime(shift.getStartTime()).atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+            shift.setAvailabilityDeadline(deadline);
+        }
         shiftRepository.save(shift);
 
         // Hook FR-19: OPEN_SHIFT_AVAILABLE
@@ -116,7 +120,7 @@ public class MarketplaceService {
         List<Shift> openShifts = shiftRepository.findByStoreIdAndStatusAndIsOpenTrue(storeId, ShiftStatus.PUBLISHED);
         
         return openShifts.stream()
-                .filter(s -> s.getAvailabilityDeadline().isAfter(now))
+                .filter(s -> s.getAvailabilityDeadline() == null || s.getAvailabilityDeadline().isAfter(now) || !s.getShiftDate().isBefore(java.time.LocalDate.now()))
                 .collect(Collectors.toList());
     }
 
@@ -156,10 +160,26 @@ public class MarketplaceService {
             com.shiftsync.auth.entity.User staff = userRepository.findById(staffId)
                     .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
+            // Determine which skill requirement is missing
+            List<ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shiftId);
+            UUID targetSkillId = null;
+            if (shift.getRequirements() != null) {
+                for (ShiftSkillRequirement req : shift.getRequirements()) {
+                    long count = existingAssignments.stream()
+                            .filter(a -> req.getSkill() != null && req.getSkill().getId().equals(a.getRequiredSkillId()))
+                            .count();
+                    if (count < req.getRequiredCount()) {
+                        targetSkillId = req.getSkill() != null ? req.getSkill().getId() : null;
+                        break;
+                    }
+                }
+            }
+
             // Create assignment
             ShiftAssignment assignment = ShiftAssignment.builder()
                     .shift(shift)
                     .staff(staff)
+                    .requiredSkillId(targetSkillId)
                     .source(com.shiftsync.shift.enums.AssignmentSource.OPEN_SHIFT)
                     .build();
             shiftAssignmentRepository.save(assignment);

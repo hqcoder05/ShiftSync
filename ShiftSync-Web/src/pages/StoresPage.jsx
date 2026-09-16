@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from '../components/Sidebar';
 import { getAllStores, createStore, updateStore, deleteStore } from '../services/storeService';
 import { getSkillsByStore, createSkill, updateSkill, deleteSkill } from '../services/skillService';
+import Store3DManager from '../components/spatial/Store3DManager';
 import './StoresPage.css';
 
 const POPULAR_LOCATIONS = [
@@ -73,9 +74,10 @@ export default function StoresPage() {
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
 
-  // ─── Skills (Vị trí công việc) per store ────────────────────────────────
+  // ─── Skills & 3D Spatial per store ─────────────────────────────────────
   const [expandedStoreId, setExpandedStoreId] = useState(null);
   const [storeSkills, setStoreSkills] = useState({}); // { storeId: [] }
+  const [storeTabs, setStoreTabs] = useState({}); // { [storeId]: 'skills' | 'spatial' }
   const [skillsLoading, setSkillsLoading] = useState(false);
 
   // Skill add form (inline)
@@ -131,13 +133,17 @@ export default function StoresPage() {
     }
   }, []);
 
-  const handleToggleExpand = (storeId) => {
-    if (expandedStoreId === storeId) {
+  const handleToggleExpand = (storeId, forcedTab) => {
+    const currentTab = storeTabs[storeId] || 'skills';
+    const targetTab = forcedTab || currentTab;
+
+    if (expandedStoreId === storeId && (!forcedTab || currentTab === forcedTab)) {
       setExpandedStoreId(null);
       setShowAddSkill(false);
       setEditingSkillId(null);
     } else {
       setExpandedStoreId(storeId);
+      setStoreTabs((prev) => ({ ...prev, [storeId]: targetTab }));
       setShowAddSkill(false);
       setEditingSkillId(null);
       setNewSkillName('');
@@ -374,9 +380,11 @@ export default function StoresPage() {
           <div className="store-grid">
             {filtered.map((s) => {
               const isExpanded = expandedStoreId === s.id;
+              const currentTab = storeTabs[s.id] || 'skills';
+              const isSpatial = isExpanded && currentTab === 'spatial';
               const skills = storeSkills[s.id] || [];
               return (
-                <div className={`store-card ${isExpanded ? 'expanded' : ''}`} key={s.id}>
+                <div className={`store-card ss-card-25d ${isExpanded ? 'expanded' : ''} ${isSpatial ? 'expanded-spatial' : ''}`} key={s.id}>
                   {/* Card header */}
                   <div className="store-card-top">
                     <div className="store-card-info">
@@ -388,114 +396,148 @@ export default function StoresPage() {
                     </div>
                     <div className="store-card-actions">
                       <button
-                        className="store-expand-btn"
-                        onClick={() => handleToggleExpand(s.id)}
-                        title={isExpanded ? 'Thu gọn' : 'Xem vị trí công việc'}
+                        className={`store-expand-btn ss-btn-elevated ${isExpanded && currentTab === 'skills' ? 'active' : ''}`}
+                        onClick={() => handleToggleExpand(s.id, 'skills')}
+                        title="Xem vị trí công việc"
                       >
-                        {isExpanded ? '▲ Thu gọn' : '▼ Vị trí'}
+                        🏷️ Vị trí ({skills.length})
+                      </button>
+                      <button
+                        className={`store-expand-btn ss-btn-elevated store-3d-btn ${isExpanded && currentTab === 'spatial' ? 'active' : ''}`}
+                        onClick={() => handleToggleExpand(s.id, 'spatial')}
+                        title="Xem & thiết kế không gian 3D"
+                      >
+                        🏢 Không gian 3D
                       </button>
                       <button onClick={() => openEdit(s)}>Sửa</button>
                       <button onClick={() => handleDelete(s.id, s.name)}>Xoá</button>
                     </div>
                   </div>
 
-                  {/* Expand: Skills panel */}
+                  {/* Expand: Container with Tabs */}
                   {isExpanded && (
-                    <div className="store-skills-panel">
-                      <div className="store-skills-header">
-                        <span className="store-skills-title">Vị trí công việc</span>
+                    <div className="store-expanded-container">
+                      <div className="store-expanded-tabs">
                         <button
-                          className="store-skill-add-btn"
-                          onClick={() => {
-                            setShowAddSkill((v) => !v);
-                            setSkillFormError('');
-                            setNewSkillName('');
-                            setNewSkillColor(PRESET_COLORS[0]);
-                          }}
+                          type="button"
+                          className={`store-tab-btn ${currentTab === 'skills' ? 'active' : ''}`}
+                          onClick={() => setStoreTabs((prev) => ({ ...prev, [s.id]: 'skills' }))}
                         >
-                          + Thêm vị trí
+                          🏷️ Vị trí công việc ({skills.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`store-tab-btn ${currentTab === 'spatial' ? 'active' : ''}`}
+                          onClick={() => setStoreTabs((prev) => ({ ...prev, [s.id]: 'spatial' }))}
+                        >
+                          🏢 Không gian &amp; Phân khu 3D
                         </button>
                       </div>
 
-                      {/* Add skill form */}
-                      {showAddSkill && (
-                        <form className="store-skill-form" onSubmit={handleAddSkill}>
-                          <input
-                            className="store-skill-input"
-                            placeholder="Tên vị trí (VD: Thu ngân, Pha chế...)"
-                            value={newSkillName}
-                            onChange={(e) => setNewSkillName(e.target.value)}
-                            autoFocus
-                          />
-                          <ColorPicker value={newSkillColor} onChange={setNewSkillColor} />
-                          {skillFormError && <p className="store-skill-error">{skillFormError}</p>}
-                          <div className="store-skill-form-actions">
-                            <button type="submit" className="store-skill-save">Thêm</button>
-                            <button type="button" className="store-skill-cancel" onClick={() => setShowAddSkill(false)}>Huỷ</button>
+                      {currentTab === 'skills' && (
+                        <div className="store-skills-panel">
+                          <div className="store-skills-header">
+                            <span className="store-skills-title">Vị trí công việc</span>
+                            <button
+                              className="store-skill-add-btn"
+                              onClick={() => {
+                                setShowAddSkill((v) => !v);
+                                setSkillFormError('');
+                                setNewSkillName('');
+                                setNewSkillColor(PRESET_COLORS[0]);
+                              }}
+                            >
+                              + Thêm vị trí
+                            </button>
                           </div>
-                        </form>
+
+                          {/* Add skill form */}
+                          {showAddSkill && (
+                            <form className="store-skill-form" onSubmit={handleAddSkill}>
+                              <input
+                                className="store-skill-input"
+                                placeholder="Tên vị trí (VD: Thu ngân, Pha chế...)"
+                                value={newSkillName}
+                                onChange={(e) => setNewSkillName(e.target.value)}
+                                autoFocus
+                              />
+                              <ColorPicker value={newSkillColor} onChange={setNewSkillColor} />
+                              {skillFormError && <p className="store-skill-error">{skillFormError}</p>}
+                              <div className="store-skill-form-actions">
+                                <button type="submit" className="store-skill-save">Thêm</button>
+                                <button type="button" className="store-skill-cancel" onClick={() => setShowAddSkill(false)}>Huỷ</button>
+                              </div>
+                            </form>
+                          )}
+
+                          {/* Skills list */}
+                          {skillsLoading ? (
+                            <p className="store-skills-loading">Đang tải vị trí...</p>
+                          ) : skills.length === 0 ? (
+                            <p className="store-skills-empty">Chưa có vị trí nào. Thêm vị trí đầu tiên!</p>
+                          ) : (
+                            <div className="store-skills-list">
+                              {skills.map((sk) => {
+                                const skColor = getSkillColor(sk);
+                                const isEditingColor = editingSkillId === sk.id;
+                                return (
+                                  <div className="store-skill-item" key={sk.id}>
+                                    <div
+                                      className="store-skill-dot"
+                                      style={{ backgroundColor: skColor }}
+                                    />
+                                    <span className="store-skill-name">{sk.name}</span>
+                                    <div className="store-skill-item-actions">
+                                      {isEditingColor ? (
+                                        <>
+                                          <ColorPicker
+                                            value={editingSkillColor}
+                                            onChange={setEditingSkillColor}
+                                          />
+                                          <button
+                                            className="store-skill-save-color"
+                                            onClick={() => handleSaveSkillColor(s.id, sk.id)}
+                                          >
+                                            Lưu
+                                          </button>
+                                          <button
+                                            className="store-skill-cancel"
+                                            onClick={() => setEditingSkillId(null)}
+                                          >
+                                            Huỷ
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <button
+                                          className="store-skill-edit-color"
+                                          onClick={() => {
+                                            setEditingSkillId(sk.id);
+                                            setEditingSkillColor(skColor);
+                                          }}
+                                          title="Đổi màu"
+                                        >
+                                          🎨
+                                        </button>
+                                      )}
+                                      <button
+                                        className="store-skill-delete"
+                                        onClick={() => handleDeleteSkill(s.id, sk.id, sk.name)}
+                                        title="Xoá vị trí"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       )}
 
-                      {/* Skills list */}
-                      {skillsLoading ? (
-                        <p className="store-skills-loading">Đang tải vị trí...</p>
-                      ) : skills.length === 0 ? (
-                        <p className="store-skills-empty">Chưa có vị trí nào. Thêm vị trí đầu tiên!</p>
-                      ) : (
-                        <div className="store-skills-list">
-                          {skills.map((sk) => {
-                            const skColor = getSkillColor(sk);
-                            const isEditingColor = editingSkillId === sk.id;
-                            return (
-                              <div className="store-skill-item" key={sk.id}>
-                                <div
-                                  className="store-skill-dot"
-                                  style={{ backgroundColor: skColor }}
-                                />
-                                <span className="store-skill-name">{sk.name}</span>
-                                <div className="store-skill-item-actions">
-                                  {isEditingColor ? (
-                                    <>
-                                      <ColorPicker
-                                        value={editingSkillColor}
-                                        onChange={setEditingSkillColor}
-                                      />
-                                      <button
-                                        className="store-skill-save-color"
-                                        onClick={() => handleSaveSkillColor(s.id, sk.id)}
-                                      >
-                                        Lưu
-                                      </button>
-                                      <button
-                                        className="store-skill-cancel"
-                                        onClick={() => setEditingSkillId(null)}
-                                      >
-                                        Huỷ
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      className="store-skill-edit-color"
-                                      onClick={() => {
-                                        setEditingSkillId(sk.id);
-                                        setEditingSkillColor(skColor);
-                                      }}
-                                      title="Đổi màu"
-                                    >
-                                      🎨
-                                    </button>
-                                  )}
-                                  <button
-                                    className="store-skill-delete"
-                                    onClick={() => handleDeleteSkill(s.id, sk.id, sk.name)}
-                                    title="Xoá vị trí"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
+                      {currentTab === 'spatial' && (
+                        <div className="store-spatial-panel" style={{ padding: '20px', background: '#fafafa' }}>
+                          <Store3DManager storeId={s.id} storeName={s.name} showToast={showToast} />
                         </div>
                       )}
                     </div>

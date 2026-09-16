@@ -4,6 +4,8 @@ export const getMyAvailability = () => api.get('/availability');
 
 export const getStaffAvailability = (userId) => api.get(`/availability/users/${userId}`);
 
+export const getStoreStaffAvailability = (storeId) => api.get(`/availability/stores/${storeId}`);
+
 export const createAvailability = (data) => api.post('/availability', data);
 
 export const updateAvailability = (id, data) => api.put(`/availability/${id}`, data);

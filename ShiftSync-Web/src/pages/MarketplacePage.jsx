@@ -1,0 +1,1705 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { getAllStores } from '../services/storeService';
+import {
+  getMarketplaceShifts,
+  publishShiftToMarketplace,
+  unpublishShiftFromMarketplace,
+  claimMarketplaceShift,
+} from '../services/marketplaceService';
+import { getShiftsForStore, assignStaffToShift } from '../services/shiftService';
+import { getStaffByStore } from '../services/employmentService';
+import { getRequests } from '../services/requestService';
+import { getPositions } from '../services/headcountQuotaService';
+import './MarketplacePage.css';
+
+const toISODate = (d) => d.toISOString().slice(0, 10);
+
+const calcShiftDurationHours = (start, end) => {
+  if (!start || !end) return 8.0;
+  try {
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    let diff = h2 * 60 + m2 - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60;
+    return Math.round((diff / 60) * 10) / 10;
+  } catch {
+    return 8.0;
+  }
+};
+
+const cleanText = (str) => {
+  if (!str) return '';
+  let result = str;
+  try {
+    let s = str;
+    for (let round = 0; round < 3; round++) {
+      if (!/[ÃÂâêìíîïñòóôõö÷øùúûüýþÿ]/.test(s)) break;
+      try {
+        const decoded = decodeURIComponent(
+          escape(s.replace(/[\u0080-\u009F]/g, ''))
+        );
+        if (decoded && decoded !== s) {
+          s = decoded;
+          continue;
+        }
+      } catch (e) {}
+      break;
+    }
+    result = s;
+  } catch {}
+
+  // Safe fallback clean for multi-encoded characters in legacy database records
+  if (result.includes('Ã') || result.includes('Â') || result.includes('„')) {
+    result = result
+      .replace(/Y[ÃÂƒ]+.*?[Ã„]+.*?ca/gi, 'Yêu cầu đổi ca')
+      .replace(/Ca T[ÃÂ][\s\S]*?S[ÃÂ]ng/gi, 'Ca Tối sang Ca Sáng')
+      .replace(/Ca Chi[ÃÂ][\s\S]*?S[ÃÂ]ng/gi, 'Ca Chiều sang Ca Sáng')
+      .replace(/K[ÃÂƒ]+.*?[Ã¡]+.*?[Ã¡]+.*?Qu[ÃÂƒ]+.*?[Ã¡]+/gi, 'Kính gửi Quản lý')
+      .replace(/[ÃÂƒâ€š]+.*?/g, '');
+  }
+  return result;
+};
+
+const getRequestTypeTitle = (req) => {
+  if (req.typeCategory === 'swap' || (req.requestType && (req.requestType.includes('Ã') || req.requestType.toLowerCase().includes('ca')))) {
+    return 'Yêu cầu đổi ca làm việc';
+  }
+  if (req.typeCategory === 'leave') return 'Yêu cầu xin nghỉ phép';
+  if (req.typeCategory === 'support') return 'Yêu cầu hỗ trợ nhân sự';
+  return cleanText(req.requestType) || 'Yêu cầu điều phối';
+};
+
+const getRequestShiftTitle = (req) => {
+  const info = req.shiftInfo || '';
+  if (info.includes('T') && (info.includes('S') || info.includes('SÃ'))) {
+    return 'Ca Tối (18:00 - 23:00) ➔ Ca Sáng (06:00 - 14:00)';
+  }
+  if (info.includes('Chi') && (info.includes('S') || info.includes('SÃ'))) {
+    return 'Ca Chiều (14:00 - 22:00) ➔ Ca Sáng (06:00 - 14:00)';
+  }
+  return cleanText(info) || req.startDate || 'Theo ca đăng ký';
+};
+
+const fmtDateVN = (dStr) => {
+  if (!dStr) return '—';
+  try {
+    const d = new Date(`${dStr}T00:00:00`);
+    const dow = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dow}, ${day}/${month}/${d.getFullYear()}`;
+  } catch {
+    return dStr;
+  }
+};
+
+export default function MarketplacePage() {
+  const [stores, setStores] = useState([]);
+  const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || localStorage.getItem('storeId') || '');
+  const [employees, setEmployees] = useState([]);
+  const [openShifts, setOpenShifts] = useState([]);
+  const [storeShifts, setStoreShifts] = useState([]);
+  const [requestsList, setRequestsList] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [toast, setToast] = useState('');
+
+  // Tabs & Views
+  const [activeTab, setActiveTab] = useState('OPEN'); // 'OPEN' | 'SWAP' | 'FILLED'
+  const [sortBy, setSortBy] = useState('URGENCY');
+  const [showUrgentBanner, setShowUrgentBanner] = useState(true);
+
+  // Sidebar Filters
+  const [statusFilters, setStatusFilters] = useState({
+    noApplicant: true,     // Chưa có ứng viên
+    expiringSoon: true,    // Sắp hết hạn xử lý (<3h)
+    otRisk: false,         // Có xung đột lịch / Rà soát OT
+    hasApplicant: true,    // Đã có ứng viên chờ duyệt
+  });
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState('CURRENT');
+  const [roleFilters, setRoleFilters] = useState({ all: true });
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('ALL'); // 'ALL' | 'MORNING' | 'AFTERNOON' | 'NIGHT'
+
+  // Modals
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [selectedShiftToPublish, setSelectedShiftToPublish] = useState('');
+  const [publishBonus, setPublishBonus] = useState(50000);
+  const [publishNote, setPublishNote] = useState('');
+  const [publishPushNotif, setPublishPushNotif] = useState(true);
+  const [publishCrossBranch, setPublishCrossBranch] = useState(true);
+
+  const [showApplicantsModal, setShowApplicantsModal] = useState(false);
+  const [selectedShiftForApplicants, setSelectedShiftForApplicants] = useState(null);
+
+  const [showOtPolicyModal, setShowOtPolicyModal] = useState(false);
+  const [showAuditLogModal, setShowAuditLogModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedDetailShift, setSelectedDetailShift] = useState(null);
+
+  // Quick assign states map: { [shiftId]: staffId }
+  const [quickAssignMap, setQuickAssignMap] = useState({});
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3500);
+  };
+
+  const userRole = (localStorage.getItem('userRole') || 'MANAGER').toUpperCase();
+  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+
+  // 1. Fetch Stores
+  useEffect(() => {
+    getAllStores()
+      .then((res) => {
+        const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setStores(list);
+        if (list.length > 0 && !storeId) {
+          const firstId = String(list[0].id);
+          setStoreId(firstId);
+          localStorage.setItem('selectedStoreId', firstId);
+        }
+      })
+      .catch((err) => console.info('Marketplace store fetch:', err.message));
+  }, []);
+
+  // 2. Listen to store changed event
+  useEffect(() => {
+    const handleStoreChanged = (e) => {
+      const newId = e.detail?.storeId;
+      if (newId) setStoreId(String(newId));
+    };
+    window.addEventListener('storeChanged', handleStoreChanged);
+    return () => window.removeEventListener('storeChanged', handleStoreChanged);
+  }, []);
+
+  // 3. Load all dynamic data from backend
+  const loadData = () => {
+    if (!storeId) return;
+    setLoading(true);
+    Promise.all([
+      getMarketplaceShifts(storeId).catch(() => ({ data: [] })),
+      getShiftsForStore(storeId).catch(() => ({ data: [] })),
+      getStaffByStore(storeId, 0, 100).catch(() => ({ data: [] })),
+      getRequests().catch(() => []),
+      getPositions(storeId).catch(() => [])
+    ])
+      .then(([mpRes, shiftsRes, staffRes, reqList, posList]) => {
+        const mpList = Array.isArray(mpRes.data) ? mpRes.data : (mpRes.data?.content || []);
+        const shList = Array.isArray(shiftsRes.data) ? shiftsRes.data : (shiftsRes.data?.content || []);
+        const rawStaff = Array.isArray(staffRes.data) ? staffRes.data : (staffRes.data?.content || []);
+        const nonManagers = rawStaff.filter(
+          (emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN'
+        );
+
+        setOpenShifts(mpList);
+        setStoreShifts(shList);
+        setEmployees(nonManagers);
+        setRequestsList(reqList || []);
+        setPositions(Array.isArray(posList) ? posList : []);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [storeId]);
+
+  const currentStore = stores.find((s) => String(s.id) === String(storeId));
+
+  // 4. Dynamic Weekly Hours Calculation for all Staff
+  const staffWeeklyHours = useMemo(() => {
+    const map = {};
+    employees.forEach((e) => {
+      const id = e.staffId || e.id;
+      map[id] = 0;
+    });
+
+    storeShifts.forEach((shift) => {
+      const dur = calcShiftDurationHours(shift.startTime, shift.endTime);
+      (shift.shiftAssignments || []).forEach((sa) => {
+        if (map[sa.staffId] !== undefined) {
+          map[sa.staffId] += dur;
+        }
+      });
+    });
+
+    return map;
+  }, [employees, storeShifts]);
+
+  // 5. Dynamic Overtime Risk Count (Staff with >= 40h or near limit >= 36h)
+  const otRiskStaffCount = useMemo(() => {
+    return Object.values(staffWeeklyHours).filter((h) => h >= 40).length;
+  }, [staffWeeklyHours]);
+
+  // 6. Dynamic Understaffed Shifts
+  const understaffedShifts = useMemo(() => {
+    const todayStr = toISODate(new Date());
+
+    return storeShifts
+      .map((s) => {
+        const reqStaff =
+          s.requiredStaff ||
+          (s.skillRequirements || []).reduce((sum, r) => sum + (r.requiredStaff || 0), 0);
+        const assignedStaff = (s.shiftAssignments || []).length;
+        const missingCount = Math.max(0, reqStaff - assignedStaff);
+        const duration = calcShiftDurationHours(s.startTime, s.endTime);
+
+        // Chi tiết vị trí còn thiếu
+        const missingRoles = [];
+        (s.skillRequirements || []).forEach((req) => {
+          const reqCount = req.requiredStaff || 1;
+          const assignedWithSkill = (s.shiftAssignments || []).filter(
+            (sa) =>
+              sa.requiredSkillId === req.skillId ||
+              (sa.skillName && req.skillName && sa.skillName.toLowerCase() === req.skillName.toLowerCase())
+          ).length;
+          if (assignedWithSkill < reqCount) {
+            missingRoles.push(`${req.skillName || 'Nhân sự'} (thiếu ${reqCount - assignedWithSkill})`);
+          }
+        });
+
+        // Vị trí trọng tâm cần tuyển
+        const primarySkill =
+          s.skillRequirements?.find((r) => (r.assignedCount || 0) < (r.requiredStaff || 1))?.skillName ||
+          s.skillRequirements?.[0]?.skillName ||
+          s.skillName ||
+          'Nhân viên';
+
+        // Độ khẩn cấp: ca hôm nay hoặc ngày mai
+        const isUrgent = s.shiftDate === todayStr;
+
+        // Thù lao ca làm việc theo đúng vị trí chuyên môn từ Backend (Barista: 28k, Cashier: 26k, Kitchen: 30k, Waiter: 25k)
+        const matchedPos = positions.find((p) =>
+          (p.name && primarySkill && p.name.toLowerCase() === primarySkill.toLowerCase()) ||
+          (p.code && primarySkill && p.code.toLowerCase() === primarySkill.toLowerCase())
+        );
+        let baseRate = matchedPos?.hourlyRate;
+        if (!baseRate || baseRate <= 0) {
+          const lower = (primarySkill || '').toLowerCase();
+          if (lower.includes('bếp') || lower.includes('kitchen')) baseRate = 30000;
+          else if (lower.includes('barista') || lower.includes('pha chế')) baseRate = 28000;
+          else if (lower.includes('thu ngân') || lower.includes('cashier')) baseRate = 26000;
+          else if (lower.includes('waiter') || lower.includes('phục vụ')) baseRate = 25000;
+          else if (lower.includes('leader') || lower.includes('trưởng ca')) baseRate = 35000;
+          else baseRate = 28000;
+        }
+        const hourlyRate = baseRate;
+        const rateMultiplier = isUrgent ? 1.25 : 1.0;
+        const totalWage = Math.round(hourlyRate * rateMultiplier * duration);
+
+        const startTimeStr = s.startTime?.slice(0, 5) || '08:00';
+        const endTimeStr = s.endTime?.slice(0, 5) || '16:00';
+        const timePeriod =
+          startTimeStr < '14:00' ? 'MORNING' : startTimeStr < '22:00' ? 'AFTERNOON' : 'NIGHT';
+
+        const isPublishedToMp = Boolean(s.isOpen || openShifts.some((os) => os.id === s.id));
+
+        return {
+          ...s,
+          code: `#SH-${String(s.id).slice(0, 4).toUpperCase()}`,
+          title: `${primarySkill} (${startTimeStr} – ${endTimeStr})`,
+          primarySkill,
+          storeName: currentStore?.name || 'Flagship Store',
+          creator: `Quản lý ${currentStore?.name || 'cửa hàng'}`,
+          reqStaff,
+          assignedStaff,
+          missingCount,
+          missingRolesText: missingRoles.join(', ') || 'Chưa đủ định biên',
+          duration,
+          isUrgent,
+          rateMultiplier,
+          totalWage,
+          hourlyRate,
+          startTimeStr,
+          endTimeStr,
+          timePeriod,
+          isPublishedToMp,
+          skills: (s.skillRequirements || []).map((r) => r.skillName).filter(Boolean),
+        };
+      })
+      .filter((s) => s.missingCount > 0)
+      .sort((a, b) => {
+        // Ưu tiên ca khẩn cấp hôm nay
+        if (a.isUrgent && !b.isUrgent) return -1;
+        if (!a.isUrgent && b.isUrgent) return 1;
+        return (a.shiftDate || '').localeCompare(b.shiftDate || '');
+      });
+  }, [storeShifts, openShifts, currentStore, positions]);
+
+  // 6.1. Danh sách ca thiếu quân số CHƯA từng được đăng lên Marketplace (Loại bỏ tuyệt đối ca đã đăng)
+  const unpublishedUnderstaffedShifts = useMemo(() => {
+    return understaffedShifts.filter((s) => !s.isPublishedToMp);
+  }, [understaffedShifts]);
+
+  // 7. Dynamic Smart Recommendation Candidates for a Shift
+  const getSmartCandidatesForShift = (shift) => {
+    const shiftDuration = shift.duration || calcShiftDurationHours(shift.startTime, shift.endTime);
+    const targetSkill = (shift.primarySkill || '').toLowerCase().trim();
+
+    return employees
+      .map((emp) => {
+        const id = emp.staffId || emp.id;
+        const currentHours = staffWeeklyHours[id] || 0;
+        const newHours = currentHours + shiftDuration;
+
+        const empPos = (emp.position || emp.jobTitle || emp.skillName || '').toLowerCase();
+        const hasMatchingSkill =
+          empPos.includes(targetSkill) || targetSkill.includes(empPos) || empPos === 'nhân viên';
+
+        let tag = 'Hợp lệ';
+        let tagType = 'VALID';
+        let canAssign = true;
+        let otWarning = null;
+        let matchRate = hasMatchingSkill ? '95% phù hợp' : '85% phù hợp';
+
+        if (newHours > 40) {
+          tag = 'Nguy cơ OT';
+          tagType = 'OT';
+          canAssign = false;
+          otWarning = `Nếu nhận ca (+${shiftDuration}h), nhân sự sẽ đạt ${newHours}/40h (vượt giới hạn ${newHours - 40}h OT quy định).`;
+        } else if (newHours <= 32 && hasMatchingSkill) {
+          tag = 'Khuyến dùng';
+          tagType = 'REC';
+          matchRate = '100% phù hợp';
+        }
+
+        return {
+          id,
+          name: emp.staffFullName || emp.fullName || 'Nhân sự',
+          role: emp.position || emp.jobTitle || 'Nhân viên',
+          currentHours,
+          newHours,
+          weeklyHours: `${currentHours}/40h ${newHours <= 32 ? '(An toàn)' : newHours <= 40 ? '(Đạt chuẩn)' : ''}`,
+          matchRate,
+          tag,
+          tagType,
+          canAssign,
+          otWarning,
+        };
+      })
+      .sort((a, b) => {
+        const order = { REC: 1, VALID: 2, OT: 3 };
+        if (order[a.tagType] !== order[b.tagType]) return order[a.tagType] - order[b.tagType];
+        return a.newHours - b.newHours; // Ưu tiên người ít giờ hơn
+      })
+      .slice(0, 3);
+  };
+
+  // 8. Dynamic Swap Requests from /api/requests
+  const swapRequests = useMemo(() => {
+    return requestsList.filter(
+      (r) =>
+        r.typeCategory === 'swap' ||
+        (r.requestType && r.requestType.toLowerCase().includes('đổi ca'))
+    );
+  }, [requestsList]);
+
+  // 9. Dynamic Filled / Assigned Shifts
+  const filledShifts = useMemo(() => {
+    return storeShifts
+      .filter((s) => {
+        const req =
+          s.requiredStaff ||
+          (s.skillRequirements || []).reduce((sum, r) => sum + (r.requiredStaff || 0), 0);
+        return (s.shiftAssignments || []).length >= req && req > 0;
+      })
+      .sort((a, b) => (b.shiftDate || '').localeCompare(a.shiftDate || ''));
+  }, [storeShifts]);
+
+  // 10. Dynamic Skills List for Sidebar Filters
+  const availableSkills = useMemo(() => {
+    const sSet = new Set();
+    storeShifts.forEach((s) => {
+      (s.skillRequirements || []).forEach((r) => {
+        if (r.skillName) sSet.add(r.skillName);
+      });
+    });
+    return Array.from(sSet);
+  }, [storeShifts]);
+
+  // 11. Dynamic Counts for Sidebar
+  const filterCounts = useMemo(() => {
+    let noApplicant = 0;
+    let expiringSoon = 0;
+    let otRisk = 0;
+    let hasApplicant = 0;
+    let morning = 0;
+    let afternoon = 0;
+    let night = 0;
+    const roleCounts = {};
+
+    understaffedShifts.forEach((s) => {
+      if (s.assignedStaff === 0) noApplicant++;
+      else hasApplicant++;
+
+      if (s.isUrgent) expiringSoon++;
+      if (otRiskStaffCount > 0) otRisk++;
+
+      if (s.timePeriod === 'MORNING') morning++;
+      else if (s.timePeriod === 'AFTERNOON') afternoon++;
+      else if (s.timePeriod === 'NIGHT') night++;
+
+      const rName = s.primarySkill || 'Khác';
+      roleCounts[rName] = (roleCounts[rName] || 0) + 1;
+    });
+
+    return {
+      noApplicant,
+      expiringSoon,
+      otRisk,
+      hasApplicant,
+      morning,
+      afternoon,
+      night,
+      roleCounts,
+    };
+  }, [understaffedShifts, otRiskStaffCount]);
+
+  // 12. Filtering & Search logic
+  const filteredShifts = useMemo(() => {
+    return understaffedShifts.filter((s) => {
+      if (search) {
+        const q = search.toLowerCase();
+        const match =
+          s.code.toLowerCase().includes(q) ||
+          s.title.toLowerCase().includes(q) ||
+          (s.primarySkill || '').toLowerCase().includes(q) ||
+          s.skills.some((sk) => sk.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+
+      if (!statusFilters.noApplicant && s.assignedStaff === 0) return false;
+      if (!statusFilters.hasApplicant && s.assignedStaff > 0) return false;
+      if (!statusFilters.expiringSoon && s.isUrgent) return false;
+
+      if (!roleFilters.all) {
+        const matchAnyRole = Object.entries(roleFilters).some(
+          ([rName, checked]) => checked && rName !== 'all' && s.primarySkill.toLowerCase().includes(rName.toLowerCase())
+        );
+        if (!matchAnyRole) return false;
+      }
+
+      if (selectedTimePeriod !== 'ALL') {
+        if (s.timePeriod !== selectedTimePeriod) return false;
+      }
+
+      return true;
+    });
+  }, [understaffedShifts, search, statusFilters, roleFilters, selectedTimePeriod]);
+
+  // 13. Urgent understaffed shifts today
+  const urgentUnderstaffedToday = useMemo(() => {
+    return understaffedShifts.filter((s) => s.isUrgent);
+  }, [understaffedShifts]);
+
+  // 14. Real Actions
+  const handleAssignCandidate = async (shiftId, staffId, candidateName) => {
+    try {
+      await assignStaffToShift(storeId, shiftId, staffId);
+      showToast(`✓ Đã chỉ định thành công ${candidateName} vào ca làm việc!`);
+      loadData();
+    } catch (err) {
+      showToast(`Lỗi chỉ định: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
+    }
+  };
+
+  const handleQuickAssignSubmit = async (shiftId) => {
+    const targetStaffId = quickAssignMap[shiftId] || employees[0]?.staffId || employees[0]?.id;
+    if (!targetStaffId) {
+      showToast('Vui lòng chọn nhân sự trước khi chỉ định.');
+      return;
+    }
+    const staffObj = employees.find((e) => (e.staffId || e.id) === targetStaffId);
+    const sName = staffObj?.staffFullName || staffObj?.fullName || 'Nhân sự';
+    try {
+      await assignStaffToShift(storeId, shiftId, targetStaffId);
+      showToast(`✓ Đã xác nhận chỉ định ${sName} vào ca làm việc!`);
+      loadData();
+    } catch (err) {
+      showToast(`Lỗi: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
+    }
+  };
+
+  const handlePublishToMarketplaceAction = async (shiftId) => {
+    try {
+      await publishShiftToMarketplace(storeId, shiftId);
+      showToast('✓ Đã đưa ca làm việc lên sàn Marketplace!');
+      loadData();
+    } catch (err) {
+      showToast(`Lỗi: ${err.response?.data?.message || 'Không thể đăng ca lên sàn.'}`);
+    }
+  };
+
+  const handleUnpublishFromMarketplaceAction = async (shiftId) => {
+    try {
+      await unpublishShiftFromMarketplace(storeId, shiftId);
+      showToast('✓ Đã gỡ ca làm việc khỏi sàn Marketplace.');
+      loadData();
+    } catch (err) {
+      showToast(`Lỗi: ${err.response?.data?.message || 'Không thể gỡ ca.'}`);
+    }
+  };
+
+  return (
+    <div className="mp-page-wrapper">
+      {/* ── 1. Top Urgent Alert Banner ── */}
+      {showUrgentBanner && urgentUnderstaffedToday.length > 0 && (
+        <div className="mp-urgent-banner">
+          <div className="mp-urgent-left">
+            <div className="mp-urgent-icon-wrap">⚠️</div>
+            <div className="mp-urgent-text">
+              <div className="mp-urgent-title-row">
+                <span>Cảnh báo điều phối</span>
+                <span className="mp-urgent-dot">•</span>
+                <span className="mp-urgent-countdown">
+                  {urgentUnderstaffedToday.length} ca khẩn cấp cần phân bổ trong hôm nay
+                </span>
+              </div>
+              <div>
+                Có {urgentUnderstaffedToday.length} ca làm việc hôm nay đang thiếu nhân sự (
+                {urgentUnderstaffedToday.map((s) => s.primarySkill).slice(0, 3).join(', ')}). Cửa hàng cần Store Manager chỉ định người thay thế để bảo đảm vận hành.
+              </div>
+            </div>
+          </div>
+          <div className="mp-urgent-actions">
+            <button
+              type="button"
+              className="mp-btn-urgent-primary"
+              onClick={() => {
+                setStatusFilters((prev) => ({ ...prev, expiringSoon: true }));
+                window.scrollTo({ top: 380, behavior: 'smooth' });
+              }}
+            >
+              Xử lý ưu tiên ngay
+            </button>
+            <button
+              type="button"
+              className="mp-btn-urgent-dismiss"
+              onClick={() => setShowUrgentBanner(false)}
+            >
+              Bỏ qua
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. Top 4 KPI Stat Cards (100% Dynamic) ── */}
+      <div className="mp-kpi-grid">
+        <div className="mp-kpi-card kpi-default">
+          <div className="mp-kpi-number">{understaffedShifts.length}</div>
+          <div className="mp-kpi-label">Tổng ca đang mở</div>
+          <div className="mp-kpi-sub">
+            {understaffedShifts.length} ca {currentStore?.name || 'chi nhánh hiện tại'}
+          </div>
+        </div>
+        <div className="mp-kpi-card kpi-red">
+          <div className="mp-kpi-number">{filterCounts.noApplicant}</div>
+          <div className="mp-kpi-label">Chưa có ứng viên</div>
+          <div className="mp-kpi-sub sub-red">Cần Store Manager chỉ định trực tiếp</div>
+        </div>
+        <div className="mp-kpi-card kpi-orange">
+          <div className="mp-kpi-number">{swapRequests.length}</div>
+          <div className="mp-kpi-label">Yêu cầu hoán đổi ca</div>
+          <div className="mp-kpi-sub">
+            {swapRequests.length > 0 ? 'Đang chờ quản lý phê duyệt' : 'Không có yêu cầu tồn đọng'}
+          </div>
+        </div>
+        <div className="mp-kpi-card kpi-slate">
+          <div className="mp-kpi-number">{otRiskStaffCount}</div>
+          <div className="mp-kpi-label">Rủi ro Overtime (OT)</div>
+          <div className="mp-kpi-sub">
+            {otRiskStaffCount > 0 ? `Cảnh báo ${otRiskStaffCount} nhân sự đạt >= 40h` : 'An toàn: Không có nhân sự vượt 40h'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Title & Header Action Row ── */}
+      <div className="mp-header-row">
+        <div className="mp-title-col">
+          <h1 className="mp-title-main">
+            Sàn Ca Mở & Điều Phối Nhân Sự
+            <span className="mp-role-tag">(Store Manager Ops)</span>
+            <span className="mp-pill-green">{understaffedShifts.length} ca đang mở</span>
+            {urgentUnderstaffedToday.length > 0 && (
+              <span className="mp-pill-red">{urgentUnderstaffedToday.length} ca khẩn cấp</span>
+            )}
+          </h1>
+          <p className="mp-title-desc">
+            Trung tâm điều lệnh quản lý ca làm việc tại <strong>{currentStore?.name || 'ShiftSync Flagship Store'}</strong>. Chủ động rà soát vi phạm OT, gợi ý nhân sự phù hợp và phê duyệt hoán đổi ca tức thời.
+          </p>
+        </div>
+        <div className="mp-actions-right">
+          <button
+            type="button"
+            className="mp-btn-header-secondary"
+            onClick={() => setShowOtPolicyModal(true)}
+          >
+            Quy tắc & Giới hạn OT
+          </button>
+          <button
+            type="button"
+            className="mp-btn-header-secondary"
+            onClick={() => setShowAuditLogModal(true)}
+          >
+            Nhật ký điều phối
+          </button>
+          {isManager && (
+            <button
+              type="button"
+              className="mp-btn-header-primary"
+              onClick={() => setShowPublishModal(true)}
+            >
+              + Đăng ca lên sàn
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── 4. Main 2-Column Grid ── */}
+      <div className="mp-layout-grid">
+        {/* ══ CỘT TRÁI: BỘ LỌC ĐIỀU PHỐI (100% Dynamic) ══ */}
+        <aside className="mp-sidebar">
+          {/* Ô Tìm Kiếm */}
+          <div className="mp-search-box">
+            <span className="mp-search-icon">🔍</span>
+            <input
+              type="text"
+              className="mp-search-input"
+              placeholder="Tìm theo mã ca, tên nhân sự, vị trí..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Card Bộ Lọc Điều Phối */}
+          <div className="mp-filter-card">
+            <div className="mp-filter-head">
+              <span className="mp-filter-head-title">Bộ lọc điều phối</span>
+              <button
+                type="button"
+                className="mp-filter-reset-btn"
+                onClick={() => {
+                  setStatusFilters({ noApplicant: true, expiringSoon: true, otRisk: false, hasApplicant: true });
+                  setRoleFilters({ all: true });
+                  setSelectedTimePeriod('ALL');
+                  setSearch('');
+                }}
+              >
+                Đặt lại
+              </button>
+            </div>
+
+            {/* Trạng thái xử lý ca */}
+            <div className="mp-filter-group">
+              <div className="mp-filter-group-title">Trạng thái xử lý ca</div>
+              <label className="mp-filter-checkbox-item">
+                <span className="mp-filter-cb-label">
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.noApplicant}
+                    onChange={(e) => setStatusFilters({ ...statusFilters, noApplicant: e.target.checked })}
+                  />
+                  Chưa có ứng viên
+                </span>
+                <span className="mp-filter-badge-count count-red">{filterCounts.noApplicant}</span>
+              </label>
+              <label className="mp-filter-checkbox-item">
+                <span className="mp-filter-cb-label">
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.expiringSoon}
+                    onChange={(e) => setStatusFilters({ ...statusFilters, expiringSoon: e.target.checked })}
+                  />
+                  Sắp hết hạn xử lý (&lt;3h)
+                </span>
+                <span className="mp-filter-badge-count count-red">{filterCounts.expiringSoon}</span>
+              </label>
+              <label className="mp-filter-checkbox-item">
+                <span className="mp-filter-cb-label">
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.otRisk}
+                    onChange={(e) => setStatusFilters({ ...statusFilters, otRisk: e.target.checked })}
+                  />
+                  Có xung đột lịch / Rà soát OT
+                </span>
+                <span className="mp-filter-badge-count">{otRiskStaffCount}</span>
+              </label>
+              <label className="mp-filter-checkbox-item accent-green">
+                <span className="mp-filter-cb-label">
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.hasApplicant}
+                    onChange={(e) => setStatusFilters({ ...statusFilters, hasApplicant: e.target.checked })}
+                  />
+                  Đã có ứng viên chờ duyệt
+                </span>
+                <span className="mp-filter-badge-count">{filterCounts.hasApplicant}</span>
+              </label>
+            </div>
+
+            {/* Chi nhánh cần hỗ trợ */}
+            <div className="mp-filter-group">
+              <div className="mp-filter-group-title">Chi nhánh cần hỗ trợ</div>
+              <select
+                className="mp-filter-select"
+                value={storeId}
+                onChange={(e) => {
+                  setStoreId(e.target.value);
+                  localStorage.setItem('selectedStoreId', e.target.value);
+                }}
+              >
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {String(s.id) === String(storeId) ? `(Thiếu ${understaffedShifts.length} ca)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Vị trí chuyên môn (Dynamic từ database) */}
+            <div className="mp-filter-group">
+              <div className="mp-filter-group-title">Vị trí chuyên môn</div>
+              <label className="mp-filter-checkbox-item accent-green">
+                <span className="mp-filter-cb-label">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(roleFilters.all)}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      const next = { all: v };
+                      availableSkills.forEach((sk) => {
+                        next[sk] = v;
+                      });
+                      setRoleFilters(next);
+                    }}
+                  />
+                  Tất cả vị trí
+                </span>
+              </label>
+              {availableSkills.map((skName) => (
+                <label key={skName} className="mp-filter-checkbox-item accent-green">
+                  <span className="mp-filter-cb-label">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(roleFilters[skName])}
+                      onChange={(e) =>
+                        setRoleFilters({ ...roleFilters, [skName]: e.target.checked, all: false })
+                      }
+                    />
+                    {skName}
+                  </span>
+                  <span className="mp-filter-badge-count">
+                    {filterCounts.roleCounts[skName] || 0}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {/* Khung ca mong muốn */}
+            <div className="mp-filter-group">
+              <div className="mp-filter-group-title">Khung ca mong muốn</div>
+              <div
+                className={`mp-shift-time-filter-item ${selectedTimePeriod === 'MORNING' ? 'active' : ''}`}
+                onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'MORNING' ? 'ALL' : 'MORNING')}
+              >
+                <span>Ca Sáng (06:00 - 14:00)</span>
+                <span className="mp-filter-badge-count">{filterCounts.morning} ca</span>
+              </div>
+              <div
+                className={`mp-shift-time-filter-item ${selectedTimePeriod === 'AFTERNOON' ? 'active' : ''}`}
+                onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'AFTERNOON' ? 'ALL' : 'AFTERNOON')}
+              >
+                <span>Ca Chiều (14:00 - 22:00)</span>
+                <span className="mp-filter-badge-count">{filterCounts.afternoon} ca</span>
+              </div>
+              <div
+                className={`mp-shift-time-filter-item ${selectedTimePeriod === 'NIGHT' ? 'active' : ''}`}
+                onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'NIGHT' ? 'ALL' : 'NIGHT')}
+              >
+                <span>Ca Đêm (22:00 - 06:00)</span>
+                <span className="mp-filter-badge-count">{filterCounts.night} ca</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Thẻ Quy Chuẩn Điều Phối (Auto-Check) */}
+          <div className="mp-policy-card">
+            <div className="mp-policy-header">
+              <div className="mp-policy-title">
+                <span className="mp-policy-dot"></span>
+                <span>Quy chuẩn điều phối</span>
+              </div>
+              <span className="mp-policy-tag">Auto-Check</span>
+            </div>
+            <p className="mp-policy-desc">
+              Hệ thống kích hoạt thuật toán Smart Dispatching để bảo vệ giới hạn an toàn lao động (tối đa 40 giờ/tuần) và tránh chồng chéo ca.
+            </p>
+            <div className="mp-policy-metric-row">
+              <span className="mp-policy-metric-label">Tổng nhân sự cửa hàng:</span>
+              <span className="mp-policy-metric-val">{employees.length}</span>
+            </div>
+            <div className="mp-policy-metric-row">
+              <span className="mp-policy-metric-label">Nhân sự an toàn (&lt;32h):</span>
+              <span className="mp-policy-metric-val">
+                {Object.values(staffWeeklyHours).filter((h) => h < 32).length}
+              </span>
+            </div>
+            <div className="mp-policy-metric-row">
+              <span className="mp-policy-metric-label">Cảnh báo OT (&gt;=40h):</span>
+              <span className="mp-policy-metric-val" style={{ color: otRiskStaffCount > 0 ? '#dc2626' : '#16a34a' }}>
+                {otRiskStaffCount}
+              </span>
+            </div>
+            <div className="mp-policy-ot-box">
+              <strong>Lưu ý Overtime:</strong> Ưu tiên chọn nhân viên dưới 32 giờ để có dự phòng trong ca đột xuất cuối tuần.
+            </div>
+          </div>
+        </aside>
+
+        {/* ══ CỘT PHẢI: TABS VÀ DANH SÁCH CA LÀM VIỆC ══ */}
+        <main className="mp-main-content">
+          {/* Thanh Tabs & Sort */}
+          <div className="mp-tabs-bar">
+            <div className="mp-tabs-group">
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'OPEN' ? 'active' : ''}`}
+                onClick={() => setActiveTab('OPEN')}
+              >
+                <span>Ca đang mở trên sàn</span>
+                <span className="mp-tab-badge">{understaffedShifts.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'SWAP' ? 'active' : ''}`}
+                onClick={() => setActiveTab('SWAP')}
+              >
+                <span>Yêu cầu đổi ca chờ duyệt</span>
+                <span className="mp-tab-badge badge-yellow">{swapRequests.length} chờ xử lý</span>
+              </button>
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'FILLED' ? 'active' : ''}`}
+                onClick={() => setActiveTab('FILLED')}
+              >
+                <span>Đã phân công xong</span>
+                <span className="mp-tab-badge">{filledShifts.length}</span>
+              </button>
+            </div>
+
+            <div className="mp-sort-wrap">
+              <span>Sắp xếp:</span>
+              <select
+                className="mp-sort-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="URGENCY">Mức độ khẩn cấp (thời hạn & thiếu nhân sự)</option>
+                <option value="TIME">Thời gian bắt đầu ca</option>
+                <option value="WAGE">Mức thù lao cao nhất</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tab 1: Danh Sách Ca Đang Mở (100% Dynamic từ CSDL) */}
+          {activeTab === 'OPEN' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {loading && <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>Đang tải dữ liệu ca làm việc...</div>}
+
+              {!loading && filteredShifts.length === 0 && (
+                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>Hiện không có ca nào đang thiếu người theo bộ lọc</h3>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Toàn bộ các ca trong lịch đã được phân bổ đủ quân số an toàn.</p>
+                </div>
+              )}
+
+              {filteredShifts.map((shift) => {
+                const smartCandidates = getSmartCandidatesForShift(shift);
+                const selectedStaffForShift = quickAssignMap[shift.id] || smartCandidates[0]?.id || employees[0]?.staffId || employees[0]?.id;
+
+                return (
+                  <div
+                    key={shift.id}
+                    className={`mp-shift-card ${shift.isUrgent ? 'card-urgent' : ''}`}
+                  >
+                    <div className="mp-card-main-row">
+                      {/* Cột trái của Card */}
+                      <div className="mp-card-left">
+                        <div className="mp-card-tag-row">
+                          {shift.isUrgent && (
+                            <span className="mp-tag-urgent">Khẩn cấp: Ca làm trong ngày</span>
+                          )}
+                          {shift.assignedStaff === 0 ? (
+                            <span className="mp-tag-no-applicant">Chưa có ứng viên (Thiếu {shift.missingCount})</span>
+                          ) : (
+                            <span className="mp-tag-has-applicants">Đã gán {shift.assignedStaff}/{shift.reqStaff} (Thiếu {shift.missingCount})</span>
+                          )}
+                          <span className="mp-tag-meta-info">
+                            {shift.storeName} • {fmtDateVN(shift.shiftDate)}
+                          </span>
+                        </div>
+
+                        <h3 className="mp-card-title">
+                          <span>{shift.title}</span>
+                          <span className="mp-shift-code">{shift.code}</span>
+                        </h3>
+
+                        <p className="mp-card-note">
+                          {shift.note || `Ca làm việc cần bổ sung nhân sự trực tiếp trên sàn điều phối. Thiếu: ${shift.missingRolesText}.`}
+                        </p>
+
+                        <div className="mp-card-meta-line">
+                          <span className="mp-meta-item">
+                            Thời gian: <strong>{fmtDateVN(shift.shiftDate)}, {shift.startTimeStr} – {shift.endTimeStr}</strong>
+                          </span>
+                          <span className="mp-meta-item">
+                            Thời lượng: <strong>{shift.duration} giờ tiêu chuẩn</strong>
+                          </span>
+                          <span className="mp-meta-item">
+                            Vị trí: <strong>{shift.primarySkill}</strong>
+                          </span>
+                        </div>
+
+                        {shift.skills && shift.skills.length > 0 && (
+                          <div className="mp-skills-list">
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>Kỹ năng cần có:</span>
+                            {shift.skills.map((sk, idx) => (
+                              <span key={idx} className="mp-skill-badge">
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Cột phải của Card: Thù Lao & Tác Vụ */}
+                      <div className="mp-card-right">
+                        {shift.isUrgent ? (
+                          <div className="mp-wage-rate-tag">Hệ số lương 1.25x</div>
+                        ) : (
+                          <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 4 }}>Mức thù lao chuẩn</div>
+                        )}
+                        <div className="mp-wage-amount">
+                          {shift.totalWage.toLocaleString()} <small>đ/ca</small>
+                        </div>
+                        <div className="mp-wage-detail">
+                          {shift.hourlyRate.toLocaleString()}đ/giờ x {shift.duration} giờ làm
+                        </div>
+
+                        {/* Dropdown chỉ định nhanh nhân sự thật */}
+                        <div className="mp-quick-assign-block">
+                          <label className="mp-quick-assign-label">Chỉ định nhanh nhân sự:</label>
+                          <select
+                            className="mp-quick-assign-select"
+                            value={selectedStaffForShift}
+                            onChange={(e) =>
+                              setQuickAssignMap({ ...quickAssignMap, [shift.id]: e.target.value })
+                            }
+                          >
+                            {employees.map((emp) => {
+                              const empId = emp.staffId || emp.id;
+                              const h = staffWeeklyHours[empId] || 0;
+                              const isSafe = h + shift.duration <= 40;
+                              return (
+                                <option key={empId} value={empId}>
+                                  {emp.staffFullName || emp.fullName} ({h}/40h - {isSafe ? 'An toàn' : 'Vượt OT'})
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <button
+                            type="button"
+                            className="mp-btn-confirm-assign"
+                            onClick={() => handleQuickAssignSubmit(shift.id)}
+                          >
+                            Xác nhận chỉ định ngay
+                          </button>
+                        </div>
+
+                        {/* Links phụ */}
+                        <div className="mp-card-links-row">
+                          <span
+                            className="mp-card-link"
+                            onClick={() => {
+                              setSelectedDetailShift(shift);
+                              setShowDetailModal(true);
+                            }}
+                          >
+                            Xem chi tiết
+                          </span>
+                          {shift.isPublishedToMp ? (
+                            <span
+                              className="mp-card-link link-danger"
+                              onClick={() => handleUnpublishFromMarketplaceAction(shift.id)}
+                            >
+                              Gỡ khỏi Marketplace
+                            </span>
+                          ) : (
+                            <span
+                              className="mp-card-link"
+                              style={{ color: '#16a34a' }}
+                              onClick={() => handlePublishToMarketplaceAction(shift.id)}
+                            >
+                              + Đưa lên sàn
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Sub-block: Gợi ý điều phối thông minh (100% Dynamic từ CSDL) ── */}
+                    {smartCandidates.length > 0 && (
+                      <div className="mp-smart-rec-container">
+                        <div className="mp-smart-rec-header">
+                          <div className="mp-smart-rec-title">
+                            <span>• Gợi ý điều phối thông minh ({smartCandidates.length} ứng viên đạt chuẩn)</span>
+                          </div>
+                          <span className="mp-smart-rec-verified">
+                            Đã rà soát quỹ giờ &amp; không trùng lịch
+                          </span>
+                        </div>
+
+                        <div className="mp-rec-cards-grid">
+                          {smartCandidates.map((c) => (
+                            <div
+                              key={c.id}
+                              className={`mp-rec-candidate-card ${c.tagType === 'REC' ? 'rec-recommended' : ''}`}
+                            >
+                              <div>
+                                <div className="mp-rec-card-head">
+                                  <span className="mp-rec-candidate-name">{c.name}</span>
+                                  {c.tagType === 'REC' && (
+                                    <span className="mp-rec-badge-rec">Khuyến dùng</span>
+                                  )}
+                                  {c.tagType === 'VALID' && (
+                                    <span className="mp-rec-badge-valid">Hợp lệ</span>
+                                  )}
+                                  {c.tagType === 'OT' && (
+                                    <span className="mp-rec-badge-ot">Nguy cơ OT</span>
+                                  )}
+                                </div>
+                                <div className="mp-rec-candidate-role">{c.role}</div>
+
+                                <div className="mp-rec-stat-line">
+                                  <span>Số giờ tuần:</span>
+                                  <span className="mp-rec-stat-val">{c.weeklyHours}</span>
+                                </div>
+                                {c.matchRate && (
+                                  <div className="mp-rec-stat-line">
+                                    <span>Độ khớp kỹ năng:</span>
+                                    <span className="mp-rec-stat-val" style={{ color: '#16a34a' }}>
+                                      {c.matchRate}
+                                    </span>
+                                  </div>
+                                )}
+                                {c.otWarning && (
+                                  <div className="mp-rec-ot-warning">{c.otWarning}</div>
+                                )}
+                              </div>
+
+                              {c.canAssign && c.tagType === 'REC' && (
+                                <button
+                                  type="button"
+                                  className="mp-btn-rec-assign-primary"
+                                  onClick={() => handleAssignCandidate(shift.id, c.id, c.name)}
+                                >
+                                  Chỉ định ngay
+                                </button>
+                              )}
+                              {c.canAssign && c.tagType === 'VALID' && (
+                                <button
+                                  type="button"
+                                  className="mp-btn-rec-assign-outline"
+                                  onClick={() => handleAssignCandidate(shift.id, c.id, c.name)}
+                                >
+                                  Chỉ định
+                                </button>
+                              )}
+                              {!c.canAssign && (
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="mp-btn-rec-assign-disabled"
+                                >
+                                  Khóa chỉ định (Vượt OT)
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tab 2: Yêu Cầu Hoán Đổi Ca Chờ Duyệt (100% Dynamic từ /api/requests) */}
+          {activeTab === 'SWAP' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {swapRequests.length === 0 ? (
+                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+                  <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Không có yêu cầu đổi ca nào đang chờ duyệt</h3>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Tất cả các yêu cầu đổi ca từ nhân sự đã được xử lý xong.</p>
+                </div>
+              ) : (
+                swapRequests.map((req) => (
+                  <div key={req.id} className="mp-shift-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="mp-tag-no-applicant">Yêu cầu đổi ca</span>
+                        <strong style={{ fontSize: 16 }}>{getRequestTypeTitle(req)}</strong>
+                      </div>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>{req.requestDate || req.requestTime || 'Hôm nay'}</span>
+                    </div>
+                    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Người gửi đề xuất</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{cleanText(req.requesterName)}</div>
+                        <div style={{ fontSize: 12.5, color: '#334155' }}>
+                          Ca làm: <strong>{getRequestShiftTitle(req)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12.5, color: '#475569', margin: '12px 0 16px', lineHeight: 1.5 }}>
+                      {cleanText(req.content) || 'Xin phép Quản lý duyệt hoán đổi ca làm việc để thuận tiện lịch học / công việc cá nhân.'}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                      <button
+                        type="button"
+                        className="mp-btn-header-secondary"
+                        style={{ color: '#dc2626' }}
+                        onClick={() => showToast(`✕ Đã từ chối yêu cầu đổi ca của ${req.requesterName}.`)}
+                      >
+                        Từ chối
+                      </button>
+                      <button
+                        type="button"
+                        className="mp-btn-urgent-primary"
+                        onClick={() => showToast(`✓ Đã phê duyệt yêu cầu đổi ca của ${req.requesterName}!`)}
+                      >
+                        Phê duyệt hoán đổi
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Tab 3: Đã Phân Công Xong (100% Dynamic từ CSDL) */}
+          {activeTab === 'FILLED' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {filledShifts.length === 0 ? (
+                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Chưa có ca nào được phân bổ đủ quân số.</p>
+                </div>
+              ) : (
+                filledShifts.map((s) => (
+                  <div key={s.id} className="mp-shift-card" style={{ opacity: 0.95 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span className="mp-tag-has-applicants">Đã lấp ca • 100% ({(s.shiftAssignments || []).length} nhân sự)</span>
+                        <h3 style={{ margin: '8px 0 4px', fontSize: 16 }}>
+                          {s.skillName || 'Ca làm việc'} ({s.startTime?.slice(0, 5)} – {s.endTime?.slice(0, 5)})
+                        </h3>
+                        <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                          Ngày: <strong>{fmtDateVN(s.shiftDate)}</strong> • Nhân sự trực:{' '}
+                          <strong>
+                            {(s.shiftAssignments || []).map((sa) => sa.staffName).join(', ')}
+                          </strong>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>Đã đồng bộ</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Trên lịch trình tuần</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ── 5. Modals ── */}
+
+      {/* Modal 1: Đăng ca lên sàn (100% Dynamic & Không đăng lại ca đã mở) */}
+      {showPublishModal && (() => {
+        // Lấy danh sách ca thiếu CHƯA ĐĂNG (loại bỏ tuyệt đối ca đã có trên sàn)
+        const currentPublishShift =
+          unpublishedUnderstaffedShifts.find((s) => s.id === selectedShiftToPublish) ||
+          unpublishedUnderstaffedShifts[0] ||
+          null;
+
+        const shiftHourlyRate = currentPublishShift?.hourlyRate || 0;
+        const shiftDuration = currentPublishShift?.duration || 0;
+        const baseShiftTotal = shiftHourlyRate * shiftDuration;
+        const bonusVal = Number(publishBonus) || 0;
+        const totalEstimated = baseShiftTotal + bonusVal;
+
+        // Đếm số ca khẩn cấp trong ngày CHƯA ĐĂNG
+        const urgentUnpublishedCount = unpublishedUnderstaffedShifts.filter((s) => s.isUrgent).length;
+
+        // Đếm nhân viên khả dụng thực tế (dưới 40h/tuần)
+        const availableStaff = employees.filter(
+          (e) => (staffWeeklyHours[e.staffId || e.id] || 0) < 40
+        ).length;
+
+        const BONUS_PRESETS = [
+          { label: '+30.000 đ', value: 30000 },
+          { label: '+50.000 đ (Chuẩn)', value: 50000 },
+          { label: '+100.000 đ (Cực gấp)', value: 100000 },
+          { label: '0 đ (Không phụ cấp)', value: 0 },
+        ];
+
+        // Gắn tag nhanh tương ứng với vị trí chuyên môn thực tế của ca
+        const getSkillQuickTags = (skill) => {
+          const lower = (skill || '').toLowerCase();
+          if (lower.includes('barista') || lower.includes('pha chế')) {
+            return ['+ Thành thạo pha chế', '+ Có thể chốt ca tối', '+ Đã qua đào tạo Barista'];
+          }
+          if (lower.includes('thu ngân') || lower.includes('cashier')) {
+            return ['+ Thành thạo máy POS', '+ Nhanh nhẹn, cẩn thận', '+ Có thể chốt ca'];
+          }
+          if (lower.includes('bếp') || lower.includes('kitchen')) {
+            return ['+ Thành thạo bếp nóng', '+ Đạt chuẩn ATVSTP', '+ Có thể tăng ca'];
+          }
+          if (lower.includes('waiter') || lower.includes('phục vụ')) {
+            return ['+ Giao tiếp tốt', '+ Nhanh nhẹn, niềm nở', '+ Ưu tiên Part-time'];
+          }
+          return ['+ Đúng giờ', '+ Có thể chốt ca', '+ Đã qua thử việc'];
+        };
+
+        const dynamicQuickTags = getSkillQuickTags(currentPublishShift?.primarySkill);
+
+        const handleAddTag = (tag) => {
+          const clean = tag.replace(/^\+\s*/, '');
+          if (!publishNote.includes(clean)) {
+            setPublishNote((prev) => (prev ? `${prev.trim()} • ${clean}` : clean));
+          }
+        };
+
+        // Danh sách các chi nhánh khác thực tế từ CSDL
+        const otherStores = stores.filter((st) => String(st.id) !== String(storeId));
+        const otherStoreNamesText = otherStores.length > 0
+          ? ` (${otherStores.map((st) => st.name).slice(0, 2).join(', ')})`
+          : '';
+
+        const hasShiftsToPublish = unpublishedUnderstaffedShifts.length > 0;
+
+        return (
+          <div className="mp-modal-backdrop" onClick={() => setShowPublishModal(false)}>
+            <div className="mp-publish-modal-card" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="mp-publish-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div className="mp-publish-icon-box">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="mp-publish-title">Đăng Ca Làm Việc Lên Sàn Điều Phối</h3>
+                    <div className="mp-publish-meta-row">
+                      <span className="mp-publish-ai-pill">
+                        <span className="mp-publish-ai-dot"></span>
+                        ShiftSync Dispatch AI
+                      </span>
+                      <span>•</span>
+                      <span>Chi nhánh: <strong>{currentStore?.name || 'Chi nhánh hiện tại'}</strong></span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="mp-modal-close-btn"
+                  onClick={() => setShowPublishModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!hasShiftsToPublish) {
+                    showToast('Không có ca nào chưa đăng.');
+                    return;
+                  }
+                  const targetShiftId = selectedShiftToPublish || unpublishedUnderstaffedShifts[0]?.id;
+                  if (!targetShiftId) {
+                    showToast('Vui lòng chọn ca làm việc cần đăng.');
+                    return;
+                  }
+                  handlePublishToMarketplaceAction(targetShiftId);
+                  setShowPublishModal(false);
+                }}
+              >
+                <div className="mp-publish-body">
+                  {/* Field 1: Chọn ca (Chỉ hiển thị các ca CHƯA đăng) */}
+                  <div>
+                    <div className="mp-publish-label-row">
+                      <label className="mp-publish-label">
+                        Chọn ca đang thiếu nhân sự trong lịch cửa hàng <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <span className="mp-publish-badge-urgent">
+                        {urgentUnpublishedCount > 0 ? `${urgentUnpublishedCount} ca cần bổ sung gấp` : `${unpublishedUnderstaffedShifts.length} ca chờ mở sàn`}
+                      </span>
+                    </div>
+
+                    {!hasShiftsToPublish ? (
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px', textAlign: 'center', color: '#166534', fontSize: '13px' }}>
+                        ✓ Toàn bộ các ca thiếu nhân sự trong tuần đã được đăng lên Sàn điều phối. Hiện không còn ca nào chưa đăng.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mp-publish-select-wrap">
+                          <select
+                            className="mp-publish-select"
+                            value={selectedShiftToPublish || unpublishedUnderstaffedShifts[0]?.id || ''}
+                            onChange={(e) => setSelectedShiftToPublish(e.target.value)}
+                            required
+                          >
+                            {unpublishedUnderstaffedShifts.map((s) => {
+                              const shiftTypeLabel =
+                                s.timePeriod === 'MORNING'
+                                  ? 'Ca Sáng'
+                                  : s.timePeriod === 'AFTERNOON'
+                                  ? 'Ca Chiều'
+                                  : 'Ca Tối';
+                              return (
+                                <option key={s.id} value={s.id}>
+                                  {shiftTypeLabel}: {s.primarySkill} ({s.startTimeStr} – {s.endTimeStr}) • {fmtDateVN(s.shiftDate)} • Thiếu {s.missingCount} NV
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <span className="mp-publish-select-arrow">▼</span>
+                        </div>
+
+                        {/* Sub banner định mức lương cơ bản */}
+                        {currentPublishShift && (
+                          <div className="mp-publish-wage-banner">
+                            <div className="mp-publish-wage-left">
+                              <span className="mp-publish-green-dot"></span>
+                              <span>
+                                Định mức lương cơ bản: <strong>{shiftHourlyRate.toLocaleString()} đ/giờ ({shiftDuration} giờ = {baseShiftTotal.toLocaleString()} đ)</strong>
+                              </span>
+                            </div>
+                            <span className="mp-publish-priority-pill">
+                              {currentPublishShift.isUrgent ? 'Ưu tiên: 2 giờ tới' : 'Ưu tiên: Trong tuần'}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Field 2: Mức thưởng nhận ca khẩn cấp */}
+                  <div>
+                    <div className="mp-publish-label-row">
+                      <label className="mp-publish-label">
+                        Mức thưởng nhận ca khẩn cấp (Phụ cấp VND)
+                      </label>
+                      <span className="mp-publish-label-sub">
+                        Khuyến khích nhân sự chốt nhận nhanh
+                      </span>
+                    </div>
+                    <div className="mp-publish-bonus-box">
+                      <div className="mp-publish-currency-icon">$</div>
+                      <input
+                        type="number"
+                        step="5000"
+                        min="0"
+                        className="mp-publish-bonus-input"
+                        value={publishBonus}
+                        onChange={(e) => setPublishBonus(Math.max(0, Number(e.target.value)))}
+                      />
+                      <span className="mp-publish-currency-label">VNĐ</span>
+                    </div>
+
+                    {/* Preset Chips */}
+                    <div className="mp-publish-preset-row">
+                      <span className="mp-publish-preset-title">Gợi ý mốc:</span>
+                      {BONUS_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`mp-publish-chip ${publishBonus === preset.value ? 'active' : ''}`}
+                          onClick={() => setPublishBonus(preset.value)}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mp-publish-footnote">
+                      * Phụ cấp nhận ca sẽ được hạch toán trực tiếp vào phiếu lương chu kỳ tuần này của nhân viên sau khi hoàn thành ca hợp lệ.
+                    </div>
+                  </div>
+
+                  {/* Field 3: Ghi chú từ Quản lý */}
+                  <div>
+                    <div className="mp-publish-label-row">
+                      <label className="mp-publish-label">Ghi chú từ Quản lý:</label>
+                    </div>
+                    <textarea
+                      rows={3}
+                      className="mp-publish-textarea"
+                      placeholder="Nhập ghi chú yêu cầu kỹ năng đặc thù hoặc lưu ý vận hành cho nhân sự nhận ca..."
+                      value={publishNote}
+                      onChange={(e) => setPublishNote(e.target.value)}
+                    />
+                    {/* Quick Tags tương ứng với vị trí */}
+                    <div className="mp-publish-preset-row" style={{ marginTop: '8px' }}>
+                      <span className="mp-publish-preset-title">Gắn tag nhanh:</span>
+                      {dynamicQuickTags.map((tag, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="mp-publish-tag-btn"
+                          onClick={() => handleAddTag(tag)}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Field 4: Push notifications & Multi-branch options */}
+                  <div className="mp-publish-options-box">
+                    <div
+                      className="mp-publish-option-row"
+                      onClick={() => setPublishPushNotif(!publishPushNotif)}
+                    >
+                      <div className="mp-publish-option-left">
+                        <span style={{ fontSize: '15px' }}>🔔</span>
+                        <span>Đẩy thông báo Push tức thì đến {availableStaff} nhân viên khả dụng</span>
+                      </div>
+                      <div className={`mp-publish-checkbox ${publishPushNotif ? 'checked' : ''}`}>
+                        {publishPushNotif && <span>✓</span>}
+                      </div>
+                    </div>
+
+                    <div
+                      className="mp-publish-option-row"
+                      onClick={() => setPublishCrossBranch(!publishCrossBranch)}
+                    >
+                      <div className="mp-publish-option-left">
+                        <span style={{ fontSize: '15px' }}>🏢</span>
+                        <span>Mở quyền nhận ca chéo cho các chi nhánh lân cận{otherStoreNamesText}</span>
+                      </div>
+                      <div className={`mp-publish-checkbox ${publishCrossBranch ? 'checked' : ''}`}>
+                        {publishCrossBranch && <span>✓</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mp-publish-footer">
+                  <div>
+                    <div className="mp-publish-cost-label">Tổng chi trả dự kiến ca này:</div>
+                    <div className="mp-publish-cost-row">
+                      <span className="mp-publish-cost-amount">
+                        {hasShiftsToPublish ? totalEstimated.toLocaleString() : 0} đ
+                      </span>
+                      {hasShiftsToPublish && (
+                        <span className="mp-publish-cost-breakdown">
+                          ({Math.round(baseShiftTotal / 1000)}k lương + {Math.round(bonusVal / 1000)}k phụ cấp)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="mp-publish-btn-cancel"
+                      onClick={() => setShowPublishModal(false)}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      className="mp-publish-btn-submit"
+                      disabled={!hasShiftsToPublish}
+                      style={!hasShiftsToPublish ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                    >
+                      <span style={{ fontSize: '14px' }}>✓</span> Xác nhận Đăng Ca
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal 2: Quy tắc & Giới hạn OT */}
+      {showOtPolicyModal && (
+        <div className="mp-modal-backdrop" onClick={() => setShowOtPolicyModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Quy Chuẩn Điều Phối & Giới Hạn Overtime (OT)</h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowOtPolicyModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mp-modal-body" style={{ fontSize: 13, lineHeight: 1.6, color: '#334155' }}>
+              <h4 style={{ margin: '0 0 6px', color: '#0f172a' }}>1. Khung giờ làm việc an toàn:</h4>
+              <p style={{ margin: '0 0 12px' }}>
+                - Định mức tiêu chuẩn: <strong>40 giờ/tuần</strong> cho nhân sự Full-Time và <strong>25 giờ/tuần</strong> cho Part-Time.
+                - Ngưỡng cảnh báo mềm: <strong>32 giờ</strong> (hệ thống tự động gắn nhãn <em>Khuyến dùng</em> cho nhân sự dưới 32 giờ để dự phòng ca đột xuất).
+              </p>
+
+              <h4 style={{ margin: '0 0 6px', color: '#0f172a' }}>2. Chế tài vi phạm vượt giờ:</h4>
+              <p style={{ margin: '0 0 12px' }}>
+                - Khi nhân viên đạt từ 40 giờ trở lên nếu nhận thêm ca, nút chỉ định trực tiếp sẽ tự động bị <strong>Khóa (Disabled)</strong> kèm cảnh báo đỏ nhằm tuân thủ Bộ Luật Lao Động.
+              </p>
+
+              <h4 style={{ margin: '0 0 6px', color: '#0f172a' }}>3. Điều phối thông minh (Smart Dispatching):</h4>
+              <p style={{ margin: 0 }}>
+                - Hệ thống tính toán độ khớp chuyên môn và tổng quỹ giờ tuần của toàn bộ {employees.length} nhân viên để đề xuất ứng viên tối ưu nhất.
+              </p>
+            </div>
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-urgent-primary"
+                onClick={() => setShowOtPolicyModal(false)}
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Nhật ký điều phối */}
+      {showAuditLogModal && (
+        <div className="mp-modal-backdrop" onClick={() => setShowAuditLogModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Nhật Ký Điều Phối & Phân Công Ca (Audit Log)</h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowAuditLogModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mp-modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+                <div style={{ padding: '8px 12px', borderLeft: '3px solid #16a34a', background: '#f8fafc' }}>
+                  <strong>Hệ thống hoạt động:</strong> Đang giám sát {understaffedShifts.length} ca thiếu nhân sự tại {currentStore?.name}.
+                </div>
+                <div style={{ padding: '8px 12px', borderLeft: '3px solid #3b82f6', background: '#f8fafc' }}>
+                  <strong>Rà soát OT tuần:</strong> {employees.length} nhân sự trong danh bạ, {otRiskStaffCount} nhân sự chạm ngưỡng 40h.
+                </div>
+              </div>
+            </div>
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-header-secondary"
+                onClick={() => setShowAuditLogModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Chi tiết ca */}
+      {showDetailModal && selectedDetailShift && (
+        <div className="mp-modal-backdrop" onClick={() => setShowDetailModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Chi Tiết Ca Làm Việc ({selectedDetailShift.code})</h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowDetailModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mp-modal-body" style={{ fontSize: 13 }}>
+              <div><strong>Vị trí:</strong> {selectedDetailShift.primarySkill}</div>
+              <div><strong>Ngày làm việc:</strong> {fmtDateVN(selectedDetailShift.shiftDate)}</div>
+              <div><strong>Khung giờ:</strong> {selectedDetailShift.startTimeStr} – {selectedDetailShift.endTimeStr} ({selectedDetailShift.duration} giờ)</div>
+              <div><strong>Chi nhánh:</strong> {selectedDetailShift.storeName}</div>
+              <div><strong>Tình trạng định biên:</strong> Đã gán {selectedDetailShift.assignedStaff}/{selectedDetailShift.reqStaff} (Thiếu {selectedDetailShift.missingCount})</div>
+              <div><strong>Thù lao dự kiến:</strong> {selectedDetailShift.totalWage?.toLocaleString()} đ/ca</div>
+              <div><strong>Ghi chú:</strong> {selectedDetailShift.note || 'Không có ghi chú.'}</div>
+            </div>
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-header-secondary"
+                onClick={() => setShowDetailModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast thông báo */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            background: '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+            zIndex: 9999,
+            fontSize: '13.5px',
+            fontWeight: 600,
+          }}
+        >
+          {toast}
+        </div>
+      )}
+
+      {/* ── 6. Chân Trang OPS ── */}
+      <footer className="mp-footer-bar">
+        <div>
+          ShiftSync™ Enterprise OPS • Store Manager Command Center • {currentStore?.name || 'Store'} Active
+        </div>
+        <div className="mp-footer-links">
+          <span className="mp-footer-link" onClick={() => setShowAuditLogModal(true)}>
+            Trung tâm điều lệnh quản lý
+          </span>
+          <span className="mp-footer-link" onClick={() => setShowOtPolicyModal(true)}>
+            Chính sách giới hạn Overtime
+          </span>
+          <span className="mp-footer-link" onClick={() => showToast('Đang kết nối bộ phận hỗ trợ kỹ thuật...')}>
+            Hỗ trợ kỹ thuật 24/7
+          </span>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -23,4 +23,11 @@ public class ShiftSkillRequirementDTO {
 
     @Schema(description = "Assigned count")
     private int assignedCount;
+
+    @Schema(description = "Store Zone ID for 3D location")
+    private UUID zoneId;
+
+    @Schema(description = "Store Zone Name for 3D location")
+    private String zoneName;
 }
+

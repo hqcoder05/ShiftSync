@@ -8,4 +8,8 @@ import java.util.UUID;
 public class ShiftAssignmentCreateRequest {
     @NotNull(message = "Staff ID is required")
     private UUID staffId;
+
+    private UUID zoneId;
+
+    private Boolean force;
 }

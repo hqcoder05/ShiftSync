@@ -36,7 +36,12 @@ public class ShiftValidationService {
             if (s.getShiftDate().equals(newShift.getShiftDate())) {
                 boolean overlap = newShift.getStartTime().isBefore(s.getEndTime()) && newShift.getEndTime().isAfter(s.getStartTime());
                 if (overlap) {
-                    throw new BusinessException("Shift overlaps with an existing registered or assigned shift", HttpStatus.CONFLICT);
+                    String msg = String.format("Ca làm việc bị trùng giờ (%s - %s) với ca làm bạn đã có trong ngày (%s - %s).",
+                            newShift.getStartTime().toString().substring(0, 5),
+                            newShift.getEndTime().toString().substring(0, 5),
+                            s.getStartTime().toString().substring(0, 5),
+                            s.getEndTime().toString().substring(0, 5));
+                    throw new BusinessException(msg, HttpStatus.CONFLICT);
                 }
             }
 
@@ -49,14 +54,13 @@ public class ShiftValidationService {
         java.time.Duration newDuration = java.time.Duration.between(newShift.getStartTime(), newShift.getEndTime());
         totalHoursThisWeek += newDuration.toMinutes() / 60.0;
 
-        
         Employment employment = employmentRepository.findByUserIdAndStatus(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
                 .stream().findFirst()
                 .orElseThrow(() -> new BusinessException("Active employment not found for staff", HttpStatus.BAD_REQUEST));
         int MAX_WEEKLY_HOURS = employment.getContractType().getMaxWeeklyHours();
 
         if (totalHoursThisWeek > MAX_WEEKLY_HOURS) {
-            throw new BusinessException("Assigning this shift would exceed the maximum weekly hours (" + MAX_WEEKLY_HOURS + ")", HttpStatus.BAD_REQUEST);
+            throw new BusinessException("Nhận thêm ca này sẽ vượt quá số giờ làm việc tối đa trong tuần (" + MAX_WEEKLY_HOURS + " giờ/tuần)", HttpStatus.BAD_REQUEST);
         }
     }
 }

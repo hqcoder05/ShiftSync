@@ -64,4 +64,7 @@ public class ShiftDTO {
 
     @Schema(description = "Total Required Staff")
     private Integer requiredStaff;
+
+    @Schema(description = "Whether shift is published on Marketplace")
+    private Boolean isOpen;
 }

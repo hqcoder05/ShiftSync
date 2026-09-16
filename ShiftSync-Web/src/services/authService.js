@@ -21,8 +21,24 @@ export const login = async (email, password) => {
   return response.data;
 };
 
-export const logout = () => {
+export const register = (data) => api.post('/auth/register', data);
+
+export const refreshToken = (token) => {
+  const rt = token || localStorage.getItem('refreshToken');
+  return api.post('/auth/refresh', { refreshToken: rt });
+};
+
+export const logout = async () => {
+  const rt = localStorage.getItem('refreshToken');
+  if (rt) {
+    try {
+      await api.post('/auth/logout', { refreshToken: rt });
+    } catch (e) {
+      console.warn('Backend logout warning:', e.message);
+    }
+  }
   localStorage.removeItem('accessToken');
+  localStorage.removeItem('token');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('userRole');
   localStorage.removeItem('userEmail');

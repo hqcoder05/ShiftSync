@@ -38,6 +38,7 @@ public class LeaveRequestService {
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
         User staff = userRepository.findById(staffId)
@@ -70,6 +71,9 @@ public class LeaveRequestService {
                 .build();
 
         leaveRequest = leaveRequestRepository.save(leaveRequest);
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_CREATED", "leaveId", leaveRequest.getId()));
+        } catch (Exception ignored) {}
 
         return mapToDTO(leaveRequest);
     }
@@ -107,6 +111,9 @@ public class LeaveRequestService {
         }
 
         leaveRequestRepository.delete(leaveRequest);
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_CANCELLED", "leaveId", leaveId));
+        } catch (Exception ignored) {}
     }
 
     @Transactional
@@ -166,6 +173,10 @@ public class LeaveRequestService {
             null
         );
 
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_APPROVED", "leaveId", leaveId));
+        } catch (Exception ignored) {}
+
         return LeaveApproveResponse.builder()
                 .leaveRequest(mapToDTO(leaveRequest))
                 .warning(warning)
@@ -173,7 +184,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    public LeaveRequestDTO rejectLeaveRequest(UUID storeId, UUID leaveId, UUID managerId) {
+    public LeaveRequestDTO rejectLeaveRequest(UUID storeId, UUID leaveId, UUID managerId, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
 
@@ -191,19 +202,49 @@ public class LeaveRequestService {
         leaveRequest.setStatus(LeaveStatus.REJECTED);
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
+        if (rejectionReason != null && !rejectionReason.isBlank()) {
+            leaveRequest.setRejectionReason(rejectionReason.trim());
+        }
         leaveRequest = leaveRequestRepository.save(leaveRequest);
 
         auditLogService.log(managerId, "REJECT_LEAVE", "LeaveRequest", leaveId, 
                 java.util.Map.of("status", "PENDING"), 
-                java.util.Map.of("status", "REJECTED"));
+                java.util.Map.of("status", "REJECTED", "rejectionReason", rejectionReason != null ? rejectionReason : ""));
 
         notificationService.sendNotification(
             leaveRequest.getStaff().getId(),
             com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
             "Leave Request Rejected",
-            "Your leave request has been rejected.",
+            "Your leave request has been rejected." + (rejectionReason != null && !rejectionReason.isBlank() ? " Reason: " + rejectionReason : ""),
             null
         );
+
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_REJECTED", "leaveId", leaveId));
+        } catch (Exception ignored) {}
+
+        return mapToDTO(leaveRequest);
+    }
+
+    @Transactional
+    public LeaveRequestDTO updateLeaveReason(UUID storeId, UUID leaveId, UUID userId, String newReason) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
+
+        if (!leaveRequest.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Leave request does not belong to this store", HttpStatus.FORBIDDEN);
+        }
+
+        leaveRequest.setReason(newReason);
+        leaveRequest = leaveRequestRepository.save(leaveRequest);
+
+        auditLogService.log(userId, "UPDATE_LEAVE_REASON", "LeaveRequest", leaveId,
+                java.util.Map.of("action", "UPDATE_REASON"),
+                java.util.Map.of("reason", newReason != null ? newReason : ""));
+
+        try {
+            realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_UPDATED", "leaveId", leaveId));
+        } catch (Exception ignored) {}
 
         return mapToDTO(leaveRequest);
     }
@@ -219,6 +260,7 @@ public class LeaveRequestService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .reason(request.getReason())
+                .rejectionReason(request.getRejectionReason())
                 .approvedBy(request.getApprovedBy() != null ? request.getApprovedBy().getId() : null)
                 .approvedAt(request.getApprovedAt())
                 .createdAt(request.getCreatedAt())

@@ -14,6 +14,7 @@ public class ShiftAssignmentResponseDTO {
     private UUID shiftId;
     private UUID staffId;
     private String staffName;
+    private String avatarUrl;
     private UUID requiredSkillId;
     private String skillName;
     private UUID zoneId;

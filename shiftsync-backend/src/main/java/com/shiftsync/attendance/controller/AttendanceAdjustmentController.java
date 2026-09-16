@@ -28,8 +28,8 @@ public class AttendanceAdjustmentController {
     private final AttendanceAdjustmentService service;
 
     @PostMapping
-    @Operation(summary = "Submit an attendance adjustment request (Staff)")
-    @PreAuthorize("hasRole('STAFF')")
+    @Operation(summary = "Submit an attendance adjustment request (Staff/Manager)")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER')")
     public ResponseEntity<AdjustmentResponseDTO> createRequest(
             @PathVariable UUID storeId,
             @Valid @RequestBody AdjustmentCreateRequest request,

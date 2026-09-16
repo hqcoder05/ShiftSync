@@ -199,6 +199,8 @@ export default function ProfileScreen({ navigation }) {
             await AsyncStorage.multiRemove([
               'accessToken', 
               'refreshToken',
+              'userRole',
+              'userEmail',
               '@user_profile_custom_data'
             ]);
           } catch (e) {
@@ -386,6 +388,14 @@ export default function ProfileScreen({ navigation }) {
               last
             />
           </View>
+
+          {/* ═══ API TESTING HUB (109 API) ═══ */}
+          <Pressable
+            onPress={() => navigation.navigate('ApiTestHub')}
+            style={[styles.logoutBtn, { backgroundColor: '#0284c7', borderColor: '#0284c7', marginBottom: 12 }]}
+          >
+            <Text style={[styles.logoutText, { color: '#ffffff' }]}>🛠️ Trung Tâm Kiểm Thử 109 API</Text>
+          </Pressable>
 
           {/* ═══ ĐĂNG XUẤT (Group 139) ═══ */}
           <Pressable onPress={handleLogout} style={styles.logoutBtn}>

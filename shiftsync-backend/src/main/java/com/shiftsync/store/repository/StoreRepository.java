@@ -24,11 +24,18 @@ public interface StoreRepository extends JpaRepository<Store, UUID> {
            "LOWER(s.address) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Store> searchStores(@Param("search") String search, Pageable pageable);
 
-    @Query("SELECT e.store FROM Employment e WHERE e.user.id = :staffId AND e.status = :status AND " +
-           "(:search IS NULL OR LOWER(e.store.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(e.store.address) LIKE LOWER(CONCAT('%', :search, '%')))")
+    @Query(value = "SELECT s FROM Store s JOIN Employment e ON e.store = s WHERE e.user.id = :staffId AND e.status = :status",
+           countQuery = "SELECT count(s) FROM Store s JOIN Employment e ON e.store = s WHERE e.user.id = :staffId AND e.status = :status")
     Page<Store> findStoresByStaffId(@Param("staffId") UUID staffId, 
                                     @Param("status") com.shiftsync.employment.enums.EmploymentStatus status, 
-                                    @Param("search") String search, 
                                     Pageable pageable);
+
+    @Query(value = "SELECT s FROM Store s JOIN Employment e ON e.store = s WHERE e.user.id = :staffId AND e.status = :status AND " +
+           "(LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.address) LIKE LOWER(CONCAT('%', :search, '%')))",
+           countQuery = "SELECT count(s) FROM Store s JOIN Employment e ON e.store = s WHERE e.user.id = :staffId AND e.status = :status AND " +
+           "(LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.address) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Store> findStoresByStaffIdWithSearch(@Param("staffId") UUID staffId, 
+                                              @Param("status") com.shiftsync.employment.enums.EmploymentStatus status, 
+                                              @Param("search") String search, 
+                                              Pageable pageable);
 }

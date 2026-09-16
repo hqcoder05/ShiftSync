@@ -18,6 +18,8 @@ public class StoreUpdateRequest {
 
     @Schema(description = "Name of the store branch", example = "Coffee Shop A Updated")
     private String name;
+    private com.shiftsync.store.enums.StoreCategory category;
+    private String format;
 
     @Schema(description = "Physical address of the store branch", example = "123 Main St Updated")
     private String address;

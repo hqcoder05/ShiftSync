@@ -30,7 +30,7 @@ public class ShiftAssignmentController {
             @PathVariable UUID shiftId,
             @Valid @RequestBody ShiftAssignmentCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(assignmentService.assignStaffToShift(storeId, shiftId, request.getStaffId()));
+                .body(assignmentService.assignStaffToShift(storeId, shiftId, request.getStaffId(), request.getZoneId(), Boolean.TRUE.equals(request.getForce())));
     }
 
     @Operation(summary = "Get assignments for a shift")

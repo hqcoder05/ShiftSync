@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
-import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
+import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts, autoScheduleShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
+import { getStoreLayout, getStoreZones, allocateZonesForShift } from '../services/layoutService';
+import Store3DCanvas from '../components/spatial/Store3DCanvas';
+import { resolveSemanticZone } from '../components/spatial/spatial.constants';
+import CompactDropdownFilter from '../components/CompactDropdownFilter';
+import DemandPlanningModal from '../components/demand-planning/DemandPlanningModal';
+import { Compass, Clock, Users } from 'lucide-react';
 import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
 import iconUser from '../assets/icons/icon-user.png';
@@ -59,7 +66,15 @@ const fmtDM = (d) =>
 const fmtFull = (d) =>
   `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 
-const toISODate = (d) => d.toISOString().slice(0, 10);
+const toISODate = (d) => {
+  if (!d) return '';
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const fmtTimeAMPM = (t) => {
   const str =
@@ -81,11 +96,15 @@ const fmtDateRangeText = (d) => {
   return `${d.getDate()} Tháng ${d.getMonth() + 1}, ${d.getFullYear()}`;
 };
 
-/* ── Component ──────────────────────────────────────────── */
+/* ── Component ────────────────────────────────────────────── */
 export default function SchedulePage() {
+  const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole') || 'STAFF';
+  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+
   /* -- data state -- */
   const [stores, setStores] = useState([]);
-  const [storeId, setStoreId] = useState('');
+  const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || localStorage.getItem('storeId') || '');
   const [employees, setEmployees] = useState([]);
   const [skills, setSkills] = useState([]);
   const [assignments, setAssignments] = useState({});
@@ -93,18 +112,38 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+
+  /* -- Demand Planning Modal state -- */
+  const [showDemandModal, setShowDemandModal] = useState(false);
+  const [demandTargetDate, setDemandTargetDate] = useState('');
+
+  /* -- Auto Schedule AI Modal state -- */
+  const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
+  const [autoScheduleDates, setAutoScheduleDates] = useState({
+    startDate: '',
+    endDate: '',
+  });
+
   /* -- navigation state -- */
   const [viewMode, setViewMode] = useState('Tuần');
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [dayOffset, setDayOffset] = useState(0);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
 
-  /* -- filter state -- */
-  const [userFilter, setUserFilter] = useState('All');
-  const [skillFilter, setSkillFilter] = useState('All');
-  const [showUserList, setShowUserList] = useState(true);
-  const [showSkillList, setShowSkillList] = useState(false);
+  /* -- 3D Spatial Computing state -- */
+  const [storeLayout, setStoreLayout] = useState({ length: 24, width: 16, height: 5 });
+  const [storeZones, setStoreZones] = useState([]);
+  const [selected3DShiftId, setSelected3DShiftId] = useState(null);
+  const [isAllocating3D, setIsAllocating3D] = useState(false);
+  const [allocatedSequence, setAllocatedSequence] = useState([]);
+  const [spatialPerspectiveMode, setSpatialPerspectiveMode] = useState('3D'); // '3D' | 'SPLIT'
+
+  /* -- filter state: Compact Dropdown Filter -- */
+  const [selectedSkills, setSelectedSkills] = useState(['ALL']);
+  const [selectedEmployees, setSelectedEmployees] = useState(['ALL']);
+  const [staffWithAvailability, setStaffWithAvailability] = useState(new Set());
+
 
   /* -- popover for shift chip -- */
+  const [autoScheduling, setAutoScheduling] = useState(false);
   const [menuFor, setMenuFor] = useState(null); // { empId, dateIso, shift }
 
   /* -- edit mode for shift modal -- */
@@ -186,15 +225,14 @@ export default function SchedulePage() {
   const menuRef = useRef(null);
 
   /* ── Computed dates ────────────────────────────── */
-  const weekDatesFull = getWeekDates(new Date(Date.now() + weekOffset * 7 * 86400000));
-  const today = new Date(Date.now() + dayOffset * 86400000);
-  const displayedDates = viewMode === 'Ngày' ? [today] : weekDatesFull;
+  const weekDatesFull = useMemo(() => getWeekDates(currentDate), [currentDate]);
+  const today = currentDate;
+  const displayedDates = viewMode === 'Ngày' ? [currentDate] : weekDatesFull;
 
   /* ── Date Navigator & Calendar Popover Handlers ── */
   const openCalendarPopover = () => {
-    const refDate = viewMode === 'Ngày' ? today : weekDatesFull[0];
-    setCalMonth(refDate.getMonth());
-    setCalYear(refDate.getFullYear());
+    setCalMonth(currentDate.getMonth());
+    setCalYear(currentDate.getFullYear());
     setShowCalendarPopover((v) => !v);
   };
 
@@ -221,64 +259,44 @@ export default function SchedulePage() {
   };
 
   const handlePrevDate = () => {
-    if (viewMode === 'Ngày') {
-      setDayOffset((d) => d - 1);
+    const d = new Date(currentDate);
+    if (viewMode === 'Ngày' || viewMode === '3D') {
+      d.setDate(d.getDate() - 1);
     } else {
-      setWeekOffset((w) => w - 1);
+      d.setDate(d.getDate() - 7);
     }
+    setCurrentDate(d);
   };
 
   const handleNextDate = () => {
-    if (viewMode === 'Ngày') {
-      setDayOffset((d) => d + 1);
+    const d = new Date(currentDate);
+    if (viewMode === 'Ngày' || viewMode === '3D') {
+      d.setDate(d.getDate() + 1);
     } else {
-      setWeekOffset((w) => w + 1);
+      d.setDate(d.getDate() + 7);
     }
+    setCurrentDate(d);
   };
 
   const handleTodayClick = () => {
-    setDayOffset(0);
-    setWeekOffset(0);
+    setCurrentDate(new Date());
   };
 
   const handleSelectWeek = (targetDate) => {
-    const baseMonday = getWeekDates(new Date())[0];
-    const targetMonday = getWeekDates(targetDate)[0];
-    const diffWeeks = Math.round((targetMonday - baseMonday) / (7 * 86400000));
-    setWeekOffset(diffWeeks);
+    setCurrentDate(new Date(targetDate));
     setViewMode('Tuần');
     setShowCalendarPopover(false);
   };
 
   const handleSelectSpecificDay = (targetDate) => {
-    const todayBase = new Date();
-    todayBase.setHours(0, 0, 0, 0);
-    const target = new Date(targetDate);
-    target.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((target - todayBase) / 86400000);
-    setDayOffset(diffDays);
-
-    const baseMonday = getWeekDates(new Date())[0];
-    const targetMonday = getWeekDates(targetDate)[0];
-    setWeekOffset(Math.round((targetMonday - baseMonday) / (7 * 86400000)));
-
+    setCurrentDate(new Date(targetDate));
     setViewMode('Ngày');
     setShowCalendarPopover(false);
   };
 
   const handleCalendarDayClick = (date) => {
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-      // Double click -> Xem ngày cụ thể
-      handleSelectSpecificDay(date);
-    } else {
-      clickTimeoutRef.current = setTimeout(() => {
-        clickTimeoutRef.current = null;
-        // Single click -> Chọn cả tuần
-        handleSelectWeek(date);
-      }, 260);
-    }
+    setCurrentDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+    setShowCalendarPopover(false);
   };
 
   const getCalendarWeeks = (year, month) => {
@@ -312,6 +330,17 @@ export default function SchedulePage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  /* ── Real-time sync: lắng nghe khi trang khác duyệt request ── */
+  useEffect(() => {
+    const handleStorageSync = (e) => {
+      if (e.key === 'shiftsync_schedule_refresh') {
+        loadData();
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, [storeId]); // eslint-disable-line
+
   /* ── Load stores ───────────────────────────────── */
   useEffect(() => {
     getAllStores()
@@ -334,11 +363,122 @@ export default function SchedulePage() {
     getSkillsByStore(storeId)
       .then((res) => {
         const data = res.data;
-        // API có thể trả về array trực tiếp hoặc {content: []}
         setSkills(Array.isArray(data) ? data : (data.content || []));
       })
       .catch(() => setSkills([]));
   }, [storeId]);
+
+  /* ── Load 3D Spatial Layout & Zones ───────────────────────────────── */
+  useEffect(() => {
+    if (!storeId) return;
+    getStoreLayout(storeId)
+      .then((res) => {
+        if (res?.data) {
+          setStoreLayout({
+            length: Number(res.data.length) || 24,
+            width: Number(res.data.width) || 16,
+            height: Number(res.data.height) || 5,
+          });
+        }
+      })
+      .catch(() => {});
+
+    getStoreZones(storeId)
+      .then((res) => {
+        setStoreZones(res?.data || []);
+      })
+      .catch(() => setStoreZones([]));
+  }, [storeId]);
+
+  /* ── 3D Spatial Computing Computations ── */
+  const active3DDayIndex = useMemo(() => {
+    const curIso = toISODate(currentDate);
+    const idx = weekDatesFull.findIndex((d) => toISODate(d) === curIso);
+    return idx >= 0 ? idx : 0;
+  }, [currentDate, weekDatesFull]);
+
+  const active3DDate = currentDate;
+  const activeDateShifts = allShifts.filter((s) => s.shiftDate === toISODate(active3DDate));
+
+  const current3DShift = useMemo(() => {
+    if (selected3DShiftId) {
+      const found = activeDateShifts.find((s) => s.id === selected3DShiftId);
+      if (found) return found;
+    }
+    return activeDateShifts[0] || null;
+  }, [activeDateShifts, selected3DShiftId]);
+
+  const active3DStaff = useMemo(() => {
+    if (!current3DShift) return [];
+    const list = [];
+    const usedCounts = {};
+    if (Array.isArray(current3DShift.shiftAssignments) && current3DShift.shiftAssignments.length > 0) {
+      current3DShift.shiftAssignments.forEach((assign, idx) => {
+        const matchedEmp = employees.find((e) => e.id === assign.staffId);
+        const skObj = skills.find((s) => s.id === (assign.requiredSkillId || assign.skillId) || s.name === assign.skillName);
+        const skillName = assign.skillName || skObj?.name || assign.role || matchedEmp?.skillName || matchedEmp?.position || 'Nhân viên';
+
+        // 1. Dùng zoneId đã lưu trong assignment nếu hợp lệ
+        let assignedZoneId = assign.zoneId;
+        if (!assignedZoneId || !storeZones.some((z) => z.id === assignedZoneId)) {
+          // 2. Tra cứu từ yêu cầu kỹ năng của ca
+          const reqMatch = current3DShift.skillRequirements?.find(
+            (r) => (r.skillId && r.skillId === (assign.requiredSkillId || assign.skillId)) || (r.skillName && r.skillName === skillName)
+          );
+          if (reqMatch && reqMatch.zoneId && storeZones.some((z) => z.id === reqMatch.zoneId)) {
+            assignedZoneId = reqMatch.zoneId;
+          } else {
+            // 3. Phân bổ thông minh theo ngữ cảnh kỹ năng
+            const semanticZone = resolveSemanticZone(skillName, storeZones, usedCounts);
+            assignedZoneId = semanticZone?.id || storeZones[idx % Math.max(1, storeZones.length)]?.id;
+          }
+        } else {
+          usedCounts[assignedZoneId] = (usedCounts[assignedZoneId] || 0) + 1;
+        }
+
+        list.push({
+          id: assign.id || assign.staffId || `staff-${idx}`,
+          staffId: assign.staffId,
+          staffName: assign.staffName || matchedEmp?.fullName || 'Nhân viên',
+          skillName: skillName,
+          zoneId: assignedZoneId,
+          zoneName: storeZones.find((z) => z.id === assignedZoneId)?.name || 'Khu vực',
+          avatar: getAvatar(assign.staffName || matchedEmp?.fullName),
+        });
+      });
+    } else if (current3DShift.staffId) {
+      const matchedEmp = employees.find((e) => e.id === current3DShift.staffId);
+      const skillName = current3DShift.skillName || matchedEmp?.position || 'Nhân viên';
+      const semanticZone = resolveSemanticZone(skillName, storeZones, usedCounts);
+      list.push({
+        id: current3DShift.staffId,
+        staffId: current3DShift.staffId,
+        staffName: current3DShift.staffName || matchedEmp?.fullName || 'Nhân viên',
+        skillName: skillName,
+        zoneId: semanticZone?.id || storeZones[0]?.id,
+        zoneName: semanticZone?.name || storeZones[0]?.name || 'Khu vực',
+        avatar: getAvatar(current3DShift.staffName || matchedEmp?.fullName),
+      });
+    }
+    return list;
+  }, [current3DShift, employees, skills, storeZones]);
+
+  const handleRunSpatialAllocation = async () => {
+    if (!current3DShift || !storeId) return;
+    setIsAllocating3D(true);
+    try {
+      const res = await allocateZonesForShift(storeId, current3DShift.id);
+      if (res?.data) {
+        setAllocatedSequence(res.data.allocatedSequence || []);
+        showToast('Phân bổ không gian 3D', `✓ Đã phân bổ tối ưu ${res.data.assignedCount || active3DStaff.length} nhân sự vào các khu vực theo thuật toán Max-Min Dispersion!`);
+        loadData();
+      }
+    } catch (err) {
+      showToast('Lỗi phân bổ', err.response?.data?.message || 'Không thể chạy thuật toán phân bổ không gian 3D.');
+    } finally {
+      setIsAllocating3D(false);
+    }
+  };
 
   /* ── Load staff + shifts ───────────────────────── */
   const loadData = () => {
@@ -347,28 +487,57 @@ export default function SchedulePage() {
     setError('');
     Promise.all([getStaffByStore(storeId), getShiftsForStore(storeId)])
       .then(([staffRes, shiftsRes]) => {
-        const rawStaff = staffRes.data.content || staffRes.data || [];
+        const rawStaff = (staffRes.data.content || staffRes.data || []).filter((emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN');
         const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
         const staff = rawStaff.map((emp) => {
           const id = emp.staffId || emp.id;
           const name = emp.staffFullName || emp.fullName || 'Nhân viên';
-          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || (emp.contractType?.name || '');
+          const contractType = emp.contractType?.name || emp.employmentType || 'Full-Time';
+          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || 'Nhân viên';
           return {
             ...emp,
             id: id,
             staffId: id,
             fullName: name,
             staffFullName: name,
-            position: pos,
-            jobTitle: pos,
-            skillName: pos,
+            contractTypeName: contractType,
+            position: pos === contractType ? 'Nhân viên' : pos,
+            jobTitle: pos === contractType ? 'Nhân viên' : pos,
+            skillName: pos === contractType ? 'Nhân viên' : pos,
           };
         });
         setEmployees(staff);
 
-        const rangeIso = displayedDates.map(toISODate);
+        // Load staff availability to show triangle warning (!) badge ONLY if submitted
+        Promise.allSettled(
+          staff.map((emp) =>
+            getStaffAvailability(emp.id).then((res) => ({
+              id: emp.id,
+              hasSlots: Array.isArray(res.data) && res.data.length > 0,
+              slots: Array.isArray(res.data) ? res.data : [],
+            }))
+          )
+        ).then((results) => {
+          const withAvail = new Set();
+          const availMap = {};
+          results.forEach((r) => {
+            if (r.status === 'fulfilled' && r.value.hasSlots) {
+              withAvail.add(r.value.id);
+              availMap[r.value.id] = r.value.slots;
+            }
+          });
+          setStaffWithAvailability(withAvail);
+          setEmployees((prev) =>
+            prev.map((emp) => ({
+              ...emp,
+              availabilitySlots: availMap[emp.id] || [],
+            }))
+          );
+        });
+
+        const weekRangeIso = weekDatesFull.map(toISODate);
         const allShifts = shiftsRes.data || [];
-        const shiftsInRange = allShifts.filter((s) => rangeIso.includes(s.shiftDate));
+        const shiftsInRange = allShifts.filter((s) => weekRangeIso.includes(s.shiftDate));
 
         const savedMeta = JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`) || '{}');
 
@@ -376,22 +545,64 @@ export default function SchedulePage() {
         const map = {};
         shiftsInRange.forEach((shift) => {
           const meta = savedMeta[shift.id] || {};
-          const mergedShift = {
+          const baseShift = {
             ...shift,
             ...meta,
             color: meta.color || shift.color,
             note: meta.note !== undefined ? meta.note : shift.note,
-            skillId: meta.skillId || shift.skillId,
-            location: meta.location || shift.location || shift.skillId,
-            staffId: shift.staffId || meta.staffId,
           };
-          const targetEmpId = mergedShift.staffId || shift.staffId || shift.assignedStaffId || shift.employeeId;
-          if (targetEmpId) {
-            if (!map[targetEmpId]) map[targetEmpId] = {};
-            if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
-            if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
-              map[targetEmpId][shift.shiftDate].push(mergedShift);
-            }
+
+          if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
+            shift.shiftAssignments.forEach((sa) => {
+              const targetEmpId = sa.staffId;
+              if (!targetEmpId) return;
+
+              const matchedSkill = skills.find(
+                (sk) => sk.id === sa.requiredSkillId || (sa.skillName && sk.name.toLowerCase() === sa.skillName.toLowerCase())
+              );
+              const assignedSkillName = sa.skillName || matchedSkill?.name || 'Nhân viên';
+              const assignedSkillId = sa.requiredSkillId || matchedSkill?.id;
+
+              const empShift = {
+                ...baseShift,
+                staffId: targetEmpId,
+                assignedStaffId: targetEmpId,
+                skillId: assignedSkillId,
+                skillName: assignedSkillName,
+                positionName: assignedSkillName,
+                location: assignedSkillName,
+                zoneName: sa.zoneName,
+              };
+
+              if (!map[targetEmpId]) map[targetEmpId] = {};
+              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
+              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
+                map[targetEmpId][shift.shiftDate].push(empShift);
+              }
+            });
+          } else {
+            const assignedEmpIds = new Set();
+            if (baseShift.staffId) assignedEmpIds.add(baseShift.staffId);
+            if (shift.staffId) assignedEmpIds.add(shift.staffId);
+            if (shift.assignedStaffId) assignedEmpIds.add(shift.assignedStaffId);
+            if (shift.employeeId) assignedEmpIds.add(shift.employeeId);
+
+            assignedEmpIds.forEach((targetEmpId) => {
+              const empObj = staff.find((e) => e.id === targetEmpId);
+              const fallbackPos = baseShift.skillName || empObj?.position || 'Nhân viên';
+              const empShift = {
+                ...baseShift,
+                staffId: targetEmpId,
+                skillName: fallbackPos,
+                positionName: fallbackPos,
+                location: fallbackPos,
+              };
+              if (!map[targetEmpId]) map[targetEmpId] = {};
+              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
+              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
+                map[targetEmpId][shift.shiftDate].push(empShift);
+              }
+            });
           }
         });
         setAssignments(map);
@@ -401,11 +612,39 @@ export default function SchedulePage() {
       .finally(() => setLoading(false));
   };
 
+  const handleAutoSchedule = async () => {
+    if (!storeId) {
+      showToast('Thông báo', 'Vui lòng chọn cửa hàng để xếp ca.');
+      return;
+    }
+    const startDate = toISODate(weekDatesFull[0]);
+    const endDate = toISODate(weekDatesFull[6]);
+    setAutoScheduling(true);
+    showToast(
+      'AI Đang Tính Toán...',
+      `Đang chạy thuật toán tối ưu xếp ca tự động từ ${startDate} đến ${endDate}...`
+    );
+    try {
+      const res = await autoScheduleShifts(storeId, { startDate, endDate });
+      const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
+      showToast('Thành Công! 🤖', msg);
+      loadData();
+    } catch (err) {
+      console.error('Auto schedule failed:', err);
+      showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');
+    } finally {
+      setAutoScheduling(false);
+    }
+  };
+
+
+  const weekStartIso = useMemo(() => (weekDatesFull[0] ? toISODate(weekDatesFull[0]) : ''), [weekDatesFull]);
+
   useEffect(() => {
     loadData();
     const allReqs = JSON.parse(localStorage.getItem('cross_store_requests') || '[]');
     setCrossStoreRequests(allReqs);
-  }, [storeId, weekOffset, dayOffset, viewMode]); // eslint-disable-line
+  }, [storeId, weekStartIso]); // eslint-disable-line
 
   const pendingCrossStoreRequests = crossStoreRequests.filter(
     (req) => req.targetStoreId === storeId && req.status === 'PENDING_APPROVAL'
@@ -419,37 +658,45 @@ export default function SchedulePage() {
 
   const visibleEmployees = employees.filter((e) => {
     const name = e.staffFullName || e.fullName || '';
-    const matchUser = userFilter === 'All' || name === userFilter;
+    const empId = e.staffId || e.id;
+    const matchUser =
+      selectedEmployees.includes('ALL') ||
+      selectedEmployees.includes(name) ||
+      selectedEmployees.includes(empId);
     if (!matchUser) return false;
 
-    if (skillFilter === 'All') return true;
+    if (selectedSkills.includes('ALL')) return true;
 
-    const selectedSkill = skills.find((sk) => sk.id === skillFilter || sk.name === skillFilter);
-    const selectedSkillName = selectedSkill ? selectedSkill.name.toLowerCase().trim() : skillFilter.toLowerCase().trim();
-    const selectedSkillId = selectedSkill ? selectedSkill.id : skillFilter;
-
-    // Check employee's assigned job position
+    // Check employee's assigned job position / skills
     const empPos = (e.position || e.jobTitle || e.skillName || e.skill?.name || '').toLowerCase().trim();
     const empSkillId = e.skillId || e.skill?.id || e.jobPositionId;
-    const empHasSkill =
-      (empSkillId && empSkillId === selectedSkillId) ||
-      (empPos && (empPos === selectedSkillName || empPos.includes(selectedSkillName) || (selectedSkillName && selectedSkillName.includes(empPos))));
+
+    const empMatchesSkill = selectedSkills.some((skId) => {
+      const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+      const skName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
+      return (
+        empSkillId === skId ||
+        (empPos && (empPos === skName || empPos.includes(skName) || skName.includes(empPos)))
+      );
+    });
 
     // Check employee's shifts
-    const empId = e.staffId || e.id;
     const empShifts = assignments[empId] ? Object.values(assignments[empId]).flat() : [];
     const hasShiftWithSkill = empShifts.some((s) => {
       const sSkillId = s.skillId || s.location;
       const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
       const sName = (sLocationSkill ? sLocationSkill.name : (s.skillName || s.location || '')).toLowerCase().trim();
-      return (
-        sSkillId === selectedSkillId ||
-        sSkillId === skillFilter ||
-        (sName && (sName === selectedSkillName || sName.includes(selectedSkillName) || (selectedSkillName && selectedSkillName.includes(sName))))
-      );
+      return selectedSkills.some((skId) => {
+        const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+        const targetName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
+        return (
+          sSkillId === skId ||
+          (sName && (sName === targetName || sName.includes(targetName) || targetName.includes(sName)))
+        );
+      });
     });
 
-    return empHasSkill || hasShiftWithSkill;
+    return empMatchesSkill || hasShiftWithSkill;
   });
 
   const alreadyInStoreIds = new Set(employees.map((e) => e.staffId || e.id));
@@ -459,6 +706,81 @@ export default function SchedulePage() {
     if (!skObj) return null;
     if (skObj.description && skObj.description.startsWith('#')) return skObj.description;
     return colorFor(skObj.name);
+  };
+
+  const PASTEL_COLOR_MAP = {
+    // Teal / Cyan -> Pastel Mint
+    '#0d9488': '#48B8A6',
+    '#0f766e': '#48B8A6',
+    '#14b8a6': '#48B8A6',
+    '#059669': '#52B788',
+    '#10b981': '#52B788',
+    // Blue -> Pastel Sky Blue
+    '#2563eb': '#6BA5E7',
+    '#1d4ed8': '#6BA5E7',
+    '#3b82f6': '#6BA5E7',
+    // Orange / Red -> Pastel Coral / Peach
+    '#ea580c': '#F68E5F',
+    '#c2410c': '#F68E5F',
+    '#f97316': '#F68E5F',
+    '#dc2626': '#F87171',
+    '#ef4444': '#F87171',
+    // Purple / Violet -> Pastel Lavender
+    '#7c3aed': '#A284E0',
+    '#6d28d9': '#A284E0',
+    '#8b5cf6': '#A284E0',
+    '#4f46e5': '#818CF8',
+    '#6366f1': '#818CF8',
+  };
+
+  const toPastelColor = (hex) => {
+    if (!hex || typeof hex !== 'string') return '#48B8A6';
+    const lower = hex.toLowerCase().trim();
+    if (PASTEL_COLOR_MAP[lower]) return PASTEL_COLOR_MAP[lower];
+    return hex;
+  };
+
+  const POSITION_COLOR_PALETTE = {
+    barista: '#48B8A6',   // Pastel Mint / Ngọc dịu
+    'pha chế': '#48B8A6',
+    cashier: '#6BA5E7',   // Pastel Sky Blue / Lam dịu
+    'thu ngân': '#6BA5E7',
+    kitchen: '#F68E5F',   // Pastel Coral / Cam san hô pastel
+    'bếp': '#F68E5F',
+    waiter: '#A284E0',    // Pastel Lavender / Tím hoa cà dịu
+    'phục vụ': '#A284E0',
+  };
+
+  const getShiftPositionColor = (s, emp) => {
+    // 1. Tên vị trí ưu tiên từ shift/assignment
+    const posName = (s?.positionName || s?.skillName || s?.location || '').toLowerCase().trim();
+    for (const [k, color] of Object.entries(POSITION_COLOR_PALETTE)) {
+      if (posName.includes(k) || k.includes(posName)) {
+        return color;
+      }
+    }
+
+    // 2. Tìm trong skills list
+    const sSkillId = s?.skillId || s?.location;
+    const matchedSkill = skills.find(
+      (sk) => sk.id === sSkillId || sk.name.toLowerCase() === posName
+    );
+    if (matchedSkill?.description && matchedSkill.description.startsWith('#')) {
+      return toPastelColor(matchedSkill.description);
+    }
+
+    // 3. Vị trí nhân viên (nếu có và không phải là loại hợp đồng)
+    if (emp?.position) {
+      const empPos = emp.position.toLowerCase().trim();
+      for (const [k, color] of Object.entries(POSITION_COLOR_PALETTE)) {
+        if (empPos.includes(k) || k.includes(empPos)) {
+          return color;
+        }
+      }
+    }
+
+    if (s?.color && s.color.startsWith('#')) return toPastelColor(s.color);
+    return POSITION_COLOR_PALETTE.barista;
   };
 
   const getEmpDefaultSkillAndColor = (targetEmpId) => {
@@ -533,17 +855,27 @@ export default function SchedulePage() {
 
   const openViewShiftModal = (shift, empId) => {
     const emp = employees.find((e) => (e.staffId || e.id) === (empId || shift.staffId));
-    const skObj = skills.find((s) => s.id === (shift.location || shift.skillId) || s.name === (shift.location || shift.skillId));
+    
+    // Tìm vị trí phân công chính xác của ca này
+    let posName = shift.positionName || shift.skillName;
+    if (!posName || posName === 'Nhân viên') {
+      const sk = skills.find((s) => s.id === (shift.skillId || shift.location));
+      if (sk) posName = sk.name;
+    }
+    if (!posName) posName = emp?.position || 'Nhân viên';
+
+    const posColor = getShiftPositionColor({ ...shift, positionName: posName }, emp);
     const currentStoreObj = stores.find((s) => s.id === (shift.branch || shift.storeId || storeId));
+    const contractType = emp?.contractTypeName || emp?.contractType?.name || emp?.employmentType || 'Full-Time';
 
     setViewingShift({
       ...shift,
       empId: empId || shift.staffId,
       staffName: emp?.staffFullName || emp?.fullName || 'Nhân viên',
-      staffRole: emp?.position || emp?.jobTitle || emp?.skillName || 'Nhân viên',
-      positionName: skObj?.name || shift.location || emp?.position || 'Nhân viên',
-      positionColor: shift.color || (skObj ? getSkillColor(skObj) : colorFor(empId)),
-      storeName: currentStoreObj?.name || 'Chi nhánh hiện tại',
+      contractTypeName: contractType,
+      positionName: posName,
+      positionColor: posColor,
+      storeName: currentStoreObj?.name || 'ShiftSync Flagship Store',
     });
     setShowViewModal(true);
     setMenuFor(null);
@@ -1013,16 +1345,12 @@ export default function SchedulePage() {
           localStorage.setItem(`emp_positions_${storeId}`, JSON.stringify(savedPositions));
         }
       }
-      setUserFilter('All');
-      setSkillFilter('All');
       setShowAddUserModal(false);
       showToast('Thêm thành công', 'Nhân viên đã được thêm vào chi nhánh và hiển thị trên lịch.');
       loadData();
     } catch (err) {
       if (err.response?.status === 409) {
         showToast('Thông báo', 'Nhân viên này đã thuộc chi nhánh rồi.');
-        setUserFilter('All');
-        setSkillFilter('All');
         setShowAddUserModal(false);
         loadData();
       } else {
@@ -1033,164 +1361,41 @@ export default function SchedulePage() {
 
   const handlePrint = () => window.print();
 
+  const handlePublish = async () => {
+    const dateFrom = toISODate(displayedDates[0]);
+    const dateTo = toISODate(displayedDates[displayedDates.length - 1]);
+    try {
+      await publishShifts(storeId, dateFrom, dateTo);
+      showToast(
+        'Xuất bản thành công! 🎉',
+        `Lịch làm việc từ ${fmtFull(displayedDates[0])} đến ${fmtFull(displayedDates[displayedDates.length - 1])} đã được xuất bản và thông báo đến nhân viên.`
+      );
+      loadData();
+    } catch (err) {
+      showToast('Lỗi xuất bản', err.response?.data?.message || 'Không thể xuất bản lịch làm việc. Vui lòng thử lại.');
+    }
+  };
+
+  const handleRunAutoSchedule = async () => {
+    if (!storeId) return;
+    const dateFrom = toISODate(displayedDates[0]);
+    const dateTo = toISODate(displayedDates[displayedDates.length - 1]);
+    try {
+      showToast('Đang xếp lịch tự động', 'Hệ thống đang chạy thuật toán tối ưu 8 bước...');
+      await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
+      showToast('Xếp lịch tự động thành công! 🎉', 'Đã phân bổ ca làm việc tối ưu cho tuần.');
+      loadData();
+    } catch (err) {
+      showToast('Lỗi xếp lịch tự động', err.response?.data?.message || 'Không thể xếp lịch tự động.');
+    }
+  };
+
   /* ── Render ────────────────────────────────────── */
   return (
     <div className="sch-page">
-      {/* ═══ SIDEBAR ═══ */}
-      <aside className="sch-sidebar">
-        {/* Day-mode header */}
-        {viewMode === 'Ngày' && (
-          <div className="sch-sidebar-day-header">
-            <div className="sch-sidebar-day-label">
-              {DOW_VI[today.getDay()]}
-              <span>{fmtDM(today)}-{today.getFullYear()}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="sch-sidebar-inner">
-          <div className="sch-sidebar-title">Bộ lọc</div>
-
-          {/* ── Chi nhánh ── */}
-          <div className="sch-filter-box">
-            <div className="sch-filter-box-header">
-              <img src={iconLocation || iconCard} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Chi nhánh</span>
-            </div>
-            <select
-              className="sch-filter-select"
-              value={storeId}
-              onChange={(e) => {
-                const val = e.target.value;
-                setStoreId(val);
-                localStorage.setItem('selectedStoreId', String(val));
-              }}
-            >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* ── Vị trí công việc ── */}
-          <div className="sch-filter-box">
-            <div
-              className="sch-filter-box-header clickable"
-              onClick={() => setShowSkillList((v) => !v)}
-            >
-              <img src={iconCard} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Vị trí công việc</span>
-              <span className={`sch-filter-arrow${showSkillList ? ' open' : ''}`}>▾</span>
-            </div>
-            <div className={`sch-filter-collapse${showSkillList ? ' expanded' : ''}`}>
-              <div
-                className={`sch-user-list-item${skillFilter === 'All' ? ' active' : ''}`}
-                onClick={() => setSkillFilter('All')}
-              >
-                Tất cả
-              </div>
-              {skills.map((sk) => {
-                const isSelected = skillFilter === sk.id || skillFilter === sk.name;
-                const skColor =
-                  sk.description && sk.description.startsWith('#')
-                    ? sk.description
-                    : colorFor(sk.name);
-                return (
-                  <div
-                    key={sk.id}
-                    className={`sch-user-list-item${isSelected ? ' active' : ''}`}
-                    onClick={() => setSkillFilter(isSelected ? 'All' : sk.id)}
-                  >
-                    <span
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: skColor,
-                        display: 'inline-block',
-                        marginRight: '8px',
-                        flexShrink: 0,
-                      }}
-                    />
-                    {sk.name}
-                  </div>
-                );
-              })}
-              {skills.length === 0 && (
-                <div className="sch-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>
-                  Chưa có vị trí
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Người dùng ── */}
-          <div className="sch-filter-box">
-            <div
-              className="sch-filter-box-header clickable"
-              onClick={() => setShowUserList((v) => !v)}
-            >
-              <img src={iconUser} className="sch-filter-icon" alt="" />
-              <span className="sch-filter-label">Người dùng</span>
-              <span className={`sch-filter-arrow${showUserList ? ' open' : ''}`}>▾</span>
-            </div>
-            <div className={`sch-filter-collapse${showUserList ? ' expanded' : ''}`}>
-              <div
-                className={`sch-user-list-item${userFilter === 'All' ? ' active' : ''}`}
-                onClick={() => setUserFilter('All')}
-              >
-                Tất cả
-              </div>
-              {employees.map((emp) => {
-                const name = emp.staffFullName || emp.fullName || '';
-                const empId = emp.staffId || emp.id;
-                return (
-                  <div
-                    key={empId}
-                    className={`sch-user-list-item${userFilter === name ? ' active' : ''}`}
-                    onClick={() => setUserFilter(name)}
-                  >
-                    <img
-                      src={getAvatar(name)}
-                      alt={name}
-                      className="sch-filter-avatar"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenStaffAvailability(emp);
-                      }}
-                      title="Bấm để xem lịch đăng ký rảnh của nhân viên"
-                    />
-                    <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => setUserFilter(name)}>{name}</span>
-                    <button
-                      type="button"
-                      className="sch-filter-avail-badge-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenStaffAvailability(emp);
-                      }}
-                      title="Xem lịch đăng ký của nhân viên"
-                    >
-                      Lịch rảnh
-                    </button>
-                  </div>
-                );
-              })}
-              {employees.length === 0 && (
-                <div className="sch-user-list-item" style={{ color: '#aaa', fontStyle: 'italic' }}>Chưa có nhân viên</div>
-              )}
-            </div>
-          </div>
-
-          {/* Add schedule button */}
-          <button className="sch-sidebar-add-btn" onClick={() => openRegisterModal('', '')}>
-            + Thêm lịch
-          </button>
-        </div>
-      </aside>
-
-      {/* ═══ MAIN ═══ */}
+      {/* ═══ MAIN (Full width layout, sidebar removed per user request) ═══ */}
       <main className="sch-main">
-        {/* ═══ TOPBAR (Row 1: Day/Week Toggle - Ảnh 5) ═══ */}
+        {/* ═══ TOPBAR (Row 1: Ngày/Tuần Toggle & Capsule Action Box - Ảnh 1) ═══ */}
         <div className="sch-topbar">
           <div className="sch-viewmode-toggle">
             <button
@@ -1198,22 +1403,127 @@ export default function SchedulePage() {
               className={`sch-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
               onClick={() => setViewMode('Ngày')}
             >
-              Day
+              Theo Ngày
             </button>
             <button
               type="button"
               className={`sch-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
               onClick={() => setViewMode('Tuần')}
             >
-              Week
+              Theo Tuần
             </button>
+            <button
+              type="button"
+              className={`sch-toggle-btn ${viewMode === '3D' ? 'active' : ''}`}
+              onClick={() => setViewMode('3D')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Compass size={13} />
+              <span>Không gian 3D</span>
+            </button>
+          </div>
+
+          <div className="sch-header-right">
+            {pendingCrossStoreRequests.length > 0 && (
+              <button
+                type="button"
+                className="sch-cross-dispatch-btn"
+                onClick={() => setShowCrossStoreModal(true)}
+              >
+                <span className="sch-cross-badge-count">{pendingCrossStoreRequests.length}</span>
+                <span>Yêu cầu điều phối ({pendingCrossStoreRequests.length})</span>
+              </button>
+            )}
+
+            {/* Capsule Action Card chuẩn kiểu Ảnh 1 */}
+            <div className="sch-publish-card">
+              {/* Nút Xem lịch rảnh nhân viên */}
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-avail-btn"
+                onClick={() => navigate('/availability')}
+                title="Xem toàn bộ khung giờ đăng ký rảnh của nhân viên trong tuần"
+              >
+                <Users size={14} color="#059669" />
+                <span>Lịch rảnh NV</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+
+              {/* Nút Định biên nhân sự */}
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-demand-btn"
+                onClick={() => {
+                  setDemandTargetDate(toISODate(displayedDates[0]));
+                  setShowDemandModal(true);
+                }}
+                title="Ghi nhận số lượng nhân sự cần cho từng ca (Định biên nhân sự)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
+                  <rect x="9" y="3" width="6" height="4" rx="1"></rect>
+                  <path d="M9 14l2 2 4-4"></path>
+                </svg>
+                <span>Định biên</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-print-btn"
+                onClick={handlePrint}
+                title="In lịch làm việc"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>In</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-ai-btn"
+                disabled={autoScheduling}
+                onClick={() => {
+                  setAutoScheduleDates({
+                    startDate: toISODate(displayedDates[0]),
+                    endDate: toISODate(displayedDates[displayedDates.length - 1]),
+                  });
+                  setShowAutoScheduleModal(true);
+                }}
+                title="Gợi ý xếp ca tự động bằng AI"
+              >
+                <img src={iconAi} alt="AI" className="sch-ai-btn-icon" />
+                <span>{autoScheduling ? 'Đang xếp...' : 'Gợi ý AI'}</span>
+              </button>
+
+              <div className="sch-publish-divider" />
+
+              <button
+                type="button"
+                className="sch-capsule-btn sch-capsule-publish-btn"
+                onClick={handlePublish}
+                title="Xuất bản lịch tuần này"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                <span>Lịch xuất bản</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ═══ HEADER TOOLBAR (Row 2: Date Navigator & Publish - Ảnh 1 & 4) ═══ */}
+        {/* ═══ ROW 2: TOOLBAR (Date Navigator, Chi nhánh, Bộ lọc ngắn, Thêm lịch) ═══ */}
         <div className="sch-header-toolbar">
-          <div className="sch-header-left">
-            {/* Date Navigator (Ảnh 1 & 2) */}
+          <div className="sch-toolbar-row-left">
+            {/* Date Navigator */}
             <div className="sch-date-navigator-wrap" ref={dateNavWrapRef}>
               <div className="sch-date-navigator">
                 <button
@@ -1237,15 +1547,30 @@ export default function SchedulePage() {
                       <line x1="3" y1="10" x2="21" y2="10"></line>
                     </svg>
                   </span>
-                  <span>
-                    {viewMode === 'Ngày'
-                      ? fmtDateRangeText(today)
-                      : `${fmtDateRangeText(weekDatesFull[0])}`}
-                  </span>
-                  {viewMode === 'Tuần' && (
+                  {viewMode === 'Ngày' ? (
+                    <span style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span>{DOW_VI[currentDate.getDay()]},</span>
+                      <span>{fmtDateRangeText(currentDate)}</span>
+                    </span>
+                  ) : (
                     <>
+                      <span>{fmtDateRangeText(weekDatesFull[0])}</span>
                       <span className="sch-date-arrow-sep">→</span>
                       <span>{fmtDateRangeText(weekDatesFull[6])}</span>
+                      {viewMode === '3D' && (
+                        <span style={{
+                          marginLeft: 6,
+                          fontSize: 11,
+                          padding: '2px 7px',
+                          borderRadius: 4,
+                          background: '#ECFDF5',
+                          color: '#047857',
+                          fontWeight: 600,
+                          border: '1px solid #A7F3D0',
+                        }}>
+                          {DOW_VI[currentDate.getDay()]} ({fmtDM(currentDate)})
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
@@ -1318,7 +1643,7 @@ export default function SchedulePage() {
                             const isOutside = d.getMonth() !== calMonth;
                             const isToday = toISODate(d) === toISODate(new Date());
                             const isCurrentSelectedDay =
-                              viewMode === 'Ngày' && toISODate(d) === toISODate(today);
+                              toISODate(d) === toISODate(currentDate);
 
                             return (
                               <div
@@ -1327,7 +1652,7 @@ export default function SchedulePage() {
                                   isToday ? 'is-today' : ''
                                 } ${isCurrentSelectedDay ? 'is-selected-day' : ''}`}
                                 onClick={() => handleCalendarDayClick(d)}
-                                title="Bấm 1 lần: chọn cả tuần • Bấm đúp: chọn ngày cụ thể"
+                                title={viewMode === 'Ngày' ? 'Bấm để chọn ngày này' : 'Bấm để xem lịch tuần này'}
                               >
                                 {d.getDate()}
                               </div>
@@ -1339,75 +1664,281 @@ export default function SchedulePage() {
                   </div>
 
                   <div className="sch-cal-hint">
-                    Bấm để chọn tuần • Bấm đúp để chọn ngày
+                    Bấm vào ngày để xem lịch ({viewMode === 'Ngày' ? 'theo Ngày' : 'theo Tuần'})
                   </div>
                 </div>
               )}
             </div>
+
           </div>
 
-          {/* Right Toolbar Actions (Ảnh 1 & 4) */}
-          <div className="sch-header-right">
-            {/* Capsule widget */}
-            <div className="sch-publish-card">
-              <span className="sch-publish-status">
-                Xuất bản lần cuối: Chưa xuất bản
-              </span>
-              <div className="sch-publish-divider" />
-              {pendingCrossStoreRequests.length > 0 ? (
-                <button
-                  type="button"
-                  className="sch-warnings-badge has-reqs"
-                  onClick={() => setShowCrossStoreModal(true)}
-                  title="Có yêu cầu điều phối nhân sự đang chờ duyệt"
-                >
-                  <span className="sch-badge-check">✓</span>
-                  <span>{pendingCrossStoreRequests.length} Yêu cầu điều phối</span>
-                </button>
-              ) : (
-                <div className="sch-warnings-badge">
-                  <span className="sch-badge-check">✓</span>
-                  <span>0 Cảnh báo</span>
-                </div>
-              )}
-              <div className="sch-publish-divider" />
-              <button
-                type="button"
-                className="sch-publish-btn"
-                onClick={handlePrint}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                <span>Lịch xuất bản</span>
-              </button>
+          <div className="sch-toolbar-row-right">
+            {/* Bộ lọc ngắn gọn nằm bên phải dưới box capsule */}
+            <div className="sch-compact-filter-wrap">
+              <CompactDropdownFilter
+                skills={skills}
+                selectedSkills={selectedSkills}
+                onSkillsChange={setSelectedSkills}
+                employees={employees}
+                selectedEmployees={selectedEmployees}
+                onEmployeesChange={setSelectedEmployees}
+              />
             </div>
+
+            {/* Nút Thêm lịch */}
+            <button
+              type="button"
+              className="sch-toolbar-add-btn"
+              onClick={() => openRegisterModal('', '')}
+              title="Thêm lịch làm việc mới"
+            >
+              + Thêm lịch
+            </button>
           </div>
         </div>
 
         {error && <p className="sch-error">{error}</p>}
 
-        {/* Schedule table */}
-        <div className="sch-table-wrap">
-          <table className="sch-table">
-            <thead>
-              <tr>
-                <th className="sch-col-emp sch-th-center">Nhân viên</th>
-                {displayedDates.map((d) => (
-                  <th key={d.toISOString()} className="sch-th-center">{fmtDM(d)}</th>
-                ))}
-              </tr>
-            </thead>
+        {/* Schedule View: 3D Spatial View vs 2D Matrix Table */}
+        {viewMode === '3D' ? (
+          <div style={{ padding: '0 8px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+            {/* Unified Compact Navigation Bar: Day & Shift Selector */}
+            <div style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              border: '1px solid #E2E8F0',
+              padding: '8px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+              flexWrap: 'wrap',
+              gap: 10,
+            }}>
+              {/* Left: Day Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', whiteSpace: 'nowrap' }}>📅 Ngày:</span>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {weekDatesFull.map((d, idx) => {
+                    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+                    const dayLabel = dayNames[idx] || `T${idx + 2}`;
+                    const dayShifts = allShifts.filter((s) => s.shiftDate === toISODate(d));
+                    const hasShifts = dayShifts.length > 0;
+                    const hasStaff = dayShifts.some(
+                      (s) => (Array.isArray(s.shiftAssignments) && s.shiftAssignments.length > 0) || s.staffId
+                    );
+                    const isActive = toISODate(d) === toISODate(currentDate);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setCurrentDate(d);
+                          setSelected3DShiftId(null);
+                        }}
+                        title={`${dayLabel} - ${fmtDM(d)}${hasShifts ? ` (${dayShifts.length} ca)` : ' (chưa có ca)'}`}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          border: isActive ? '1.5px solid #10B981' : '1px solid #E2E8F0',
+                          backgroundColor: isActive ? '#EEFAEB' : (hasStaff ? '#F0FDF4' : '#F8FAFC'),
+                          color: isActive ? '#047857' : (hasShifts ? '#334155' : '#94A3B8'),
+                          fontSize: 11,
+                          fontWeight: isActive ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span>{dayLabel}</span>
+                        <span style={{ fontSize: 10, opacity: 0.75 }}>{fmtDM(d)}</span>
+                        {hasStaff && (
+                          <span style={{
+                            width: 5, height: 5, borderRadius: '50%',
+                            backgroundColor: isActive ? '#10B981' : '#34D399',
+                            display: 'inline-block',
+                          }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Center / Right: Shift Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={14} color="#51A33D" />
+                  <span>Ca ({fmtDateRangeText(active3DDate)}):</span>
+                </div>
+                {activeDateShifts.length === 0 ? (
+                  <span style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic' }}>
+                    Chưa có ca làm việc nào
+                  </span>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {activeDateShifts.map((shift) => {
+                      const isSelected = current3DShift?.id === shift.id;
+                      const timeStr = `${fmtTimeAMPM(shift.startTime)} - ${fmtTimeAMPM(shift.endTime)}`;
+                      const assignedCount = Array.isArray(shift.shiftAssignments) ? shift.shiftAssignments.length : (shift.staffId ? 1 : 0);
+
+                      return (
+                        <button
+                          key={shift.id}
+                          type="button"
+                          onClick={() => setSelected3DShiftId(shift.id)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: isSelected ? '1.5px solid #51A33D' : '1px solid #E2E8F0',
+                            backgroundColor: isSelected ? '#EEFAEB' : '#F8FAFC',
+                            color: isSelected ? '#2E7D32' : '#334155',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span>{shift.name || shift.templateName || 'Ca làm'} ({timeStr})</span>
+                          <span style={{
+                            fontSize: 9,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            backgroundColor: isSelected ? '#51A33D' : '#E2E8F0',
+                            color: isSelected ? '#FFF' : '#64748B',
+                          }}>
+                            {assignedCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Status summary */}
+                {current3DShift && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748B', marginLeft: 8 }}>
+                    <span>Trạng thái: <strong style={{ color: current3DShift.status === 'PUBLISHED' ? '#16a34a' : '#f59e0b' }}>{current3DShift.status || 'DRAFT'}</strong></span>
+                    <span>•</span>
+                    <span><strong>{active3DStaff.length}</strong> nhân sự</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3D Canvas Spatial Model - Full Expanded Height & Width */}
+            <div style={{ height: 'calc(100vh - 120px)', minHeight: 820, position: 'relative', width: '100%' }}>
+              <Store3DCanvas
+                layout={storeLayout}
+                zones={storeZones}
+                staff={active3DStaff}
+                storeName={stores.find((s) => String(s.id) === String(storeId))?.name || 'ShiftSync Store'}
+                stores={stores}
+                selectedStoreId={storeId}
+                onSelectStore={(id) => handleStoreChange(id)}
+                onRunAlgorithm={handleRunSpatialAllocation}
+                isAllocating={isAllocating3D}
+                allocatedSequence={allocatedSequence}
+                allDateShifts={activeDateShifts}
+                activeDate={active3DDate}
+                currentShift={current3DShift}
+                onSelectShift={(shift) => setSelected3DShiftId(shift?.id || null)}
+                employees={employees}
+                skills={skills}
+                storeId={storeId}
+                onApplyComplete={loadData}
+                onOpenAutoSchedule={handleRunAutoSchedule}
+                onPublishSchedule={handlePublish}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Schedule table */
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {viewMode === 'Ngày' && (
+              <div className="sch-day-nav-pills-bar">
+                <span className="sch-day-nav-label">📅 Chọn ngày:</span>
+                <div className="sch-day-nav-list">
+                  {weekDatesFull.map((d, idx) => {
+                    const dIso = toISODate(d);
+                    const isActive = toISODate(currentDate) === dIso;
+                    const isRealToday = toISODate(new Date()) === dIso;
+                    const dayDow = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][idx];
+                    const dayShifts = allShifts.filter((s) => s.shiftDate === dIso);
+                    const hasShifts = dayShifts.length > 0;
+                    const dayWorkerCount = employees.filter(
+                      (e) => (assignments[e.staffId || e.id]?.[dIso] || []).length > 0
+                    ).length;
+
+                    return (
+                      <button
+                        key={dIso}
+                        type="button"
+                        className={`sch-day-nav-pill ${isActive ? 'active' : ''}`}
+                        onClick={() => setCurrentDate(d)}
+                        title={`${DOW_VI[d.getDay()]}, ${fmtDateRangeText(d)}${hasShifts ? ` (${dayShifts.length} ca, ${dayWorkerCount} nhân viên)` : ''}`}
+                      >
+                        <span className="sch-day-nav-dow">{dayDow}</span>
+                        <span className="sch-day-nav-dm">{fmtDM(d)}</span>
+                        {dayWorkerCount > 0 && (
+                          <span className="sch-day-nav-badge">{dayWorkerCount} NV</span>
+                        )}
+                        {isRealToday && (
+                          <span className="sch-day-nav-today-tag">Nay</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="sch-table-wrap">
+            <table className="sch-table">
+              <thead>
+                <tr>
+                  <th className="sch-col-emp sch-th-center">
+                    <div className="sch-th-emp-title">Nhân viên</div>
+                  </th>
+                  {displayedDates.map((d) => {
+                    const iso = toISODate(d);
+                    const workingCount = employees.filter(
+                      (e) => (assignments[e.staffId || e.id]?.[iso] || []).length > 0
+                    ).length;
+
+                    return (
+                      <th
+                        key={iso}
+                        className="sch-th-center sch-col-date-header"
+                        onClick={() => {
+                          if (viewMode === 'Tuần') {
+                            setCurrentDate(d);
+                            setViewMode('Ngày');
+                          }
+                        }}
+                        style={{ cursor: viewMode === 'Tuần' ? 'pointer' : 'default' }}
+                        title={viewMode === 'Tuần' ? 'Bấm để xem chi tiết theo ngày này' : undefined}
+                      >
+                        <div className="sch-date-th-top-row">
+                          <span className="sch-date-th-dow">{DOW_VI[d.getDay()]}</span>
+                          <span className="sch-date-th-workers-inline">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.55}}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                              <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            {workingCount}
+                          </span>
+                        </div>
+                        <div className="sch-date-th-dm">Ngày {d.getDate()} tháng {d.getMonth() + 1}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
             <tbody>
               {loading && (
                 <tr>
@@ -1417,12 +1948,81 @@ export default function SchedulePage() {
                 </tr>
               )}
 
+              {/* Hàng nhu cầu định biên / Ca chưa xếp nhân viên */}
+              {!loading && isManager && (() => {
+                const unassignedShiftsByDate = {};
+                displayedDates.forEach((d) => {
+                  const iso = toISODate(d);
+                  const dayShifts = allShifts.filter((s) => s.shiftDate === iso);
+                  const unassignedInDay = dayShifts.filter((shift) => {
+                    const totalAssigned =
+                      (Array.isArray(shift.shiftAssignments) ? shift.shiftAssignments.length : 0) +
+                      (shift.staffId ? 1 : 0);
+                    const totalRequired = (shift.skillRequirements || []).reduce(
+                      (acc, r) => acc + (r.requiredStaff || r.requiredCount || 0),
+                      0
+                    );
+                    return shift.status === 'DRAFT' && (totalAssigned < totalRequired || totalAssigned === 0);
+                  });
+                  if (unassignedInDay.length > 0) {
+                    unassignedShiftsByDate[iso] = unassignedInDay;
+                  }
+                });
+                const hasUnassigned = Object.keys(unassignedShiftsByDate).length > 0;
+
+                return hasUnassigned ? (
+                  <tr className="sch-demand-summary-row" key="demand-summary-row">
+                    <td className="sch-col-emp">
+                      <div className="sch-emp-cell sch-demand-cell-header">
+                        <div className="sch-demand-avatar">📋</div>
+                        <div>
+                          <div className="sch-emp-name" style={{ color: '#0f766e', fontWeight: 700 }}>
+                            Nhu cầu định biên
+                          </div>
+                          <div className="sch-emp-role" style={{ color: '#0d9488' }}>
+                            Ca DRAFT chờ xếp
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    {displayedDates.map((d) => {
+                      const iso = toISODate(d);
+                      const dayReqs = unassignedShiftsByDate[iso] || [];
+                      return (
+                        <td key={'demand-' + iso} className="sch-cell sch-demand-cell">
+                          {dayReqs.map((shift, idx) => {
+                            const reqs = shift.skillRequirements || [];
+                            const reqSummary = reqs
+                              .map((r) => `${r.requiredStaff || r.requiredCount || 1} ${r.skillName || 'NV'}`)
+                              .join(', ');
+                            return (
+                              <div
+                                key={'req-chip-' + (shift.id || idx)}
+                                className="sch-demand-chip"
+                                onClick={() => { setDemandTargetDate(shift.shiftDate || iso); setShowDemandModal(true); }} title="Bấm để mở Kế hoạch Định biên nhân sự ngày này"
+                              >
+                                <div className="sch-demand-chip-time">
+                                  {fmtTimeAMPM(shift.startTime)} – {fmtTimeAMPM(shift.endTime)}
+                                </div>
+                                <div className="sch-demand-chip-text">
+                                  {reqSummary ? `Cần: ${reqSummary}` : 'Chưa xếp NV'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ) : null;
+              })()}
+
               {!loading &&
                 visibleEmployees.map((emp) => {
                   const empId = emp.staffId || emp.id;
                   const name = emp.staffFullName || emp.fullName || '';
-                  const color = colorFor(name);
                   const role = emp.position || emp.jobTitle || emp.employmentType || '';
+                  const hasSubmittedAvail = staffWithAvailability.has(empId);
 
                   return (
                     <tr key={empId}>
@@ -1431,7 +2031,11 @@ export default function SchedulePage() {
                         <div
                           className="sch-emp-cell"
                           onClick={() => handleOpenStaffAvailability(emp)}
-                          title="Bấm vào ảnh đại diện hoặc tên để xem lịch nhân viên đã đăng ký & phân công ca"
+                          title={
+                            hasSubmittedAvail
+                              ? 'Nhân viên đã gửi lịch đăng ký - Bấm để xem và phân công ca'
+                              : 'Bấm để xem lịch khả dụng hoặc hồ sơ nhân viên'
+                          }
                         >
                           <div className="sch-emp-avatar-wrap">
                             <img
@@ -1439,13 +2043,20 @@ export default function SchedulePage() {
                               src={getAvatar(name)}
                               alt={name}
                             />
-                            <span
-                              className="sch-emp-avatar-badge"
-                              title="Xem lịch đăng ký rảnh"
-                              aria-label="Có lịch đăng ký rảnh"
-                            >
-                              !
-                            </span>
+                            {/* Icon tam giác vàng (!) cạnh tên nhân viên: Chỉ hiện khi nhân viên đã gửi lịch */}
+                            {hasSubmittedAvail && (
+                              <span
+                                className="sch-emp-avatar-badge-warning"
+                                title="Nhân viên đã gửi lịch khả dụng"
+                                aria-label="Đã gửi lịch khả dụng"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" strokeWidth="1.5">
+                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                  <line x1="12" y1="9" x2="12" y2="13" stroke="#78350F" strokeWidth="2"></line>
+                                  <line x1="12" y1="17" x2="12.01" y2="17" stroke="#78350F" strokeWidth="2.5"></line>
+                                </svg>
+                              </span>
+                            )}
                           </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
@@ -1458,43 +2069,31 @@ export default function SchedulePage() {
                       {displayedDates.map((d) => {
                         const iso = toISODate(d);
                         const rawCellShifts = assignments[empId]?.[iso] || [];
-                        const selectedSkillObj = skills.find((sk) => sk.id === skillFilter || sk.name === skillFilter);
-                        const selectedSkillName = selectedSkillObj
-                          ? selectedSkillObj.name.toLowerCase().trim()
-                          : skillFilter !== 'All'
-                          ? skillFilter.toLowerCase().trim()
-                          : '';
-                        const selectedSkillId = selectedSkillObj ? selectedSkillObj.id : skillFilter;
 
-                        const cellShifts =
-                          skillFilter === 'All'
-                            ? rawCellShifts
-                            : rawCellShifts.filter((s) => {
-                                const sSkillId = s.skillId || s.location;
-                                const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
-                                const sName = (
-                                  sLocationSkill
-                                    ? sLocationSkill.name
-                                    : s.skillName || s.location || ''
-                                )
-                                  .toLowerCase()
-                                  .trim();
+                        const cellShifts = selectedSkills.includes('ALL')
+                          ? rawCellShifts
+                          : rawCellShifts.filter((s) => {
+                              const sSkillId = s.skillId || s.location;
+                              const sLocationSkill = skills.find((sk) => sk.id === sSkillId || sk.name === sSkillId);
+                              const sName = (sLocationSkill ? sLocationSkill.name : (s.skillName || s.location || '')).toLowerCase().trim();
+                              return selectedSkills.some((skId) => {
+                                const skObj = skills.find((sk) => sk.id === skId || sk.name === skId);
+                                const targetName = skObj ? skObj.name.toLowerCase().trim() : String(skId).toLowerCase().trim();
                                 return (
-                                  sSkillId === selectedSkillId ||
-                                  sSkillId === skillFilter ||
-                                  (selectedSkillName &&
-                                    (sName === selectedSkillName ||
-                                      sName.includes(selectedSkillName) ||
-                                      selectedSkillName.includes(sName)))
+                                  sSkillId === skId ||
+                                  (sName && (sName === targetName || sName.includes(targetName) || targetName.includes(sName)))
                                 );
                               });
+                            });
                         const isEmpty = cellShifts.length === 0;
 
                         return (
                           <td key={iso} className="sch-cell">
                             {/* Shift chip với sọc chéo + badge giờ */}
                             {cellShifts.map((s, sIdx) => {
-                              const chipColor = s.color || colorFor(empId);
+                              // Ca làm việc hiển thị đúng màu của Vị trí
+                              const chipColor = getShiftPositionColor(s, emp);
+                              const hasManagerNote = Boolean(s.note && s.note.trim().length > 0);
                               const chipKey = s.id ? `${s.id}-${empId}-${iso}` : `shift-${empId}-${iso}-${sIdx}`;
                               const isMenuOpen = menuFor?.shift?.id === s.id && menuFor.empId === empId && menuFor.dateIso === iso;
 
@@ -1505,7 +2104,7 @@ export default function SchedulePage() {
                                   ref={isMenuOpen ? menuRef : null}
                                 >
                                   <div
-                                    className="sch-shift-block"
+                                    className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''}`}
                                     style={{
                                       background: `repeating-linear-gradient(
                                         135deg,
@@ -1527,6 +2126,23 @@ export default function SchedulePage() {
                                     <span className="sch-shift-time-badge">
                                       {fmtTimeAMPM(s.startTime)} – {fmtTimeAMPM(s.endTime)}
                                     </span>
+
+                                    {/* Flag / Tam giác vàng trên Box ca khi có yêu cầu / ghi chú từ quản lý */}
+                                    {hasManagerNote && (
+                                      <span
+                                        className="sch-shift-note-flag"
+                                        title={`Ghi chú quản lý: ${s.note}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openViewShiftModal(s, empId);
+                                        }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#B45309" strokeWidth="1.5">
+                                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                          <line x1="4" y1="22" x2="4" y2="15"></line>
+                                        </svg>
+                                      </span>
+                                    )}
                                   </div>
 
                                   {isMenuOpen && (
@@ -1591,6 +2207,8 @@ export default function SchedulePage() {
             </tbody>
           </table>
         </div>
+      </div>
+        )}
       </main>
 
       {/* ═══ MODAL: Tạo lịch làm việc ═══ */}
@@ -2051,7 +2669,9 @@ export default function SchedulePage() {
               />
               <div>
                 <div className="sch-view-emp-name">{viewingShift.staffName}</div>
-                <div className="sch-view-emp-role">{viewingShift.staffRole}</div>
+                <div className="sch-view-emp-role" style={{ color: '#0d9488', fontWeight: 600 }}>
+                  Hợp đồng: {viewingShift.contractTypeName || 'Full-Time'}
+                </div>
               </div>
             </div>
 
@@ -2414,6 +3034,154 @@ export default function SchedulePage() {
           </div>
         </div>
       )}
+
+      {/* ═══ MODAL: Kế hoạch định biên nhân sự (Demand Planning) ═══ */}
+      {showDemandModal && (
+        <DemandPlanningModal
+          isOpen={showDemandModal}
+          onClose={() => setShowDemandModal(false)}
+          storeId={storeId}
+          initialDateIso={demandTargetDate || toISODate(displayedDates[0])}
+          onSuccess={() => {
+            showToast(
+              'Đã cập nhật định biên! 🎉',
+              'Kế hoạch định biên nhân sự đã được đồng bộ với lịch làm việc.'
+            );
+            loadData();
+          }}
+        />
+      )}
+
+      {/* ═══ MODAL: Tự động xếp ca làm việc (AI Scheduler) ═══ */}
+      {showAutoScheduleModal && (
+        <div className="sch-modal-overlay" onClick={() => setShowAutoScheduleModal(false)}>
+          <div className="sch-modal sch-auto-schedule-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sch-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, color: '#0284c7' }}>⚡</span>
+                <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a' }}>Tự động xếp ca làm việc (AI Scheduler)</h2>
+              </div>
+              <button
+                type="button"
+                className="sch-modal-close"
+                onClick={() => setShowAutoScheduleModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: '8px 0 16px', fontSize: 13, color: '#64748b' }}>
+              Hệ thống sẽ chạy thuật toán phân bổ thông minh dựa trên định biên nhân sự đã thiết lập.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  Từ ngày
+                </label>
+                <input
+                  type="date"
+                  value={autoScheduleDates.startDate}
+                  onChange={(e) => setAutoScheduleDates({ ...autoScheduleDates, startDate: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  Đến ngày (tối đa 7 ngày)
+                </label>
+                <input
+                  type="date"
+                  value={autoScheduleDates.endDate}
+                  onChange={(e) => setAutoScheduleDates({ ...autoScheduleDates, endDate: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}
+                />
+              </div>
+            </div>
+
+            {/* Stat Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#0d9488' }}>
+                  {allShifts.filter((s) => s.status === 'DRAFT' || !s.status).length} ca
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Ca DRAFT cần xếp</div>
+              </div>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#0d9488' }}>
+                  {allShifts.reduce((sum, s) => {
+                    const reqs = s.skillRequirements || [];
+                    return sum + reqs.reduce((acc, r) => acc + (r.requiredStaff || r.requiredCount || 1), 0);
+                  }, 0) || 48}
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Vị trí nhân sự yêu cầu</div>
+              </div>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#0d9488' }}>
+                  {employees.length}
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Nhân viên khả dụng</div>
+              </div>
+            </div>
+
+            {/* Checklist items */}
+            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', marginBottom: 6 }}>
+                Thuật toán tối ưu hóa tự động kiểm tra:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#0c4a6e', lineHeight: 1.6 }}>
+                <li>Kỹ năng & vai trò chuyên môn tương ứng của nhân viên</li>
+                <li>Lịch đăng ký rảnh (Availability) & ngày báo bận (Blackout Dates)</li>
+                <li>Hạn mức giờ làm tối đa theo loại hợp đồng (Full-time / Part-time)</li>
+                <li>Tính công bằng: Chia đều số ca giữa các nhân viên trong tháng</li>
+                <li>Khoảng nghỉ ngơi tối thiểu giữa 2 ca liên tiếp</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="sch-confirm-cancel-btn"
+                onClick={() => setShowAutoScheduleModal(false)}
+                style={{ padding: '9px 18px', borderRadius: 8 }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="sch-confirm-primary-btn"
+                disabled={autoScheduling}
+                onClick={async () => {
+                  setShowAutoScheduleModal(false);
+                  setAutoScheduling(true);
+                  showToast(
+                    'AI Đang Tính Toán...',
+                    `Đang chạy thuật toán tối ưu xếp ca tự động từ ${autoScheduleDates.startDate} đến ${autoScheduleDates.endDate}...`
+                  );
+                  try {
+                    const res = await autoScheduleShifts(storeId, {
+                      startDate: autoScheduleDates.startDate,
+                      endDate: autoScheduleDates.endDate,
+                    });
+                    const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
+                    showToast('Thành Công! 🤖', msg);
+                    loadData();
+                  } catch (err) {
+                    console.error('Auto schedule failed:', err);
+                    showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');
+                  } finally {
+                    setAutoScheduling(false);
+                  }
+                }}
+                style={{ background: '#0d9488', color: '#fff', padding: '9px 20px', borderRadius: 8, fontWeight: 700 }}
+              >
+                {autoScheduling ? 'Đang xếp...' : 'Bắt đầu tự động xếp ca'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

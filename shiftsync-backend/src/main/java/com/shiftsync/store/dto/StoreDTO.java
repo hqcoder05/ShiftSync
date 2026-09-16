@@ -21,6 +21,8 @@ public class StoreDTO {
 
     @Schema(description = "Name of the store branch", example = "Coffee Shop A")
     private String name;
+    private com.shiftsync.store.enums.StoreCategory category;
+    private String format;
 
     @Schema(description = "Physical address of the store branch", example = "123 Main St")
     private String address;

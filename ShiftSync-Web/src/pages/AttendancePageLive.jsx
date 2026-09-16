@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
 import { getStoreAttendance, updateAttendanceRecord } from '../services/attendanceService';
+import { createAdjustmentRequest } from '../services/adjustmentService';
+import { toast } from '../context/ToastContext';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
@@ -102,6 +104,8 @@ const statusLabel = (val, lateMins) => {
 
 export default function AttendancePageLive() {
   const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole') || 'STAFF';
+  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
 
   // Stores & Employees state
   const [stores, setStores] = useState([]);
@@ -125,12 +129,13 @@ export default function AttendancePageLive() {
   const [error, setError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
 
-  // Edit attendance state (Quản lý chỉnh sửa giờ chấm công)
+  // Edit attendance state (Quản lý chỉnh sửa giờ chấm công & Giải trình)
   const [editingRow, setEditingRow] = useState(null);
   const [editForm, setEditForm] = useState({
     checkInTimeString: '',
     checkOutTimeString: '',
     status: 'PRESENT',
+    reason: '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -150,14 +155,46 @@ export default function AttendancePageLive() {
       checkInTimeString: inStr,
       checkOutTimeString: outStr,
       status: row.status || 'PRESENT',
+      reason: '',
     });
   };
 
   const handleSaveEdit = async (e) => {
     if (e) e.preventDefault();
     if (!editingRow || !storeId) return;
+    if (!editForm.reason?.trim()) {
+      toast.warning('Vui lòng nhập lý do điều chỉnh để lưu vào lịch sử kiểm toán.');
+      return;
+    }
     setIsSaving(true);
     try {
+      const shiftDate = editingRow.shiftDate || toISODate(new Date());
+      let reqCheckIn = null;
+      let reqCheckOut = null;
+      if (editForm.checkInTimeString) {
+        reqCheckIn = `${shiftDate}T${editForm.checkInTimeString}:00+07:00`;
+      }
+      if (editForm.checkOutTimeString) {
+        reqCheckOut = `${shiftDate}T${editForm.checkOutTimeString}:00+07:00`;
+      }
+
+      // Log adjustment request for audit compliance (BR-54, BR-55)
+      const shiftId = editingRow.shiftId || editingRow.shiftAssignment?.shift?.id;
+      if (shiftId) {
+        try {
+          await createAdjustmentRequest(storeId, {
+            attendanceId: editingRow.id,
+            shiftId: shiftId,
+            requestedCheckIn: reqCheckIn,
+            requestedCheckOut: reqCheckOut,
+            reason: editForm.reason.trim(),
+          });
+        } catch (adjErr) {
+          console.info('Audit adjustment log note:', adjErr.message);
+        }
+      }
+
+      // Update attendance record with time strings
       await updateAttendanceRecord(storeId, editingRow.id, {
         checkInTimeString: editForm.checkInTimeString || null,
         checkOutTimeString: editForm.checkOutTimeString || null,
@@ -166,8 +203,9 @@ export default function AttendancePageLive() {
       setEditingRow(null);
       const res = await getStoreAttendance(storeId, fromDate, toDate);
       setRows(res.data || []);
+      toast.success('Đã cập nhật giờ chấm công và ghi nhận lý do vào nhật ký kiểm toán.');
     } catch (err) {
-      alert(err.response?.data?.message || 'Không thể cập nhật giờ chấm công. Vui lòng thử lại.');
+      toast.error(err.response?.data?.message || 'Không thể cập nhật giờ chấm công. Vui lòng thử lại.');
     } finally {
       setIsSaving(false);
     }
@@ -213,6 +251,18 @@ export default function AttendancePageLive() {
       .catch(() => setError('Không tải được danh sách nhân viên'));
   }, []);
 
+  // Sync store when changed from Header or other pages
+  useEffect(() => {
+    const handleStoreChange = (e) => {
+      const newId = e.detail?.storeId;
+      if (newId && String(newId) !== String(storeId)) {
+        setStoreId(newId);
+      }
+    };
+    window.addEventListener('storeChanged', handleStoreChange);
+    return () => window.removeEventListener('storeChanged', handleStoreChange);
+  }, [storeId]);
+
   // Load attendance data
   useEffect(() => {
     if (!storeId) return;
@@ -227,6 +277,18 @@ export default function AttendancePageLive() {
         setRows([]);
       })
       .finally(() => setLoading(false));
+  }, [storeId, fromDate, toDate]);
+
+  // Realtime WebSocket attendance updates
+  useEffect(() => {
+    if (!storeId) return;
+    const handleRealtimeAtt = () => {
+      getStoreAttendance(storeId, fromDate, toDate)
+        .then((res) => setRows(res.data || []))
+        .catch(() => {});
+    };
+    window.addEventListener('store_attendance_updated', handleRealtimeAtt);
+    return () => window.removeEventListener('store_attendance_updated', handleRealtimeAtt);
   }, [storeId, fromDate, toDate]);
 
   // Close calendar on outside click
@@ -373,7 +435,7 @@ export default function AttendancePageLive() {
   // Export attendance data to CSV
   const handleExport = () => {
     if (visibleRows.length === 0) {
-      alert('Không có dữ liệu chấm công để xuất.');
+      toast.warning('Không có dữ liệu chấm công để xuất.');
       return;
     }
     const headers = ['Ngày', 'Nhân viên', 'Vào', 'Ra', 'Lịch', 'Tổng giờ', 'Trạng thái'];
@@ -434,6 +496,7 @@ export default function AttendancePageLive() {
                     onClick={() => {
                       setStoreId(s.id);
                       localStorage.setItem('selectedStoreId', String(s.id));
+                      window.dispatchEvent(new CustomEvent('storeChanged', { detail: { storeId: String(s.id) } }));
                       setShowStoreList(false);
                     }}
                   >
@@ -527,16 +590,30 @@ export default function AttendancePageLive() {
           </div>
 
           <div className="att-topbar-actions">
-            <div className="att-capsule-card">
+            <div className="att-capsule-card" style={{ marginRight: '8px' }}>
               <button
                 type="button"
                 className="att-capsule-payroll-btn"
-                onClick={() => navigate('/payroll')}
-                title="Xem tóm tắt bảng lương"
+                onClick={() => navigate('/requests?tab=adjustments')}
+                title={isManager ? "Xem danh sách yêu cầu điều chỉnh chấm công" : "Xem và gửi giải trình chấm công của bạn"}
               >
-                Tóm tắt bảng lương
+                {isManager ? 'Duyệt giải trình' : 'Giải trình chấm công'}
               </button>
-              <div className="att-capsule-divider" />
+            </div>
+            <div className="att-capsule-card">
+              {isManager && (
+                <>
+                  <button
+                    type="button"
+                    className="att-capsule-payroll-btn"
+                    onClick={() => navigate('/payroll')}
+                    title="Xem tóm tắt bảng lương"
+                  >
+                    Tóm tắt bảng lương
+                  </button>
+                  <div className="att-capsule-divider" />
+                </>
+              )}
               <button
                 type="button"
                 className="att-capsule-export-btn"
@@ -861,14 +938,18 @@ export default function AttendancePageLive() {
 
                         {/* Thao tác */}
                         <td>
-                          <button
-                            type="button"
-                            className="att-edit-btn"
-                            onClick={() => handleOpenEdit(row)}
-                            title="Chỉnh sửa giờ chấm công của nhân viên"
-                          >
-                            ✏️ Sửa
-                          </button>
+                          {isManager ? (
+                            <button
+                              type="button"
+                              className="att-edit-btn"
+                              onClick={() => handleOpenEdit(row)}
+                              title="Chỉnh sửa giờ chấm công của nhân viên"
+                            >
+                              ✏️ Sửa
+                            </button>
+                          ) : (
+                            <span className="att-muted">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -981,6 +1062,19 @@ export default function AttendancePageLive() {
                   <option value="EARLY_LEAVE">Về sớm (EARLY_LEAVE)</option>
                   <option value="ABSENT">Vắng (ABSENT)</option>
                 </select>
+              </div>
+
+              <div className="att-form-group">
+                <label>Lý do điều chỉnh (Bắt buộc cho nhật ký kiểm toán)</label>
+                <input
+                  type="text"
+                  className="att-time-input"
+                  style={{ width: '100%', height: '38px', padding: '6px 12px' }}
+                  placeholder="VD: Quên check-out khi tan ca, sự cố thiết bị quét mặt..."
+                  value={editForm.reason}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, reason: e.target.value }))}
+                  required
+                />
               </div>
 
               <div className="att-modal-actions">

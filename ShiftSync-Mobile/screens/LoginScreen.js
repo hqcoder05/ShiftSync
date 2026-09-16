@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { login } from '../services/authService';
+import { getBaseUrl } from '../services/api';
 import { validateLoginForm } from '../utils/validators';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -35,7 +36,13 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const res = await login(trimmedEmail, trimmedPassword);
-      await AsyncStorage.setItem('accessToken', res.data.accessToken);
+      const { accessToken, refreshToken, role, email: userEmail } = res.data;
+      await AsyncStorage.multiSet([
+        ['accessToken', accessToken || ''],
+        ['refreshToken', refreshToken || ''],
+        ['userRole', role || ''],
+        ['userEmail', userEmail || ''],
+      ]);
       navigation.replace('MainTabs');
     } catch (err) {
       console.log('LOGIN ERROR:', err.message);
@@ -43,7 +50,7 @@ export default function LoginScreen({ navigation }) {
       if (status === 401) {
         setError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
       } else if (status === 0 || !err.response) {
-        setError('Không kết nối được server. Hãy đảm bảo backend đang chạy tại cổng 8080.');
+        setError(`Không kết nối được server (${getBaseUrl()}). Hãy đảm bảo backend đang chạy tại cổng 8080 và thiết bị cùng Wi-Fi.`);
       } else {
         setError('Đăng nhập thất bại. Vui lòng thử lại.');
       }
@@ -110,6 +117,10 @@ export default function LoginScreen({ navigation }) {
             Vào thẳng Lịch làm việc (Demo Mode) →
           </Text>
         </Pressable>
+
+        <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: '#999' }}>
+          Server: {getBaseUrl()}
+        </Text>
       </View>
     </View>
   );

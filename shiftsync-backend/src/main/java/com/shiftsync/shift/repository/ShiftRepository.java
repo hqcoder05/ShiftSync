@@ -17,6 +17,9 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
     
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill"})
     List<Shift> findByStoreIdAndShiftDateBetween(UUID storeId, LocalDate startDate, LocalDate endDate);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill"})
+    List<Shift> findByStoreIdAndShiftDate(UUID storeId, LocalDate shiftDate);
     
     Optional<Shift> findByIdAndStoreId(UUID id, UUID storeId);
 

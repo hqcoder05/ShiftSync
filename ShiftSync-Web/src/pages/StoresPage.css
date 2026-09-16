@@ -154,7 +154,17 @@
 .store-skill-delete:hover { color: #e53e3e; }
 
 /* ── Modal ── */
-.store-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.store-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 20px;
+}
 .store-modal {
   background: #fff;
   border-radius: 12px;
@@ -223,3 +233,61 @@
   font-weight: 700; cursor: pointer; margin-top: 8px; color: #333; transition: all 0.2s;
 }
 .store-save-btn:hover { background: var(--ss-accent); color: #fff; }
+
+/* ── Spatial Expansion & Tabs ── */
+.store-card.expanded-spatial {
+  grid-column: 1 / -1;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.store-expanded-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.store-expanded-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.store-tab-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.store-tab-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #1e293b;
+}
+
+.store-tab-btn.active {
+  background: #ffffff;
+  color: #16a34a;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.store-3d-btn {
+  border-color: #10b981 !important;
+  color: #059669 !important;
+  background: #ecfdf5 !important;
+}
+
+.store-3d-btn:hover {
+  background: #10b981 !important;
+  color: #ffffff !important;
+}

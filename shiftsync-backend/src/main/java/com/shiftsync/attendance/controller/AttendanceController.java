@@ -18,6 +18,7 @@ import java.util.List;
 import java.time.LocalDate;
 import org.springframework.web.multipart.MultipartFile;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
@@ -28,7 +29,7 @@ public class AttendanceController {
 
     private final AttendanceService attendanceService;
 
-    @PreAuthorize("hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping("/stores/{storeId}/shifts/{shiftId}/attendance/qr")
     public ResponseEntity<QrResponseDTO> generateQr(
             @PathVariable UUID storeId,
@@ -98,6 +99,7 @@ public class AttendanceController {
         attendanceService.deleteAttendance(storeId, attendanceId);
         return ResponseEntity.noContent().build();
     }
+
 
     private AttendanceDTO toDTO(Attendance attendance) {
         return AttendanceDTO.builder()

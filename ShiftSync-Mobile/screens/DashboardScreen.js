@@ -32,6 +32,8 @@ const nav = (navigation, destination) => {
     navigation.getParent?.()?.navigate('Availability') || navigation.navigate('Availability');
   } else if (destination === 'Profile') {
     navigation.getParent?.()?.navigate('Profile') || navigation.navigate('Profile');
+  } else if (destination === 'Marketplace') {
+    navigation.getParent?.()?.navigate('Marketplace') || navigation.navigate('Marketplace');
   } else {
     navigation.navigate(destination);
   }
@@ -213,6 +215,30 @@ export default function DashboardScreen({ navigation }) {
             </Pressable>
           ))}
         </View>
+
+        {/* ═══ MARKETPLACE PROMO BANNER ═══ */}
+        <Pressable
+          style={s.marketBanner}
+          onPress={() => nav(navigation, 'Marketplace')}
+          accessibilityRole="button"
+          accessibilityLabel="Vào Sàn ca mở để nhận thêm ca làm"
+        >
+          <View style={s.marketBannerIconWrap}>
+            <Text style={s.marketBannerIcon}>🛒</Text>
+          </View>
+          <View style={s.marketBannerInfo}>
+            <View style={s.marketBannerBadgeRow}>
+              <Text style={s.marketBannerTitle}>Sàn ca mở • Nhận ca làm</Text>
+              <View style={s.marketNewBadge}>
+                <Text style={s.marketNewBadgeText}>MỚI</Text>
+              </View>
+            </View>
+            <Text style={s.marketBannerSubtitle}>
+              Có ca làm việc đang thiếu người tại chi nhánh. Nhận ca ngay!
+            </Text>
+          </View>
+          <Text style={s.marketBannerArrow}>›</Text>
+        </Pressable>
 
         {/* ═══ UPCOMING SHIFTS ═══ */}
         <View style={s.sectionHeader}>
@@ -411,7 +437,69 @@ const s = StyleSheet.create({
   incomeTitle: { fontSize: 25, lineHeight: 29, fontWeight: '700', color: '#131516', marginTop: 17 },
   label: { fontSize: 16, color: '#45494A', marginTop: 19 },
   amount: { fontSize: 31, color: '#46A83A', marginTop: 7 },
-  stat: { fontSize: 24, color: '#46A83A', marginTop: 3 },
-  statEnd: { fontSize: 15, color: '#45494A' },
   incomeArt: { position: 'absolute', width: 145, height: 145, right: 9, bottom: 9, resizeMode: 'contain' },
+  marketBanner: {
+    marginHorizontal: 11,
+    marginTop: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  marketBannerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  marketBannerIcon: {
+    fontSize: 22,
+  },
+  marketBannerInfo: {
+    flex: 1,
+  },
+  marketBannerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  marketBannerTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  marketNewBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  marketNewBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#16a34a',
+  },
+  marketBannerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  marketBannerArrow: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#16a34a',
+    marginLeft: 8,
+  },
 });

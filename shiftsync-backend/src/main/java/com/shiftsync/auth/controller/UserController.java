@@ -41,7 +41,7 @@ public class UserController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @Operation(summary = "Create a new user profile", description = "Creates a new user profile and returns the UserDTO.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "User successfully created"),
@@ -54,7 +54,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @Operation(summary = "Get list of all users", description = "Retrieves a paginated list of all users. Use ?page=0&size=20&sort=createdAt,desc for pagination.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Successfully retrieved users page"),
@@ -90,7 +90,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @Operation(summary = "Update an existing user profile", description = "Modifies user details. Updates password if provided.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "User profile successfully updated"),

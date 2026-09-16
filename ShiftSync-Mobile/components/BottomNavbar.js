@@ -30,9 +30,24 @@ export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) 
       } else {
         navigation.navigate('Availability');
       }
+    } else if (destination === 'Marketplace') {
+      const parent = navigation.getParent?.();
+      if (parent) {
+        parent.navigate('Marketplace');
+      } else {
+        navigation.navigate('Marketplace');
+      }
     } else {
       // In main tab stack
-      navigation.navigate(destination);
+      if (navigation.getParent?.()) {
+        navigation.navigate(destination);
+      } else {
+        try {
+          navigation.navigate('MainTabs', { screen: destination });
+        } catch {
+          navigation.navigate(destination);
+        }
+      }
     }
   };
 

@@ -27,6 +27,33 @@ public class SchedulerConfigurationController {
 
     private final SchedulerConfigurationRepository repository;
 
+    @Operation(summary = "Get scheduler configuration weights for store")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+    @GetMapping
+    public ResponseEntity<SchedulerConfigurationDTO> getConfig(@PathVariable UUID storeId) {
+        SchedulerConfiguration config = repository.findByStoreId(storeId)
+                .orElseGet(() -> SchedulerConfiguration.builder()
+                        .storeId(storeId)
+                        .fairnessWeight(new BigDecimal("0.200"))
+                        .skillWeight(new BigDecimal("0.250"))
+                        .hourWeight(new BigDecimal("0.200"))
+                        .restTimeWeight(new BigDecimal("0.150"))
+                        .availabilityWeight(new BigDecimal("0.200"))
+                        .build());
+
+        SchedulerConfigurationDTO responseDto = SchedulerConfigurationDTO.builder()
+                .id(config.getId())
+                .storeId(config.getStoreId())
+                .fairnessWeight(config.getFairnessWeight())
+                .skillWeight(config.getSkillWeight())
+                .hourWeight(config.getHourWeight())
+                .restTimeWeight(config.getRestTimeWeight())
+                .availabilityWeight(config.getAvailabilityWeight())
+                .build();
+
+        return ResponseEntity.ok(responseDto);
+    }
+
     @Operation(summary = "Update scheduler configuration weights")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @PutMapping

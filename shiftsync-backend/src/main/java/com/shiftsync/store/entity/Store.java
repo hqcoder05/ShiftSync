@@ -32,6 +32,15 @@ public class Store {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false)
+    @Builder.Default
+    private com.shiftsync.store.enums.StoreCategory category = com.shiftsync.store.enums.StoreCategory.FOOD_BEVERAGE;
+
+    @Column(name = "format", nullable = false)
+    @Builder.Default
+    private String format = "Standard";
+
     @Column(name = "address")
     private String address;
 

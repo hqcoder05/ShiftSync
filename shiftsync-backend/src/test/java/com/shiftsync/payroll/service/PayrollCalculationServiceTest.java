@@ -62,6 +62,10 @@ class PayrollCalculationServiceTest {
 
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private com.shiftsync.skill.repository.SkillRepository skillRepository;
+    @Mock
+    private com.shiftsync.audit.service.AuditLogService auditLogService;
 
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
@@ -82,6 +86,7 @@ class PayrollCalculationServiceTest {
 
         staff = new User();
         staff.setId(UUID.randomUUID());
+        staff.setSystemRole(com.shiftsync.shared.security.SystemRole.STAFF);
 
         employment = new Employment();
         employment.setUser(staff);
@@ -92,6 +97,8 @@ class PayrollCalculationServiceTest {
 
         startDate = LocalDate.of(2023, 10, 1);
         endDate = LocalDate.of(2023, 10, 31);
+
+        lenient().when(skillRepository.findByStoreId(any())).thenReturn(List.of());
     }
 
     @Test
