@@ -257,6 +257,16 @@ public class ShiftService {
             checkDateNotLocked(storeId, date);
 
             for (BulkDemandPlanningRequest.ShiftDemandConfig dConfig : request.getShifts()) {
+                if (!dConfig.getStartTime().isBefore(dConfig.getEndTime())) {
+                    throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
+                }
+                if (store.getOpenTime() != null && dConfig.getStartTime().isBefore(store.getOpenTime())) {
+                    throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
+                }
+                if (store.getCloseTime() != null && dConfig.getEndTime().isAfter(store.getCloseTime())) {
+                    throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
+                }
+
                 Shift shift = shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, date, dConfig.getStartTime(), dConfig.getEndTime())
                         .orElse(null);
 
@@ -405,6 +415,18 @@ public class ShiftService {
         if (request.getStartTime() != null && request.getEndTime() != null) {
             if (!request.getStartTime().isBefore(request.getEndTime())) {
                 throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
+            }
+            Store store = shift.getStore();
+            if (store == null) {
+                store = storeRepository.findById(storeId).orElse(null);
+            }
+            if (store != null) {
+                if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
+                    throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
+                }
+                if (store.getCloseTime() != null && request.getEndTime().isAfter(store.getCloseTime())) {
+                    throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
+                }
             }
             shift.setStartTime(request.getStartTime());
             shift.setEndTime(request.getEndTime());
