@@ -16,8 +16,8 @@ const POPULAR_LOCATIONS = [
 ];
 
 const PRESET_COLORS = [
-  '#5BC8B8', '#D97FB2', '#D98080', '#C8C84A',
-  '#7AA8D9', '#FFA726', '#AB47BC', '#26A69A',
+  '#8DD9CC', '#F4A8C4', '#A5B4FC', '#FDBA74',
+  '#93C5FD', '#FDE68A', '#C4B5FD', '#86EFAC',
 ];
 
 const defaultColorFor = (name = '') =>

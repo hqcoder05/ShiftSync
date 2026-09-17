@@ -5,14 +5,14 @@ import { getSkillsByStore, createSkill, deleteSkill } from '../services/skillSer
 import './SkillsPage.css';
 
 const PRESET_COLORS = [
-  '#5BC8B8', // teal
-  '#D97FB2', // pink
-  '#D98080', // red/salmon
-  '#C8C84A', // yellow-green
-  '#7AA8D9', // blue
-  '#FFA726', // orange
-  '#AB47BC', // purple
-  '#26A69A', // green
+  '#8DD9CC', // Pastel Mint / Teal
+  '#F4A8C4', // Pastel Rose / Blush Pink
+  '#A5B4FC', // Pastel Periwinkle / Lavender
+  '#FDBA74', // Pastel Apricot / Soft Peach
+  '#93C5FD', // Pastel Sky Blue
+  '#FDE68A', // Pastel Warm Butter Yellow
+  '#C4B5FD', // Pastel Soft Violet
+  '#86EFAC', // Pastel Soft Sage Green
 ];
 const defaultColorFor = (name = '') =>
   PRESET_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];

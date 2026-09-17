@@ -303,7 +303,10 @@ export default function DashboardPage() {
     }
 
     // 2. Standard preset palette fallback
-    const PRESET_COLORS = ['#5BC8B8', '#D97FB2', '#D98080', '#C8C84A', '#7AA8D9', '#FFA726', '#AB47BC', '#26A69A'];
+    const PRESET_COLORS = [
+      '#8DD9CC', '#F4A8C4', '#A5B4FC', '#FDBA74',
+      '#93C5FD', '#FDE68A', '#C4B5FD', '#86EFAC',
+    ];
     if (sName && sName !== 'nhân viên' && sName !== 'staff') {
       return PRESET_COLORS[[...sName].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
     }

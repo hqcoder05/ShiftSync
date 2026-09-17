@@ -42,47 +42,65 @@ const AVATAR_MAP = {
 // ── Color palette matching the Web Schedule (Figma Prototype) ─────────────
 const ROLE_THEMES = {
   Barista: {
-    color: '#8DD9CC',      // Teal / Mint
-    cardBg: 'rgba(141, 217, 204, 0.15)',
+    color: '#8DD9CC',      // Pastel Mint
+    cardBg: 'rgba(141, 217, 204, 0.16)',
     activeBorder: '#8DD9CC',
-    activeBg: 'rgba(141, 217, 204, 0.25)',
+    activeBg: 'rgba(141, 217, 204, 0.28)',
     dotColor: '#8DD9CC',
   },
   Cashier: {
-    color: '#D98DB3',      // Pink / Mauve
-    cardBg: 'rgba(217, 141, 179, 0.12)',
-    activeBorder: '#D98DB3',
-    activeBg: 'rgba(217, 141, 179, 0.25)',
-    dotColor: '#D98DB3',
+    color: '#F4A8C4',      // Pastel Rose Pink
+    cardBg: 'rgba(244, 168, 196, 0.16)',
+    activeBorder: '#F4A8C4',
+    activeBg: 'rgba(244, 168, 196, 0.28)',
+    dotColor: '#F4A8C4',
   },
-  Kitchen: {
-    color: '#D98080',      // Salmon / Coral
-    cardBg: 'rgba(217, 128, 128, 0.12)',
-    activeBorder: '#D98080',
-    activeBg: 'rgba(217, 128, 128, 0.25)',
-    dotColor: '#D98080',
+  Waiter: {
+    color: '#A5B4FC',      // Pastel Periwinkle / Lavender
+    cardBg: 'rgba(165, 180, 252, 0.16)',
+    activeBorder: '#A5B4FC',
+    activeBg: 'rgba(165, 180, 252, 0.28)',
+    dotColor: '#A5B4FC',
   },
   Service: {
-    color: '#D9D98D',      // Yellow-green / Olive
-    cardBg: 'rgba(217, 217, 141, 0.1)',
-    activeBorder: '#D9D98D',
-    activeBg: 'rgba(217, 217, 141, 0.25)',
-    dotColor: '#D9D98D',
+    color: '#A5B4FC',      // Pastel Periwinkle / Lavender
+    cardBg: 'rgba(165, 180, 252, 0.16)',
+    activeBorder: '#A5B4FC',
+    activeBg: 'rgba(165, 180, 252, 0.28)',
+    dotColor: '#A5B4FC',
+  },
+  Kitchen: {
+    color: '#FDBA74',      // Pastel Apricot / Soft Peach
+    cardBg: 'rgba(253, 186, 116, 0.16)',
+    activeBorder: '#FDBA74',
+    activeBg: 'rgba(253, 186, 116, 0.28)',
+    dotColor: '#FDBA74',
   },
   Supervisor: {
-    color: '#7AA8D9',      // Blue
-    cardBg: 'rgba(122, 168, 217, 0.12)',
-    activeBorder: '#7AA8D9',
-    activeBg: 'rgba(122, 168, 217, 0.25)',
-    dotColor: '#7AA8D9',
+    color: '#93C5FD',      // Pastel Sky Blue
+    cardBg: 'rgba(147, 197, 253, 0.16)',
+    activeBorder: '#93C5FD',
+    activeBg: 'rgba(147, 197, 253, 0.28)',
+    dotColor: '#93C5FD',
   },
   Default: {
     color: '#8DD9CC',
-    cardBg: 'rgba(141, 217, 204, 0.15)',
+    cardBg: 'rgba(141, 217, 204, 0.16)',
     activeBorder: '#8DD9CC',
-    activeBg: 'rgba(141, 217, 204, 0.25)',
+    activeBg: 'rgba(141, 217, 204, 0.28)',
     dotColor: '#8DD9CC',
   }
+};
+
+const getRoleTheme = (role = '') => {
+  if (!role || typeof role !== 'string') return ROLE_THEMES.Default;
+  const rLower = role.toLowerCase().trim();
+  if (rLower === 'barista' || rLower.includes('barista') || rLower.includes('pha chế')) return ROLE_THEMES.Barista;
+  if (rLower === 'cashier' || rLower.includes('cashier') || rLower.includes('thu ngân')) return ROLE_THEMES.Cashier;
+  if (rLower === 'waiter' || rLower === 'waitress' || rLower.includes('waiter') || rLower.includes('phục vụ') || rLower.includes('service')) return ROLE_THEMES.Waiter;
+  if (rLower === 'kitchen' || rLower.includes('kitchen') || rLower.includes('bếp') || rLower.includes('cook')) return ROLE_THEMES.Kitchen;
+  if (rLower === 'supervisor' || rLower.includes('supervisor') || rLower.includes('quản lý') || rLower.includes('manager')) return ROLE_THEMES.Supervisor;
+  return ROLE_THEMES[role] || ROLE_THEMES.Default;
 };
 
 const DAY_LABELS = [
@@ -246,7 +264,7 @@ export default function ScheduleScreen({ navigation }) {
             return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
           };
           const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-          const theme = ROLE_THEMES[role] || ROLE_THEMES.Barista || ROLE_THEMES.Default;
+          const theme = getRoleTheme(role);
           return {
             id: s.id || `live-my-${idx}`,
             shiftDate: s.shiftDate,
@@ -283,7 +301,7 @@ export default function ScheduleScreen({ navigation }) {
               return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
             };
             const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-            const theme = ROLE_THEMES[role] || ROLE_THEMES.Barista || ROLE_THEMES.Default;
+            const theme = getRoleTheme(role);
             return {
               id: s.id || `live-store-${idx}`,
               shiftDate: s.shiftDate,
@@ -423,11 +441,6 @@ export default function ScheduleScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getRoleTheme = (role = '') => {
-    if (!role || typeof role !== 'string') return ROLE_THEMES.Default;
-    return ROLE_THEMES[role] || ROLE_THEMES.Default;
   };
 
   const displayDays = selectedDayIndex !== null

@@ -23,25 +23,101 @@ import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import './SchedulePage.css';
 
 /* ── Helpers ────────────────────────────────────────────── */
-// Colour palette matching the reference screenshots
+// Pastel colour palette for schedule views
 export const PRESET_COLORS = [
-  '#5BC8B8', // teal
-  '#D97FB2', // pink (Waitress)
-  '#D98080', // red/salmon
-  '#C8C84A', // yellow-green / olive (Cashier)
-  '#7AA8D9', // blue
-  '#FFA726', // orange
-  '#AB47BC', // purple (Barista)
-  '#26A69A', // green
+  '#8DD9CC', // Pastel Mint / Teal (Barista / Primary)
+  '#F4A8C4', // Pastel Rose / Blush Pink (Cashier)
+  '#A5B4FC', // Pastel Periwinkle / Lavender (Waiter / Service)
+  '#FDBA74', // Pastel Apricot / Soft Peach (Kitchen)
+  '#93C5FD', // Pastel Sky Blue (Supervisor / General)
+  '#FDE68A', // Pastel Warm Butter Yellow
+  '#C4B5FD', // Pastel Soft Violet
+  '#86EFAC', // Pastel Soft Sage Green
 ];
 export const SHIFT_COLORS = PRESET_COLORS;
 
-export const defaultColorFor = (name = '') =>
-  PRESET_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
+export const ROLE_PASTEL_MAP = {
+  barista: '#8DD9CC',
+  'pha chế': '#8DD9CC',
+  cashier: '#F4A8C4',
+  'thu ngân': '#F4A8C4',
+  waiter: '#A5B4FC',
+  waitress: '#A5B4FC',
+  'phục vụ': '#A5B4FC',
+  service: '#A5B4FC',
+  kitchen: '#FDBA74',
+  'bếp': '#FDBA74',
+  cook: '#FDBA74',
+  supervisor: '#93C5FD',
+  'quản lý': '#93C5FD',
+  manager: '#93C5FD',
+};
+
+export const PASTEL_COLOR_MAP = {
+  // Teal / Cyan -> Pastel Mint
+  '#5bc8b8': '#8DD9CC',
+  '#0d9488': '#8DD9CC',
+  '#0f766e': '#8DD9CC',
+  '#14b8a6': '#8DD9CC',
+  '#059669': '#86EFAC',
+  '#10b981': '#86EFAC',
+  '#26a69a': '#86EFAC',
+  // Pink / Rose / Salmon -> Pastel Rose & Coral
+  '#d97fb2': '#F4A8C4',
+  '#d98080': '#FDA4AF',
+  '#f43f5e': '#FDA4AF',
+  '#e11d48': '#FDA4AF',
+  // Yellow / Olive / Green-yellow -> Pastel Butter
+  '#c8c84a': '#FDE68A',
+  '#eab308': '#FDE68A',
+  '#ca8a04': '#FDE68A',
+  // Blue -> Pastel Sky Blue & Periwinkle
+  '#7aa8d9': '#93C5FD',
+  '#2563eb': '#93C5FD',
+  '#1d4ed8': '#93C5FD',
+  '#3b82f6': '#93C5FD',
+  '#6ba5e7': '#93C5FD',
+  // Orange / Amber -> Pastel Apricot / Peach
+  '#ffa726': '#FDBA74',
+  '#ea580c': '#FDBA74',
+  '#c2410c': '#FDBA74',
+  '#f97316': '#FDBA74',
+  '#f68e5f': '#FDBA74',
+  '#dc2626': '#FCA5A5',
+  '#ef4444': '#FCA5A5',
+  '#f87171': '#FCA5A5',
+  // Purple / Violet -> Pastel Lavender & Periwinkle
+  '#ab47bc': '#C4B5FD',
+  '#7c3aed': '#C4B5FD',
+  '#6d28d9': '#C4B5FD',
+  '#8b5cf6': '#C4B5FD',
+  '#a284e0': '#C4B5FD',
+  '#4f46e5': '#A5B4FC',
+  '#6366f1': '#A5B4FC',
+  '#818cf8': '#A5B4FC',
+};
+
+export const toPastelColor = (hex) => {
+  if (!hex || typeof hex !== 'string') return PRESET_COLORS[0];
+  const lower = hex.toLowerCase().trim();
+  if (PASTEL_COLOR_MAP[lower]) return PASTEL_COLOR_MAP[lower];
+  return hex;
+};
+
+export const defaultColorFor = (name = '') => {
+  if (!name) return PRESET_COLORS[0];
+  const lower = name.toLowerCase().trim();
+  for (const [key, val] of Object.entries(ROLE_PASTEL_MAP)) {
+    if (lower === key || lower.includes(key) || key.includes(lower)) {
+      return val;
+    }
+  }
+  return PRESET_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
+};
 
 export const getSkillColor = (sk) => {
   if (!sk) return PRESET_COLORS[0];
-  if (sk.description && sk.description.startsWith('#')) return sk.description;
+  if (sk.description && sk.description.startsWith('#')) return toPastelColor(sk.description);
   return defaultColorFor(sk.name);
 };
 
@@ -193,6 +269,16 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
     posName = resolveShiftPositionName(shift, null, storeSkills, emp);
   }
 
+  // 1.1 Direct match against standard pastel role names
+  if (posName && posName !== 'Nhân viên' && posName !== 'Staff') {
+    const pLower = posName.toLowerCase().trim();
+    for (const [key, val] of Object.entries(ROLE_PASTEL_MAP)) {
+      if (pLower === key || pLower.includes(key) || key.includes(pLower)) {
+        return val;
+      }
+    }
+  }
+
   // 2. Look up in storeSkills (from getSkillsByStore) - PRIMARY SOURCE OF TRUTH
   if (Array.isArray(storeSkills) && storeSkills.length > 0) {
     const sSkillId = shift?.skillId || shift?.requiredSkillId || shift?.location;
@@ -200,7 +286,7 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
       const foundById = storeSkills.find((sk) => String(sk.id) === String(sSkillId));
       if (foundById) {
         if (foundById.description && foundById.description.startsWith('#')) {
-          return foundById.description;
+          return toPastelColor(foundById.description);
         }
         return defaultColorFor(foundById.name);
       }
@@ -213,16 +299,16 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
       });
       if (foundByName) {
         if (foundByName.description && foundByName.description.startsWith('#')) {
-          return foundByName.description;
+          return toPastelColor(foundByName.description);
         }
         return defaultColorFor(foundByName.name);
       }
     }
   }
 
-  // 3. Fallback to shift custom color if valid and not default teal
-  if (shift?.color && shift.color.startsWith('#') && shift.color !== '#5BC8B8') {
-    return shift.color;
+  // 3. Fallback to shift custom color if valid
+  if (shift?.color && shift.color.startsWith('#')) {
+    return toPastelColor(shift.color);
   }
 
   // 4. Default color for position name using PRESET_COLORS
@@ -233,7 +319,7 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
   // 5. Fallback to first skill in store
   if (Array.isArray(storeSkills) && storeSkills.length > 0) {
     const firstSk = storeSkills[0];
-    if (firstSk.description && firstSk.description.startsWith('#')) return firstSk.description;
+    if (firstSk.description && firstSk.description.startsWith('#')) return toPastelColor(firstSk.description);
     return defaultColorFor(firstSk.name);
   }
 
@@ -872,43 +958,9 @@ export default function SchedulePage() {
 
   const getSkillColor = (skObj) => {
     if (!skObj) return null;
-    if (skObj.description && skObj.description.startsWith('#')) return skObj.description;
+    if (skObj.description && skObj.description.startsWith('#')) return toPastelColor(skObj.description);
     return colorFor(skObj.name);
   };
-
-  const PASTEL_COLOR_MAP = {
-    // Teal / Cyan -> Pastel Mint
-    '#0d9488': '#48B8A6',
-    '#0f766e': '#48B8A6',
-    '#14b8a6': '#48B8A6',
-    '#059669': '#52B788',
-    '#10b981': '#52B788',
-    // Blue -> Pastel Sky Blue
-    '#2563eb': '#6BA5E7',
-    '#1d4ed8': '#6BA5E7',
-    '#3b82f6': '#6BA5E7',
-    // Orange / Red -> Pastel Coral / Peach
-    '#ea580c': '#F68E5F',
-    '#c2410c': '#F68E5F',
-    '#f97316': '#F68E5F',
-    '#dc2626': '#F87171',
-    '#ef4444': '#F87171',
-    // Purple / Violet -> Pastel Lavender
-    '#7c3aed': '#A284E0',
-    '#6d28d9': '#A284E0',
-    '#8b5cf6': '#A284E0',
-    '#4f46e5': '#818CF8',
-    '#6366f1': '#818CF8',
-  };
-
-  const toPastelColor = (hex) => {
-    if (!hex || typeof hex !== 'string') return '#48B8A6';
-    const lower = hex.toLowerCase().trim();
-    if (PASTEL_COLOR_MAP[lower]) return PASTEL_COLOR_MAP[lower];
-    return hex;
-  };
-
-  // (getShiftPositionColor is globally exported at the top of file and bound to skills state)
 
   const getEmpDefaultSkillAndColor = (targetEmpId) => {
     if (!targetEmpId) return { location: '', color: SHIFT_COLORS[0] };
@@ -2235,13 +2287,7 @@ export default function SchedulePage() {
                                   <div
                                     className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''}`}
                                     style={{
-                                      background: `repeating-linear-gradient(
-                                        135deg,
-                                        ${chipColor},
-                                        ${chipColor} 8px,
-                                        rgba(255,255,255,0.18) 8px,
-                                        rgba(255,255,255,0.18) 10px
-                                      )`,
+                                      backgroundColor: chipColor,
                                     }}
                                     title={`${name} - Vị trí: ${shiftPosName} (${fmtTimeAMPM(s.startTime)} – ${fmtTimeAMPM(s.endTime)})`}
                                     onClick={(e) => {
