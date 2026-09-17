@@ -67,13 +67,14 @@ export default function DemandPlanningModal({
         }
       } catch (err) {
         console.warn('Could not fetch branches from API:', err.message);
-        // Fallback branch if not yet seeded
         if (mounted && branches.length === 0) {
-          const fallbackStoreId = storeId || localStorage.getItem('storeId') || '11111111-1111-1111-1111-111111111111';
-          setBranches([
-            { id: fallbackStoreId, name: 'ShiftSync Store' },
-          ]);
-          setSelectedBranchId(fallbackStoreId);
+          const fallbackStoreId = storeId || localStorage.getItem('storeId');
+          if (fallbackStoreId) {
+            setBranches([
+              { id: fallbackStoreId, name: 'Current Store' },
+            ]);
+            setSelectedBranchId(fallbackStoreId);
+          }
         }
       }
     };
