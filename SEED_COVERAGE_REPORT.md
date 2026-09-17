@@ -12,23 +12,23 @@
 | Thực Thể (Entity) | Số Bản Ghi | Mục Đích Nghiệp Vụ (Purpose) | Kịch Bản Manual QA Hỗ Trợ | Bản Ghi Đặc Biệt (Special Records) | Trạng Thái |
 | :--- | :---: | :--- | :--- | :--- | :---: |
 | `store` | **2** | Định danh 2 chi nhánh độc lập | `QA-AUTH-001`, `QA-RBAC-002` | Store 1 (Flagship), Store 2 (Riverside) | **READY** |
-| `store_configuration` | **2** | Cấu hình giới hạn giờ tuần, nghỉ giữa 2 ca, geofence | `QA-SCHED-005`, `QA-ATT-001` | `maxHourPerWeek = 48`, `minRestHours = 10`, `radius = 150m` | **READY** |
-| `scheduler_configuration` | **2** | Trọng số thuật toán AutoScheduler | `QA-SCHED-001` | Tổng trọng số = `1.000` (Fairness: 0.2, Skill: 0.25, Rest: 0.15...) | **READY** |
-| `contract_type` | **6** | Hợp đồng lao động & giới hạn giờ làm | `QA-STAFF-003`, `QA-SCHED-006` | Hợp đồng `Intern` (Max 20h/tuần), `Full-Time` (48h), `Part-Time` | **READY** |
+| `store_configuration` | **2** | Cấu hình giới hạn giờ tuần, nghỉ giữa 2 ca, geofence | `QA-SCHED-005`, `QA-ATT-001` | `maxHourPerWeek = 48`, `minRestHours = 8`, `radius = 100m` | **READY** |
+| `scheduler_configuration` | **2** | Trọng số thuật toán AutoScheduler | `QA-SCHED-001` | Tổng trọng số = `1.000` (Fairness: 0.1, Skill: 0.3, Hour: 0.2, Rest: 0.1, Avail: 0.3) | **READY** |
+| `contract_type` | **6** | Hợp đồng lao động & giới hạn giờ làm | `QA-STAFF-003`, `QA-SCHED-006` | Hợp đồng `Intern` (Max 20h/tuần), `Full-Time` (40h), `Part-Time` (25h) | **READY** |
 | `skill` | **6** | Danh mục chức danh nghiệp vụ | `QA-STAFF-002`, `QA-SCHED-003` | Barista, Cashier, Waiter cho từng Store | **READY** |
-| `staff` | **31** | Tài khoản đăng nhập hệ thống | `QA-AUTH-001..002`, `QA-STAFF-001` | 1 Admin, 2 Quản lý, 28 Nhân sự có tên tiếng Việt và email chuẩn | **READY** |
-| `employment` | **31** | Quan hệ nhân sự - cửa hàng, trạng thái, mức lương | `QA-STAFF-001`, `QA-RBAC-002` | 27 ACTIVE, 2 INACTIVE (thuyên chuyển & nghỉ việc), 1 SUSPENDED | **READY** |
-| `staff_skill` | **47** | Trình độ kỹ năng và hạn chứng chỉ | `QA-STAFF-002`, `QA-SCHED-003` | `emp06` hết hạn Barista (`10/09`), `emp05` sắp hết hạn (`20/09`) | **READY** |
-| `availability` | **139** | Khung giờ rảnh cá nhân | `QA-SCHED-002` | `emp03` (T2-T4-T6), `emp05` (Sáng), `emp09` (Tối), `emp16` (Cuối tuần), `grace` (0 khung) | **READY** |
+| `staff` | **44** | Tài khoản đăng nhập hệ thống | `QA-AUTH-001..002`, `QA-STAFF-001` | 1 Admin, 2 Quản lý, 36 Nhân sự Store 1, 5 Nhân sự Store 2 | **READY** |
+| `employment` | **44** | Quan hệ nhân sự - cửa hàng, trạng thái, mức lương | `QA-STAFF-001`, `QA-RBAC-002` | 41 ACTIVE, 2 INACTIVE (thuyên chuyển & nghỉ việc), 1 SUSPENDED | **READY** |
+| `staff_skill` | **87** | Trình độ kỹ năng và hạn chứng chỉ | `QA-STAFF-002`, `QA-SCHED-003` | `emp06` hết hạn Barista (`10/09`), `emp05` sắp hết hạn (`20/09`), chuyên gia & trung cấp | **READY** |
+| `availability` | **248** | Khung giờ rảnh cá nhân | `QA-SCHED-002` | Đảm bảo 100% độ phủ ca W39; `emp03` (T2-T4-T6), `emp05` (Sáng), `emp09` (Tối), `emp30` (0 khung) | **READY** |
 | `store_layouts` | **2** | Mặt bằng kiến trúc cửa hàng | `QA-3D-001` | Bản vẽ Store 1 và Store 2 | **READY** |
-| `store_zones` | **7** | Vùng không gian 3 chiều `(x, y, z)` | `QA-3D-001`, `QA-3D-002` | Quầy Bar, Thu ngân, Sảnh, Gác lửng (`z=3.5m`), Sân thượng (`z=7.0m`) | **READY** |
+| `store_zones` | **7** | Vùng không gian 3 chiều `(x, y, z)` | `QA-3D-001`, `QA-3D-002` | Quầy Bar, Thu ngân, Sảnh trệt, Gác lửng (`z=3.5m`), Sân thượng | **READY** |
 | `workstations` | **6** | Vị trí làm việc gắn theo từng vùng | `QA-3D-001` | POS-01, ESPRESSO-01, FLOOR-TABLE-01... | **READY** |
 | `shift_template` | **6** | Mẫu ca làm việc tiêu chuẩn | `QA-SHIFT-001` | Sáng (07:00), Giữa ca (10:00), Chiều (14:30), Tối (18:00) | **READY** |
-| `blackout_date` | **4** | Ngày cao điểm cấm xin nghỉ | `QA-LEAVE-002` | Quốc khánh `02/09/2026`, Giỗ Tổ, Tết Dương lịch | **READY** |
-| `leave_request` | **4** | Đơn xin nghỉ phép | `QA-LEAVE-001..003`, `QA-SCHED-004` | `emp08` đã duyệt nghỉ `18/09 - 19/09`, 1 đơn PENDING, 1 đơn REJECTED | **READY** |
+| `blackout_date` | **7** | Ngày cao điểm hoặc ngày đã duyệt nghỉ | `QA-LEAVE-002`, `QA-SCHED-004` | `emp08` nghỉ `18/09 - 19/09`, `emp25` nghỉ `22/09 - 23/09`, `emp31` blackout `25/09` | **READY** |
+| `leave_request` | **5** | Đơn xin nghỉ phép | `QA-LEAVE-001..003`, `QA-SCHED-004` | `emp08` đã duyệt W38, `emp25` đã duyệt W39, 1 đơn PENDING, 1 đơn REJECTED | **READY** |
 | `shift` | **87** | Ca làm việc liên tuần (W37, W38, W39) | `QA-SHIFT-001`, `QA-SCHED-001` | 14 ca W37 (COMPLETED/CANCELLED), 42 ca W38 (PUBLISHED), 31 ca W39 (DRAFT) | **READY** |
-| `shift_skill_requirement` | **191** | Yêu cầu số lượng nhân sự theo vị trí | `QA-SHIFT-001`, `QA-SCHED-005` | Phân bổ số lượng nhân sự và kỹ năng cho 87 ca | **READY** |
-| `shift_assignment` | **96** | Phân công nhân sự vào ca & zone | `QA-3D-002`, `QA-ATT-001` | 100% có gắn `zone_id`, không trùng chéo thời gian của cùng 1 người | **READY** |
+| `shift_skill_requirement` | **191** | Yêu cầu số lượng nhân sự theo vị trí | `QA-SHIFT-001`, `QA-SCHED-005` | Phân bổ số lượng nhân sự và kỹ năng cho 87 ca (84 slots cho W39 Store 1) | **READY** |
+| `shift_assignment` | **96** | Phân công nhân sự vào ca & zone | `QA-3D-002`, `QA-ATT-001` | 100% có gắn `zone_id`, phân bổ không gian 3D tầng trệt và gác lửng | **READY** |
 | `attendance` | **62** | Nhật ký chấm công geofence | `QA-ATT-001..003` | 2 ca đang làm (check_out NULL chiều 17/09), 1 ca LATE, 1 ca EARLY_LEAVE | **READY** |
 | `attendance_adjustment_request`| **3** | Đơn khiếu nại điều chỉnh giờ công | `QA-ATT-003` | 1 PENDING cho ca đi muộn 14/09, 1 APPROVED, 1 REJECTED | **READY** |
 | `shift_swap_request` | **3** | Yêu cầu đổi ca giữa nhân viên | `QA-SWAP-001` | 1 đơn PENDING (đã được chấp nhận bởi đối tác, chờ Quản lý duyệt) | **READY** |
@@ -36,9 +36,9 @@
 | `workforce_request` | **4** | Đơn mượn nhân sự liên cửa hàng | `QA-WF-001` | PROPOSAL_SENT, PENDING, COMPLETED, REJECTED giữa Store 1 và Store 2 | **READY** |
 | `workforce_proposal` | **2** | Đề cử ứng viên hỗ trợ chi nhánh | `QA-WF-002` | Đề cử nhân viên Chris (Store 2) sang hỗ trợ ca Barista Store 1 | **READY** |
 | `payroll_period` | **3** | Kỳ bảng lương | `QA-PAY-001`, `QA-EMPTY-001` | Tháng 08/2026 (PAID 2 cửa hàng), Tháng 09/2026 (DRAFT rỗng) | **READY** |
-| `payroll` | **27** | Phiếu lương chi tiết | `QA-PAY-002`, `QA-PAY-003` | 23 phiếu Store 1 (Tháng 8) + 4 phiếu Store 2 (Tháng 8) | **READY** |
+| `payroll` | **41** | Phiếu lương chi tiết | `QA-PAY-002`, `QA-PAY-003` | 36 phiếu Store 1 (Tháng 8) + 5 phiếu Store 2 (Tháng 8) | **READY** |
 | `notification` | **5** | Hộp thư thông báo trong ứng dụng | `QA-NOTIF-001` | Nhắc ca làm, công bố lịch ca, duyệt nghỉ phép, thông báo lương | **READY** |
-| `notification_preference` | **232** | Tùy chọn bật/tắt nhận thông báo | `QA-NOTIF-001` | 8 danh mục thông báo bật chuẩn cho 31 nhân sự | **READY** |
+| `notification_preference` | **352** | Tùy chọn bật/tắt nhận thông báo | `QA-NOTIF-001` | 8 danh mục thông báo cấu hình chuẩn cho 44 nhân sự | **READY** |
 | `holiday` | **4** | Ngày nghỉ lễ quốc gia & hệ số lương | `QA-PAY-001` | Quốc khánh `02/09/2026` (3.0x), 30/04 (3.0x), 01/05 (3.0x), 01/01 (2.0x) | **READY** |
 | `audit_log` | **4** | Nhật ký thao tác quản trị | `QA-AUTH-001` | Ghi vết hành động công bố lịch ca, duyệt nghỉ phép, tạo bảng lương | **READY** |
 

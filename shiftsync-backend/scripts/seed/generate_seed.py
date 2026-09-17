@@ -3,9 +3,11 @@
 Generate comprehensive Master Seed Dataset for ShiftSync
 Anchor Date: 2026-09-17 (Thursday)
 - Historical Week W37: 2026-09-07 to 2026-09-13 (Completed shifts, attendance, historical analytics)
-- Current Week W38: 2026-09-14 to 2026-09-20 (Published shifts, active attendance, leave, swaps, open shifts)
-- Next Week W39: 2026-09-21 to 2026-09-27 (Draft shifts, auto-scheduler scenarios, 3D spatial allocation)
+- Current Week W38:    2026-09-14 to 2026-09-20 (Published shifts, active attendance, leave, swaps, open shifts)
+- Next Week W39:       2026-09-21 to 2026-09-27 (Draft shifts, auto-scheduler scenarios, 3D spatial allocation)
+Expanded staff pool: 35 active Store 1 staff + 1 intern + 2 inactive/suspended + 7 Store 2 staff = 48 accounts.
 """
+import sys
 
 PASSWORD_HASH = "$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu"  # password123
 
@@ -124,29 +126,44 @@ INSERT INTO scheduler_configuration (id, store_id, fairness_weight, skill_weight
     ]
 
     vn_names = [
-        ("Nguyen Van An", "emp01@shiftsync.com", "0902000001"),
-        ("Tran Thi Bich", "emp02@shiftsync.com", "0902000002"),
-        ("Le Hoang Cuong", "emp03@shiftsync.com", "0902000003"),
-        ("Pham Minh Duc", "emp04@shiftsync.com", "0902000004"),
-        ("Hoang Thu Ha", "emp05@shiftsync.com", "0902000005"),
-        ("Vu Thanh Hai", "emp06@shiftsync.com", "0902000006"),
-        ("Dang Ngoc Hien", "emp07@shiftsync.com", "0902000007"),
+        ("Nguyen Minh Anh", "emp01@shiftsync.com", "0902000001"),
+        ("Tran Quoc Bao", "emp02@shiftsync.com", "0902000002"),
+        ("Le Hoang Nam", "emp03@shiftsync.com", "0902000003"),
+        ("Pham Gia Huy", "emp04@shiftsync.com", "0902000004"),
+        ("Vo Minh Khang", "emp05@shiftsync.com", "0902000005"),
+        ("Dang Tuan Kiet", "emp06@shiftsync.com", "0902000006"),
+        ("Hoang Duc Thang", "emp07@shiftsync.com", "0902000007"),
         ("Bui Quang Huy", "emp08@shiftsync.com", "0902000008"),
-        ("Doan Thi Mai", "emp09@shiftsync.com", "0902000009"),
-        ("Ngo Van Nam", "emp10@shiftsync.com", "0902000010"),
-        ("Duong Gia Phuc", "emp11@shiftsync.com", "0902000011"),
-        ("Ly Hong Quan", "emp12@shiftsync.com", "0902000012"),
-        ("Mai Quoc Son", "emp13@shiftsync.com", "0902000013"),
-        ("Dinh Bao Thang", "emp14@shiftsync.com", "0902000014"),
-        ("Cao Van Thinh", "emp15@shiftsync.com", "0902000015"),
+        ("Ngo Van Nam", "emp09@shiftsync.com", "0902000009"),
+        ("Doan Hai Dang", "emp10@shiftsync.com", "0902000010"),
+        ("Duong Minh Tri", "emp11@shiftsync.com", "0902000011"),
+        ("Phan Thanh Tung", "emp12@shiftsync.com", "0902000012"),
+        ("Vu Quoc Viet", "emp13@shiftsync.com", "0902000013"),
+        ("Nguyen Huu Phuc", "emp14@shiftsync.com", "0902000014"),
+        ("Dinh Bao Thang", "emp15@shiftsync.com", "0902000015"),
         ("Trinh Kim Tuan", "emp16@shiftsync.com", "0902000016"),
-        ("Ha Xuan Vinh", "emp17@shiftsync.com", "0902000017"),
-        ("Luu Huu Yen", "emp18@shiftsync.com", "0902000018"),
+        ("Cao Van Thinh", "emp17@shiftsync.com", "0902000017"),
+        ("Mai Quoc Son", "emp18@shiftsync.com", "0902000018"),
         ("Ta Tien Dat", "emp19@shiftsync.com", "0902000019"),
         ("Do Manh Tien", "emp20@shiftsync.com", "0902000020"),
+        ("Ly Hoang Phong", "emp23@shiftsync.com", "0902000023"),
+        ("Ha Xuan Vinh", "emp24@shiftsync.com", "0902000024"),
+        ("Luu Huu Yen", "emp25@shiftsync.com", "0902000025"),
+        ("Vu Thanh Hai", "emp26@shiftsync.com", "0902000026"),
+        ("Nguyen Van An", "emp27@shiftsync.com", "0902000027"),
+        ("Tran Thi Bich", "emp28@shiftsync.com", "0902000028"),
+        ("Le Van Lam", "emp29@shiftsync.com", "0902000029"),
+        ("Chu Van An", "emp30@shiftsync.com", "0902000030"),
+        ("Bach Xuan Truong", "emp31@shiftsync.com", "0902000031"),
+        ("Trieu Quoc Cuong", "emp32@shiftsync.com", "0902000032"),
+        ("Dao Van Kien", "emp33@shiftsync.com", "0902000033"),
+        ("Nghiem Xuan Manh", "emp34@shiftsync.com", "0902000034"),
+        ("Quach Gia Bao", "emp35@shiftsync.com", "0902000035"),
     ]
-    for idx, (name, email, phone) in enumerate(vn_names, start=1):
-        s_id = f"10000000-0000-0000-0000-{idx:012d}"
+
+    for name, email, phone in vn_names:
+        num = int(email[3:5])
+        s_id = f"10000000-0000-0000-0000-{num:012d}"
         staff_rows.append(f"('{s_id}', '{name}', '{email}', '{phone}', '{PASSWORD_HASH}', 'STAFF', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00', 0, false)")
 
     # Intern emp99, Former emp21, Suspended emp22
@@ -171,84 +188,146 @@ INSERT INTO scheduler_configuration (id, store_id, fairness_weight, skill_weight
 
     # 7. EMPLOYMENT
     lines.append("-- 7. EMPLOYMENT")
-    emp_rows = [
-        f"('e0000000-0000-0000-0000-000000000001', '{MGR_1_ID}', '{STORE_1}', 35.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000001')",
-        f"('e0000000-0000-0000-0000-000000000002', '{MGR_2_ID}', '{STORE_2}', 32.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000005')",
-    ]
-    for i in range(1, 21):
-        s_id = f"10000000-0000-0000-0000-{i:012d}"
-        e_id = f"e0000000-0000-0000-0000-{i+2:012d}"
-        c_id = f"c7000000-0000-0000-0000-00000000000{(i % 3) + 1}"
-        rate = 22.00 + (i % 5) * 2.00
+    emp_rows = []
+    e_counter = 1
+
+    # Managers
+    emp_rows.append(f"('e0000000-0000-0000-0000-{e_counter:012d}', '{MGR_1_ID}', '{STORE_1}', 35.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000001')")
+    e_counter += 1
+    emp_rows.append(f"('e0000000-0000-0000-0000-{e_counter:012d}', '{MGR_2_ID}', '{STORE_2}', 32.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000005')")
+    e_counter += 1
+
+    active_emp_nums = [i for i in range(1, 21)] + [i for i in range(23, 36)]
+    for num in active_emp_nums:
+        s_id = f"10000000-0000-0000-0000-{num:012d}"
+        e_id = f"e0000000-0000-0000-0000-{e_counter:012d}"
+        e_counter += 1
+        # emp29 is Part-Time (Contract 2, max 25h)
+        if num == 29:
+            c_id = "c7000000-0000-0000-0000-000000000002"
+            rate = 22.00
+        else:
+            c_id = f"c7000000-0000-0000-0000-00000000000{(num % 3) + 1}"
+            rate = 22.00 + (num % 5) * 2.00
         emp_rows.append(f"('{e_id}', '{s_id}', '{STORE_1}', {rate:.2f}, 'ACTIVE', '2026-01-01', NULL, '{c_id}')")
 
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000023', '10000000-0000-0000-0000-000000000099', '{STORE_1}', 15.00, 'ACTIVE', '2026-06-01', NULL, 'c7000000-0000-0000-0000-000000000004')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000021', '{STORE_1}', 24.00, 'INACTIVE', '2025-01-15', '2026-07-31', 'c7000000-0000-0000-0000-000000000001')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000025', '10000000-0000-0000-0000-000000000022', '{STORE_1}', 22.00, 'SUSPENDED', '2026-02-01', NULL, 'c7000000-0000-0000-0000-000000000002')")
+    # Intern emp99 (Contract 4, max 20h)
+    emp_rows.append(f"('e0000000-0000-0000-0000-{e_counter:012d}', '10000000-0000-0000-0000-000000000099', '{STORE_1}', 15.00, 'ACTIVE', '2026-06-01', NULL, 'c7000000-0000-0000-0000-000000000004')")
+    e_counter += 1
+    # Former emp21 (INACTIVE)
+    emp_rows.append(f"('e0000000-0000-0000-0000-{e_counter:012d}', '10000000-0000-0000-0000-000000000021', '{STORE_1}', 24.00, 'INACTIVE', '2025-01-15', '2026-07-31', 'c7000000-0000-0000-0000-000000000001')")
+    e_counter += 1
+    # Suspended emp22 (SUSPENDED)
+    emp_rows.append(f"('e0000000-0000-0000-0000-{e_counter:012d}', '10000000-0000-0000-0000-000000000022', '{STORE_1}', 22.00, 'SUSPENDED', '2026-02-01', NULL, 'c7000000-0000-0000-0000-000000000002')")
+    e_counter += 1
 
     # Store 2 staff
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000026', '70000000-0000-0000-0000-000000000001', '{STORE_2}', 25.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000005')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000027', '70000000-0000-0000-0000-000000000002', '{STORE_2}', 22.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000006')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000028', '70000000-0000-0000-0000-000000000003', '{STORE_2}', 20.00, 'ACTIVE', '2026-01-01', NULL, 'c7000000-0000-0000-0000-000000000006')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000029', '70000000-0000-0000-0000-000000000004', '{STORE_1}', 22.00, 'INACTIVE', '2025-06-01', '2026-05-31', 'c7000000-0000-0000-0000-000000000002')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000030', '70000000-0000-0000-0000-000000000004', '{STORE_2}', 24.00, 'ACTIVE', '2026-06-01', NULL, 'c7000000-0000-0000-0000-000000000005')")
-    emp_rows.append(f"('e0000000-0000-0000-0000-000000000031', '70000000-0000-0000-0000-000000000005', '{STORE_2}', 20.00, 'ACTIVE', '2026-09-15', NULL, 'c7000000-0000-0000-0000-000000000006')")
+    s2_emp_configs = [
+        ("70000000-0000-0000-0000-000000000001", STORE_2, 25.00, 'ACTIVE', '2026-01-01', 'NULL', 'c7000000-0000-0000-0000-000000000005'),
+        ("70000000-0000-0000-0000-000000000002", STORE_2, 22.00, 'ACTIVE', '2026-01-01', 'NULL', 'c7000000-0000-0000-0000-000000000006'),
+        ("70000000-0000-0000-0000-000000000003", STORE_2, 20.00, 'ACTIVE', '2026-01-01', 'NULL', 'c7000000-0000-0000-0000-000000000006'),
+        ("70000000-0000-0000-0000-000000000004", STORE_1, 22.00, 'INACTIVE', '2025-06-01', "'2026-05-31'", 'c7000000-0000-0000-0000-000000000002'),
+        ("70000000-0000-0000-0000-000000000004", STORE_2, 24.00, 'ACTIVE', '2026-06-01', 'NULL', 'c7000000-0000-0000-0000-000000000005'),
+        ("70000000-0000-0000-0000-000000000005", STORE_2, 20.00, 'ACTIVE', '2026-09-15', 'NULL', 'c7000000-0000-0000-0000-000000000006'),
+    ]
+    for st_id, st_store, rate, status, joined, left, cid in s2_emp_configs:
+        e_id = f"e0000000-0000-0000-0000-{e_counter:012d}"
+        e_counter += 1
+        emp_rows.append(f"('{e_id}', '{st_id}', '{st_store}', {rate:.2f}, '{status}', '{joined}', {left}, '{cid}')")
 
     lines.append("INSERT INTO employment (id, staff_id, store_id, hourly_rate, status, joined_date, left_date, contract_type_id) VALUES")
     lines.append(",\n".join(emp_rows) + ";\n")
 
-    # 8. STAFF SKILLS (Valid UUID prefix a5...)
+    # 8. STAFF SKILLS
     lines.append("-- 8. STAFF SKILLS (Permanent, Temporary, Expiring Soon, Expired)")
     skill_rows = []
-    # emp01: Barista (Permanent NULL), Cashier (Permanent NULL)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '{SK_BARISTA_1}', 'EXPERT', NULL)")
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '{SK_CASHIER_1}', 'ADVANCED', NULL)")
-    # emp02: Cashier (Permanent), Waiter (Permanent)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', '{SK_CASHIER_1}', 'EXPERT', NULL)")
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', '{SK_WAITER_1}', 'ADVANCED', NULL)")
-    # emp03: Barista (Permanent), Waiter (Permanent)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000003', '{SK_BARISTA_1}', 'ADVANCED', NULL)")
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000003', '{SK_WAITER_1}', 'EXPERT', NULL)")
-    # emp04: Barista (Active Temporary 2027)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000004', '{SK_BARISTA_1}', 'INTERMEDIATE', '2027-12-31')")
-    # emp05: Cashier (Permanent), Barista (Expiring Soon 2026-09-20)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000005', '{SK_CASHIER_1}', 'ADVANCED', NULL)")
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000005', '{SK_BARISTA_1}', 'BEGINNER', '2026-09-20')")
-    # emp06: Waiter (Permanent), Barista (EXPIRED 2026-09-10 -> tests expired skill rejection!)
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000006', '{SK_WAITER_1}', 'ADVANCED', NULL)")
-    skill_rows.append(f"('a5000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000006', '{SK_BARISTA_1}', 'BEGINNER', '2026-09-10')")
+    s_counter = 1
 
-    s_counter = 12
-    for i in range(7, 21):
-        s_id = f"10000000-0000-0000-0000-{i:012d}"
-        if i % 3 == 0:
-            skills = [SK_BARISTA_1, SK_CASHIER_1]
-        elif i % 3 == 1:
-            skills = [SK_WAITER_1, SK_BARISTA_1]
-        else:
+    # emp01: Barista (Permanent NULL), Cashier (Permanent NULL)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000001', '{SK_BARISTA_1}', 'EXPERT', NULL)")
+    s_counter += 1
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000001', '{SK_CASHIER_1}', 'ADVANCED', NULL)")
+    s_counter += 1
+
+    # emp02: Cashier (Permanent), Waiter (Permanent)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000002', '{SK_CASHIER_1}', 'EXPERT', NULL)")
+    s_counter += 1
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000002', '{SK_WAITER_1}', 'ADVANCED', NULL)")
+    s_counter += 1
+
+    # emp03: Barista (Permanent), Waiter (Permanent)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000003', '{SK_BARISTA_1}', 'ADVANCED', NULL)")
+    s_counter += 1
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000003', '{SK_WAITER_1}', 'EXPERT', NULL)")
+    s_counter += 1
+
+    # emp04: Barista (Active Temporary 2027)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000004', '{SK_BARISTA_1}', 'INTERMEDIATE', '2027-12-31')")
+    s_counter += 1
+
+    # emp05: Cashier (Permanent), Barista (Expiring Soon 2026-09-20)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000005', '{SK_CASHIER_1}', 'ADVANCED', NULL)")
+    s_counter += 1
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000005', '{SK_BARISTA_1}', 'BEGINNER', '2026-09-20')")
+    s_counter += 1
+
+    # emp06: Waiter (Permanent), Barista (EXPIRED 2026-09-10 -> tests expired skill rejection!)
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000006', '{SK_WAITER_1}', 'ADVANCED', NULL)")
+    s_counter += 1
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000006', '{SK_BARISTA_1}', 'BEGINNER', '2026-09-10')")
+    s_counter += 1
+
+    # emp26: Cashier ONLY
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000026', '{SK_CASHIER_1}', 'ADVANCED', '2027-12-31')")
+    s_counter += 1
+
+    # emp27: Barista ONLY
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000027', '{SK_BARISTA_1}', 'ADVANCED', '2027-12-31')")
+    s_counter += 1
+
+    # emp28: Waiter ONLY
+    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000028', '{SK_WAITER_1}', 'ADVANCED', '2027-12-31')")
+    s_counter += 1
+
+    # Other employees: give versatile skills
+    # emp07 to emp20, emp23 to emp25, emp29 to emp35
+    other_nums = [i for i in range(7, 21)] + [23, 24, 25, 29, 30, 31, 32, 33, 34, 35]
+    for num in other_nums:
+        s_id = f"10000000-0000-0000-0000-{num:012d}"
+        if num in [7, 8, 10, 13, 15, 17, 18, 19, 20, 23, 24, 25, 31, 32, 33, 34, 35]:
+            skills = [SK_BARISTA_1, SK_CASHIER_1, SK_WAITER_1]
+        elif num in [9, 12, 29, 30]:
             skills = [SK_CASHIER_1, SK_WAITER_1]
+        elif num in [11, 14]:
+            skills = [SK_BARISTA_1, SK_WAITER_1]
+        else:
+            skills = [SK_BARISTA_1, SK_CASHIER_1]
+
         for sk in skills:
             skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '{s_id}', '{sk}', 'INTERMEDIATE', '2027-12-31')")
             s_counter += 1
 
-    # emp99 Intern
+    # emp99 Intern (Cashier + Waiter)
     skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000099', '{SK_CASHIER_1}', 'BEGINNER', '2027-12-31')")
     s_counter += 1
     skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '10000000-0000-0000-0000-000000000099', '{SK_WAITER_1}', 'BEGINNER', '2027-12-31')")
     s_counter += 1
 
     # Store 2 staff skills
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000001', '{SK_BARISTA_2}', 'EXPERT', NULL)")
-    s_counter += 1
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000002', '{SK_CASHIER_2}', 'ADVANCED', NULL)")
-    s_counter += 1
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000003', '{SK_WAITER_2}', 'ADVANCED', NULL)")
-    s_counter += 1
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000004', '{SK_BARISTA_2}', 'INTERMEDIATE', '2027-12-31')")
-    s_counter += 1
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000004', '{SK_WAITER_2}', 'INTERMEDIATE', '2027-12-31')")
-    s_counter += 1
-    skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '70000000-0000-0000-0000-000000000005', '{SK_CASHIER_2}', 'BEGINNER', '2027-12-31')")
+    s2_skill_map = {
+        1: [SK_BARISTA_2],
+        2: [SK_CASHIER_2],
+        3: [SK_WAITER_2],
+        4: [SK_BARISTA_2, SK_WAITER_2],
+        5: [SK_CASHIER_2],
+    }
+    for num, sk_list in s2_skill_map.items():
+        s_id = f"70000000-0000-0000-0000-{num:012d}"
+        for sk in sk_list:
+            lvl = 'EXPERT' if num == 1 else ('ADVANCED' if num in [2, 3] else 'INTERMEDIATE')
+            exp = 'NULL' if num in [1, 2, 3] else "'2027-12-31'"
+            skill_rows.append(f"('a5000000-0000-0000-0000-{s_counter:012d}', '{s_id}', '{sk}', '{lvl}', {exp})")
+            s_counter += 1
 
     lines.append("INSERT INTO staff_skill (id, staff_id, skill_id, level, expiration_date) VALUES")
     lines.append(",\n".join(skill_rows) + ";\n")
@@ -257,36 +336,70 @@ INSERT INTO scheduler_configuration (id, store_id, fairness_weight, skill_weight
     lines.append("-- 9. AVAILABILITY (Realistic schedules across staff)")
     avail_rows = []
     a_counter = 1
-    for day in range(7):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000001', {day}, '14:00:00', '23:00:00')")
-        a_counter += 1
-    for day in range(1, 7):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000002', {day}, '06:30:00', '23:00:00')")
-        a_counter += 1
-    for day in range(1, 7):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000003', {day}, '06:30:00', '23:00:00')")
-        a_counter += 1
-    for day in range(1, 6):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000004', {day}, '06:30:00', '15:30:00')")
-        a_counter += 1
-    for day in range(1, 7):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000005', {day}, '14:00:00', '23:00:00')")
-        a_counter += 1
-    for day in [1, 2, 4, 6]:
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000006', {day}, '06:30:00', '15:30:00')")
-        a_counter += 1
-    for i in range(7, 21):
-        s_id = f"10000000-0000-0000-0000-{i:012d}"
-        time_range = ('06:30:00', '15:30:00') if i % 2 == 1 else ('14:00:00', '23:00:00')
-        days = [1, 2, 3, 4, 5] if i % 3 != 0 else [1, 2, 4, 5, 6]
-        for d in days:
-            avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '{s_id}', {d}, '{time_range[0]}', '{time_range[1]}')")
+
+    # Core pool with wide availability (Mon-Sun 06:00:00 - 23:30:00)
+    core_full_avail = [
+        1, 2, 4, 7, 8, 10, 13, 15, 17, 18, 19, 20, 23, 24, 25, 26, 27, 28, 31, 32, 33, 34, 35
+    ]
+    for num in core_full_avail:
+        s_id = f"10000000-0000-0000-0000-{num:012d}"
+        for day in range(7):
+            avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '{s_id}', {day}, '06:00:00', '23:30:00')")
             a_counter += 1
-    for day in range(7):
-        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000099', {day}, '06:00:00', '23:00:00')")
+
+    # emp03: MWF only (Day 1, 3, 5)
+    for day in [1, 3, 5]:
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000003', {day}, '06:00:00', '23:30:00')")
         a_counter += 1
 
-    # Store 2 staff (Chris, David, Emma, Frank)
+    # emp05: Morning only (Day 0..6: 06:00 - 15:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000005', {day}, '06:00:00', '15:30:00')")
+        a_counter += 1
+
+    # emp06: Expired Barista skill, but wide availability (Day 0..6: 06:00 - 23:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000006', {day}, '06:00:00', '23:30:00')")
+        a_counter += 1
+
+    # emp09: Evening only (Day 0..6: 17:30 - 23:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000009', {day}, '17:30:00', '23:30:00')")
+        a_counter += 1
+
+    # emp11: Morning only (Day 0..6: 06:00 - 15:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000011', {day}, '06:00:00', '15:30:00')")
+        a_counter += 1
+
+    # emp12: Afternoon & Night only (Day 0..6: 14:00 - 23:00)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000012', {day}, '14:00:00', '23:00:00')")
+        a_counter += 1
+
+    # emp14: Evening only (Day 0..6: 17:30 - 23:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000014', {day}, '17:30:00', '23:30:00')")
+        a_counter += 1
+
+    # emp16: Weekend only (Day 0 and 6: 06:00 - 23:30)
+    for day in [0, 6]:
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000016', {day}, '06:00:00', '23:30:00')")
+        a_counter += 1
+
+    # emp29: Part-Time (Day 1..5: 06:00 - 23:30)
+    for day in range(1, 6):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000029', {day}, '06:00:00', '23:30:00')")
+        a_counter += 1
+
+    # emp30: NO availability records (Zero-availability scenario)
+
+    # emp99 Intern: Wide availability (Day 0..6: 06:00 - 23:30)
+    for day in range(7):
+        avail_rows.append(f"('a0000000-0000-0000-0000-{a_counter:012d}', '10000000-0000-0000-0000-000000000099', {day}, '06:00:00', '23:30:00')")
+        a_counter += 1
+
+    # Store 2 staff (Chris, David, Emma, Frank) - Grace has 0-availability
     for s_idx in [1, 2, 3, 4]:
         s_id = f"70000000-0000-0000-0000-{s_idx:012d}"
         for day in range(7):
@@ -336,20 +449,19 @@ INSERT INTO workstations (id, store_id, zone_id, name, code, workstation_type, x
 ('b1000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000008', '{STORE_1}', 'ANNUAL', '2026-09-18', '2026-09-19', 'APPROVED', 'Nghi phep viec gia dinh', '{MGR_1_ID}', '2026-09-15 08:00:00+00', '2026-09-15 09:00:00+00', NULL),
 ('b1000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000009', '{STORE_1}', 'SICK', '2026-09-21', '2026-09-22', 'PENDING', 'Nghi kham suc khoe dinh ky', NULL, '2026-09-16 10:00:00+00', NULL, NULL),
 ('b1000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000013', '{STORE_1}', 'EMERGENCY', '2026-09-10', '2026-09-10', 'REJECTED', 'Viec ca nhan dot xuat', '{MGR_1_ID}', '2026-09-09 14:00:00+00', NULL, 'Khong du nhan su ca toi'),
-('b1000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000007', '{STORE_1}', 'ANNUAL', '2026-09-22', '2026-09-22', 'APPROVED', 'Nghi phep ca nhan', '{MGR_1_ID}', '2026-09-14 09:00:00+00', '2026-09-14 10:00:00+00', NULL);
+('b1000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000007', '{STORE_1}', 'ANNUAL', '2026-09-22', '2026-09-22', 'APPROVED', 'Nghi phep ca nhan', '{MGR_1_ID}', '2026-09-14 09:00:00+00', '2026-09-14 10:00:00+00', NULL),
+('b1000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000025', '{STORE_1}', 'ANNUAL', '2026-09-22', '2026-09-23', 'APPROVED', 'Nghi phep W39 (SCHED-04)', '{MGR_1_ID}', '2026-09-14 09:00:00+00', '2026-09-14 10:00:00+00', NULL);
 
 INSERT INTO blackout_date (id, staff_id, date, reason, leave_request_id) VALUES
 ('b2000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000008', '2026-09-18', 'Approved Annual Leave', 'b1000000-0000-0000-0000-000000000001'),
 ('b2000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000008', '2026-09-19', 'Approved Annual Leave', 'b1000000-0000-0000-0000-000000000001'),
 ('b2000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000008', '2026-09-08', 'Past Approved Leave', NULL),
-('b2000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000007', '2026-09-22', 'Approved Future Leave (SCHED-04)', 'b1000000-0000-0000-0000-000000000004');\n""")
+('b2000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000007', '2026-09-22', 'Approved Future Leave', 'b1000000-0000-0000-0000-000000000004'),
+('b2000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000025', '2026-09-22', 'Approved Annual Leave W39', 'b1000000-0000-0000-0000-000000000005'),
+('b2000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000025', '2026-09-23', 'Approved Annual Leave W39', 'b1000000-0000-0000-0000-000000000005'),
+('b2000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000031', '2026-09-25', 'Personal Blackout Date (SCHED-04)', NULL);\n""")
 
     # 14. SHIFTS, REQUIREMENTS, ASSIGNMENTS, ATTENDANCE
-    # Standard prefix scheme:
-    # shift:      f1000000-0000-0000-0000-{shift_num:012d}
-    # req:        f2000000-0000-0000-0000-{req_num:012d}
-    # assignment: f3000000-0000-0000-0000-{asgn_num:012d}
-    # attendance: e3000000-0000-0000-0000-{att_num:012d}
     shift_rows = []
     skill_req_rows = []
     assignment_rows = []
@@ -378,7 +490,7 @@ INSERT INTO blackout_date (id, staff_id, date, reason, leave_request_id) VALUES
 
             if status == 'COMPLETED':
                 if s_idx == 0:  # Morning
-                    b_num = (day_offset % 3) + 1       # Staff 1..3
+                    b_num = (day_offset % 4) + 1       # Staff 1..4
                     c_num = (day_offset % 3) + 7       # Staff 7..9
                 else:           # Afternoon
                     b_num = (day_offset % 3) + 4       # Staff 4..6
@@ -507,6 +619,7 @@ INSERT INTO blackout_date (id, staff_id, date, reason, leave_request_id) VALUES
 
     # W39 Next Week Shifts (DRAFT shifts ready for AutoScheduler)
     # Store 1: 4 shifts/day across 7 days (2026-09-21 to 2026-09-27) = 28 shifts (shift_num 57..84)
+    # Total slots = 28 shifts * 3 requirements (Barista, Cashier, Waiter) = 84 slots
     for day_offset in range(7):
         next_date = f"2026-09-{21+day_offset:02d}"
         s_configs = [
@@ -530,7 +643,7 @@ INSERT INTO blackout_date (id, staff_id, date, reason, leave_request_id) VALUES
             req_num += 1
             shift_num += 1
 
-    # Store 2 Next Week Shifts (DRAFT with INSUFFICIENT STAFF: demand 6, supply 3 -> tests SCHED-06!)
+    # Store 2 Next Week Shifts (DRAFT with INSUFFICIENT STAFF: demand 18 slots, supply 4-5 staff -> tests SCHED-06!)
     for day_offset in range(3):
         s2_date = f"2026-09-{21+day_offset:02d}"
         s_id = f"f1000000-0000-0000-0000-{shift_num:012d}"
@@ -562,21 +675,21 @@ INSERT INTO blackout_date (id, staff_id, date, reason, leave_request_id) VALUES
     lines.append("INSERT INTO attendance (id, shift_assignment_id, check_in_time, check_in_lat, check_in_lng, check_out_time, check_out_lat, check_out_lng, status, deleted) VALUES")
     lines.append(",\n".join(attendance_rows) + ";\n")
 
-    # 18. ATTENDANCE ADJUSTMENT REQUESTS (referencing actual valid attendance IDs 1, 2, 3 and shift IDs 1, 2)
+    # 18. ATTENDANCE ADJUSTMENT REQUESTS
     lines.append("-- 18. ATTENDANCE ADJUSTMENT REQUESTS")
     lines.append(f"""INSERT INTO attendance_adjustment_request (id, attendance_id, staff_id, shift_id, requested_check_in, requested_check_out, reason, status, approved_by, created_at, approved_at) VALUES
 ('c1000000-0000-0000-0000-000000000001', 'e3000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000001', '2026-09-07 06:58:00+00', '2026-09-07 15:02:00+00', 'Ket xe do mua lon, co mat 06:58 nhung may cham cong bao loi', 'PENDING', NULL, '2026-09-07 15:30:00+00', NULL),
 ('c1000000-0000-0000-0000-000000000002', 'e3000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-000000000001', '2026-09-07 07:00:00+00', '2026-09-07 15:00:00+00', 'Quen quet the checkout khi het ca', 'APPROVED', '{MGR_1_ID}', '2026-09-07 16:00:00+00', '2026-09-07 17:00:00+00'),
 ('c1000000-0000-0000-0000-000000000003', 'e3000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000002', '2026-09-07 14:00:00+00', '2026-09-07 22:30:00+00', 'Xin dieu chinh vi ly do ca nhan', 'REJECTED', '{MGR_1_ID}', '2026-09-08 08:00:00+00', '2026-09-08 09:00:00+00');\n""")
 
-    # 19. SHIFT SWAP REQUESTS (referencing actual valid shifts 15 and 16)
+    # 19. SHIFT SWAP REQUESTS
     lines.append("-- 19. SHIFT SWAP REQUESTS")
     lines.append(f"""INSERT INTO shift_swap_request (id, from_shift_id, from_staff_id, to_shift_id, to_staff_id, status, employee_accepted, approved_by) VALUES
 ('c2000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000002', 'PENDING', true, NULL),
 ('c2000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000003', 'f1000000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000004', 'PENDING', false, NULL),
 ('c2000000-0000-0000-0000-000000000003', 'f1000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'f1000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000006', 'APPROVED', true, '{MGR_1_ID}');\n""")
 
-    # 20. OPEN SHIFT CLAIMS (Shift 34 is Friday Midday open shift)
+    # 20. OPEN SHIFT CLAIMS
     lines.append("-- 20. OPEN SHIFT CLAIMS")
     lines.append(f"""INSERT INTO open_shift_claim (id, shift_id, staff_id, status, claimed_at) VALUES
 ('c3000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000034', '10000000-0000-0000-0000-000000000006', 'PENDING', '2026-09-16 03:00:00+00'),
@@ -602,8 +715,8 @@ INSERT INTO workforce_proposal (id, workforce_request_id, staff_id, status, prop
 ('e1000000-0000-0000-0000-000000000003', '{STORE_2}', '2026-08-01', '2026-08-31', 'PAID');\n""")
 
     payroll_rows = []
-    # Store 1 August Payroll (23 employees)
-    for i in range(1, 21):
+    # Store 1 August Payroll for all active staff (1..20 and 23..35)
+    for i in active_emp_nums:
         s_id = f"10000000-0000-0000-0000-{i:012d}"
         p_id = f"e2000000-0000-0000-0001-{i:012d}"
         base_rate = 22.00 + (i % 5) * 2.00
@@ -616,12 +729,13 @@ INSERT INTO workforce_proposal (id, workforce_request_id, staff_id, status, prop
         tot_amt = base_amt + ot_amt + hol_amt
         payroll_rows.append(f"('{p_id}', 'e1000000-0000-0000-0000-000000000001', '{s_id}', {tot_hrs:.2f}, {ot_hrs:.2f}, {hol_hrs:.2f}, {base_amt:.2f}, {ot_amt:.2f}, {hol_amt:.2f}, {tot_amt:.2f}, '2026-09-01 02:00:00+00', false)")
 
+    # Intern, Former, Suspended
     payroll_rows.append(f"('e2000000-0000-0000-0001-000000000099', 'e1000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000099', 80.00, 0.00, 0.00, 1200.00, 0.00, 0.00, 1200.00, '2026-09-01 02:00:00+00', false)")
     payroll_rows.append(f"('e2000000-0000-0000-0001-000000000021', 'e1000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000021', 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2026-09-01 02:00:00+00', false)")
     payroll_rows.append(f"('e2000000-0000-0000-0001-000000000022', 'e1000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000022', 40.00, 0.00, 0.00, 880.00, 0.00, 0.00, 880.00, '2026-09-01 02:00:00+00', false)")
 
-    # Store 2 August Payroll (Chris, David, Emma, Frank)
-    s2_rates = [(1, 25.00), (2, 22.00), (3, 20.00), (4, 24.00)]
+    # Store 2 August Payroll (Chris, David, Emma, Frank, Grace)
+    s2_rates = [(1, 25.00), (2, 22.00), (3, 20.00), (4, 24.00), (5, 20.00)]
     for num, rate in s2_rates:
         s_id = f"70000000-0000-0000-0000-{num:012d}"
         p_id = f"e2000000-0000-0000-0002-{num:012d}"
@@ -646,7 +760,11 @@ INSERT INTO workforce_proposal (id, workforce_request_id, staff_id, status, prop
     pref_rows = []
     p_counter = 1
     notif_types = ["SCHEDULE_PUBLISHED", "SHIFT_SWAP_UPDATED", "OPEN_SHIFT_AVAILABLE", "SHIFT_REMINDER", "PAYROLL_COMPLETED", "LEAVE_REQUEST_UPDATED", "ATTENDANCE_ADJUSTMENT_UPDATED", "WORKFORCE_REQUEST_UPDATED"]
-    all_staff_ids = [ADMIN_ID, MGR_1_ID, MGR_2_ID] + [f"10000000-0000-0000-0000-{i:012d}" for i in range(1, 21)] + ["10000000-0000-0000-0000-000000000099"] + [f"70000000-0000-0000-0000-{i:012d}" for i in range(1, 6)]
+    all_staff_ids = [ADMIN_ID, MGR_1_ID, MGR_2_ID] + \
+                    [f"10000000-0000-0000-0000-{i:012d}" for i in range(1, 36)] + \
+                    ["10000000-0000-0000-0000-000000000099"] + \
+                    [f"70000000-0000-0000-0000-{i:012d}" for i in range(1, 6)]
+
     for st_id in all_staff_ids:
         for nt in notif_types:
             pref_rows.append(f"('f5000000-0000-0000-0000-{p_counter:012d}', '{st_id}', '{nt}', true, '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00')")
@@ -674,10 +792,11 @@ INSERT INTO workforce_proposal (id, workforce_request_id, staff_id, status, prop
     lines.append("COMMIT;\n")
 
     sql_content = "\n".join(lines)
-    with open(r"D:\ThucTapTotNghiep\ShiftSync\shiftsync-backend\scripts\seed\seed_master_dataset.sql", "w", encoding="utf-8") as f:
+    target_path = r"D:\ThucTapTotNghiep\ShiftSync\shiftsync-backend\scripts\seed\seed_master_dataset.sql"
+    with open(target_path, "w", encoding="utf-8") as f:
         f.write(sql_content)
 
-    print("Successfully generated clean, unified Master Seed Dataset SQL!")
+    print(f"Successfully generated expanded Master Seed Dataset SQL: {len(lines)} lines, written to {target_path}")
 
 if __name__ == "__main__":
     main()
