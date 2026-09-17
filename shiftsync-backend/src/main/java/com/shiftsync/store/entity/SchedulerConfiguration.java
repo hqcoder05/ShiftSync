@@ -46,6 +46,15 @@ public class SchedulerConfiguration {
     @PrePersist
     @PreUpdate
     public void validateWeights() {
+        if ((fairnessWeight != null && fairnessWeight.compareTo(BigDecimal.ZERO) < 0) ||
+            (skillWeight != null && skillWeight.compareTo(BigDecimal.ZERO) < 0) ||
+            (hourWeight != null && hourWeight.compareTo(BigDecimal.ZERO) < 0) ||
+            (restTimeWeight != null && restTimeWeight.compareTo(BigDecimal.ZERO) < 0) ||
+            (availabilityWeight != null && availabilityWeight.compareTo(BigDecimal.ZERO) < 0)) {
+            throw new com.shiftsync.shared.exception.BusinessException(
+                    "Scheduler weights cannot be negative",
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
         BigDecimal sum = (fairnessWeight != null ? fairnessWeight : BigDecimal.ZERO)
                 .add(skillWeight != null ? skillWeight : BigDecimal.ZERO)
                 .add(hourWeight != null ? hourWeight : BigDecimal.ZERO)

@@ -1025,6 +1025,13 @@ public class AutoScheduleService {
     // Lỗi 6: Validate tổng trọng số scoring = 1.000 (cho phép sai số float 0.001)
     private void validateSchedulerConfiguration(SchedulerConfiguration config) {
         if (config == null) return;
+        if ((config.getFairnessWeight() != null && config.getFairnessWeight().compareTo(java.math.BigDecimal.ZERO) < 0) ||
+            (config.getSkillWeight() != null && config.getSkillWeight().compareTo(java.math.BigDecimal.ZERO) < 0) ||
+            (config.getHourWeight() != null && config.getHourWeight().compareTo(java.math.BigDecimal.ZERO) < 0) ||
+            (config.getRestTimeWeight() != null && config.getRestTimeWeight().compareTo(java.math.BigDecimal.ZERO) < 0) ||
+            (config.getAvailabilityWeight() != null && config.getAvailabilityWeight().compareTo(java.math.BigDecimal.ZERO) < 0)) {
+            throw new BusinessException("Scheduler weights cannot be negative", HttpStatus.BAD_REQUEST);
+        }
         java.math.BigDecimal sum = (config.getFairnessWeight() != null ? config.getFairnessWeight() : java.math.BigDecimal.ZERO)
                 .add(config.getSkillWeight() != null ? config.getSkillWeight() : java.math.BigDecimal.ZERO)
                 .add(config.getHourWeight() != null ? config.getHourWeight() : java.math.BigDecimal.ZERO)
@@ -1267,11 +1274,11 @@ public class AutoScheduleService {
         
         double availScore = getAvailabilityScore(empData, slot.getShift());
         
-        double skillW = config.getSkillWeight().doubleValue();
-        double hourW = config.getHourWeight().doubleValue();
-        double fairnessW = config.getFairnessWeight().doubleValue();
-        double restTimeW = config.getRestTimeWeight().doubleValue(); 
-        double availW = config.getAvailabilityWeight().doubleValue();
+        double skillW = (config != null && config.getSkillWeight() != null) ? config.getSkillWeight().doubleValue() : 0.0;
+        double hourW = (config != null && config.getHourWeight() != null) ? config.getHourWeight().doubleValue() : 0.0;
+        double fairnessW = (config != null && config.getFairnessWeight() != null) ? config.getFairnessWeight().doubleValue() : 0.0;
+        double restTimeW = (config != null && config.getRestTimeWeight() != null) ? config.getRestTimeWeight().doubleValue() : 0.0; 
+        double availW = (config != null && config.getAvailabilityWeight() != null) ? config.getAvailabilityWeight().doubleValue() : 0.0;
 
         double totalScore = (skillW * skillScore) +
                             (hourW * hourScore) +
