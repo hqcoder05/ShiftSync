@@ -8,7 +8,12 @@ import {
 } from '../services/marketplaceService';
 import { getShiftsForStore, assignStaffToShift } from '../services/shiftService';
 import { getStaffByStore } from '../services/employmentService';
-import { getRequests } from '../services/requestService';
+import { getRequests, updateRequestStatus } from '../services/requestService';
+import {
+  getStoreSwapRequests,
+  approveSwapRequest,
+  rejectSwapRequest,
+} from '../services/swapService';
 import { getPositions } from '../services/headcountQuotaService';
 import './MarketplacePage.css';
 
@@ -100,8 +105,14 @@ export default function MarketplacePage() {
   const [openShifts, setOpenShifts] = useState([]);
   const [storeShifts, setStoreShifts] = useState([]);
   const [requestsList, setRequestsList] = useState([]);
+  const [storeSwapList, setStoreSwapList] = useState([]);
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [quickAssignLoadingId, setQuickAssignLoadingId] = useState(null);
+  const [candidateAssignLoadingId, setCandidateAssignLoadingId] = useState(null);
+  const [mpActionLoadingId, setMpActionLoadingId] = useState(null);
+  const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState('');
 
@@ -182,20 +193,23 @@ export default function MarketplacePage() {
       getShiftsForStore(storeId).catch(() => ({ data: [] })),
       getStaffByStore(storeId, 0, 100).catch(() => ({ data: [] })),
       getRequests().catch(() => []),
-      getPositions(storeId).catch(() => [])
+      getPositions(storeId).catch(() => []),
+      getStoreSwapRequests(storeId, 'PENDING').catch(() => ({ data: [] }))
     ])
-      .then(([mpRes, shiftsRes, staffRes, reqList, posList]) => {
+      .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes]) => {
         const mpList = Array.isArray(mpRes.data) ? mpRes.data : (mpRes.data?.content || []);
         const shList = Array.isArray(shiftsRes.data) ? shiftsRes.data : (shiftsRes.data?.content || []);
         const rawStaff = Array.isArray(staffRes.data) ? staffRes.data : (staffRes.data?.content || []);
         const nonManagers = rawStaff.filter(
           (emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN'
         );
+        const rawSwaps = Array.isArray(storeSwapsRes?.data) ? storeSwapsRes.data : (storeSwapsRes?.data?.content || []);
 
         setOpenShifts(mpList);
         setStoreShifts(shList);
         setEmployees(nonManagers);
-        setRequestsList(reqList || []);
+        setRequestsList(Array.isArray(reqList) ? reqList : (reqList?.content || []));
+        setStoreSwapList(rawSwaps);
         setPositions(Array.isArray(posList) ? posList : []);
       })
       .finally(() => setLoading(false));
@@ -386,14 +400,38 @@ export default function MarketplacePage() {
       .slice(0, 3);
   };
 
-  // 8. Dynamic Swap Requests from /api/requests
+  // 8. Dynamic Swap Requests from /api/requests and /stores/{storeId}/swaps
   const swapRequests = useMemo(() => {
-    return requestsList.filter(
-      (r) =>
-        r.typeCategory === 'swap' ||
-        (r.requestType && r.requestType.toLowerCase().includes('đổi ca'))
-    );
-  }, [requestsList]);
+    // 8.1. From StaffRequests (/api/requests)
+    const staffSwaps = (requestsList || [])
+      .filter(
+        (r) =>
+          (r.status === 'PENDING' || !r.status) &&
+          (r.typeCategory === 'swap' ||
+            (r.requestType && r.requestType.toLowerCase().includes('đổi ca')))
+      )
+      .map((r) => ({
+        ...r,
+        isShiftSwap: false,
+      }));
+
+    // 8.2. From ShiftSwapRequest (/stores/{storeId}/swaps)
+    const structuredSwaps = (storeSwapList || [])
+      .filter((s) => s.status === 'PENDING')
+      .map((s) => ({
+        id: s.id,
+        isShiftSwap: true,
+        requesterName: s.fromStaffName || 'Nhân sự',
+        requestType: 'Yêu cầu hoán đổi ca làm',
+        typeCategory: 'swap',
+        status: s.status,
+        requestDate: s.fromShiftDate ? fmtDateVN(s.fromShiftDate) : 'Hôm nay',
+        shiftInfo: `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ⇄ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`,
+        content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
+      }));
+
+    return [...staffSwaps, ...structuredSwaps];
+  }, [requestsList, storeSwapList]);
 
   // 9. Dynamic Filled / Assigned Shifts
   const filledShifts = useMemo(() => {
@@ -495,12 +533,16 @@ export default function MarketplacePage() {
 
   // 14. Real Actions
   const handleAssignCandidate = async (shiftId, staffId, candidateName) => {
+    const key = `${shiftId}_${staffId}`;
+    setCandidateAssignLoadingId(key);
     try {
       await assignStaffToShift(storeId, shiftId, staffId);
       showToast(`✓ Đã chỉ định thành công ${candidateName} vào ca làm việc!`);
       loadData();
     } catch (err) {
       showToast(`Lỗi chỉ định: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
+    } finally {
+      setCandidateAssignLoadingId(null);
     }
   };
 
@@ -512,32 +554,86 @@ export default function MarketplacePage() {
     }
     const staffObj = employees.find((e) => (e.staffId || e.id) === targetStaffId);
     const sName = staffObj?.staffFullName || staffObj?.fullName || 'Nhân sự';
+    setQuickAssignLoadingId(shiftId);
     try {
       await assignStaffToShift(storeId, shiftId, targetStaffId);
       showToast(`✓ Đã xác nhận chỉ định ${sName} vào ca làm việc!`);
       loadData();
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
+    } finally {
+      setQuickAssignLoadingId(null);
     }
   };
 
   const handlePublishToMarketplaceAction = async (shiftId) => {
+    setMpActionLoadingId(shiftId);
     try {
       await publishShiftToMarketplace(storeId, shiftId);
       showToast('✓ Đã đưa ca làm việc lên sàn Marketplace!');
       loadData();
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể đăng ca lên sàn.'}`);
+    } finally {
+      setMpActionLoadingId(null);
     }
   };
 
   const handleUnpublishFromMarketplaceAction = async (shiftId) => {
+    setMpActionLoadingId(shiftId);
     try {
       await unpublishShiftFromMarketplace(storeId, shiftId);
       showToast('✓ Đã gỡ ca làm việc khỏi sàn Marketplace.');
       loadData();
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể gỡ ca.'}`);
+    } finally {
+      setMpActionLoadingId(null);
+    }
+  };
+
+  // 15. Real Swap Actions (Approve & Reject)
+  const handleApproveSwap = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      if (req.isShiftSwap) {
+        await approveSwapRequest(req.id);
+        setStoreSwapList((prev) => prev.filter((s) => s.id !== req.id));
+      } else {
+        await updateRequestStatus(req.id, 'APPROVED');
+        setRequestsList((prev) =>
+          prev.map((r) => (r.id === req.id ? { ...r, status: 'APPROVED' } : r))
+        );
+      }
+      showToast(`✓ Đã phê duyệt yêu cầu đổi ca của ${cleanText(req.requesterName)}!`);
+      loadData();
+    } catch (err) {
+      showToast(`✕ Lỗi phê duyệt: ${err.response?.data?.message || err.message || 'Không thể duyệt hoán đổi.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectSwap = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      if (req.isShiftSwap) {
+        await rejectSwapRequest(req.id);
+        setStoreSwapList((prev) => prev.filter((s) => s.id !== req.id));
+      } else {
+        await updateRequestStatus(req.id, 'REJECTED');
+        setRequestsList((prev) =>
+          prev.map((r) => (r.id === req.id ? { ...r, status: 'REJECTED' } : r))
+        );
+      }
+      showToast(`✕ Đã từ chối yêu cầu đổi ca của ${cleanText(req.requesterName)}.`);
+      loadData();
+    } catch (err) {
+      showToast(`✕ Lỗi từ chối: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1013,9 +1109,10 @@ export default function MarketplacePage() {
                           <button
                             type="button"
                             className="mp-btn-confirm-assign"
+                            disabled={quickAssignLoadingId === shift.id}
                             onClick={() => handleQuickAssignSubmit(shift.id)}
                           >
-                            Xác nhận chỉ định ngay
+                            {quickAssignLoadingId === shift.id ? 'Đang chỉ định...' : 'Xác nhận chỉ định ngay'}
                           </button>
                         </div>
 
@@ -1104,18 +1201,20 @@ export default function MarketplacePage() {
                                 <button
                                   type="button"
                                   className="mp-btn-rec-assign-primary"
+                                  disabled={candidateAssignLoadingId === `${shift.id}_${c.id}`}
                                   onClick={() => handleAssignCandidate(shift.id, c.id, c.name)}
                                 >
-                                  Chỉ định ngay
+                                  {candidateAssignLoadingId === `${shift.id}_${c.id}` ? 'Đang chỉ định...' : 'Chỉ định ngay'}
                                 </button>
                               )}
                               {c.canAssign && c.tagType === 'VALID' && (
                                 <button
                                   type="button"
                                   className="mp-btn-rec-assign-outline"
+                                  disabled={candidateAssignLoadingId === `${shift.id}_${c.id}`}
                                   onClick={() => handleAssignCandidate(shift.id, c.id, c.name)}
                                 >
-                                  Chỉ định
+                                  {candidateAssignLoadingId === `${shift.id}_${c.id}` ? 'Đang chỉ định...' : 'Chỉ định'}
                                 </button>
                               )}
                               {!c.canAssign && (
@@ -1174,16 +1273,18 @@ export default function MarketplacePage() {
                         type="button"
                         className="mp-btn-header-secondary"
                         style={{ color: '#dc2626' }}
-                        onClick={() => showToast(`✕ Đã từ chối yêu cầu đổi ca của ${req.requesterName}.`)}
+                        disabled={actionLoadingId === req.id}
+                        onClick={() => handleRejectSwap(req)}
                       >
-                        Từ chối
+                        {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
                       </button>
                       <button
                         type="button"
                         className="mp-btn-urgent-primary"
-                        onClick={() => showToast(`✓ Đã phê duyệt yêu cầu đổi ca của ${req.requesterName}!`)}
+                        disabled={actionLoadingId === req.id}
+                        onClick={() => handleApproveSwap(req)}
                       >
-                        Phê duyệt hoán đổi
+                        {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt hoán đổi'}
                       </button>
                     </div>
                   </div>
@@ -1329,7 +1430,7 @@ export default function MarketplacePage() {
 
               {/* Form Body */}
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   if (!hasShiftsToPublish) {
                     showToast('Không có ca nào chưa đăng.');
@@ -1340,8 +1441,13 @@ export default function MarketplacePage() {
                     showToast('Vui lòng chọn ca làm việc cần đăng.');
                     return;
                   }
-                  handlePublishToMarketplaceAction(targetShiftId);
-                  setShowPublishModal(false);
+                  setPublishSubmitting(true);
+                  try {
+                    await handlePublishToMarketplaceAction(targetShiftId);
+                    setShowPublishModal(false);
+                  } finally {
+                    setPublishSubmitting(false);
+                  }
                 }}
               >
                 <div className="mp-publish-body">
@@ -1532,10 +1638,10 @@ export default function MarketplacePage() {
                     <button
                       type="submit"
                       className="mp-publish-btn-submit"
-                      disabled={!hasShiftsToPublish}
-                      style={!hasShiftsToPublish ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                      disabled={!hasShiftsToPublish || publishSubmitting}
+                      style={!hasShiftsToPublish || publishSubmitting ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                     >
-                      <span style={{ fontSize: '14px' }}>✓</span> Xác nhận Đăng Ca
+                      <span style={{ fontSize: '14px' }}>✓</span> {publishSubmitting ? 'Đang đăng ca...' : 'Xác nhận Đăng Ca'}
                     </button>
                   </div>
                 </div>

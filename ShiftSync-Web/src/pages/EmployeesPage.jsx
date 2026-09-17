@@ -63,6 +63,7 @@ export default function EmployeesPage() {
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
   const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
   const [skills, setSkills] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   // Black Toast
   const [toastMsg, setToastMsg] = useState('');
@@ -215,6 +216,7 @@ export default function EmployeesPage() {
       return;
     }
 
+    setSubmitting(true);
     try {
       if (editing) {
         const payload = { fullName: form.fullName, email: form.email, phone: form.phone };
@@ -247,6 +249,8 @@ export default function EmployeesPage() {
       } else {
         setError(msg || 'Lưu hồ sơ thất bại. Kiểm tra lại thông tin!');
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -256,6 +260,7 @@ export default function EmployeesPage() {
     if (!savedUserId) { setError('Cần lưu Hồ sơ trước khi Phân công'); return; }
     if (!assignForm.storeId) { setError('Vui lòng chọn chi nhánh'); return; }
 
+    setSubmitting(true);
     try {
       await assignStaffToStore(assignForm.storeId, {
         staffId: savedUserId,
@@ -269,6 +274,8 @@ export default function EmployeesPage() {
       showToast('✓ Đã lưu phân công thành công');
     } catch (err) {
       setError(err.response?.data?.message || 'Phân công thất bại');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -604,8 +611,8 @@ export default function EmployeesPage() {
                       <button type="button" className="ss-btn ss-btn-outline" onClick={() => setShowModal(false)}>
                         Huỷ bỏ
                       </button>
-                      <button type="submit" className="ss-btn ss-btn-primary">
-                        {editing ? 'Cập nhật hồ sơ' : 'Lưu & Tiếp tục'}
+                      <button type="submit" className="ss-btn ss-btn-primary" disabled={submitting}>
+                        {submitting ? 'Đang lưu...' : (editing ? 'Cập nhật hồ sơ' : 'Lưu & Tiếp tục')}
                       </button>
                     </div>
                   </form>
@@ -707,8 +714,8 @@ export default function EmployeesPage() {
                       <button type="button" className="ss-btn ss-btn-outline" onClick={() => setShowModal(false)}>
                         Huỷ bỏ
                       </button>
-                      <button type="submit" className="ss-btn ss-btn-primary">
-                        Lưu phân công
+                      <button type="submit" className="ss-btn ss-btn-primary" disabled={submitting}>
+                        {submitting ? 'Đang lưu...' : 'Lưu phân công'}
                       </button>
                     </div>
                   </form>

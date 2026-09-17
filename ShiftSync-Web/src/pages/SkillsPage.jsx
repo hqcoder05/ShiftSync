@@ -26,6 +26,7 @@ export default function SkillsPage() {
   const [name, setName] = useState('');
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     getAllStores()
@@ -63,6 +64,7 @@ export default function SkillsPage() {
   const handleAdd = async (e) => {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
     try {
       await createSkill(storeId, { name, description: color });
       setName('');
@@ -71,6 +73,8 @@ export default function SkillsPage() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Thêm thất bại');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -218,8 +222,8 @@ export default function SkillsPage() {
                 />
               </div>
             </label>
-            <button className="skill-save-btn" type="submit">
-              Thêm
+            <button className="skill-save-btn" type="submit" disabled={submitting}>
+              {submitting ? 'Đang thêm...' : 'Thêm'}
             </button>
           </form>
         </div>

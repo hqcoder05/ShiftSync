@@ -84,6 +84,7 @@ export default function AdminPage() {
   });
 
   const [confirmDelete, setConfirmDelete] = useState(null); // { type: 'store' | 'user', id, name }
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const showToast = (title, desc, isError = false) => {
     setToastMessage({ title, desc, isError });
@@ -205,50 +206,55 @@ export default function AdminPage() {
 
   const handleSaveAssignment = async () => {
     if (!assignStoreTarget) return;
-    const storeId = assignStoreTarget.id;
-    const newAssignments = { ...managerAssignments };
-
-    if (!selectedManagerId) {
-      const prevMgrId = managerAssignments[storeId];
-      if (prevMgrId) {
-        try {
-          await removeStaffFromStore(storeId, prevMgrId);
-        } catch (e) {
-          console.log('Remove staff notice:', e?.response?.data || e.message);
-        }
-      }
-      delete newAssignments[storeId];
-      setManagerAssignments(newAssignments);
-      setShowAssignModal(false);
-      showToast('Đã gỡ Quản lý', `Đã hủy phân công quản lý tại chi nhánh ${assignStoreTarget.name}.`);
-      loadData();
-      return;
-    }
-
-    newAssignments[storeId] = selectedManagerId;
-    setManagerAssignments(newAssignments);
-
-    // Backend employment sync
+    setIsSubmitting(true);
     try {
-      const ctRes = await getContractTypes(storeId).catch(() => null);
-      const contractTypes = ctRes?.data || [];
-      const contractTypeId = contractTypes[0]?.id;
-      if (contractTypeId) {
-        await assignStaffToStore(storeId, {
-          staffId: selectedManagerId,
-          contractTypeId,
-          hourlyRate: 50000,
-          joinedDate: new Date().toISOString().slice(0, 10)
-        });
-      }
-    } catch (e) {
-      console.log('Backend sync notice:', e?.response?.data || e.message);
-    }
+      const storeId = assignStoreTarget.id;
+      const newAssignments = { ...managerAssignments };
 
-    const assignedMgr = users.find(u => (u.id || u.staffId) === selectedManagerId);
-    setShowAssignModal(false);
-    showToast('Phân công thành công', `Đã phân công ${assignedMgr?.fullName || 'Quản lý'} phụ trách chi nhánh ${assignStoreTarget.name}.`);
-    loadData();
+      if (!selectedManagerId) {
+        const prevMgrId = managerAssignments[storeId];
+        if (prevMgrId) {
+          try {
+            await removeStaffFromStore(storeId, prevMgrId);
+          } catch (e) {
+            console.log('Remove staff notice:', e?.response?.data || e.message);
+          }
+        }
+        delete newAssignments[storeId];
+        setManagerAssignments(newAssignments);
+        setShowAssignModal(false);
+        showToast('Đã gỡ Quản lý', `Đã hủy phân công quản lý tại chi nhánh ${assignStoreTarget.name}.`);
+        loadData();
+        return;
+      }
+
+      newAssignments[storeId] = selectedManagerId;
+      setManagerAssignments(newAssignments);
+
+      // Backend employment sync
+      try {
+        const ctRes = await getContractTypes(storeId).catch(() => null);
+        const contractTypes = ctRes?.data || [];
+        const contractTypeId = contractTypes[0]?.id;
+        if (contractTypeId) {
+          await assignStaffToStore(storeId, {
+            staffId: selectedManagerId,
+            contractTypeId,
+            hourlyRate: 50000,
+            joinedDate: new Date().toISOString().slice(0, 10)
+          });
+        }
+      } catch (e) {
+        console.log('Backend sync notice:', e?.response?.data || e.message);
+      }
+
+      const assignedMgr = users.find(u => (u.id || u.staffId) === selectedManagerId);
+      setShowAssignModal(false);
+      showToast('Phân công thành công', `Đã phân công ${assignedMgr?.fullName || 'Quản lý'} phụ trách chi nhánh ${assignStoreTarget.name}.`);
+      loadData();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRemoveManagerFromStore = async (storeId, storeName) => {
@@ -310,6 +316,7 @@ export default function AdminPage() {
       longitude: Number(storeForm.longitude) || 106.7032
     };
 
+    setIsSubmitting(true);
     try {
       if (editingStore) {
         await updateStore(editingStore.id, payload);
@@ -323,6 +330,8 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       showToast('Lỗi lưu chi nhánh', err?.response?.data?.message || 'Không thể lưu chi nhánh vào hệ thống.', true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -362,6 +371,7 @@ export default function AdminPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (editingUser) {
         const payload = {
@@ -387,6 +397,8 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       showToast('Lỗi tạo tài khoản', err?.response?.data?.message || 'Không thể lưu tài khoản người dùng.', true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1121,9 +1133,10 @@ export default function AdminPage() {
               <button
                 type="button"
                 className="adm-btn adm-btn-primary"
+                disabled={isSubmitting}
                 onClick={handleSaveAssignment}
               >
-                Lưu Phân Công
+                {isSubmitting ? 'Đang lưu...' : 'Lưu Phân Công'}
               </button>
             </div>
           </div>
@@ -1228,8 +1241,9 @@ export default function AdminPage() {
                 <button
                   type="submit"
                   className="adm-btn adm-btn-primary"
+                  disabled={isSubmitting}
                 >
-                  {editingStore ? 'Cập Nhật' : 'Tạo Chi Nhánh'}
+                  {isSubmitting ? 'Đang lưu...' : (editingStore ? 'Cập Nhật' : 'Tạo Chi Nhánh')}
                 </button>
               </div>
             </form>
@@ -1336,8 +1350,9 @@ export default function AdminPage() {
                 <button
                   type="submit"
                   className="adm-btn adm-btn-primary"
+                  disabled={isSubmitting}
                 >
-                  {editingUser ? 'Lưu Thay Đổi' : 'Tạo Tài Khoản'}
+                  {isSubmitting ? 'Đang lưu...' : (editingUser ? 'Lưu Thay Đổi' : 'Tạo Tài Khoản')}
                 </button>
               </div>
             </form>

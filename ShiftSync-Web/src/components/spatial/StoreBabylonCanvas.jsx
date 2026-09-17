@@ -682,8 +682,7 @@ export default function StoreBabylonCanvas({
         >
           Three.js
         </button>
-        <button
-          type="button"
+        <span
           style={{
             padding: '4px 10px',
             borderRadius: 7,
@@ -692,11 +691,13 @@ export default function StoreBabylonCanvas({
             color: '#FFFFFF',
             fontSize: 11,
             fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
             cursor: 'default',
           }}
         >
           Babylon.js ★
-        </button>
+        </span>
       </div>
 
       {/* 2.5D HUD Control Overlay & Right-side Drawer */}

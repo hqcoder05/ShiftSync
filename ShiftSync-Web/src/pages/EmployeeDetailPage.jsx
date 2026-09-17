@@ -86,6 +86,7 @@ export default function EmployeeDetailPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const showToast = (msg) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -457,6 +458,7 @@ export default function EmployeeDetailPage() {
       }
     }
 
+    setIsSaving(true);
     try {
       // 1. Update basic user in backend (including password if entered)
       const updatePayload = {
@@ -510,6 +512,8 @@ export default function EmployeeDetailPage() {
     } catch (err) {
       console.error('Update error:', err);
       showToast('❌ Cập nhật thất bại: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -531,6 +535,7 @@ export default function EmployeeDetailPage() {
       return;
     }
 
+    setIsSaving(true);
     try {
       await updateEmployee(employee.id, {
         fullName: employee.fullName,
@@ -545,6 +550,8 @@ export default function EmployeeDetailPage() {
     } catch (err) {
       console.error('Password change error:', err);
       showToast('❌ Đổi mật khẩu thất bại: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1288,10 +1295,11 @@ export default function EmployeeDetailPage() {
             <button
               type="button"
               className="ed-btn-primary"
+              disabled={isSaving}
               onClick={() => handleSaveEdit()}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
-              <span>Lưu thay đổi</span>
+              <span>{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
             </button>
           </div>
         </div>
@@ -1453,8 +1461,9 @@ export default function EmployeeDetailPage() {
                 <button
                   type="submit"
                   className="ed-btn-primary"
+                  disabled={isSaving}
                 >
-                  Cập nhật hồ sơ
+                  {isSaving ? 'Đang cập nhật...' : 'Cập nhật hồ sơ'}
                 </button>
               </div>
             </form>
@@ -1585,8 +1594,9 @@ export default function EmployeeDetailPage() {
                 <button
                   type="submit"
                   className="ed-btn-primary"
+                  disabled={isSaving}
                 >
-                  Cập nhật mật khẩu
+                  {isSaving ? 'Đang lưu...' : 'Cập nhật mật khẩu'}
                 </button>
               </div>
             </form>
