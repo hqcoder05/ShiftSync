@@ -30,6 +30,9 @@ public class UserDTO {
     @Schema(description = "Assigned system role", example = "STAFF")
     private SystemRole systemRole;
 
+    @Schema(description = "Selected 3D Avatar ID", example = "dilan")
+    private String avatarId;
+
     @Schema(description = "User profile creation date-time", example = "2026-08-04T10:00:00+07:00")
     private OffsetDateTime createdAt;
 

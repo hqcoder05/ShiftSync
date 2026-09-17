@@ -24,8 +24,9 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
-import AvatarCollectionModal from '../features/avatars/AvatarCollectionModal';
-import { getAvatarById, getSavedUserAvatar, saveUserAvatar } from '../features/avatars/avatarRegistry';
+import AvatarCollectionModal from './AvatarCollectionModal';
+import Avatar3DWeb from './Avatar3DWeb';
+import { AVATAR_OPTIONS, getAvatarById } from './avatarConfigs';
 const NAV_ITEMS = [
   { to: '/', label: 'DASHBOARD', key: 'dashboard' },
   { to: '/schedule', label: 'SCHEDULER', key: 'scheduler' },
@@ -281,25 +282,30 @@ export default function Header() {
   const userEmail = localStorage.getItem('userEmail') || 'user@shiftsync.com';
   const userId = localStorage.getItem('userId') || userEmail;
   const userName = userEmail.split('@')[0];
-  const [userAvatar, setUserAvatar] = useState(() => getSavedUserAvatar(userId));
+  const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem(`user_profile_avatar_${userId}`) || localStorage.getItem('userAvatarId') || 'dilan');
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
 
   useEffect(() => {
     const handleAvatarUpdate = () => {
-      setUserAvatar(getSavedUserAvatar(userId));
+      const saved = localStorage.getItem(`user_profile_avatar_${userId}`) || localStorage.getItem('userAvatarId') || 'dilan';
+      setUserAvatarId(saved);
     };
     window.addEventListener('user_avatar_changed', handleAvatarUpdate);
+    window.addEventListener('avatarUpdated', handleAvatarUpdate);
     window.addEventListener('storage', handleAvatarUpdate);
     return () => {
       window.removeEventListener('user_avatar_changed', handleAvatarUpdate);
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate);
       window.removeEventListener('storage', handleAvatarUpdate);
     };
   }, [userId]);
 
-  const handleSelectAvatar = (avatar) => {
-    saveUserAvatar(userId, avatar.id);
-    setUserAvatar(avatar);
-    window.dispatchEvent(new CustomEvent('user_avatar_changed', { detail: { avatarId: avatar.id } }));
+  const handleSelectAvatar = async (avatarId) => {
+    localStorage.setItem(`user_profile_avatar_${userId}`, avatarId);
+    localStorage.setItem('userAvatarId', avatarId);
+    setUserAvatarId(avatarId);
+    window.dispatchEvent(new CustomEvent('user_avatar_changed', { detail: { avatarId } }));
+    window.dispatchEvent(new CustomEvent('avatarUpdated', { detail: { avatarId } }));
   };
 
   const handleLogout = async () => {
@@ -648,12 +654,8 @@ export default function Header() {
           aria-expanded={menuOpen}
           aria-haspopup="true"
         >
-          <div className="ss-user-avatar" style={userAvatar?.avatar ? { overflow: 'hidden', padding: 0 } : {}}>
-            {userAvatar?.avatar ? (
-              <img src={userAvatar.avatar} alt={userAvatar.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              userName.slice(0, 2).toUpperCase()
-            )}
+          <div className="ss-user-avatar" style={{ overflow: 'hidden', padding: 0, background: 'transparent' }}>
+            <Avatar3DWeb avatarId={userAvatarId || 'dilan'} size={34} />
           </div>
           <div className="ss-user-info-text">
             <span className="ss-user-email">{userName}</span>
@@ -739,9 +741,9 @@ export default function Header() {
         <AvatarCollectionModal
           isOpen={avatarModalOpen}
           onClose={() => setAvatarModalOpen(false)}
-          currentAvatarId={userAvatar?.id}
+          currentAvatarId={userAvatarId}
           onSelectAvatar={handleSelectAvatar}
-          title="Bộ sưu tập Avatar 3D cá nhân"
+          targetUserName={userName}
         />
       )}
     </header>

@@ -16,7 +16,7 @@ import { getRoleTheme } from '../visualization/ZoneStatus';
 import { characterGeometries as geo } from './character/CharacterGeometries';
 import { characterMaterials as mat } from './character/CharacterMaterials';
 import { buildRoleOutfit } from './character/CharacterOutfits';
-import { getAvatarById } from '../../avatars/avatarRegistry';
+import { getAvatarById } from '../../../components/avatarConfigs';
 
 /**
  * Creates a lightweight stylized low-poly employee avatar

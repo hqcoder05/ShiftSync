@@ -40,6 +40,9 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(name = "avatar_id")
+    private String avatarId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "system_role", nullable = false)
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)

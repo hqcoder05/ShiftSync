@@ -80,6 +80,16 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserById(userDetails.getId()));
     }
 
+    @PutMapping("/me/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Update the current user's avatar ID")
+    public ResponseEntity<UserDTO> updateMyAvatar(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody java.util.Map<String, String> body) {
+        String avatarId = body.get("avatarId");
+        return ResponseEntity.ok(userService.updateUserAvatar(userDetails.getId(), avatarId));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get user details by ID", description = "Fetches a specific user profile by its UUID.")
     @ApiResponses({

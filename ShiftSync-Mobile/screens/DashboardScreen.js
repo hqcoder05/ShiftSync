@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -15,10 +15,16 @@ import availabilityIcon from '../assets/dangky.png';
 import payrollIcon from '../assets/luong.png';
 import requestIcon from '../assets/yeucau.png';
 import scheduleIcon from '../assets/lichlam.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomNavbar from '../components/BottomNavbar';
+import Avatar3D from '../components/Avatar3D';
+import FlowerMascot3D from '../components/FlowerMascot3D';
+import { getAvatar3DProps, AVATAR_OPTIONS } from '../components/avatarConfigs';
 import { getMyShifts } from '../services/shiftService';
 import { getMyPayslips } from '../services/payrollService';
 import { getMyAttendance } from '../services/attendanceService';
+import { getMyProfile, getMyStores } from '../services/profileService';
+import { getStoredAvatar, onAvatarChange } from '../services/avatarSync';
 
 const actions = [
   ['Đăng ký lịch làm', availabilityIcon, '#EAF8E6', 'Availability'],
@@ -55,6 +61,7 @@ const getVietnameseDateString = (date = new Date()) => {
   return `${weekdayStr}, ${dd}-${mm}-${yyyy}`;
 };
 
+
 const formatTimeWithPeriod = (timeStr) => {
   if (!timeStr) return { time: '6:00', period: 'AM' };
   const parts = String(timeStr).split(':');
@@ -65,19 +72,27 @@ const formatTimeWithPeriod = (timeStr) => {
 };
 
 function ShiftRow({ item }) {
+  const startTime = item.startTime ? String(item.startTime).slice(0, 5) : '';
+  const endTime = item.endTime ? String(item.endTime).slice(0, 5) : '';
+  const address = item.storeAddress || item.storeName || '';
+  const role = item.skillName || item.requiredSkillName || 'Nhân viên';
+  const dateLabel = item.shiftDate
+    ? new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${item.shiftDate}T00:00:00`))
+    : '';
+
   return (
     <View style={s.shiftRow}>
       <View style={s.shiftTime}>
-        <Text style={s.time}>{item[0]}<Text style={s.amPm}>AM</Text></Text>
+        <Text style={s.time}>{startTime}<Text style={s.amPm}>AM</Text></Text>
         <View style={s.timeDash} />
-        <Text style={s.time}>{item[1]}<Text style={s.amPm}>PM</Text></Text>
+        <Text style={s.time}>{endTime}<Text style={s.amPm}>PM</Text></Text>
       </View>
       <View style={s.shiftInfo}>
-        <Text style={s.shiftDate}>{item[2]}</Text>
-        <Text style={s.address}>Highlands D9/71 Tây Thạnh Tân Phú</Text>
+        <Text style={s.shiftDate}>{dateLabel}</Text>
+        <Text style={s.address}>{address}</Text>
         <View style={s.roleRow}>
           <View style={s.dot} />
-          <Text style={s.role}>Barista</Text>
+          <Text style={s.role}>{role}</Text>
         </View>
       </View>
     </View>
@@ -88,26 +103,97 @@ export default function DashboardScreen({ navigation }) {
   const [assignedShifts, setAssignedShifts] = useState([]);
   const [latestPayslip, setLatestPayslip] = useState(null);
   const [todayAttendance, setTodayAttendance] = useState(null);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [hourlyRate, setHourlyRate] = useState(25000);
+  const [userName, setUserName] = useState('');
+  const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
+  const isFetchingRef = useRef(false);
 
   const todayText = getVietnameseDateString(new Date());
 
-  const loadData = () => {
-    const todayIso = localDateISO();
-    getMyShifts().then((res) => setAssignedShifts(res.data || [])).catch(() => setAssignedShifts([]));
-    getMyPayslips().then((res) => setLatestPayslip(res.data?.[0] || null)).catch(() => setLatestPayslip(null));
-    getMyAttendance().then((res) => {
-      const records = res.data || [];
-      const found = records.find((a) => a.shiftDate === todayIso);
-      setTodayAttendance(found || null);
-    }).catch(() => setTodayAttendance(null));
+  const loadData = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    try {
+      const todayIso = localDateISO();
+      getMyShifts().then((res) => setAssignedShifts(res.data || [])).catch(() => setAssignedShifts([]));
+      getMyPayslips().then((res) => setLatestPayslip(res.data?.[0] || null)).catch(() => setLatestPayslip(null));
+      getMyAttendance().then((res) => {
+        const records = res.data || [];
+        setAttendanceRecords(records);
+        const found = records.find((a) => a.shiftDate === todayIso);
+        setTodayAttendance(found || null);
+      }).catch(() => {
+        setAttendanceRecords([]);
+        setTodayAttendance(null);
+      });
+
+      try {
+        const res = await getMyProfile();
+        const profile = res.data;
+        const name = profile?.fullName || profile?.name || '';
+        setUserName(name);
+
+        if (profile?.avatarId && AVATAR_OPTIONS.some(a => a.id === profile.avatarId)) {
+          setSelectedAvatarId(profile.avatarId);
+          AsyncStorage.setItem('@user_profile_avatar', profile.avatarId).catch(() => {});
+          if (profile.id) {
+            AsyncStorage.setItem(`@user_profile_avatar_${profile.id}`, profile.avatarId).catch(() => {});
+          }
+        } else {
+          const cached = await getStoredAvatar(profile?.id);
+          if (cached) setSelectedAvatarId(cached);
+        }
+
+        if (profile?.id) {
+          getMyStores(profile.id).then((storeRes) => {
+            const stores = storeRes.data || [];
+            if (stores.length > 0) {
+              const rate = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
+              if (rate) {
+                setHourlyRate(Number(rate));
+              }
+            }
+          }).catch(() => {});
+        }
+      } catch (err) {
+        // Nếu API profile lỗi/offline, luôn đọc lại avatar đã lưu trong AsyncStorage
+        const cached = await getStoredAvatar();
+        if (cached) setSelectedAvatarId(cached);
+      }
+    } finally {
+      isFetchingRef.current = false;
+    }
   };
 
   useEffect(() => {
+    // 1. Nạp avatar từ local cache NGAY LẬP TỨC khi mở màn hình
+    getStoredAvatar().then((cached) => {
+      if (cached) setSelectedAvatarId(cached);
+    });
+
+    // 2. Lắng nghe thay đổi avatar theo thời gian thực (khi đổi ở Profile là Home đổi ngay)
+    const unsubAvatar = onAvatarChange((newAvatarId) => {
+      if (newAvatarId) {
+        setSelectedAvatarId(newAvatarId);
+      }
+    });
+
     loadData();
-    const unsubscribe = navigation.addListener('focus', loadData);
-    const interval = setInterval(loadData, 10000); // Tự động cập nhật khi quản lý sửa lịch trên Web
+
+    // 3. Khi màn hình Dashboard được focus lại (từ Profile quay lại)
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      getStoredAvatar().then((cached) => {
+        if (cached) setSelectedAvatarId(cached);
+      });
+      loadData();
+    });
+
+    const interval = setInterval(loadData, 15000); // 15s định kỳ cập nhật chấm công/lịch làm
     return () => {
-      unsubscribe();
+      unsubAvatar();
+      unsubscribeFocus();
       clearInterval(interval);
     };
   }, [navigation]);
@@ -125,15 +211,51 @@ export default function DashboardScreen({ navigation }) {
     (shift) => shift.shiftDate === todayIso && shift.status !== 'CANCELLED'
   );
 
-  const displayShifts = realShifts.slice(0, 3).map((shift) => [
-    String(shift.startTime).slice(0, 5),
-    String(shift.endTime).slice(0, 5),
-    new Intl.DateTimeFormat('vi-VN', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(new Date(`${shift.shiftDate}T00:00:00`)),
-  ]);
+  // ✅ Tính toán số giờ làm việc thực tế từ các ca đã chấm công xong nhân với đơn giá giờ của vị trí
+  const calculatedStats = useMemo(() => {
+    let totalWorkedHours = 0;
+    let otHours = 0;
+
+    attendanceRecords.forEach((att) => {
+      if (att.checkInTime && att.checkOutTime) {
+        const inDate = new Date(att.checkInTime);
+        const outDate = new Date(att.checkOutTime);
+        const diffMs = outDate - inDate;
+        let hrs = diffMs > 0 ? diffMs / 3600000 : 0;
+
+        if (hrs <= 0.05 && att.scheduledStart && att.scheduledEnd) {
+          const [sh, sm] = att.scheduledStart.split(':').map(Number);
+          const [eh, em] = att.scheduledEnd.split(':').map(Number);
+          hrs = Math.max(0, (eh + em / 60) - (sh + sm / 60));
+        }
+
+        totalWorkedHours += hrs;
+        if (hrs > 8) {
+          otHours += (hrs - 8);
+        }
+      }
+    });
+
+    const roundedHours = Math.round(totalWorkedHours * 10) / 10;
+    const roundedOt = Math.round(otHours * 10) / 10;
+
+    const liveAmount = Math.round(roundedHours * hourlyRate);
+    const displayHours = roundedHours > 0 ? roundedHours : (latestPayslip?.totalHours || 0);
+    const displayOt = roundedOt > 0 ? roundedOt : (latestPayslip?.otHours || 0);
+    const displayAmount = liveAmount > 0 
+      ? liveAmount 
+      : (latestPayslip ? Number(latestPayslip.totalAmount || 0) : 0);
+
+    return {
+      hours: displayHours,
+      otHours: displayOt,
+      amount: displayAmount,
+      hourlyRate,
+    };
+  }, [attendanceRecords, latestPayslip, hourlyRate]);
+
+  // ✅ Shifts được lấy trực tiếp từ API, không cần map thành mảng
+  const displayShifts = realShifts.slice(0, 3);
 
   const isCheckedIn = !!(todayAttendance && todayAttendance.checkInTime);
   const isCheckedOut = !!(todayAttendance && todayAttendance.checkOutTime);
@@ -156,10 +278,12 @@ export default function DashboardScreen({ navigation }) {
             accessibilityRole="button"
             accessibilityLabel="Mở hồ sơ cá nhân"
           >
-            <Image source={avatar} style={s.avatar} />
+            <View style={s.avatar}>
+              <Avatar3D size={82} {...getAvatar3DProps(selectedAvatarId)} />
+            </View>
           </Pressable>
           <Text style={s.today}>{todayText}</Text>
-          <Text style={s.greeting}>Chào buổi sáng,{'\n'}Dilan. Jon .</Text>
+          <Text style={s.greeting}>Chào buổi sáng,{'\n'}{userName || 'Bạn'}</Text>
           <Text style={s.headline}>
             {todayShift ? 'Hôm nay,\nbạn có một ca làm.' : 'Hôm nay,\nbạn chưa có ca làm.'}
           </Text>
@@ -210,35 +334,11 @@ export default function DashboardScreen({ navigation }) {
               onPress={() => nav(navigation, screen)}
               style={[s.action, { backgroundColor: color }]}
             >
-              <Image source={icon} style={s.actionIcon} />
+              <Image source={icon} resizeMode="contain" style={s.actionIcon} />
               <Text style={s.actionText}>{label}</Text>
             </Pressable>
           ))}
         </View>
-
-        {/* ═══ MARKETPLACE PROMO BANNER ═══ */}
-        <Pressable
-          style={s.marketBanner}
-          onPress={() => nav(navigation, 'Marketplace')}
-          accessibilityRole="button"
-          accessibilityLabel="Vào Sàn ca mở để nhận thêm ca làm"
-        >
-          <View style={s.marketBannerIconWrap}>
-            <Text style={s.marketBannerIcon}>🛒</Text>
-          </View>
-          <View style={s.marketBannerInfo}>
-            <View style={s.marketBannerBadgeRow}>
-              <Text style={s.marketBannerTitle}>Sàn ca mở • Nhận ca làm</Text>
-              <View style={s.marketNewBadge}>
-                <Text style={s.marketNewBadgeText}>MỚI</Text>
-              </View>
-            </View>
-            <Text style={s.marketBannerSubtitle}>
-              Có ca làm việc đang thiếu người tại chi nhánh. Nhận ca ngay!
-            </Text>
-          </View>
-          <Text style={s.marketBannerArrow}>›</Text>
-        </Pressable>
 
         {/* ═══ UPCOMING SHIFTS ═══ */}
         <View style={s.sectionHeader}>
@@ -262,26 +362,30 @@ export default function DashboardScreen({ navigation }) {
             <Text style={s.range}>
               {latestPayslip
                 ? `${latestPayslip.periodStartDate} – ${latestPayslip.periodEndDate}`
-                : 'Chưa có kỳ lương'}
+                : `Tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}`}
             </Text>
             <Pressable onPress={() => nav(navigation, 'Payroll')}>
               <Text style={s.link}>xem tất cả</Text>
             </Pressable>
           </View>
           <Text style={s.incomeTitle}>Báo cáo thu nhập{'\n'}của bạn</Text>
-          <Text style={s.label}>Lương thực nhận</Text>
+          <Text style={s.label}>
+            Lương thực nhận {calculatedStats.hourlyRate ? `(${calculatedStats.hourlyRate.toLocaleString('vi-VN')} đ/giờ)` : ''}
+          </Text>
           <Text style={s.amount}>
-            {latestPayslip ? `${Number(latestPayslip.totalAmount).toLocaleString('vi-VN')} VNĐ` : '—'}
+            {calculatedStats.amount > 0 ? `${calculatedStats.amount.toLocaleString('vi-VN')} VNĐ` : (latestPayslip ? `${Number(latestPayslip.totalAmount || 0).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ')}
           </Text>
           <Text style={s.label}>Giờ đã làm việc</Text>
           <Text style={s.stat}>
-            {latestPayslip?.totalHours || 0} <Text style={s.statEnd}>giờ</Text>
+            {calculatedStats.hours} <Text style={s.statEnd}>giờ</Text>
           </Text>
           <Text style={s.label}>Tăng ca</Text>
           <Text style={s.stat}>
-            {latestPayslip?.otHours || 0} <Text style={s.statEnd}>giờ</Text>
+            {calculatedStats.otHours} <Text style={s.statEnd}>giờ</Text>
           </Text>
-          <Image source={payrollIcon} style={s.incomeArt} />
+          <View style={s.incomeArt}>
+            <FlowerMascot3D width={200} height={175} interactive={true} />
+          </View>
         </View>
       </ScrollView>
 
@@ -302,13 +406,12 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 24,
   },
   avatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 1.5,
-    borderColor: '#1E1E1E',
-    backgroundColor: '#fff',
+    width: 82,
+    height: 82,
     marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   today: { fontSize: 16, color: '#4E574F', marginBottom: 14, fontWeight: '500' },
   greeting: { fontSize: 20, lineHeight: 25, color: '#273426', fontWeight: '700', marginBottom: 22 },
@@ -388,7 +491,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  actionIcon: { width: 37, height: 37, resizeMode: 'contain' },
+  actionIcon: { width: 37, height: 37 },
   actionText: { fontSize: 14, color: '#3F4144', fontWeight: '500', flexShrink: 1 },
   sectionHeader: {
     marginHorizontal: 25,
@@ -437,69 +540,7 @@ const s = StyleSheet.create({
   incomeTitle: { fontSize: 25, lineHeight: 29, fontWeight: '700', color: '#131516', marginTop: 17 },
   label: { fontSize: 16, color: '#45494A', marginTop: 19 },
   amount: { fontSize: 31, color: '#46A83A', marginTop: 7 },
-  incomeArt: { position: 'absolute', width: 145, height: 145, right: 9, bottom: 9, resizeMode: 'contain' },
-  marketBanner: {
-    marginHorizontal: 11,
-    marginTop: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  marketBannerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F0FDF4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  marketBannerIcon: {
-    fontSize: 22,
-  },
-  marketBannerInfo: {
-    flex: 1,
-  },
-  marketBannerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 3,
-  },
-  marketBannerTitle: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  marketNewBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  marketNewBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#16a34a',
-  },
-  marketBannerSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-  },
-  marketBannerArrow: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#16a34a',
-    marginLeft: 8,
-  },
+  stat: { fontSize: 24, color: '#46A83A', marginTop: 3 },
+  statEnd: { fontSize: 15, color: '#45494A' },
+  incomeArt: { position: 'absolute', width: 200, height: 175, right: 0, bottom: 0 },
 });

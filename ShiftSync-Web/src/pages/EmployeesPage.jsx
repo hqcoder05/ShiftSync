@@ -9,8 +9,9 @@ import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
-import { AVATAR_ROSTER, getAvatarById, getAvatarForEmployee } from '../features/avatars/avatarRegistry';
-import AvatarCollectionModal from '../features/avatars/AvatarCollectionModal';
+import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
+import { getAvatarThumbnail } from '../components/avatarThumbnails';
+import AvatarCollectionModal from '../components/AvatarCollectionModal';
 import townIllustration from '../assets/illustrations/town-illustration.png';
 import './EmployeesPage.css';
 
@@ -22,11 +23,22 @@ const EMPLOYMENT_TYPES = [
   { value: 'INTERN', label: 'Thực tập' },
 ];
 
-const getEmployeeAvatar = (emp) => {
-  if (!emp) return getAvatarById('dilan').source;
+const getEmployeeAvatarId = (emp) => {
+  if (!emp) return 'dilan';
   const custom = emp.id ? localStorage.getItem(`user_profile_avatar_${emp.id}`) : null;
-  if (custom) return getAvatarById(custom).source;
-  return getAvatarForEmployee(emp).source;
+  if (custom) return custom;
+  if (emp.avatarId) return emp.avatarId;
+  return getAvatarForEmployee(emp).id;
+};
+
+const getEmployeeAvatar = (emp) => {
+  const id = getEmployeeAvatarId(emp);
+  const thumb = getAvatarThumbnail(id);
+  if (thumb) return thumb;
+  if (id === 'mew') return avatarMew;
+  if (id === 'paul') return avatarPaul;
+  if (id === 'thia') return avatarThia;
+  return avatarDilan;
 };
 
 export default function EmployeesPage() {
@@ -717,7 +729,7 @@ export default function EmployeesPage() {
           if (myId) {
             localStorage.setItem(`user_profile_avatar_${myId}`, newId);
           }
-          showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).name}`);
+          showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).label || newId}`);
         }}
         onClose={() => setShowAvatarModal(false)}
       />
