@@ -2287,7 +2287,13 @@ export default function SchedulePage() {
                                   <div
                                     className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''}`}
                                     style={{
-                                      backgroundColor: chipColor,
+                                      background: `repeating-linear-gradient(
+                                        135deg,
+                                        ${chipColor},
+                                        ${chipColor} 8px,
+                                        rgba(255,255,255,0.18) 8px,
+                                        rgba(255,255,255,0.18) 10px
+                                      )`,
                                     }}
                                     title={`${name} - Vị trí: ${shiftPosName} (${fmtTimeAMPM(s.startTime)} – ${fmtTimeAMPM(s.endTime)})`}
                                     onClick={(e) => {
