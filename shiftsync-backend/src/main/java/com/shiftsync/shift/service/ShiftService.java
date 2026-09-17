@@ -100,11 +100,11 @@ public class ShiftService {
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
         }
-        
+
         if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
             throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
         }
-        
+
         if (store.getCloseTime() != null && request.getEndTime().isAfter(store.getCloseTime())) {
             throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
         }
@@ -197,7 +197,7 @@ public class ShiftService {
         List<ShiftSkillRequirement> newRequirements = requirements.stream().map(req -> {
             Skill skill = skillRepository.findByIdAndStoreId(req.getSkillId(), storeId)
                     .orElseThrow(() -> new BusinessException("Skill not found in this store: " + req.getSkillId(), HttpStatus.NOT_FOUND));
-            
+
             StoreZone zone = null;
             if (req.getZoneId() != null) {
                 zone = storeZoneRepository.findById(req.getZoneId()).orElse(null);
@@ -219,7 +219,7 @@ public class ShiftService {
         }).collect(Collectors.toList());
 
         shift.setRequirements(newRequirements);
-        
+
         return mapToDTO(shiftRepository.save(shift));
     }
 
@@ -339,10 +339,10 @@ public class ShiftService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
-        
+
         int publishedCount = 0;
         for (Shift shift : shifts) {
-            
+
             checkDateNotLocked(storeId, shift.getShiftDate());
             if (shift.getStatus() == ShiftStatus.DRAFT) {
 
@@ -369,13 +369,13 @@ public class ShiftService {
                 }
             }
         }
-        
+
                 if (publishedCount > 0) {
-            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null, 
+            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null,
                 java.util.Map.of("startDate", startDate.toString(), "endDate", endDate.toString(), "publishedCount", publishedCount));
 
             shiftRepository.saveAll(shifts);
-            
+
             // Hook: FR-19 SCHEDULE_PUBLISHED
             java.util.List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
             java.util.Set<java.util.UUID> notifiedStaffIds = new java.util.HashSet<>();
@@ -492,7 +492,7 @@ public class ShiftService {
 
     public ShiftDTO mapToDTO(Shift entity) {
         List<ShiftAssignment> assignments = entity.getAssignments() != null ? entity.getAssignments() : new java.util.ArrayList<>();
-        
+
         Map<UUID, String> skillNameMap = entity.getRequirements() != null
                 ? entity.getRequirements().stream()
                         .filter(r -> r.getSkill() != null)
@@ -532,18 +532,26 @@ public class ShiftService {
                     int count = 0;
                     if (req.getSkill() != null) {
                         count = (int) assignments.stream()
-                                .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
+                                .filter(a -> !a.isDeleted() && req.getSkill().getId().equals(a.getRequiredSkillId()))
+                                .filter(a -> {
+                                    if (req.getZone() != null && a.getZone() != null) {
+                                        return req.getZone().getId().equals(a.getZone().getId());
+                                    }
+                                    return true;
+                                })
                                 .count();
                     }
                     if (count == 0 && entity.getRequirements().size() == 1) {
-                        count = assignments.size();
+                        count = (int) assignments.stream().filter(a -> !a.isDeleted()).count();
                     }
+                    int shortage = Math.max(0, req.getRequiredCount() - count);
                     return ShiftSkillRequirementDTO.builder()
                             .id(req.getId())
                             .skillId(req.getSkill() != null ? req.getSkill().getId() : null)
                             .skillName(req.getSkill() != null ? req.getSkill().getName() : null)
                             .requiredStaff(req.getRequiredCount())
                             .assignedCount(count)
+                            .shortageCount(shortage)
                             .zoneId(req.getZone() != null ? req.getZone().getId() : null)
                             .zoneName(req.getZone() != null ? req.getZone().getName() : null)
                             .build();
@@ -566,6 +574,8 @@ public class ShiftService {
         int totalRequiredStaff = entity.getRequirements() != null
                 ? entity.getRequirements().stream().mapToInt(com.shiftsync.shift.entity.ShiftSkillRequirement::getRequiredCount).sum()
                 : 0;
+        int totalAssignedStaff = (int) assignments.stream().filter(a -> !a.isDeleted()).count();
+        int totalShortageStaff = Math.max(0, totalRequiredStaff - totalAssignedStaff);
 
         return ShiftDTO.builder()
                 .id(entity.getId())
@@ -582,6 +592,8 @@ public class ShiftService {
                 .staffName(assignedStaffName)
                 .skillName(primarySkillName)
                 .requiredStaff(totalRequiredStaff)
+                .assignedStaffCount(totalAssignedStaff)
+                .shortageStaff(totalShortageStaff)
                 .isOpen(entity.isOpen())
                 .build();
     }
@@ -608,4 +620,4 @@ public class ShiftService {
         }
         return false;
     }
-}
+}

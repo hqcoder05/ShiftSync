@@ -65,6 +65,12 @@ public class ShiftDTO {
     @Schema(description = "Total Required Staff")
     private Integer requiredStaff;
 
+    @Schema(description = "Total Assigned Staff")
+    private Integer assignedStaffCount;
+
+    @Schema(description = "Total Shortage Staff (requiredStaff - assignedStaffCount)")
+    private Integer shortageStaff;
+
     @Schema(description = "Whether shift is published on Marketplace")
     private Boolean isOpen;
 }

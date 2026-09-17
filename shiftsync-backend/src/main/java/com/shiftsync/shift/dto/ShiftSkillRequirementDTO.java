@@ -24,6 +24,9 @@ public class ShiftSkillRequirementDTO {
     @Schema(description = "Assigned count")
     private int assignedCount;
 
+    @Schema(description = "Shortage count (requiredStaff - assignedCount)")
+    private int shortageCount;
+
     @Schema(description = "Store Zone ID for 3D location")
     private UUID zoneId;
 

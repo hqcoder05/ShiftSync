@@ -10,6 +10,11 @@ import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shared.security.SystemRole;
 import com.shiftsync.shift.dto.AutoScheduleRequest;
+import com.shiftsync.shift.dto.AutoScheduleResult;
+import com.shiftsync.shift.dto.FeasibilityDiagnosticsDTO;
+import com.shiftsync.shift.dto.RequirementCoverageDTO;
+import com.shiftsync.shift.dto.ShortageDetailDTO;
+import com.shiftsync.shift.enums.ScheduleCoverageStatus;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
@@ -167,7 +172,7 @@ public class AutoScheduleService {
     }
 
     @Transactional
-    public void autoSchedule(UUID storeId, AutoScheduleRequest request) {
+    public AutoScheduleResult autoSchedule(UUID storeId, AutoScheduleRequest request) {
         long startTime = System.currentTimeMillis(); // Profiling start
         long daysBetween = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (daysBetween < 0 || daysBetween > 6) {
@@ -228,7 +233,31 @@ public class AutoScheduleService {
         }
 
         if (draftShifts.isEmpty()) {
-            return;
+            return AutoScheduleResult.builder()
+                    .storeId(storeId)
+                    .startDate(request.getStartDate())
+                    .endDate(request.getEndDate())
+                    .status(ScheduleCoverageStatus.NO_DEMAND)
+                    .message("Không có ca làm việc nào cần xếp lịch trong khoảng thời gian này.")
+                    .totalDemandSlots(0)
+                    .existingManualAssignments(0)
+                    .schedulerDemandSlots(0)
+                    .newAssignmentsCreated(0)
+                    .totalAssignedSlots(0)
+                    .shortageSlots(0)
+                    .coverageRate(100.0)
+                    .shortages(new ArrayList<>())
+                    .requirementCoverages(new ArrayList<>())
+                    .feasibility(FeasibilityDiagnosticsDTO.builder()
+                            .totalActiveStaff(0)
+                            .theoreticalCapacityHours(0)
+                            .totalDemandHours(0)
+                            .theoreticalCapacitySufficient(true)
+                            .unassignedSlotsBeforeRepair(0)
+                            .localRepairRescuedCount(0)
+                            .finalUnassignedCount(0)
+                            .build())
+                    .build();
         }
 
         // Idempotency: Clear previous AUTO assignments on these DRAFT shifts before re-scheduling
@@ -305,9 +334,24 @@ public class AutoScheduleService {
             staffMap.put(sid, data);
         }
 
-        // 3. Flatten Shifts into Slots
+        // 3. Flatten Shifts into Slots & compute baseline demand metrics
+        int totalDemandSlots = 0;
+        double totalDemandHours = 0.0;
+        int existingManualAssignments = 0;
+
         List<Slot> slots = new ArrayList<>();
         for (Shift shift : draftShifts) {
+            double shiftDuration = getDurationInHours(shift);
+            if (shift.getRequirements().isEmpty()) {
+                totalDemandSlots += 1;
+                totalDemandHours += shiftDuration;
+            } else {
+                for (ShiftSkillRequirement req : shift.getRequirements()) {
+                    totalDemandSlots += req.getRequiredCount();
+                    totalDemandHours += shiftDuration * req.getRequiredCount();
+                }
+            }
+
             List<ShiftAssignment> existingOnShift = Collections.emptyList();
             if (shift.getId() != null) {
                 existingOnShift = shiftAssignmentRepository.findByShiftId(shift.getId());
@@ -320,6 +364,7 @@ public class AutoScheduleService {
             final List<ShiftAssignment> activeNonAuto = existingOnShift.stream()
                     .filter(a -> !a.isDeleted() && a.getSource() != AssignmentSource.AUTO)
                     .collect(Collectors.toList());
+            existingManualAssignments += activeNonAuto.size();
 
             if (shift.getRequirements().isEmpty()) {
                 int remainingDemand = Math.max(0, 1 - activeNonAuto.size());
@@ -461,13 +506,18 @@ public class AutoScheduleService {
         }
 
         // Bước Local Repair: thử hoán đổi để giải cứu các slot chưa được gán
+        int unassignedSlotsBeforeRepair = unassignedSlots.size();
+        List<Slot> stillUnassigned = Collections.emptyList();
         if (!unassignedSlots.isEmpty()) {
             log.info("AutoSchedule: {} slot(s) chưa được gán sau vòng lặp MRV chính. Khởi động Local Repair...", unassignedSlots.size());
-            attemptLocalRepair(unassignedSlots, newAssignments, staffMap, schedConfig, storeConfig);
+            stillUnassigned = attemptLocalRepair(unassignedSlots, newAssignments, staffMap, schedConfig, storeConfig);
         }
+        int localRepairRescuedCount = unassignedSlotsBeforeRepair - stillUnassigned.size();
+        int finalUnassignedCount = stillUnassigned.size();
 
         if (!newAssignments.isEmpty()) {
             shiftAssignmentRepository.saveAll(newAssignments);
+            shiftAssignmentRepository.flush();
 
             // Auto-trigger 3D Spatial Allocation for the scheduled shifts
             if (spatialAllocationService != null) {
@@ -483,9 +533,229 @@ public class AutoScheduleService {
                 }
             }
         }
-        
+
+        // Feasibility Diagnostics
+        int totalActiveStaff = activeEmployments.size();
+        double theoreticalCapacityHours = staffMap.values().stream()
+                .mapToDouble(StaffData::getMaxWeeklyHours)
+                .sum();
+        boolean theoreticalCapacitySufficient = theoreticalCapacityHours >= totalDemandHours;
+
+        FeasibilityDiagnosticsDTO feasibility = FeasibilityDiagnosticsDTO.builder()
+                .totalActiveStaff(totalActiveStaff)
+                .theoreticalCapacityHours(theoreticalCapacityHours)
+                .totalDemandHours(totalDemandHours)
+                .theoreticalCapacitySufficient(theoreticalCapacitySufficient)
+                .unassignedSlotsBeforeRepair(unassignedSlotsBeforeRepair)
+                .localRepairRescuedCount(localRepairRescuedCount)
+                .finalUnassignedCount(finalUnassignedCount)
+                .build();
+
+        // 9. Detailed Shortage and Requirement Coverage Analysis
+        List<RequirementCoverageDTO> requirementCoverages = new ArrayList<>();
+        List<ShortageDetailDTO> shortages = new ArrayList<>();
+
+        for (Shift shift : draftShifts) {
+            // Collect all active assignments on this shift (existing manual + newly created auto)
+            List<ShiftAssignment> activeAssignmentsOnShift = new ArrayList<>();
+            List<ShiftAssignment> existingOnShift = shift.getId() != null
+                    ? shiftAssignmentRepository.findByShiftId(shift.getId())
+                    : (shift.getAssignments() != null ? shift.getAssignments() : Collections.emptyList());
+            if (existingOnShift != null) {
+                activeAssignmentsOnShift.addAll(existingOnShift.stream()
+                        .filter(a -> !a.isDeleted() && a.getSource() != AssignmentSource.AUTO)
+                        .collect(Collectors.toList()));
+            }
+            for (ShiftAssignment na : newAssignments) {
+                if (na.getShift() == shift || (na.getShift().getId() != null && na.getShift().getId().equals(shift.getId()))) {
+                    activeAssignmentsOnShift.add(na);
+                }
+            }
+
+            if (shift.getRequirements() == null || shift.getRequirements().isEmpty()) {
+                int reqCount = 1;
+                int assignedCount = Math.min(reqCount, activeAssignmentsOnShift.size());
+                int shortageCount = Math.max(0, reqCount - assignedCount);
+                double covRate = reqCount > 0 ? (assignedCount * 100.0 / reqCount) : 100.0;
+                covRate = Math.round(covRate * 10.0) / 10.0;
+
+                RequirementCoverageDTO reqCov = RequirementCoverageDTO.builder()
+                        .requirementId(null)
+                        .shiftId(shift.getId())
+                        .shiftDate(shift.getShiftDate())
+                        .startTime(shift.getStartTime())
+                        .endTime(shift.getEndTime())
+                        .skillId(null)
+                        .skillName(null)
+                        .zoneId(null)
+                        .zoneName(null)
+                        .workstationId(null)
+                        .workstationName(null)
+                        .requiredCount(reqCount)
+                        .assignedCount(assignedCount)
+                        .shortageCount(shortageCount)
+                        .coverageRate(covRate)
+                        .fullyCovered(shortageCount == 0)
+                        .build();
+                requirementCoverages.add(reqCov);
+
+                if (shortageCount > 0) {
+                    ShortageDiagnosis diag = diagnoseShortage(shift, null, staffMap, storeConfig.getMinRestHours());
+                    shortages.add(ShortageDetailDTO.builder()
+                            .storeId(storeId)
+                            .shiftId(shift.getId())
+                            .shiftDate(shift.getShiftDate())
+                            .startTime(shift.getStartTime())
+                            .endTime(shift.getEndTime())
+                            .skillId(null)
+                            .skillName(null)
+                            .zoneId(null)
+                            .zoneName(null)
+                            .workstationId(null)
+                            .workstationName(null)
+                            .requiredCount(reqCount)
+                            .assignedCount(assignedCount)
+                            .shortageCount(shortageCount)
+                            .primaryReason(diag.primaryReason)
+                            .diagnosticDetails(diag.diagnosticDetails)
+                            .build());
+                }
+            } else {
+                List<ShiftAssignment> availableAssignments = new ArrayList<>(activeAssignmentsOnShift);
+                for (ShiftSkillRequirement req : shift.getRequirements()) {
+                    UUID targetSkillId = req.getSkill() != null ? req.getSkill().getId() : null;
+                    String targetSkillName = req.getSkill() != null ? req.getSkill().getName() : null;
+                    UUID targetZoneId = req.getZone() != null ? req.getZone().getId() : null;
+                    String targetZoneName = req.getZone() != null ? req.getZone().getName() : null;
+                    UUID targetWorkstationId = req.getWorkstation() != null ? req.getWorkstation().getId() : null;
+                    String targetWorkstationName = req.getWorkstation() != null ? req.getWorkstation().getName() : null;
+
+                    List<ShiftAssignment> matched = new ArrayList<>();
+                    for (ShiftAssignment a : availableAssignments) {
+                        if (matched.size() >= req.getRequiredCount()) {
+                            break;
+                        }
+                        boolean skillMatches = false;
+                        if (targetSkillId != null) {
+                            if (targetSkillId.equals(a.getRequiredSkillId())) {
+                                skillMatches = true;
+                            } else if (a.getRequiredSkillId() == null && a.getStaff() != null) {
+                                StaffData sd = staffMap.get(a.getStaff().getId());
+                                if (sd != null && hasValidSkill(sd, targetSkillId, shift.getShiftDate())) {
+                                    skillMatches = true;
+                                }
+                            }
+                        } else {
+                            skillMatches = true;
+                        }
+
+                        if (skillMatches) {
+                            if (targetZoneId != null) {
+                                if (a.getZone() != null && targetZoneId.equals(a.getZone().getId())) {
+                                    matched.add(a);
+                                }
+                            } else {
+                                matched.add(a);
+                            }
+                        }
+                    }
+                    availableAssignments.removeAll(matched);
+
+                    int assignedCount = matched.size();
+                    int shortageCount = Math.max(0, req.getRequiredCount() - assignedCount);
+                    double covRate = req.getRequiredCount() > 0 ? (assignedCount * 100.0 / req.getRequiredCount()) : 100.0;
+                    covRate = Math.round(covRate * 10.0) / 10.0;
+
+                    RequirementCoverageDTO reqCov = RequirementCoverageDTO.builder()
+                            .requirementId(req.getId())
+                            .shiftId(shift.getId())
+                            .shiftDate(shift.getShiftDate())
+                            .startTime(shift.getStartTime())
+                            .endTime(shift.getEndTime())
+                            .skillId(targetSkillId)
+                            .skillName(targetSkillName)
+                            .zoneId(targetZoneId)
+                            .zoneName(targetZoneName)
+                            .workstationId(targetWorkstationId)
+                            .workstationName(targetWorkstationName)
+                            .requiredCount(req.getRequiredCount())
+                            .assignedCount(assignedCount)
+                            .shortageCount(shortageCount)
+                            .coverageRate(covRate)
+                            .fullyCovered(shortageCount == 0)
+                            .build();
+                    requirementCoverages.add(reqCov);
+
+                    if (shortageCount > 0) {
+                        ShortageDiagnosis diag = diagnoseShortage(shift, targetSkillId, staffMap, storeConfig.getMinRestHours());
+                        shortages.add(ShortageDetailDTO.builder()
+                                .storeId(storeId)
+                                .shiftId(shift.getId())
+                                .shiftDate(shift.getShiftDate())
+                                .startTime(shift.getStartTime())
+                                .endTime(shift.getEndTime())
+                                .skillId(targetSkillId)
+                                .skillName(targetSkillName)
+                                .zoneId(targetZoneId)
+                                .zoneName(targetZoneName)
+                                .workstationId(targetWorkstationId)
+                                .workstationName(targetWorkstationName)
+                                .requiredCount(req.getRequiredCount())
+                                .assignedCount(assignedCount)
+                                .shortageCount(shortageCount)
+                                .primaryReason(diag.primaryReason)
+                                .diagnosticDetails(diag.diagnosticDetails)
+                                .build());
+                    }
+                }
+            }
+        }
+
+        int newAssignmentsCreated = newAssignments.size();
+        int totalAssignedSlots = existingManualAssignments + newAssignmentsCreated;
+        int shortageSlots = Math.max(0, totalDemandSlots - totalAssignedSlots);
+        double overallCoverageRate = totalDemandSlots > 0 ? (totalAssignedSlots * 100.0 / totalDemandSlots) : 100.0;
+        overallCoverageRate = Math.round(overallCoverageRate * 10.0) / 10.0;
+        overallCoverageRate = Math.min(100.0, overallCoverageRate);
+
+        ScheduleCoverageStatus status;
+        String message;
+
+        if (totalDemandSlots == 0) {
+            status = ScheduleCoverageStatus.NO_DEMAND;
+            message = "Không có ca làm việc nào cần xếp lịch trong khoảng thời gian này.";
+        } else if (shortageSlots == 0 && totalAssignedSlots >= totalDemandSlots) {
+            status = ScheduleCoverageStatus.FULLY_COVERED;
+            message = "Xếp ca tự động hoàn tất 100%! Toàn bộ " + totalDemandSlots + " vị trí yêu cầu đã được đáp ứng đầy đủ.";
+        } else if (totalAssignedSlots == 0) {
+            status = ScheduleCoverageStatus.ZERO_COVERAGE;
+            message = "Không thể phân công ca nào (độ phủ 0%). Thiếu toàn bộ " + shortageSlots + "/" + totalDemandSlots + " vị trí do thiếu nhân sự hoặc vi phạm ràng buộc.";
+        } else {
+            status = ScheduleCoverageStatus.PARTIALLY_COVERED;
+            message = "Xếp ca tự động hoàn tất " + overallCoverageRate + "%. Đã phân công " + totalAssignedSlots + "/" + totalDemandSlots + " vị trí (thiếu " + shortageSlots + " vị trí cần bổ sung).";
+        }
+
         long endTime = System.currentTimeMillis(); // Profiling end
-        log.info("autoSchedule completed in {} ms for {} assignments across {} employees.", (endTime - startTime), newAssignments.size(), activeEmployments.size());
+        log.info("autoSchedule completed in {} ms with status {}: {}/{} assigned (shortage: {}) across {} employees.",
+                (endTime - startTime), status, totalAssignedSlots, totalDemandSlots, shortageSlots, activeEmployments.size());
+
+        return AutoScheduleResult.builder()
+                .storeId(storeId)
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .status(status)
+                .message(message)
+                .totalDemandSlots(totalDemandSlots)
+                .existingManualAssignments(existingManualAssignments)
+                .schedulerDemandSlots(slots.size())
+                .newAssignmentsCreated(newAssignmentsCreated)
+                .totalAssignedSlots(totalAssignedSlots)
+                .shortageSlots(shortageSlots)
+                .coverageRate(overallCoverageRate)
+                .shortages(shortages)
+                .requirementCoverages(requirementCoverages)
+                .feasibility(feasibility)
+                .build();
     }
 
     /**
@@ -519,16 +789,17 @@ public class AutoScheduleService {
      * @param schedConfig         cấu hình trọng số scoring
      * @param storeConfig         cấu hình cửa hàng (chứa minRestHours)
      */
-    void attemptLocalRepair(List<Slot> unassignedSlots,
-                                     List<ShiftAssignment> currentAssignments,
-                                     Map<UUID, StaffData> staffMap,
-                                     SchedulerConfiguration schedConfig,
-                                     StoreConfiguration storeConfig) {
+    List<Slot> attemptLocalRepair(List<Slot> unassignedSlots,
+                                  List<ShiftAssignment> currentAssignments,
+                                  Map<UUID, StaffData> staffMap,
+                                  SchedulerConfiguration schedConfig,
+                                  StoreConfiguration storeConfig) {
         // Thoát sớm nếu không có slot nào cần repair
         if (unassignedSlots == null || unassignedSlots.isEmpty()) {
-            return;
+            return Collections.emptyList();
         }
 
+        List<Slot> stillUnassigned = new ArrayList<>();
         int minRestHours = storeConfig.getMinRestHours();
 
         for (Slot unassignedSlot : unassignedSlots) {
@@ -646,8 +917,66 @@ public class AutoScheduleService {
             if (!repaired) {
                 log.warn("AutoSchedule Local Repair: Không thể tìm hoán đổi hợp lệ cho Shift {} (Skill {}). Slot sẽ không được gán.",
                         unassignedSlot.getShift().getId(), unassignedSlot.getSkillId());
+                stillUnassigned.add(unassignedSlot);
             }
         }
+        return stillUnassigned;
+    }
+
+    private static class ShortageDiagnosis {
+        final String primaryReason;
+        final String diagnosticDetails;
+
+        ShortageDiagnosis(String primaryReason, String diagnosticDetails) {
+            this.primaryReason = primaryReason;
+            this.diagnosticDetails = diagnosticDetails;
+        }
+    }
+
+    ShortageDiagnosis diagnoseShortage(Shift shift, UUID targetSkillId, Map<UUID, StaffData> staffMap, int minRestHours) {
+        if (staffMap == null || staffMap.isEmpty()) {
+            return new ShortageDiagnosis("NO_QUALIFIED_STAFF", "Cửa hàng hiện chưa có nhân sự đang hoạt động nào.");
+        }
+
+        List<StaffData> qualifiedStaff;
+        if (targetSkillId != null) {
+            qualifiedStaff = staffMap.values().stream()
+                    .filter(sd -> hasValidSkill(sd, targetSkillId, shift.getShiftDate()))
+                    .collect(Collectors.toList());
+        } else {
+            qualifiedStaff = new ArrayList<>(staffMap.values());
+        }
+
+        if (qualifiedStaff.isEmpty()) {
+            return new ShortageDiagnosis("NO_QUALIFIED_STAFF", "Không có nhân sự đang hoạt động nào sở hữu kỹ năng yêu cầu còn hiệu lực.");
+        }
+
+        int unavailableCount = 0;
+        int overlapCount = 0;
+        int maxHoursCount = 0;
+        int restTimeCount = 0;
+
+        double shiftDuration = getDurationInHours(shift);
+
+        for (StaffData sd : qualifiedStaff) {
+            if (isUnavailable(sd, shift)) {
+                unavailableCount++;
+            }
+            if (hasOverlap(sd.getCurrentSchedule(), shift)) {
+                overlapCount++;
+            }
+            if (getWeeklyHours(sd, shift.getShiftDate()) + shiftDuration > sd.getMaxWeeklyHours()) {
+                maxHoursCount++;
+            }
+            if (!satisfiesRestTime(sd.getCurrentSchedule(), shift, minRestHours)) {
+                restTimeCount++;
+            }
+        }
+
+        String details = String.format("Có %d nhân sự đạt kỹ năng nhưng không thể phân công: %d bận/vắng, %d trùng ca, %d chạm trần giờ tuần, %d vi phạm giờ nghỉ giữa 2 ca.",
+                qualifiedStaff.size(), unavailableCount, overlapCount, maxHoursCount, restTimeCount);
+
+        return new ShortageDiagnosis("CONSTRAINTS_VIOLATED", details);
     }
 
     private boolean hasValidSkill(StaffData empData, UUID skillId, LocalDate shiftDate) {

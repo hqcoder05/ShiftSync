@@ -97,11 +97,11 @@ public class ShiftController {
     @Operation(summary = "Auto-schedule shifts for a specific date range")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/auto-schedule")
-    public ResponseEntity<Void> autoSchedule(
+    public ResponseEntity<com.shiftsync.shift.dto.AutoScheduleResult> autoSchedule(
             @PathVariable UUID storeId,
             @Valid @RequestBody AutoScheduleRequest request) {
-        autoScheduleService.autoSchedule(storeId, request);
-        return ResponseEntity.ok().build();
+        com.shiftsync.shift.dto.AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, request);
+        return ResponseEntity.ok(result);
     }
 
     @Operation(summary = "Update an existing shift")
