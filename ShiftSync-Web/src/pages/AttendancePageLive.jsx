@@ -205,6 +205,8 @@ export default function AttendancePageLive() {
       const res = await getStoreAttendance(storeId, fromDate, toDate);
       setRows(res.data || []);
       toast.success('Đã cập nhật giờ chấm công và ghi nhận lý do vào nhật ký kiểm toán.');
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể cập nhật giờ chấm công. Vui lòng thử lại.');
     } finally {

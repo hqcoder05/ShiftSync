@@ -6,6 +6,9 @@ import { getAllStores } from '../services/storeService';
 import { getStoreLeaveRequests, getMyLeaveRequests } from '../services/leaveService';
 import { getStoreSwapRequests, getMySwapRequests } from '../services/swapService';
 import { getMarketplaceShifts } from '../services/marketplaceService';
+import { getStoreAdjustmentRequests, getMyAdjustmentRequests } from '../services/adjustmentService';
+import { getIncomingWorkforceRequests, getMyWorkforceProposals } from '../services/workforceService';
+import { getRequests } from '../services/requestService';
 import {
   getMyNotifications,
   getUnreadNotificationCount,
@@ -56,6 +59,9 @@ export default function Header() {
   const notifRef = useRef(null);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [pendingSwapCount, setPendingSwapCount] = useState(0);
+  const [pendingAdjCount, setPendingAdjCount] = useState(0);
+  const [pendingWorkforceCount, setPendingWorkforceCount] = useState(0);
+  const [pendingStaffReqCount, setPendingStaffReqCount] = useState(0);
   const [openShiftsCount, setOpenShiftsCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
@@ -83,82 +89,127 @@ export default function Header() {
     }
   }, []);
 
+  const fetchHeaderCounts = useCallback(async () => {
+    if (!selectedStoreId) return;
+    try {
+      if (isManager) {
+        const [leaveRes, swapRes, adjRes, wfRes, reqRes, mktRes] = await Promise.allSettled([
+          getStoreLeaveRequests(selectedStoreId, 'PENDING'),
+          getStoreSwapRequests(selectedStoreId, 'PENDING'),
+          getStoreAdjustmentRequests(selectedStoreId, 'PENDING'),
+          getIncomingWorkforceRequests(selectedStoreId),
+          getRequests(),
+          getMarketplaceShifts(selectedStoreId),
+        ]);
+
+        if (leaveRes.status === 'fulfilled') {
+          const list = Array.isArray(leaveRes.value.data) ? leaveRes.value.data : [];
+          setPendingLeaveCount(list.length);
+        }
+        if (swapRes.status === 'fulfilled') {
+          const list = Array.isArray(swapRes.value.data) ? swapRes.value.data : [];
+          setPendingSwapCount(list.length);
+        }
+        if (adjRes.status === 'fulfilled') {
+          const list = Array.isArray(adjRes.value.data) ? adjRes.value.data : [];
+          setPendingAdjCount(list.length);
+        }
+        if (wfRes.status === 'fulfilled') {
+          const list = Array.isArray(wfRes.value.data) ? wfRes.value.data : [];
+          const pendingWf = list.filter((r) => r.status === 'PENDING' || r.status === 'PROPOSED');
+          setPendingWorkforceCount(pendingWf.length);
+        }
+        if (reqRes.status === 'fulfilled') {
+          const raw = reqRes.value;
+          const list = Array.isArray(raw) ? raw : (raw?.data || []);
+          const pendingReqs = list.filter((r) => (r.status === 'PENDING' || !r.status) && r.typeCategory !== 'swap');
+          setPendingStaffReqCount(pendingReqs.length);
+        }
+        if (mktRes.status === 'fulfilled') {
+          const list = Array.isArray(mktRes.value.data) ? mktRes.value.data : (mktRes.value.data?.content || []);
+          setOpenShiftsCount(list.length);
+        }
+      } else {
+        const [myLeaveRes, mySwapRes, myAdjRes, myWfRes, reqRes, mktRes] = await Promise.allSettled([
+          getMyLeaveRequests(selectedStoreId),
+          getMySwapRequests(),
+          getMyAdjustmentRequests(selectedStoreId),
+          getMyWorkforceProposals(),
+          getRequests(),
+          getMarketplaceShifts(selectedStoreId),
+        ]);
+
+        if (myLeaveRes.status === 'fulfilled') {
+          const list = Array.isArray(myLeaveRes.value.data) ? myLeaveRes.value.data.filter((r) => r.status === 'PENDING') : [];
+          setPendingLeaveCount(list.length);
+        }
+        if (mySwapRes.status === 'fulfilled') {
+          const list = Array.isArray(mySwapRes.value.data) ? mySwapRes.value.data.filter((s) => s.status === 'PENDING' || s.status === 'PENDING_MANAGER') : [];
+          setPendingSwapCount(list.length);
+        }
+        if (myAdjRes.status === 'fulfilled') {
+          const list = Array.isArray(myAdjRes.value.data) ? myAdjRes.value.data.filter((r) => r.status === 'PENDING') : [];
+          setPendingAdjCount(list.length);
+        }
+        if (myWfRes.status === 'fulfilled') {
+          const list = Array.isArray(myWfRes.value.data) ? myWfRes.value.data.filter((p) => p.status === 'PENDING' || p.status === 'PROPOSED') : [];
+          setPendingWorkforceCount(list.length);
+        }
+        if (reqRes.status === 'fulfilled') {
+          const raw = reqRes.value;
+          const list = Array.isArray(raw) ? raw : (raw?.data || []);
+          const pendingReqs = list.filter((r) => (r.status === 'PENDING' || !r.status) && r.typeCategory !== 'swap');
+          setPendingStaffReqCount(pendingReqs.length);
+        }
+        if (mktRes.status === 'fulfilled') {
+          const list = Array.isArray(mktRes.value.data) ? mktRes.value.data : (mktRes.value.data?.content || []);
+          setOpenShiftsCount(list.length);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [selectedStoreId, isManager]);
+
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+    fetchHeaderCounts();
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchHeaderCounts();
+    }, 20000);
 
     const handleRealtimeUpdate = () => {
       fetchNotifications();
+      fetchHeaderCounts();
     };
 
     window.addEventListener('notification_received', handleRealtimeUpdate);
     window.addEventListener('store_requests_updated', handleRealtimeUpdate);
     window.addEventListener('store_marketplace_updated', handleRealtimeUpdate);
+    window.addEventListener('store_shifts_updated', handleRealtimeUpdate);
+    window.addEventListener('store_attendance_updated', handleRealtimeUpdate);
+    window.addEventListener('storeChanged', handleRealtimeUpdate);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('notification_received', handleRealtimeUpdate);
       window.removeEventListener('store_requests_updated', handleRealtimeUpdate);
       window.removeEventListener('store_marketplace_updated', handleRealtimeUpdate);
+      window.removeEventListener('store_shifts_updated', handleRealtimeUpdate);
+      window.removeEventListener('store_attendance_updated', handleRealtimeUpdate);
+      window.removeEventListener('storeChanged', handleRealtimeUpdate);
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, fetchHeaderCounts]);
 
-  // Load real pending counts
-  useEffect(() => {
-    if (!selectedStoreId) return;
-    let isMounted = true;
+  const totalPendingRequests =
+    pendingLeaveCount +
+    pendingSwapCount +
+    pendingAdjCount +
+    pendingWorkforceCount +
+    pendingStaffReqCount;
 
-    if (isManager) {
-      getStoreLeaveRequests(selectedStoreId, 'PENDING')
-        .then((res) => {
-          if (isMounted) {
-            const list = Array.isArray(res.data) ? res.data : [];
-            setPendingLeaveCount(list.length);
-          }
-        })
-        .catch(() => isMounted && setPendingLeaveCount(0));
-
-      getStoreSwapRequests(selectedStoreId, 'PENDING')
-        .then((res) => {
-          if (isMounted) {
-            const list = Array.isArray(res.data) ? res.data : [];
-            setPendingSwapCount(list.length);
-          }
-        })
-        .catch(() => isMounted && setPendingSwapCount(0));
-    } else {
-      getMyLeaveRequests(selectedStoreId)
-        .then((res) => {
-          if (isMounted) {
-            const list = Array.isArray(res.data) ? res.data.filter((r) => r.status === 'PENDING') : [];
-            setPendingLeaveCount(list.length);
-          }
-        })
-        .catch(() => isMounted && setPendingLeaveCount(0));
-
-      getMySwapRequests()
-        .then((res) => {
-          if (isMounted) {
-            const list = Array.isArray(res.data) ? res.data.filter((s) => s.status === 'PENDING' || s.status === 'PENDING_MANAGER') : [];
-            setPendingSwapCount(list.length);
-          }
-        })
-        .catch(() => isMounted && setPendingSwapCount(0));
-    }
-
-    getMarketplaceShifts(selectedStoreId)
-      .then((res) => {
-        if (isMounted) {
-          const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
-          setOpenShiftsCount(list.length);
-        }
-      })
-      .catch(() => isMounted && setOpenShiftsCount(0));
-
-    return () => { isMounted = false; };
-  }, [selectedStoreId, isManager]);
-
-  const totalNotifs = unreadNotifCount + pendingLeaveCount + pendingSwapCount;
+  const totalNotifs = unreadNotifCount + totalPendingRequests;
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -438,7 +489,7 @@ export default function Header() {
                 className={`ss-notif-tab-item ${notifTab === 'REQUESTS' ? 'active' : ''}`}
                 onClick={() => setNotifTab('REQUESTS')}
               >
-                Yêu cầu {pendingLeaveCount + pendingSwapCount + openShiftsCount > 0 && `(${pendingLeaveCount + pendingSwapCount + openShiftsCount})`}
+                Yêu cầu {totalPendingRequests + openShiftsCount > 0 && `(${totalPendingRequests + openShiftsCount})`}
               </button>
             </div>
 
@@ -483,6 +534,63 @@ export default function Header() {
                     </div>
                   )}
 
+                  {pendingAdjCount > 0 && (
+                    <div
+                      className="ss-notif-modern-row"
+                      onClick={() => {
+                        setNotifMenuOpen(false);
+                        navigate('/requests?tab=adjustments');
+                      }}
+                    >
+                      <div className="ss-notif-icon-badge badge-amber">
+                        <Clock size={16} />
+                      </div>
+                      <div className="ss-notif-info">
+                        <span className="ss-notif-title">Giải trình chấm công</span>
+                        <span className="ss-notif-desc">Có {pendingAdjCount} giải trình chấm công chờ duyệt</span>
+                      </div>
+                      <span className="ss-notif-pill pill-amber">{pendingAdjCount}</span>
+                    </div>
+                  )}
+
+                  {pendingWorkforceCount > 0 && (
+                    <div
+                      className="ss-notif-modern-row"
+                      onClick={() => {
+                        setNotifMenuOpen(false);
+                        navigate('/requests?tab=workforce');
+                      }}
+                    >
+                      <div className="ss-notif-icon-badge badge-indigo">
+                        <Calendar size={16} />
+                      </div>
+                      <div className="ss-notif-info">
+                        <span className="ss-notif-title">Chi viện nhân sự</span>
+                        <span className="ss-notif-desc">Có {pendingWorkforceCount} yêu cầu mượn/chi viện nhân sự</span>
+                      </div>
+                      <span className="ss-notif-pill pill-indigo">{pendingWorkforceCount}</span>
+                    </div>
+                  )}
+
+                  {pendingStaffReqCount > 0 && (
+                    <div
+                      className="ss-notif-modern-row"
+                      onClick={() => {
+                        setNotifMenuOpen(false);
+                        navigate('/requests');
+                      }}
+                    >
+                      <div className="ss-notif-icon-badge badge-indigo">
+                        <FileText size={16} />
+                      </div>
+                      <div className="ss-notif-info">
+                        <span className="ss-notif-title">Yêu cầu từ nhân sự</span>
+                        <span className="ss-notif-desc">Có {pendingStaffReqCount} đơn đề xuất chờ xử lý</span>
+                      </div>
+                      <span className="ss-notif-pill pill-indigo">{pendingStaffReqCount}</span>
+                    </div>
+                  )}
+
                   {openShiftsCount > 0 && (
                     <div
                       className="ss-notif-modern-row"
@@ -502,7 +610,7 @@ export default function Header() {
                     </div>
                   )}
 
-                  {pendingLeaveCount === 0 && pendingSwapCount === 0 && openShiftsCount === 0 && (
+                  {totalPendingRequests === 0 && openShiftsCount === 0 && (
                     <div className="ss-notif-empty-state">
                       <FileText size={28} className="ss-empty-icon" />
                       <span>Không có yêu cầu nào đang chờ</span>
@@ -546,7 +654,7 @@ export default function Header() {
       <nav className="ss-header-nav" aria-label="Điều hướng chính">
         {visibleNavItems.map((item) => {
           const isCustomActive = item.aliases && item.aliases.includes(location.pathname);
-          const reqCount = item.key === 'requests' ? pendingLeaveCount + pendingSwapCount : 0;
+          const reqCount = item.key === 'requests' ? totalPendingRequests : 0;
           const mktCount = item.key === 'marketplace' ? openShiftsCount : 0;
           const badgeCount = reqCount || mktCount;
 

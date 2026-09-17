@@ -285,6 +285,10 @@ export default function RequestPage() {
     return `Nhân viên #${String(staffId).slice(0, 6)}`;
   };
 
+  const notifyRequestUpdated = (sId) => window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+  const notifyShiftsUpdated = (sId) => window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId: sId } }));
+  const notifyAttendanceUpdated = (sId) => window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
+
   // Listen to store change from Header
   useEffect(() => {
     const handleStoreChanged = (e) => {
@@ -294,6 +298,21 @@ export default function RequestPage() {
     window.addEventListener('storeChanged', handleStoreChanged);
     return () => window.removeEventListener('storeChanged', handleStoreChanged);
   }, []);
+
+  // Listen to real-time status updates across components
+  useEffect(() => {
+    const handleSync = () => {
+      if (activeTab === 'leave') refreshLeaveRequests();
+      else if (activeTab === 'swaps') refreshSwapRequests();
+      else if (activeTab === 'adjustments') refreshAdjustmentRequests();
+      else if (activeTab === 'workforce' && isManager) fetchWorkforceData(storeId);
+      else if (activeTab === 'proposals' && !isManager) {
+        getMyWorkforceProposals().then((res) => setMyProposals(Array.isArray(res.data) ? res.data : []));
+      }
+    };
+    window.addEventListener('store_requests_updated', handleSync);
+    return () => window.removeEventListener('store_requests_updated', handleSync);
+  }, [storeId, activeTab, isManager]);
 
   const fetchWorkforceData = async (targetId = storeId) => {
     if (!targetId) return;
@@ -422,6 +441,7 @@ export default function RequestPage() {
       setLeaveForm({ leaveType: 'ANNUAL', startDate: '', endDate: '', reason: '' });
       showToastMsg('Đã nộp đơn xin nghỉ phép thành công.');
       await refreshLeaveRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể tạo đơn xin nghỉ.');
     } finally {
@@ -437,6 +457,7 @@ export default function RequestPage() {
       await approveLeaveRequest(sId, id);
       showToastMsg('Đã phê duyệt đơn nghỉ phép.');
       await refreshLeaveRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi duyệt đơn nghỉ phép.');
     } finally {
@@ -453,6 +474,7 @@ export default function RequestPage() {
       await rejectLeaveRequest(sId, id, { reason });
       showToastMsg('Đã từ chối đơn nghỉ phép.');
       await refreshLeaveRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi từ chối đơn.');
     } finally {
@@ -469,6 +491,7 @@ export default function RequestPage() {
       await cancelLeaveRequest(sId, id);
       showToastMsg('Đã hủy đơn xin nghỉ.');
       await refreshLeaveRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể hủy đơn.');
     } finally {
@@ -488,6 +511,7 @@ export default function RequestPage() {
       await updateLeaveReason(sId, id, trimmed);
       showToastMsg('Đã cập nhật lý do và lưu vào cơ sở dữ liệu thành công.');
       await refreshLeaveRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể cập nhật lý do.');
     } finally {
@@ -513,6 +537,8 @@ export default function RequestPage() {
       setSwapForm({ fromShiftId: '', toStaffId: '', toShiftId: '' });
       showToastMsg('Đã gửi đề xuất đổi ca tới đồng nghiệp.');
       await refreshSwapRequests();
+      notifyRequestUpdated(storeId);
+      notifyShiftsUpdated(storeId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể gửi đề xuất đổi ca.');
     } finally {
@@ -526,6 +552,8 @@ export default function RequestPage() {
       await respondToSwapRequest(id, { accept });
       showToastMsg(accept ? 'Đã đồng ý yêu cầu đổi ca.' : 'Đã từ chối yêu cầu đổi ca.');
       await refreshSwapRequests();
+      notifyRequestUpdated(storeId);
+      notifyShiftsUpdated(storeId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi phản hồi đổi ca.');
     } finally {
@@ -539,6 +567,8 @@ export default function RequestPage() {
       await approveSwapRequest(id);
       showToastMsg('Quản lý đã phê duyệt và hoán đổi ca thành công.');
       await refreshSwapRequests();
+      notifyRequestUpdated(storeId);
+      notifyShiftsUpdated(storeId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi duyệt đổi ca.');
     } finally {
@@ -552,6 +582,7 @@ export default function RequestPage() {
       await rejectSwapRequest(id);
       showToastMsg('Đã từ chối yêu cầu đổi ca.');
       await refreshSwapRequests();
+      notifyRequestUpdated(storeId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi từ chối đổi ca.');
     } finally {
@@ -568,6 +599,8 @@ export default function RequestPage() {
       await approveAdjustmentRequest(sId, id);
       showToastMsg('Đã phê duyệt điều chỉnh giờ chấm công.');
       await refreshAdjustmentRequests();
+      notifyRequestUpdated(sId);
+      notifyAttendanceUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi duyệt điều chỉnh.');
     } finally {
@@ -583,6 +616,7 @@ export default function RequestPage() {
       await rejectAdjustmentRequest(sId, id);
       showToastMsg('Đã từ chối điều chỉnh giờ chấm công.');
       await refreshAdjustmentRequests();
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi từ chối điều chỉnh.');
     } finally {
@@ -627,6 +661,8 @@ export default function RequestPage() {
       });
       showToastMsg('Đã nộp giải trình chấm công thành công.');
       await refreshAdjustmentRequests();
+      notifyRequestUpdated(sId);
+      notifyAttendanceUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể gửi giải trình chấm công.');
     } finally {
@@ -674,6 +710,8 @@ export default function RequestPage() {
       setShowWorkforceModal(false);
       showToastMsg('Đã tạo yêu cầu mượn nhân viên gửi tới chi nhánh khác thành công!');
       fetchWorkforceData(sId);
+      notifyRequestUpdated(sId);
+      notifyShiftsUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi khi tạo yêu cầu mượn nhân sự.');
     } finally {
@@ -690,6 +728,8 @@ export default function RequestPage() {
       await cancelWorkforceRequest(sId, id);
       showToastMsg('Đã hủy yêu cầu mượn nhân sự.');
       fetchWorkforceData(sId);
+      notifyRequestUpdated(sId);
+      notifyShiftsUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể hủy yêu cầu.');
     } finally {
@@ -706,6 +746,7 @@ export default function RequestPage() {
       await rejectWorkforceRequest(sId, id);
       showToastMsg('Đã từ chối yêu cầu mượn nhân sự.');
       fetchWorkforceData(sId);
+      notifyRequestUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể từ chối yêu cầu.');
     } finally {
@@ -751,6 +792,8 @@ export default function RequestPage() {
       setShowProposeModal(false);
       showToastMsg('Đã cử nhân sự hỗ trợ chi nhánh bạn!');
       fetchWorkforceData(sId);
+      notifyRequestUpdated(sId);
+      notifyShiftsUpdated(sId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi đề xuất nhân sự.');
     } finally {
@@ -765,6 +808,8 @@ export default function RequestPage() {
       showToastMsg(accepted ? '✓ Bạn đã đồng ý nhận ca chi viện liên chi nhánh!' : 'Đã từ chối ca chi viện.');
       const res = await getMyWorkforceProposals();
       setMyProposals(Array.isArray(res.data) ? res.data : []);
+      notifyRequestUpdated(storeId);
+      notifyShiftsUpdated(storeId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Thao tác thất bại.');
     } finally {

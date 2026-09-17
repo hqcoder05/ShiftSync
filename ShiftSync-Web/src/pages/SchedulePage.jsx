@@ -883,6 +883,7 @@ export default function SchedulePage() {
       const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
       showToast('Thành Công! 🤖', msg);
       loadData();
+      notifyShiftUpdates();
     } catch (err) {
       console.error('Auto schedule failed:', err);
       showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');
@@ -891,6 +892,10 @@ export default function SchedulePage() {
     }
   };
 
+  const notifyShiftUpdates = () => {
+    window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+    window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
+  };
 
   const weekStartIso = useMemo(() => (weekDatesFull[0] ? toISODate(weekDatesFull[0]) : ''), [weekDatesFull]);
 
@@ -899,6 +904,14 @@ export default function SchedulePage() {
     const allReqs = JSON.parse(localStorage.getItem('cross_store_requests') || '[]');
     setCrossStoreRequests(allReqs);
   }, [storeId, weekStartIso]); // eslint-disable-line
+
+  useEffect(() => {
+    const handleSync = () => {
+      loadData();
+    };
+    window.addEventListener('store_shifts_updated', handleSync);
+    return () => window.removeEventListener('store_shifts_updated', handleSync);
+  }, [storeId, weekStartIso]);
 
   const pendingCrossStoreRequests = crossStoreRequests.filter(
     (req) => req.targetStoreId === storeId && req.status === 'PENDING_APPROVAL'
@@ -1147,6 +1160,7 @@ export default function SchedulePage() {
         `Đã duyệt và phân công ca ${DOW_VI[slot.dayOfWeek]} (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) cho ${empName}. Ca làm việc đã được xuất bản và hiển thị ngay trên ứng dụng của nhân viên!`
       );
       loadData();
+      notifyShiftUpdates();
     } catch (err) {
       showToast('Lỗi phân công', err.response?.data?.message || 'Không thể phân công ca này');
     }
@@ -1306,6 +1320,7 @@ export default function SchedulePage() {
         });
       }
       setShowRegisterModal(false);
+      notifyShiftUpdates();
     } catch (err) {
       setError(err.response?.data?.message || 'Tạo lịch thất bại');
     }
@@ -1365,6 +1380,7 @@ export default function SchedulePage() {
       });
       setShowRegisterModal(false);
       setMenuFor(null);
+      notifyShiftUpdates();
     } catch (err) {
       setError(err.response?.data?.message || 'Xóa ca làm việc thất bại');
     }
@@ -1449,6 +1465,7 @@ export default function SchedulePage() {
         'Phê duyệt thành công',
         `Đã thêm ca làm việc của nhân viên "${req.staffName}" vào lịch trình chi nhánh hiện tại.`
       );
+      notifyShiftUpdates();
     } catch (err) {
       showToast('Thao tác thất bại', err.response?.data?.message || 'Không thể chấp nhận yêu cầu');
     }
@@ -1493,6 +1510,7 @@ export default function SchedulePage() {
         try {
           await deleteShift(storeId, shift.id);
           showToast('Đã xóa ca làm việc', 'Ca làm việc đã được xóa thành công.');
+          notifyShiftUpdates();
         } catch (err) {
           if (err.response?.status !== 404) {
             setError(err.response?.data?.message || 'Xoá thất bại');
@@ -1550,6 +1568,7 @@ export default function SchedulePage() {
         `Lịch làm việc từ ${fmtFull(displayedDates[0])} đến ${fmtFull(displayedDates[displayedDates.length - 1])} đã được xuất bản và thông báo đến nhân viên.`
       );
       loadData();
+      notifyShiftUpdates();
     } catch (err) {
       showToast('Lỗi xuất bản', err.response?.data?.message || 'Không thể xuất bản lịch làm việc. Vui lòng thử lại.');
     }
@@ -1564,6 +1583,7 @@ export default function SchedulePage() {
       await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
       showToast('Xếp lịch tự động thành công! 🎉', 'Đã phân bổ ca làm việc tối ưu cho tuần.');
       loadData();
+      notifyShiftUpdates();
     } catch (err) {
       showToast('Lỗi xếp lịch tự động', err.response?.data?.message || 'Không thể xếp lịch tự động.');
     }
@@ -3353,6 +3373,7 @@ export default function SchedulePage() {
                     const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
                     showToast('Thành Công! 🤖', msg);
                     loadData();
+                    notifyShiftUpdates();
                   } catch (err) {
                     console.error('Auto schedule failed:', err);
                     showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');

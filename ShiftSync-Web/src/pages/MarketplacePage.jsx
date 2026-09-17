@@ -184,6 +184,21 @@ export default function MarketplacePage() {
     return () => window.removeEventListener('storeChanged', handleStoreChanged);
   }, []);
 
+  // 2.1. Listen to real-time status updates across components
+  useEffect(() => {
+    const handleSyncUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('store_requests_updated', handleSyncUpdate);
+    window.addEventListener('store_marketplace_updated', handleSyncUpdate);
+    window.addEventListener('store_shifts_updated', handleSyncUpdate);
+    return () => {
+      window.removeEventListener('store_requests_updated', handleSyncUpdate);
+      window.removeEventListener('store_marketplace_updated', handleSyncUpdate);
+      window.removeEventListener('store_shifts_updated', handleSyncUpdate);
+    };
+  }, [storeId]);
+
   // 3. Load all dynamic data from backend
   const loadData = () => {
     if (!storeId) return;
@@ -539,6 +554,8 @@ export default function MarketplacePage() {
       await assignStaffToShift(storeId, shiftId, staffId);
       showToast(`✓ Đã chỉ định thành công ${candidateName} vào ca làm việc!`);
       loadData();
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi chỉ định: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
     } finally {
@@ -559,6 +576,8 @@ export default function MarketplacePage() {
       await assignStaffToShift(storeId, shiftId, targetStaffId);
       showToast(`✓ Đã xác nhận chỉ định ${sName} vào ca làm việc!`);
       loadData();
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
     } finally {
@@ -572,6 +591,8 @@ export default function MarketplacePage() {
       await publishShiftToMarketplace(storeId, shiftId);
       showToast('✓ Đã đưa ca làm việc lên sàn Marketplace!');
       loadData();
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể đăng ca lên sàn.'}`);
     } finally {
@@ -585,6 +606,8 @@ export default function MarketplacePage() {
       await unpublishShiftFromMarketplace(storeId, shiftId);
       showToast('✓ Đã gỡ ca làm việc khỏi sàn Marketplace.');
       loadData();
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể gỡ ca.'}`);
     } finally {
@@ -608,6 +631,8 @@ export default function MarketplacePage() {
       }
       showToast(`✓ Đã phê duyệt yêu cầu đổi ca của ${cleanText(req.requesterName)}!`);
       loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`✕ Lỗi phê duyệt: ${err.response?.data?.message || err.message || 'Không thể duyệt hoán đổi.'}`);
     } finally {
@@ -630,6 +655,7 @@ export default function MarketplacePage() {
       }
       showToast(`✕ Đã từ chối yêu cầu đổi ca của ${cleanText(req.requesterName)}.`);
       loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`✕ Lỗi từ chối: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
     } finally {
