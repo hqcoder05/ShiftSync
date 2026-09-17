@@ -412,3 +412,25 @@ export function getAvatarForEmployee(employee) {
 
   return AVATAR_ROSTER[0];
 }
+
+export function getSavedUserAvatar(userId) {
+  if (!userId) return AVATAR_ROSTER[0];
+  try {
+    const savedId = localStorage.getItem(`user_profile_avatar_${userId}`);
+    if (savedId) {
+      return getAvatarById(savedId);
+    }
+  } catch {
+    // ignore
+  }
+  return AVATAR_ROSTER[0];
+}
+
+export function saveUserAvatar(userId, avatarId) {
+  if (!userId || !avatarId) return;
+  try {
+    localStorage.setItem(`user_profile_avatar_${userId}`, String(avatarId));
+  } catch {
+    // ignore
+  }
+}

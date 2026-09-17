@@ -21,8 +21,11 @@ import {
   Clock,
   CheckCheck,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
+import AvatarCollectionModal from '../features/avatars/AvatarCollectionModal';
+import { getAvatarById, getSavedUserAvatar, saveUserAvatar } from '../features/avatars/avatarRegistry';
 const NAV_ITEMS = [
   { to: '/', label: 'DASHBOARD', key: 'dashboard' },
   { to: '/schedule', label: 'SCHEDULER', key: 'scheduler' },
@@ -276,7 +279,28 @@ export default function Header() {
 
   // Current logged in user info
   const userEmail = localStorage.getItem('userEmail') || 'user@shiftsync.com';
+  const userId = localStorage.getItem('userId') || userEmail;
   const userName = userEmail.split('@')[0];
+  const [userAvatar, setUserAvatar] = useState(() => getSavedUserAvatar(userId));
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      setUserAvatar(getSavedUserAvatar(userId));
+    };
+    window.addEventListener('user_avatar_changed', handleAvatarUpdate);
+    window.addEventListener('storage', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('user_avatar_changed', handleAvatarUpdate);
+      window.removeEventListener('storage', handleAvatarUpdate);
+    };
+  }, [userId]);
+
+  const handleSelectAvatar = (avatar) => {
+    saveUserAvatar(userId, avatar.id);
+    setUserAvatar(avatar);
+    window.dispatchEvent(new CustomEvent('user_avatar_changed', { detail: { avatarId: avatar.id } }));
+  };
 
   const handleLogout = async () => {
     try {
@@ -624,8 +648,12 @@ export default function Header() {
           aria-expanded={menuOpen}
           aria-haspopup="true"
         >
-          <div className="ss-user-avatar">
-            {userName.slice(0, 2).toUpperCase()}
+          <div className="ss-user-avatar" style={userAvatar?.avatar ? { overflow: 'hidden', padding: 0 } : {}}>
+            {userAvatar?.avatar ? (
+              <img src={userAvatar.avatar} alt={userAvatar.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              userName.slice(0, 2).toUpperCase()
+            )}
           </div>
           <div className="ss-user-info-text">
             <span className="ss-user-email">{userName}</span>
@@ -664,6 +692,19 @@ export default function Header() {
 
             <button
               type="button"
+              className="ss-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                setAvatarModalOpen(true);
+              }}
+              role="menuitem"
+            >
+              <Sparkles size={17} color="#a855f7" />
+              <span>Bộ sưu tập Avatar 3D</span>
+            </button>
+
+            <button
+              type="button"
               className={`ss-dropdown-item ${isSettingsActive ? 'selected' : ''}`}
               onClick={handleGoSettings}
               role="menuitem"
@@ -693,6 +734,16 @@ export default function Header() {
           </div>
         )}
       </div>
+
+      {avatarModalOpen && (
+        <AvatarCollectionModal
+          isOpen={avatarModalOpen}
+          onClose={() => setAvatarModalOpen(false)}
+          currentAvatarId={userAvatar?.id}
+          onSelectAvatar={handleSelectAvatar}
+          title="Bộ sưu tập Avatar 3D cá nhân"
+        />
+      )}
     </header>
   );
 }
