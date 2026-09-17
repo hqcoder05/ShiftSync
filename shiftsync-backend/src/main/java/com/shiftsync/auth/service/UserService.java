@@ -79,8 +79,10 @@ public class UserService {
             if (storeIds.isEmpty()) {
                 return new PageImpl<>(Collections.emptyList(), pageable, 0);
             }
-            String s = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
-            return userRepository.searchUsersInStores(storeIds, s, pageable).map(UserMapper::toDTO);
+            if (search == null || search.trim().isEmpty()) {
+                return userRepository.findUsersInStores(storeIds, pageable).map(UserMapper::toDTO);
+            }
+            return userRepository.searchUsersInStores(storeIds, search.trim(), pageable).map(UserMapper::toDTO);
         }
 
         return getAllUsers(search, pageable);

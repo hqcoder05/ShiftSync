@@ -16,10 +16,20 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     org.springframework.data.domain.Page<User> searchUsers(@Param("search") String search, org.springframework.data.domain.Pageable pageable);
 
-    @Query("SELECT DISTINCT e.user FROM Employment e WHERE " +
+    @Query(value = "SELECT DISTINCT u FROM User u JOIN Employment e ON e.user = u WHERE " +
+           "e.store.id IN :storeIds AND e.status = 'ACTIVE'",
+           countQuery = "SELECT COUNT(DISTINCT u) FROM User u JOIN Employment e ON e.user = u WHERE " +
+           "e.store.id IN :storeIds AND e.status = 'ACTIVE'")
+    org.springframework.data.domain.Page<User> findUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, org.springframework.data.domain.Pageable pageable);
+
+    @Query(value = "SELECT DISTINCT u FROM User u JOIN Employment e ON e.user = u WHERE " +
            "e.store.id IN :storeIds AND e.status = 'ACTIVE' AND " +
-           "(:search IS NULL OR LOWER(e.user.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(e.user.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "(LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))",
+           countQuery = "SELECT COUNT(DISTINCT u) FROM User u JOIN Employment e ON e.user = u WHERE " +
+           "e.store.id IN :storeIds AND e.status = 'ACTIVE' AND " +
+           "(LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     org.springframework.data.domain.Page<User> searchUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, @Param("search") String search, org.springframework.data.domain.Pageable pageable);
 
     @Query(value = "SELECT EXISTS (" +
