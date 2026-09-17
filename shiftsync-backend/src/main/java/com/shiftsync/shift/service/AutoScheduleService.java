@@ -27,6 +27,7 @@ import com.shiftsync.store.entity.StoreConfiguration;
 import com.shiftsync.store.repository.SchedulerConfigurationRepository;
 import com.shiftsync.store.repository.StoreConfigurationRepository;
 import com.shiftsync.store.repository.StoreRepository;
+import com.shiftsync.layout.service.SpatialAllocationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -61,6 +62,7 @@ public class AutoScheduleService {
     private final SchedulerConfigurationRepository schedulerConfigRepo;
     private final StoreRepository storeRepository;
     private final HeadcountQuotaService headcountQuotaService;
+    private final SpatialAllocationService spatialAllocationService;
 
     @Autowired
     public AutoScheduleService(
@@ -73,7 +75,8 @@ public class AutoScheduleService {
             StoreConfigurationRepository storeConfigRepo,
             SchedulerConfigurationRepository schedulerConfigRepo,
             StoreRepository storeRepository,
-            HeadcountQuotaService headcountQuotaService) {
+            HeadcountQuotaService headcountQuotaService,
+            @Autowired(required = false) SpatialAllocationService spatialAllocationService) {
         this.shiftRepository = shiftRepository;
         this.shiftAssignmentRepository = shiftAssignmentRepository;
         this.employmentRepository = employmentRepository;
@@ -84,6 +87,22 @@ public class AutoScheduleService {
         this.schedulerConfigRepo = schedulerConfigRepo;
         this.storeRepository = storeRepository;
         this.headcountQuotaService = headcountQuotaService;
+        this.spatialAllocationService = spatialAllocationService;
+    }
+
+    public AutoScheduleService(
+            ShiftRepository shiftRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            EmploymentRepository employmentRepository,
+            StaffSkillRepository staffSkillRepository,
+            AvailabilityRepository availabilityRepository,
+            BlackoutDateRepository blackoutDateRepository,
+            StoreConfigurationRepository storeConfigRepo,
+            SchedulerConfigurationRepository schedulerConfigRepo,
+            StoreRepository storeRepository,
+            HeadcountQuotaService headcountQuotaService) {
+        this(shiftRepository, shiftAssignmentRepository, employmentRepository, staffSkillRepository,
+             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, storeRepository, headcountQuotaService, null);
     }
 
     // Overload for benchmark tests
@@ -97,7 +116,7 @@ public class AutoScheduleService {
             StoreConfigurationRepository storeConfigRepo,
             SchedulerConfigurationRepository schedulerConfigRepo) {
         this(shiftRepository, shiftAssignmentRepository, employmentRepository, staffSkillRepository,
-             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, null, null);
+             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, null, null, null);
     }
 
     // Helper classes for processing
@@ -394,6 +413,20 @@ public class AutoScheduleService {
 
         if (!newAssignments.isEmpty()) {
             shiftAssignmentRepository.saveAll(newAssignments);
+
+            // Auto-trigger 3D Spatial Allocation for the scheduled shifts
+            if (spatialAllocationService != null) {
+                Set<UUID> assignedShiftIds = newAssignments.stream()
+                        .map(a -> a.getShift().getId())
+                        .collect(Collectors.toSet());
+                for (UUID sid : assignedShiftIds) {
+                    try {
+                        spatialAllocationService.allocateZonesForShift(storeId, sid);
+                    } catch (Exception e) {
+                        log.debug("Spatial allocation skipped for shift {}: {}", sid, e.getMessage());
+                    }
+                }
+            }
         }
         
         long endTime = System.currentTimeMillis(); // Profiling end

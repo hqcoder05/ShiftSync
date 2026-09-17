@@ -272,34 +272,94 @@ export default function DashboardPage() {
   }, []);
 
   const handleExportSalary = () => {
-    showToast('Đang xuất bảng báo cáo dự báo lương (.xlsx / .csv)...');
+    try {
+      const headers = ['Ngày', 'Lịch xếp (giờ)', 'Thực làm (giờ)'];
+      const rows = salaryDates.map((d, i) => [d, scheduledPoints[i]?.hours || 0, actualPoints[i]?.hours || 0]);
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Du_Bao_Luong_${selectedStoreId || 'store'}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast('Đã xuất báo cáo dự báo lương (.csv) thành công!');
+    } catch (e) {
+      navigate('/payroll');
+    }
   };
 
   const getPositionColor = useCallback((skillName) => {
     const sName = (skillName || '').toLowerCase().trim();
-    if (sName.includes('barista') || sName.includes('pha chế')) return '#48B8A6';
-    if (sName.includes('cashier') || sName.includes('thu ngân')) return '#6BA5E7';
-    if (sName.includes('kitchen') || sName.includes('bếp')) return '#F68E5F';
-    if (sName.includes('waiter') || sName.includes('phục vụ')) return '#A284E0';
 
-    const PASTEL_COLOR_MAP = {
-      '#0d9488': '#48B8A6',
-      '#2563eb': '#6BA5E7',
-      '#ea580c': '#F68E5F',
-      '#7c3aed': '#A284E0',
-    };
-
+    // 1. Prioritize configured store skills (Image 2 - single source of truth)
     const skills = storeSkillMap[selectedStoreId] || [];
     const skill = skills.find((sk) => {
-      const n = (sk.name || '').toLowerCase();
-      return n === sName || sName.includes(n);
+      const n = (sk.name || '').toLowerCase().trim();
+      return n === sName || sName.includes(n) || n.includes(sName);
     });
     if (skill && skill.description && skill.description.startsWith('#')) {
-      const lower = skill.description.toLowerCase().trim();
-      return PASTEL_COLOR_MAP[lower] || skill.description;
+      return skill.description;
     }
-    return '#48B8A6';
+
+    // 2. Standard preset palette fallback
+    const PRESET_COLORS = ['#5BC8B8', '#D97FB2', '#D98080', '#C8C84A', '#7AA8D9', '#FFA726', '#AB47BC', '#26A69A'];
+    if (sName && sName !== 'nhân viên' && sName !== 'staff') {
+      return PRESET_COLORS[[...sName].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
+    }
+    return skills[0]?.description && skills[0].description.startsWith('#') ? skills[0].description : PRESET_COLORS[0];
   }, [storeSkillMap, selectedStoreId]);
+
+  /* ── Helper: Resolve Shift Position / Skill Name for Dashboard ── */
+  const resolveDashboardPosition = useCallback((shift, assign = null) => {
+    // 1. Direct assignment skillName if non-generic
+    if (assign?.skillName && assign.skillName !== 'Nhân viên' && assign.skillName !== 'Staff') {
+      return assign.skillName;
+    }
+    // 2. Lookup assignment's requiredSkillId in store skills
+    const targetSkillId = assign?.requiredSkillId || assign?.skillId || shift?.skillId;
+    const storeSkills = storeSkillMap[selectedStoreId] || [];
+    if (targetSkillId && storeSkills.length > 0) {
+      const found = storeSkills.find((sk) => String(sk.id) === String(targetSkillId));
+      if (found?.name) return found.name;
+    }
+    // 3. Lookup in shift.skillRequirements
+    if (Array.isArray(shift?.skillRequirements) && shift.skillRequirements.length > 0) {
+      if (targetSkillId) {
+        const foundReq = shift.skillRequirements.find((r) => String(r.skillId) === String(targetSkillId));
+        if (foundReq?.skillName) return foundReq.skillName;
+      }
+      if (shift.skillRequirements.length === 1 && shift.skillRequirements[0]?.skillName) {
+        return shift.skillRequirements[0].skillName;
+      }
+    }
+    // 4. Primary skill name from shift
+    if (shift?.skillName && shift.skillName !== 'Nhân viên' && shift.skillName !== 'Staff') {
+      return shift.skillName;
+    }
+    // 5. Zone name if indicative of position
+    const zone = assign?.zoneName || shift?.zoneName;
+    if (zone) {
+      const zLower = zone.toLowerCase();
+      if (zLower.includes('pha chế') || zLower.includes('barista')) return 'Pha chế';
+      if (zLower.includes('thu ngân') || zLower.includes('cashier')) return 'Thu ngân';
+      if (zLower.includes('bếp') || zLower.includes('kitchen')) return 'Bếp';
+      if (zLower.includes('phục vụ') || zLower.includes('sảnh') || zLower.includes('waiter')) return 'Phục vụ';
+      return zone;
+    }
+    // 6. Check if matched employee has position in employees
+    const staffId = assign?.staffId || shift?.staffId;
+    if (staffId && Array.isArray(employees)) {
+      const matched = employees.find((e) => e.id === staffId || e.staffId === staffId);
+      if (matched?.position && matched.position !== 'Nhân viên') return matched.position;
+      if (matched?.skillName && matched.skillName !== 'Nhân viên') return matched.skillName;
+    }
+    // Fallback: If store has skills, take the first skill name or 'Nhân viên'
+    if (storeSkills.length > 0 && storeSkills[0]?.name) {
+      return storeSkills[0].name;
+    }
+    return 'Nhân viên';
+  }, [storeSkillMap, selectedStoreId, employees]);
 
   // =========================================================================
   // Section 1 Computations: Lịch làm việc hôm nay (Filtered by S1)
@@ -313,27 +373,11 @@ export default function DashboardPage() {
     activeDateShifts.forEach((shift) => {
       const startH = shift.startTime ? parseInt(shift.startTime.slice(0, 2), 10) : 6;
       const endH = shift.endTime ? parseInt(shift.endTime.slice(0, 2), 10) : 14;
-      const skillName = shift.skillName || shift.requiredSkillName || '';
-      const posColor = getPositionColor(skillName);
-
-      const pushRow = (empName, rowId) => {
-        if (filterS1Employee !== 'ALL' && empName !== filterS1Employee) return;
-        rows.push({
-          id: rowId,
-          name: empName,
-          avatar: getAvatar(empName),
-          role: skillName || 'Staff',
-          startHour: Math.max(6, Math.min(19, startH)),
-          endHour: Math.max(6, Math.min(19, endH)),
-          color: posColor,
-          timeText: `${shift.startTime?.slice(0, 5) || '06:00'} - ${shift.endTime?.slice(0, 5) || '14:00'}`
-        });
-      };
 
       if (shift.shiftAssignments && shift.shiftAssignments.length > 0) {
         shift.shiftAssignments.forEach((assign, aIdx) => {
           const empName = assign.staffName || assign.employeeName || assign.userFullName || 'Nhân viên';
-          const assignSkillName = assign.skillName || skillName || 'Nhân viên';
+          const assignSkillName = resolveDashboardPosition(shift, assign);
           const assignColor = getPositionColor(assignSkillName);
           if (filterS1Employee !== 'ALL' && empName !== filterS1Employee) return;
           rows.push({
@@ -349,12 +393,25 @@ export default function DashboardPage() {
         });
       } else if (shift.staffName || shift.staffId) {
         const empName = shift.staffName || 'Nhân viên';
-        pushRow(empName, `shift-${shift.id}`);
+        const roleName = resolveDashboardPosition(shift, null);
+        const roleColor = getPositionColor(roleName);
+        if (filterS1Employee === 'ALL' || empName === filterS1Employee) {
+          rows.push({
+            id: `shift-${shift.id}`,
+            name: empName,
+            avatar: getAvatar(empName),
+            role: roleName,
+            startHour: Math.max(6, Math.min(19, startH)),
+            endHour: Math.max(6, Math.min(19, endH)),
+            color: roleColor,
+            timeText: `${shift.startTime?.slice(0, 5) || '06:00'} - ${shift.endTime?.slice(0, 5) || '14:00'}`
+          });
+        }
       }
     });
 
     return rows;
-  }, [shifts, s1DateISO, filterS1Employee, getPositionColor]);
+  }, [shifts, s1DateISO, filterS1Employee, getPositionColor, resolveDashboardPosition]);
 
   // =========================================================================
   // Section 2 Computations: Thông báo chấm công (Filtered by S2)
@@ -520,7 +577,7 @@ export default function DashboardPage() {
             const empName = sa.staffName || sa.employeeName || sa.userFullName;
             if (filterS4Employee !== 'ALL' && empName !== filterS4Employee) return;
 
-            const posName = sa.skillName || s.skillName || s.requiredSkillName || '';
+            const posName = resolveDashboardPosition(s, sa);
             if (filterS4Position !== 'ALL' && posName && !posName.toLowerCase().includes(filterS4Position.toLowerCase())) return;
 
             const matchedSkill = currentStoreSkills.find(sk => {
@@ -537,7 +594,7 @@ export default function DashboardPage() {
           });
         } else if (s.skillRequirements && s.skillRequirements.length > 0) {
           s.skillRequirements.forEach(req => {
-            const posName = req.skillName || req.name || '';
+            const posName = req.skillName || req.name || resolveDashboardPosition(s, null);
             if (filterS4Position !== 'ALL' && posName && !posName.toLowerCase().includes(filterS4Position.toLowerCase())) return;
 
             const count = req.requiredStaff || req.requiredCount || req.quantity || 1;
@@ -555,7 +612,7 @@ export default function DashboardPage() {
           });
         } else {
           if (filterS4Employee !== 'ALL' && s.staffName !== filterS4Employee) return;
-          const posName = s.skillName || s.requiredSkillName || '';
+          const posName = resolveDashboardPosition(s, null);
           if (filterS4Position !== 'ALL' && posName && !posName.toLowerCase().includes(filterS4Position.toLowerCase())) return;
 
           const count = s.requiredStaff || 1;

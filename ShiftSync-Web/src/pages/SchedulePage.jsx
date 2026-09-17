@@ -24,16 +24,28 @@ import './SchedulePage.css';
 
 /* ── Helpers ────────────────────────────────────────────── */
 // Colour palette matching the reference screenshots
-const SHIFT_COLORS = [
-  '#5BC8B8', // teal/green
-  '#D97FB2', // pink
-  '#D98080', // salmon/red
-  '#C8C84A', // yellow-green
+export const PRESET_COLORS = [
+  '#5BC8B8', // teal
+  '#D97FB2', // pink (Waitress)
+  '#D98080', // red/salmon
+  '#C8C84A', // yellow-green / olive (Cashier)
   '#7AA8D9', // blue
+  '#FFA726', // orange
+  '#AB47BC', // purple (Barista)
+  '#26A69A', // green
 ];
+export const SHIFT_COLORS = PRESET_COLORS;
 
-const colorFor = (name = '') =>
-  SHIFT_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % SHIFT_COLORS.length];
+export const defaultColorFor = (name = '') =>
+  PRESET_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
+
+export const getSkillColor = (sk) => {
+  if (!sk) return PRESET_COLORS[0];
+  if (sk.description && sk.description.startsWith('#')) return sk.description;
+  return defaultColorFor(sk.name);
+};
+
+const colorFor = (name = '') => defaultColorFor(name);
 
 // Avatar map — khớp với EmployeesPage
 const AVATAR_MAP = {
@@ -94,6 +106,138 @@ const MONTH_NAMES_VI = [
 
 const fmtDateRangeText = (d) => {
   return `${d.getDate()} Tháng ${d.getMonth() + 1}, ${d.getFullYear()}`;
+};
+
+/* ── Helper: Resolve Shift Position / Skill Name ── */
+export const resolveShiftPositionName = (shift, assignment, storeSkills = [], employeeObj = null) => {
+  // 1. Direct assignment skillName if non-generic
+  if (assignment?.skillName && assignment.skillName !== 'Nhân viên' && assignment.skillName !== 'Staff') {
+    return assignment.skillName;
+  }
+  // 2. Lookup assignment's requiredSkillId in storeSkills
+  const skillId = assignment?.requiredSkillId || assignment?.skillId || shift?.skillId;
+  if (skillId && Array.isArray(storeSkills) && storeSkills.length > 0) {
+    const found = storeSkills.find((sk) => String(sk.id) === String(skillId));
+    if (found?.name) return found.name;
+  }
+  // 3. Lookup in shift.skillRequirements
+  if (Array.isArray(shift?.skillRequirements) && shift.skillRequirements.length > 0) {
+    if (skillId) {
+      const foundReq = shift.skillRequirements.find((r) => String(r.skillId) === String(skillId));
+      if (foundReq?.skillName) return foundReq.skillName;
+    }
+    // If shift has only 1 requirement, all staff in this shift do that position
+    if (shift.skillRequirements.length === 1 && shift.skillRequirements[0]?.skillName) {
+      return shift.skillRequirements[0].skillName;
+    }
+    // Match employee skill or position
+    if (employeeObj) {
+      const empSkillId = employeeObj.skillId;
+      const empPos = (employeeObj.position || employeeObj.skillName || '').toLowerCase();
+      const matchedReq = shift.skillRequirements.find((r) =>
+        (empSkillId && String(r.skillId) === String(empSkillId)) ||
+        (r.skillName && empPos.includes(r.skillName.toLowerCase()))
+      );
+      if (matchedReq?.skillName) return matchedReq.skillName;
+    }
+    if (shift.skillRequirements[0]?.skillName) {
+      return shift.skillRequirements[0].skillName;
+    }
+  }
+  // 4. Primary skill name from shift
+  if (shift?.skillName && shift.skillName !== 'Nhân viên' && shift.skillName !== 'Staff') {
+    return shift.skillName;
+  }
+  // 5. Shift location if matching a skill in storeSkills
+  if (shift?.location && Array.isArray(storeSkills) && storeSkills.length > 0) {
+    const foundByLoc = storeSkills.find((sk) =>
+      String(sk.id) === String(shift.location) ||
+      sk.name.toLowerCase() === String(shift.location).toLowerCase()
+    );
+    if (foundByLoc?.name) return foundByLoc.name;
+  }
+  // 6. Zone name if indicative of position
+  const zone = assignment?.zoneName || shift?.zoneName;
+  if (zone) {
+    const zLower = zone.toLowerCase();
+    if (zLower.includes('pha chế') || zLower.includes('barista') || zLower.includes('bar')) return 'Barista';
+    if (zLower.includes('thu ngân') || zLower.includes('cashier') || zLower.includes('pos')) return 'Cashier';
+    if (zLower.includes('bếp') || zLower.includes('kitchen')) return 'Bếp';
+    if (zLower.includes('phục vụ') || zLower.includes('waitress') || zLower.includes('waiter') || zLower.includes('sảnh')) return 'Waitress';
+    return zone;
+  }
+  // 7. Employee position if available
+  if (employeeObj) {
+    const pos = employeeObj.position || employeeObj.jobTitle || employeeObj.skillName || employeeObj.skill?.name;
+    if (pos && pos !== 'Nhân viên' && pos !== 'Staff' && pos !== employeeObj.contractTypeName && pos !== employeeObj.employmentType) {
+      return pos;
+    }
+  }
+  // 8. If employee matches any skill name in storeSkills
+  if (Array.isArray(storeSkills) && storeSkills.length > 0) {
+    if (employeeObj) {
+      const empStr = JSON.stringify(employeeObj).toLowerCase();
+      const matched = storeSkills.find((sk) => empStr.includes(sk.name.toLowerCase()));
+      if (matched) return matched.name;
+    }
+    if (storeSkills.length === 1) return storeSkills[0].name;
+  }
+  return 'Nhân viên';
+};
+
+/* ── Helper: Resolve Position Color ── */
+export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
+  // 1. Resolve position name first
+  let posName = shift?.positionName || shift?.skillName;
+  if (!posName || posName === 'Nhân viên' || posName === 'Staff') {
+    posName = resolveShiftPositionName(shift, null, storeSkills, emp);
+  }
+
+  // 2. Look up in storeSkills (from getSkillsByStore) - PRIMARY SOURCE OF TRUTH
+  if (Array.isArray(storeSkills) && storeSkills.length > 0) {
+    const sSkillId = shift?.skillId || shift?.requiredSkillId || shift?.location;
+    if (sSkillId) {
+      const foundById = storeSkills.find((sk) => String(sk.id) === String(sSkillId));
+      if (foundById) {
+        if (foundById.description && foundById.description.startsWith('#')) {
+          return foundById.description;
+        }
+        return defaultColorFor(foundById.name);
+      }
+    }
+    if (posName && posName !== 'Nhân viên') {
+      const pLower = posName.toLowerCase().trim();
+      const foundByName = storeSkills.find((sk) => {
+        const skLower = sk.name.toLowerCase().trim();
+        return skLower === pLower || pLower.includes(skLower) || skLower.includes(pLower);
+      });
+      if (foundByName) {
+        if (foundByName.description && foundByName.description.startsWith('#')) {
+          return foundByName.description;
+        }
+        return defaultColorFor(foundByName.name);
+      }
+    }
+  }
+
+  // 3. Fallback to shift custom color if valid and not default teal
+  if (shift?.color && shift.color.startsWith('#') && shift.color !== '#5BC8B8') {
+    return shift.color;
+  }
+
+  // 4. Default color for position name using PRESET_COLORS
+  if (posName && posName !== 'Nhân viên') {
+    return defaultColorFor(posName);
+  }
+
+  // 5. Fallback to first skill in store
+  if (Array.isArray(storeSkills) && storeSkills.length > 0) {
+    const firstSk = storeSkills[0];
+    if (firstSk.description && firstSk.description.startsWith('#')) return firstSk.description;
+    return defaultColorFor(firstSk.name);
+  }
+
+  return PRESET_COLORS[0];
 };
 
 /* ── Component ────────────────────────────────────────────── */
@@ -415,8 +559,7 @@ export default function SchedulePage() {
     if (Array.isArray(current3DShift.shiftAssignments) && current3DShift.shiftAssignments.length > 0) {
       current3DShift.shiftAssignments.forEach((assign, idx) => {
         const matchedEmp = employees.find((e) => e.id === assign.staffId);
-        const skObj = skills.find((s) => s.id === (assign.requiredSkillId || assign.skillId) || s.name === assign.skillName);
-        const skillName = assign.skillName || skObj?.name || assign.role || matchedEmp?.skillName || matchedEmp?.position || 'Nhân viên';
+        const skillName = resolveShiftPositionName(current3DShift, assign, skills, matchedEmp);
 
         // 1. Dùng zoneId đã lưu trong assignment nếu hợp lệ
         let assignedZoneId = assign.zoneId;
@@ -448,7 +591,7 @@ export default function SchedulePage() {
       });
     } else if (current3DShift.staffId) {
       const matchedEmp = employees.find((e) => e.id === current3DShift.staffId);
-      const skillName = current3DShift.skillName || matchedEmp?.position || 'Nhân viên';
+      const skillName = resolveShiftPositionName(current3DShift, null, skills, matchedEmp);
       const semanticZone = resolveSemanticZone(skillName, storeZones, usedCounts);
       list.push({
         id: current3DShift.staffId,
@@ -469,7 +612,7 @@ export default function SchedulePage() {
     try {
       const res = await allocateZonesForShift(storeId, current3DShift.id);
       if (res?.data) {
-        setAllocatedSequence(res.data.allocatedSequence || []);
+        setAllocatedSequence(res.data.assignments || []);
         showToast('Phân bổ không gian 3D', `✓ Đã phân bổ tối ưu ${res.data.assignedCount || active3DStaff.length} nhân sự vào các khu vực theo thuật toán Max-Min Dispersion!`);
         loadData();
       }
@@ -480,20 +623,115 @@ export default function SchedulePage() {
     }
   };
 
-  /* ── Load staff + shifts ───────────────────────── */
+  /* ── Load staff + shifts + skills ───────────────────────── */
   const loadData = () => {
     if (!storeId) return;
     setLoading(true);
     setError('');
-    Promise.all([getStaffByStore(storeId), getShiftsForStore(storeId)])
-      .then(([staffRes, shiftsRes]) => {
+    Promise.all([getStaffByStore(storeId), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
+      .then(([staffRes, shiftsRes, skillsRes]) => {
+        const loadedSkills = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
+        if (loadedSkills.length > 0) {
+          setSkills(loadedSkills);
+        }
+
         const rawStaff = (staffRes.data.content || staffRes.data || []).filter((emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN');
         const savedPositions = JSON.parse(localStorage.getItem(`emp_positions_${storeId}`) || '{}');
+
+        const weekRangeIso = weekDatesFull.map(toISODate);
+        const allShifts = shiftsRes.data || [];
+        const shiftsInRange = allShifts.filter((s) => weekRangeIso.includes(s.shiftDate));
+        const savedMeta = JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`) || '{}');
+
+        // Hiển thị shift theo staffId được assign (field staffId trong ShiftDTO hoặc meta)
+        const map = {};
+        const empPositionsFound = {};
+
+        shiftsInRange.forEach((shift) => {
+          const meta = savedMeta[shift.id] || {};
+          const baseShift = {
+            ...shift,
+            ...meta,
+            color: meta.color || shift.color,
+            note: meta.note !== undefined ? meta.note : shift.note,
+          };
+
+          if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
+            shift.shiftAssignments.forEach((sa) => {
+              const targetEmpId = sa.staffId;
+              if (!targetEmpId) return;
+
+              const empObj = rawStaff.find((e) => (e.staffId || e.id) === targetEmpId);
+              const assignedSkillName = resolveShiftPositionName(shift, sa, loadedSkills, empObj);
+              const assignedSkillId = sa.requiredSkillId || loadedSkills.find(sk => sk.name.toLowerCase() === assignedSkillName.toLowerCase())?.id;
+              const assignedColor = getShiftPositionColor(
+                { ...baseShift, skillId: assignedSkillId, positionName: assignedSkillName },
+                empObj,
+                loadedSkills
+              );
+
+              if (assignedSkillName && assignedSkillName !== 'Nhân viên') {
+                empPositionsFound[targetEmpId] = assignedSkillName;
+              }
+
+              const empShift = {
+                ...baseShift,
+                staffId: targetEmpId,
+                assignedStaffId: targetEmpId,
+                skillId: assignedSkillId,
+                skillName: assignedSkillName,
+                positionName: assignedSkillName,
+                location: assignedSkillName,
+                color: assignedColor,
+                zoneName: sa.zoneName,
+              };
+
+              if (!map[targetEmpId]) map[targetEmpId] = {};
+              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
+              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
+                map[targetEmpId][shift.shiftDate].push(empShift);
+              }
+            });
+          } else {
+            const assignedEmpIds = new Set();
+            if (baseShift.staffId) assignedEmpIds.add(baseShift.staffId);
+            if (shift.staffId) assignedEmpIds.add(shift.staffId);
+            if (shift.assignedStaffId) assignedEmpIds.add(shift.assignedStaffId);
+            if (shift.employeeId) assignedEmpIds.add(shift.employeeId);
+
+            assignedEmpIds.forEach((targetEmpId) => {
+              const empObj = rawStaff.find((e) => (e.staffId || e.id) === targetEmpId);
+              const assignedSkillName = resolveShiftPositionName(baseShift, null, loadedSkills, empObj);
+              const assignedColor = getShiftPositionColor(
+                { ...baseShift, positionName: assignedSkillName },
+                empObj,
+                loadedSkills
+              );
+              if (assignedSkillName && assignedSkillName !== 'Nhân viên') {
+                empPositionsFound[targetEmpId] = assignedSkillName;
+              }
+              const empShift = {
+                ...baseShift,
+                staffId: targetEmpId,
+                skillName: assignedSkillName,
+                positionName: assignedSkillName,
+                location: assignedSkillName,
+                color: assignedColor,
+              };
+              if (!map[targetEmpId]) map[targetEmpId] = {};
+              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
+              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
+                map[targetEmpId][shift.shiftDate].push(empShift);
+              }
+            });
+          }
+        });
+
         const staff = rawStaff.map((emp) => {
           const id = emp.staffId || emp.id;
           const name = emp.staffFullName || emp.fullName || 'Nhân viên';
           const contractType = emp.contractType?.name || emp.employmentType || 'Full-Time';
-          const pos = savedPositions[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || 'Nhân viên';
+          const pos = savedPositions[id] || empPositionsFound[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || (loadedSkills[0]?.name) || 'Nhân viên';
           return {
             ...emp,
             id: id,
@@ -501,9 +739,9 @@ export default function SchedulePage() {
             fullName: name,
             staffFullName: name,
             contractTypeName: contractType,
-            position: pos === contractType ? 'Nhân viên' : pos,
-            jobTitle: pos === contractType ? 'Nhân viên' : pos,
-            skillName: pos === contractType ? 'Nhân viên' : pos,
+            position: pos === contractType ? (empPositionsFound[id] || 'Nhân viên') : pos,
+            jobTitle: pos === contractType ? (empPositionsFound[id] || 'Nhân viên') : pos,
+            skillName: pos === contractType ? (empPositionsFound[id] || 'Nhân viên') : pos,
           };
         });
         setEmployees(staff);
@@ -535,76 +773,6 @@ export default function SchedulePage() {
           );
         });
 
-        const weekRangeIso = weekDatesFull.map(toISODate);
-        const allShifts = shiftsRes.data || [];
-        const shiftsInRange = allShifts.filter((s) => weekRangeIso.includes(s.shiftDate));
-
-        const savedMeta = JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`) || '{}');
-
-        // Hiển thị shift theo staffId được assign (field staffId trong ShiftDTO hoặc meta)
-        const map = {};
-        shiftsInRange.forEach((shift) => {
-          const meta = savedMeta[shift.id] || {};
-          const baseShift = {
-            ...shift,
-            ...meta,
-            color: meta.color || shift.color,
-            note: meta.note !== undefined ? meta.note : shift.note,
-          };
-
-          if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
-            shift.shiftAssignments.forEach((sa) => {
-              const targetEmpId = sa.staffId;
-              if (!targetEmpId) return;
-
-              const matchedSkill = skills.find(
-                (sk) => sk.id === sa.requiredSkillId || (sa.skillName && sk.name.toLowerCase() === sa.skillName.toLowerCase())
-              );
-              const assignedSkillName = sa.skillName || matchedSkill?.name || 'Nhân viên';
-              const assignedSkillId = sa.requiredSkillId || matchedSkill?.id;
-
-              const empShift = {
-                ...baseShift,
-                staffId: targetEmpId,
-                assignedStaffId: targetEmpId,
-                skillId: assignedSkillId,
-                skillName: assignedSkillName,
-                positionName: assignedSkillName,
-                location: assignedSkillName,
-                zoneName: sa.zoneName,
-              };
-
-              if (!map[targetEmpId]) map[targetEmpId] = {};
-              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
-              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
-                map[targetEmpId][shift.shiftDate].push(empShift);
-              }
-            });
-          } else {
-            const assignedEmpIds = new Set();
-            if (baseShift.staffId) assignedEmpIds.add(baseShift.staffId);
-            if (shift.staffId) assignedEmpIds.add(shift.staffId);
-            if (shift.assignedStaffId) assignedEmpIds.add(shift.assignedStaffId);
-            if (shift.employeeId) assignedEmpIds.add(shift.employeeId);
-
-            assignedEmpIds.forEach((targetEmpId) => {
-              const empObj = staff.find((e) => e.id === targetEmpId);
-              const fallbackPos = baseShift.skillName || empObj?.position || 'Nhân viên';
-              const empShift = {
-                ...baseShift,
-                staffId: targetEmpId,
-                skillName: fallbackPos,
-                positionName: fallbackPos,
-                location: fallbackPos,
-              };
-              if (!map[targetEmpId]) map[targetEmpId] = {};
-              if (!map[targetEmpId][shift.shiftDate]) map[targetEmpId][shift.shiftDate] = [];
-              if (!map[targetEmpId][shift.shiftDate].some((s) => s.id === shift.id)) {
-                map[targetEmpId][shift.shiftDate].push(empShift);
-              }
-            });
-          }
-        });
         setAssignments(map);
         setAllShifts(shiftsInRange);
       })
@@ -740,48 +908,7 @@ export default function SchedulePage() {
     return hex;
   };
 
-  const POSITION_COLOR_PALETTE = {
-    barista: '#48B8A6',   // Pastel Mint / Ngọc dịu
-    'pha chế': '#48B8A6',
-    cashier: '#6BA5E7',   // Pastel Sky Blue / Lam dịu
-    'thu ngân': '#6BA5E7',
-    kitchen: '#F68E5F',   // Pastel Coral / Cam san hô pastel
-    'bếp': '#F68E5F',
-    waiter: '#A284E0',    // Pastel Lavender / Tím hoa cà dịu
-    'phục vụ': '#A284E0',
-  };
-
-  const getShiftPositionColor = (s, emp) => {
-    // 1. Tên vị trí ưu tiên từ shift/assignment
-    const posName = (s?.positionName || s?.skillName || s?.location || '').toLowerCase().trim();
-    for (const [k, color] of Object.entries(POSITION_COLOR_PALETTE)) {
-      if (posName.includes(k) || k.includes(posName)) {
-        return color;
-      }
-    }
-
-    // 2. Tìm trong skills list
-    const sSkillId = s?.skillId || s?.location;
-    const matchedSkill = skills.find(
-      (sk) => sk.id === sSkillId || sk.name.toLowerCase() === posName
-    );
-    if (matchedSkill?.description && matchedSkill.description.startsWith('#')) {
-      return toPastelColor(matchedSkill.description);
-    }
-
-    // 3. Vị trí nhân viên (nếu có và không phải là loại hợp đồng)
-    if (emp?.position) {
-      const empPos = emp.position.toLowerCase().trim();
-      for (const [k, color] of Object.entries(POSITION_COLOR_PALETTE)) {
-        if (empPos.includes(k) || k.includes(empPos)) {
-          return color;
-        }
-      }
-    }
-
-    if (s?.color && s.color.startsWith('#')) return toPastelColor(s.color);
-    return POSITION_COLOR_PALETTE.barista;
-  };
+  // (getShiftPositionColor is globally exported at the top of file and bound to skills state)
 
   const getEmpDefaultSkillAndColor = (targetEmpId) => {
     if (!targetEmpId) return { location: '', color: SHIFT_COLORS[0] };
@@ -864,7 +991,7 @@ export default function SchedulePage() {
     }
     if (!posName) posName = emp?.position || 'Nhân viên';
 
-    const posColor = getShiftPositionColor({ ...shift, positionName: posName }, emp);
+    const posColor = getShiftPositionColor({ ...shift, positionName: posName }, emp, skills);
     const currentStoreObj = stores.find((s) => s.id === (shift.branch || shift.storeId || storeId));
     const contractType = emp?.contractTypeName || emp?.contractType?.name || emp?.employmentType || 'Full-Time';
 
@@ -2060,7 +2187,7 @@ export default function SchedulePage() {
                           </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
-                            <div className="sch-emp-role">{role || 'Nhân viên'}</div>
+                            <div className="sch-emp-role">{role || emp.position || emp.jobTitle || emp.skillName || 'Nhân viên'}</div>
                           </div>
                         </div>
                       </td>
@@ -2089,10 +2216,12 @@ export default function SchedulePage() {
 
                         return (
                           <td key={iso} className="sch-cell">
-                            {/* Shift chip với sọc chéo + badge giờ */}
+                            {/* Shift chip hiển thị đúng màu và tên vị trí nhân viên đảm nhiệm */}
                             {cellShifts.map((s, sIdx) => {
-                              // Ca làm việc hiển thị đúng màu của Vị trí
-                              const chipColor = getShiftPositionColor(s, emp);
+                              const shiftPosName = (s.positionName && s.positionName !== 'Nhân viên')
+                                ? s.positionName
+                                : resolveShiftPositionName(s, null, skills, emp);
+                              const chipColor = getShiftPositionColor({ ...s, positionName: shiftPosName }, emp, skills);
                               const hasManagerNote = Boolean(s.note && s.note.trim().length > 0);
                               const chipKey = s.id ? `${s.id}-${empId}-${iso}` : `shift-${empId}-${iso}-${sIdx}`;
                               const isMenuOpen = menuFor?.shift?.id === s.id && menuFor.empId === empId && menuFor.dateIso === iso;
@@ -2114,18 +2243,24 @@ export default function SchedulePage() {
                                         rgba(255,255,255,0.18) 10px
                                       )`,
                                     }}
+                                    title={`${name} - Vị trí: ${shiftPosName} (${fmtTimeAMPM(s.startTime)} – ${fmtTimeAMPM(s.endTime)})`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (isMenuOpen) {
                                         setMenuFor(null);
                                       } else {
-                                        setMenuFor({ empId, dateIso: iso, shift: s });
+                                        setMenuFor({ empId, dateIso: iso, shift: { ...s, positionName: shiftPosName } });
                                       }
                                     }}
                                   >
-                                    <span className="sch-shift-time-badge">
-                                      {fmtTimeAMPM(s.startTime)} – {fmtTimeAMPM(s.endTime)}
-                                    </span>
+                                    <div className="sch-shift-inner-content">
+                                      <span className="sch-shift-time-badge">
+                                        {fmtTimeAMPM(s.startTime)} – {fmtTimeAMPM(s.endTime)}
+                                      </span>
+                                      <span className="sch-shift-pos-badge" title={`Vị trí: ${shiftPosName}`}>
+                                        {shiftPosName}
+                                      </span>
+                                    </div>
 
                                     {/* Flag / Tam giác vàng trên Box ca khi có yêu cầu / ghi chú từ quản lý */}
                                     {hasManagerNote && (

@@ -3,8 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
-import { getStoreStaffAvailability, getStaffAvailability } from '../services/availabilityService';
+import {
+  getStoreStaffAvailability,
+  getStaffAvailability,
+  getMyAvailability,
+  createAvailability,
+  deleteAvailability,
+} from '../services/availabilityService';
 import { getShiftsForStore, createShift } from '../services/shiftService';
+import { getMyProfile, getMyShifts } from '../services/employeeService';
 import {
   Calendar,
   Clock,
@@ -122,6 +129,18 @@ export default function StaffAvailabilityPage() {
   const [selectedSkillFilter, setSelectedSkillFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL'); // 'ALL' | 'SUBMITTED' | 'MISSING'
 
+  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isStaff = !isManager;
+
+  /* -- Registration Modal state for Staff -- */
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    dayOfWeek: 1,
+    startTime: '08:00',
+    endTime: '16:00',
+  });
+
   /* -- Toast notification -- */
   const [toast, setToast] = useState(null);
 
@@ -133,6 +152,34 @@ export default function StaffAvailabilityPage() {
   const showToast = (title, message) => {
     setToast({ title, message });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleCreateAvailability = async (e) => {
+    e.preventDefault();
+    try {
+      await createAvailability({
+        dayOfWeek: Number(createForm.dayOfWeek),
+        startTime: createForm.startTime.length === 5 ? `${createForm.startTime}:00` : createForm.startTime,
+        endTime: createForm.endTime.length === 5 ? `${createForm.endTime}:00` : createForm.endTime,
+      });
+      showToast('Đăng ký thành công! 🎉', 'Khung giờ rảnh đã được lưu vào hệ thống.');
+      setShowCreateModal(false);
+      loadData();
+    } catch (err) {
+      showToast('Lỗi đăng ký', err.response?.data?.message || 'Không thể lưu khung giờ rảnh.');
+    }
+  };
+
+  const handleDeleteAvailability = async (slotId) => {
+    if (!slotId) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xoá khung giờ rảnh này?')) return;
+    try {
+      await deleteAvailability(slotId);
+      showToast('Đã xoá thành công! 🗑️', 'Khung giờ rảnh đã được gỡ bỏ.');
+      loadData();
+    } catch (err) {
+      showToast('Lỗi xoá', err.response?.data?.message || 'Không thể xoá khung giờ rảnh.');
+    }
   };
 
   /* ── Week Range ── */
@@ -166,9 +213,54 @@ export default function StaffAvailabilityPage() {
 
   /* ── Main Data Loader ── */
   const loadData = async () => {
-    if (!storeId) return;
     setLoading(true);
     try {
+      if (isStaff) {
+        // 1. Load my profile
+        let profile = null;
+        try {
+          const profileRes = await getMyProfile();
+          profile = profileRes.data;
+        } catch {
+          profile = {
+            id: localStorage.getItem('userId') || 'me',
+            fullName: localStorage.getItem('userFullName') || 'Tôi',
+          };
+        }
+        const staffObj = {
+          id: profile.id,
+          staffId: profile.id,
+          fullName: profile.fullName || 'Tôi',
+          staffFullName: profile.fullName || 'Tôi',
+          contractTypeName: 'Nhân viên',
+          position: 'Nhân viên',
+        };
+        setEmployees([staffObj]);
+
+        // 2. Load my shifts for this week
+        let shifts = [];
+        try {
+          const shiftsRes = await getMyShifts();
+          const weekRangeIso = weekDatesFull.map(toISODate);
+          shifts = (shiftsRes.data || []).filter((s) => weekRangeIso.includes(s.shiftDate));
+        } catch (e) {
+          // fallback
+        }
+        setAssignedShifts(shifts);
+
+        // 3. Load my availability
+        try {
+          const availRes = await getMyAvailability();
+          const list = Array.isArray(availRes.data) ? availRes.data : [];
+          setAvailabilityMap({ [profile.id]: list });
+        } catch {
+          setAvailabilityMap({});
+        }
+        return;
+      }
+
+      if (!storeId) return;
+
       // 1. Load Store Staff
       const staffRes = await getStaffByStore(storeId);
       const rawStaff = (staffRes.data.content || staffRes.data || []).filter(
@@ -438,29 +530,37 @@ export default function StaffAvailabilityPage() {
       {/* ═══ TOPBAR: Title & Store Selector ═══ */}
       <div className="avail-topbar">
         <div className="avail-title-block">
-          <div className="avail-badge-category">QUẢN LÝ LỊCH KHẢ DỤNG</div>
-          <h1 className="avail-title">Tổng Hợp Lịch Đăng Ký Rảnh Của Nhân Viên</h1>
+          <div className="avail-badge-category">
+            {isStaff ? 'LỊCH KHẢ DỤNG CỦA TÔI' : 'QUẢN LÝ LỊCH KHẢ DỤNG'}
+          </div>
+          <h1 className="avail-title">
+            {isStaff ? 'Lịch Đăng Ký Rảnh Của Tôi' : 'Tổng Hợp Lịch Đăng Ký Rảnh Của Nhân Viên'}
+          </h1>
           <p className="avail-subtitle">
-            Theo dõi toàn bộ khung giờ làm việc nhân viên sẵn sàng nhận ca trong tuần, giúp quản lý phân công ca chính xác và không trùng lịch.
+            {isStaff
+              ? 'Xem và đăng ký các khung giờ bạn sẵn sàng nhận ca trong tuần để quản lý sắp xếp lịch làm việc hợp lý.'
+              : 'Theo dõi toàn bộ khung giờ làm việc nhân viên sẵn sàng nhận ca trong tuần, giúp quản lý phân công ca chính xác và không trùng lịch.'}
           </p>
         </div>
 
         <div className="avail-topbar-actions">
-          {/* Store Switcher */}
-          <div className="avail-store-picker">
-            <Building2 size={16} className="avail-store-icon" />
-            <select
-              value={storeId}
-              onChange={(e) => handleStoreChange(e.target.value)}
-              className="avail-store-select"
-            >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Store Switcher (Manager Only) */}
+          {!isStaff && (
+            <div className="avail-store-picker">
+              <Building2 size={16} className="avail-store-icon" />
+              <select
+                value={storeId}
+                onChange={(e) => handleStoreChange(e.target.value)}
+                className="avail-store-select"
+              >
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <button
             type="button"
@@ -472,15 +572,27 @@ export default function StaffAvailabilityPage() {
             <span>In Lịch / Xuất PDF</span>
           </button>
 
-          <button
-            type="button"
-            className="avail-btn avail-btn-primary"
-            onClick={() => navigate('/schedule')}
-            title="Đến màn hình xếp ca làm việc"
-          >
-            <CalendarCheck size={16} />
-            <span>Màn Hình Xếp Ca</span>
-          </button>
+          {isStaff ? (
+            <button
+              type="button"
+              className="avail-btn avail-btn-primary"
+              onClick={() => setShowCreateModal(true)}
+              title="Đăng ký thêm khung giờ bạn có thể đi làm"
+            >
+              <Plus size={16} />
+              <span>+ Đăng Ký Lịch Rảnh</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="avail-btn avail-btn-primary"
+              onClick={() => navigate('/schedule')}
+              title="Đến màn hình xếp ca làm việc"
+            >
+              <CalendarCheck size={16} />
+              <span>Màn Hình Xếp Ca</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -816,8 +928,22 @@ export default function StaffAvailabilityPage() {
                           return (
                             <td key={dIso} className="avail-td-cell">
                               {daySlots.length === 0 ? (
-                                <div className="avail-slot-empty" title="Không có lịch đăng ký rảnh ngày này">
-                                  <span className="avail-dash">—</span>
+                                <div
+                                  className="avail-slot-empty"
+                                  style={isStaff ? { cursor: 'pointer' } : {}}
+                                  onClick={() => {
+                                    if (isStaff) {
+                                      setCreateForm({
+                                        dayOfWeek: dow,
+                                        startTime: '08:00',
+                                        endTime: '16:00',
+                                      });
+                                      setShowCreateModal(true);
+                                    }
+                                  }}
+                                  title={isStaff ? "Bấm để đăng ký khung giờ rảnh ngày này" : "Không có lịch đăng ký rảnh ngày này"}
+                                >
+                                  <span className="avail-dash">{isStaff ? "+ Thêm" : "—"}</span>
                                 </div>
                               ) : (
                                 <div className="avail-slots-container">
@@ -833,6 +959,8 @@ export default function StaffAvailabilityPage() {
                                         onClick={() => {
                                           if (isAssigned) {
                                             handleOpenShiftDetailModal(emp, slot, d, assignedShift);
+                                          } else if (isStaff) {
+                                            handleDeleteAvailability(slot.id);
                                           } else {
                                             handleOpenAssignModal(emp, slot, d);
                                           }
@@ -840,7 +968,9 @@ export default function StaffAvailabilityPage() {
                                         title={
                                           isAssigned
                                             ? `🔒 Đã có ca: ${fmtTime(assignedShift.startTime)} - ${fmtTime(assignedShift.endTime)} (Đã bận / Kín lịch). Bấm xem chi tiết ca.`
-                                            : `🟢 Còn rảnh (${timeStr}). Bấm để xếp ca làm việc cho ${emp.fullName}.`
+                                            : isStaff
+                                              ? `🟢 Khung giờ rảnh (${timeStr}). Bấm để xoá.`
+                                              : `🟢 Còn rảnh (${timeStr}). Bấm để xếp ca làm việc cho ${emp.fullName}.`
                                         }
                                       >
                                         <div className="avail-slot-card-top">
@@ -1310,6 +1440,79 @@ export default function StaffAvailabilityPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Staff Create Availability ═══ */}
+      {showCreateModal && (
+        <div className="avail-modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="avail-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="avail-modal-header">
+              <h3 className="avail-modal-title">Đăng Ký Khung Giờ Rảnh</h3>
+              <button
+                type="button"
+                className="avail-modal-close"
+                onClick={() => setShowCreateModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateAvailability} className="avail-modal-form">
+              <div className="avail-form-group">
+                <label className="avail-form-label">Thứ trong tuần:</label>
+                <select
+                  className="avail-form-select"
+                  value={createForm.dayOfWeek}
+                  onChange={(e) => setCreateForm({ ...createForm, dayOfWeek: Number(e.target.value) })}
+                >
+                  <option value={1}>Thứ Hai</option>
+                  <option value={2}>Thứ Ba</option>
+                  <option value={3}>Thứ Tư</option>
+                  <option value={4}>Thứ Năm</option>
+                  <option value={5}>Thứ Sáu</option>
+                  <option value={6}>Thứ Bảy</option>
+                  <option value={0}>Chủ Nhật</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="avail-form-group" style={{ flex: 1 }}>
+                  <label className="avail-form-label">Giờ bắt đầu:</label>
+                  <input
+                    type="time"
+                    className="avail-form-select"
+                    value={createForm.startTime}
+                    onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="avail-form-group" style={{ flex: 1 }}>
+                  <label className="avail-form-label">Giờ kết thúc:</label>
+                  <input
+                    type="time"
+                    className="avail-form-select"
+                    value={createForm.endTime}
+                    onChange={(e) => setCreateForm({ ...createForm, endTime: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="avail-modal-actions">
+                <button
+                  type="button"
+                  className="avail-modal-btn cancel"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Huỷ
+                </button>
+                <button type="submit" className="avail-modal-btn confirm">
+                  <CheckCircle2 size={16} />
+                  <span>Lưu Lịch Rảnh</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

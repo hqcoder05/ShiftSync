@@ -153,14 +153,11 @@ export default function AttendanceScreenLive({ navigation }) {
         })),
       ]);
 
-      const forcedStatus = testMode === 'ON_TIME' ? 'PRESENT' : null;
-
       const response = await submitSelfieAttendance({
         shiftId: shift.id,
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         photoUri: photo.uri,
-        forcedStatus,
       });
 
       setCameraVisible(false);

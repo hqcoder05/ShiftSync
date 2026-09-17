@@ -57,9 +57,10 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const handleDemoAccess = async () => {
-    await AsyncStorage.setItem('accessToken', 'demo-token');
-    navigation.replace('MainTabs');
+  const handleQuickLogin = (demoEmail, demoPassword) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError('');
   };
 
   return (
@@ -109,14 +110,31 @@ export default function LoginScreen({ navigation }) {
           )}
         </Pressable>
 
-        <Pressable
-          onPress={handleDemoAccess}
-          style={{ marginTop: 14, padding: 8, alignItems: 'center' }}
-        >
-          <Text style={{ color: '#51A33D', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' }}>
-            Vào thẳng Lịch làm việc (Demo Mode) →
+        <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: '#EEEEEE', paddingTop: 14 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 8, textAlign: 'center' }}>
+            Tài khoản mẫu (Đăng nhập thật):
           </Text>
-        </Pressable>
+          <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}>
+            <Pressable
+              onPress={() => handleQuickLogin('emp01@shiftsync.com', 'password123')}
+              style={{ backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 }}
+            >
+              <Text style={{ fontSize: 12, color: '#166534', fontWeight: '600' }}>Staff (emp01)</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleQuickLogin('manager@shiftsync.com', 'password123')}
+              style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 }}
+            >
+              <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600' }}>Manager CN1</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleQuickLogin('admin@shiftsync.com', 'password123')}
+              style={{ backgroundColor: '#FAF5FF', borderWidth: 1, borderColor: '#E9D5FF', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 }}
+            >
+              <Text style={{ fontSize: 12, color: '#6B21A8', fontWeight: '600' }}>Admin</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: '#999' }}>
           Server: {getBaseUrl()}

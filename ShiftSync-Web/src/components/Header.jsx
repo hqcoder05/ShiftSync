@@ -26,11 +26,11 @@ import {
 const NAV_ITEMS = [
   { to: '/', label: 'DASHBOARD', key: 'dashboard' },
   { to: '/schedule', label: 'SCHEDULER', key: 'scheduler' },
-  { to: '/availability', label: 'AVAILABILITY', key: 'availability', aliases: ['/staff-availability'], roles: ['ADMIN', 'MANAGER'] },
+  { to: '/availability', label: 'AVAILABILITY', key: 'availability', aliases: ['/staff-availability'] },
   { to: '/attendance', label: 'ATTENDANCE', key: 'attendance' },
   { to: '/marketplace', label: 'MARKETPLACE', key: 'marketplace' },
   { to: '/requests', label: 'REQUESTS', key: 'requests', aliases: ['/request', '/reports'] },
-  { to: '/payroll', label: 'PAYROLL', key: 'payroll', roles: ['ADMIN', 'MANAGER'] },
+  { to: '/payroll', label: 'PAYROLL', key: 'payroll' },
   { to: '/employees', label: 'EMPLOYEES', key: 'employees', aliases: ['/skills', '/stores'], roles: ['ADMIN', 'MANAGER'] },
 ];
 

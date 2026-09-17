@@ -7,6 +7,8 @@ import {
   getPayrollPeriods,
   getPayslips,
   updatePayrollStatus,
+  getMyPayslips,
+  downloadPayslipPdf,
 } from '../services/payrollService';
 import { toast } from '../context/ToastContext';
 import './PayrollPage.css';
@@ -66,6 +68,11 @@ const formatPeriodLabel = (startDate, endDate) => {
 };
 
 export default function PayrollPage() {
+  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isStaff = !isManager;
+  const [downloadingPdfId, setDownloadingPdfId] = useState(null);
+
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
   const [periods, setPeriods] = useState([]);
@@ -80,6 +87,30 @@ export default function PayrollPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [targetMonth, setTargetMonth] = useState('2026-09');
+
+  const handleDownloadPdf = async (payrollId, periodLabel) => {
+    if (!payrollId) {
+      toast.warning('Chưa có mã phiếu lương hợp lệ.');
+      return;
+    }
+    setDownloadingPdfId(payrollId);
+    try {
+      const { data } = await downloadPayslipPdf(payrollId);
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanLabel = periodLabel ? String(periodLabel).replace(/[\/\s–—\(\)]+/g, '_') : payrollId;
+      link.download = `Phieu_Luong_${cleanLabel}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Đã tải phiếu lương PDF thành công!');
+    } catch (err) {
+      toast.error('Không thể tải file PDF: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  };
 
   // Load stores on mount and sync with selectedStoreId
   useEffect(() => {
@@ -114,7 +145,7 @@ export default function PayrollPage() {
 
   // Load employments for the store to map real contract types, roles, and rates
   useEffect(() => {
-    if (!storeId) return;
+    if (!storeId || isStaff) return;
     getStaffByStore(storeId, 0, 100)
       .then(({ data }) => {
         const empList = data.content || data || [];
@@ -139,11 +170,11 @@ export default function PayrollPage() {
       .catch(() => {
         setEmploymentMap({});
       });
-  }, [storeId]);
+  }, [storeId, isStaff]);
 
-  // Load periods from API when store changes
+  // Load periods from API when store changes (Manager)
   const fetchPeriods = (selectFirst = true) => {
-    if (!storeId) return;
+    if (!storeId || isStaff) return;
     getPayrollPeriods(storeId)
       .then(({ data }) => {
         if (data && Array.isArray(data) && data.length > 0) {
@@ -175,8 +206,83 @@ export default function PayrollPage() {
   };
 
   useEffect(() => {
-    fetchPeriods(true);
-  }, [storeId]);
+    if (!isStaff) {
+      fetchPeriods(true);
+    }
+  }, [storeId, isStaff]);
+
+  // Load staff personal payslips (Staff)
+  useEffect(() => {
+    if (!isStaff) return;
+    getMyPayslips()
+      .then(({ data }) => {
+        const list = Array.isArray(data) ? data : [];
+        if (list.length > 0) {
+          const periodMap = {};
+          const mapped = list.map((ps) => {
+            const totalHours = Number(ps.totalHours || 0);
+            const otHours = Number(ps.otHours || 0);
+            const holidayHours = Number(ps.holidayHours || 0);
+            const stdHours = Math.max(
+              0,
+              Math.round((totalHours - otHours - holidayHours) * 100) / 100
+            );
+
+            let baseSalary = Number(ps.baseAmount || 0);
+            if (baseSalary > 0 && baseSalary < 100000) baseSalary *= 1000;
+            let otSalary = Number(ps.otAmount || 0);
+            if (otSalary > 0 && otSalary < 100000) otSalary *= 1000;
+            let bonus = Number(ps.holidayAmount || 0);
+            if (bonus > 0 && bonus < 100000) bonus *= 1000;
+            let totalSalary = Number(ps.totalAmount || 0);
+            if (totalSalary > 0 && totalSalary < 100000) totalSalary *= 1000;
+
+            const periodObj = {
+              id: ps.periodId,
+              label: formatPeriodLabel(ps.periodStartDate, ps.periodEndDate),
+              startDate: ps.periodStartDate,
+              endDate: ps.periodEndDate,
+              status: ps.periodStatus,
+            };
+            periodMap[ps.periodId] = periodObj;
+
+            return {
+              id: ps.staffId,
+              payrollId: ps.id,
+              periodId: ps.periodId,
+              name: ps.staffName || 'Tôi',
+              role: 'Nhân viên',
+              roleTitle: 'Nhân viên',
+              hours: stdHours,
+              otHours,
+              holidayHours,
+              totalHours,
+              baseSalary,
+              otSalary,
+              bonus,
+              allowance: 0,
+              deduction: 0,
+              totalSalary,
+              hourlyRate: totalHours > 0 ? Math.round(baseSalary / totalHours) : 30000,
+            };
+          });
+
+          const distinctPeriods = Object.values(periodMap);
+          setPeriods(distinctPeriods);
+          setSelectedPeriod(distinctPeriods[0]);
+          setStaffData(mapped);
+        } else {
+          setPeriods([]);
+          setSelectedPeriod(null);
+          setStaffData([]);
+        }
+      })
+      .catch((err) => {
+        setPeriods([]);
+        setSelectedPeriod(null);
+        setStaffData([]);
+      });
+  }, [isStaff]);
 
   // Fetch payslips for selected period
   useEffect(() => {
@@ -430,14 +536,16 @@ export default function PayrollPage() {
         <div className="pay-period-select-wrap">
           <div className="pay-period-header-row">
             <span className="pay-section-label">KỲ LƯƠNG</span>
-            <button
-              type="button"
-              className="pay-add-period-btn"
-              title="Tính toán kỳ lương mới"
-              onClick={() => setShowNewPeriodModal(true)}
-            >
-              + Kỳ mới
-            </button>
+            {isManager && (
+              <button
+                type="button"
+                className="pay-add-period-btn"
+                title="Tính toán kỳ lương mới"
+                onClick={() => setShowNewPeriodModal(true)}
+              >
+                + Kỳ mới
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -497,7 +605,22 @@ export default function PayrollPage() {
             </strong>
           </div>
 
-          {periods.length === 0 ? (
+          {isStaff ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                className="pay-close-period-btn ss-btn-elevated"
+                style={{ background: '#16A34A', color: '#FFFFFF', borderColor: '#15803D' }}
+                disabled={!selectedPeriod || visibleRows.length === 0 || downloadingPdfId}
+                onClick={() => {
+                  const myRow = visibleRows[0];
+                  if (myRow) handleDownloadPdf(myRow.payrollId || myRow.id, selectedPeriod?.label);
+                }}
+              >
+                {downloadingPdfId ? 'ĐANG TẢI PDF...' : '📄 TẢI PHIẾU LƯƠNG (PDF)'}
+              </button>
+            </div>
+          ) : periods.length === 0 ? (
             <button
               type="button"
               className="pay-close-period-btn ss-btn-elevated"
@@ -562,25 +685,27 @@ export default function PayrollPage() {
         </div>
 
         {/* Manager Hourly Rate Setup Box */}
-        <div className="pay-rate-config-box ss-card-25d">
-          <div className="pay-rate-header">
-            <span>Thiết lập lương/giờ</span>
-            <span className="pay-rate-tag">Tiêu chuẩn</span>
+        {isManager && (
+          <div className="pay-rate-config-box ss-card-25d">
+            <div className="pay-rate-header">
+              <span>Thiết lập lương/giờ</span>
+              <span className="pay-rate-tag">Tiêu chuẩn</span>
+            </div>
+            <div className="pay-rate-input-wrap">
+              <input
+                type="number"
+                className="pay-rate-input"
+                value={baseHourlyRate}
+                step={1000}
+                onChange={(e) => setBaseHourlyRate(Number(e.target.value) || 0)}
+              />
+              <span className="pay-rate-currency">đ/giờ</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
+              Mức lương cơ bản áp dụng khi chưa gán hợp đồng riêng
+            </div>
           </div>
-          <div className="pay-rate-input-wrap">
-            <input
-              type="number"
-              className="pay-rate-input"
-              value={baseHourlyRate}
-              step={1000}
-              onChange={(e) => setBaseHourlyRate(Number(e.target.value) || 0)}
-            />
-            <span className="pay-rate-currency">đ/giờ</span>
-          </div>
-          <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
-            Mức lương cơ bản áp dụng khi chưa gán hợp đồng riêng
-          </div>
-        </div>
+        )}
 
         {/* Staff Filter List */}
         <div className="pay-staff-filter-card ss-card-25d">
@@ -628,6 +753,7 @@ export default function PayrollPage() {
                 <th className="th-ot-amount">Lương OT</th>
                 <th className="th-bonus">Thưởng / Lễ</th>
                 <th className="th-total-salary">Tổng lương</th>
+                <th className="th-action" style={{ textAlign: 'center' }}>Phiếu lương</th>
               </tr>
             </thead>
             <tbody>
@@ -657,13 +783,35 @@ export default function PayrollPage() {
                     <td className="td-total-salary">
                       <strong>{formatVND(row.totalSalary)}</strong>
                     </td>
+                    <td className="td-action" style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="ss-btn-elevated"
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: '#F0FDF4',
+                          color: '#166534',
+                          borderColor: '#BBF7D0',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        disabled={downloadingPdfId === (row.payrollId || row.id)}
+                        onClick={() => handleDownloadPdf(row.payrollId || row.id, selectedPeriod?.label)}
+                      >
+                        {downloadingPdfId === (row.payrollId || row.id) ? '...' : '📄 Tải PDF'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
 
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="pay-empty-row">
+                  <td colSpan="9" className="pay-empty-row">
                     Không tìm thấy dữ liệu bảng lương cho kỳ này.
                   </td>
                 </tr>
@@ -681,6 +829,7 @@ export default function PayrollPage() {
                 <td className="td-total-salary">
                   <strong>{formatVND(totals.totalSalary)}</strong>
                 </td>
+                <td className="td-action"></td>
               </tr>
             </tfoot>
           </table>

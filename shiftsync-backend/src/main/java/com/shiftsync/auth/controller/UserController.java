@@ -63,8 +63,12 @@ public class UserController {
     })
     public ResponseEntity<Page<UserDTO>> getAllUsers(
             @RequestParam(required = false) String search,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<UserDTO> users = userService.getAllUsers(search, pageable);
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Page<UserDTO> users = userService.getAllUsers(
+                userDetails != null ? userDetails.getId() : null,
+                userDetails != null && userDetails.getUser() != null ? userDetails.getUser().getSystemRole() : null,
+                search, pageable);
         return ResponseEntity.ok(users);
     }
 

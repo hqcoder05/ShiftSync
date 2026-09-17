@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
-import { getStoreAttendance, updateAttendanceRecord } from '../services/attendanceService';
+import { getStoreAttendance, updateAttendanceRecord, getMyAttendance } from '../services/attendanceService';
 import { createAdjustmentRequest } from '../services/adjustmentService';
 import { toast } from '../context/ToastContext';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
@@ -104,8 +104,9 @@ const statusLabel = (val, lateMins) => {
 
 export default function AttendancePageLive() {
   const navigate = useNavigate();
-  const userRole = localStorage.getItem('userRole') || 'STAFF';
+  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isStaff = !isManager;
 
   // Stores & Employees state
   const [stores, setStores] = useState([]);
@@ -265,10 +266,14 @@ export default function AttendancePageLive() {
 
   // Load attendance data
   useEffect(() => {
-    if (!storeId) return;
+    if (!isStaff && !storeId) return;
     setLoading(true);
     setError('');
-    getStoreAttendance(storeId, fromDate, toDate)
+    const fetchPromise = isStaff
+      ? getMyAttendance()
+      : getStoreAttendance(storeId, fromDate, toDate);
+
+    fetchPromise
       .then((res) => {
         setRows(res.data || []);
       })
@@ -277,19 +282,20 @@ export default function AttendancePageLive() {
         setRows([]);
       })
       .finally(() => setLoading(false));
-  }, [storeId, fromDate, toDate]);
+  }, [storeId, fromDate, toDate, isStaff]);
 
   // Realtime WebSocket attendance updates
   useEffect(() => {
-    if (!storeId) return;
+    if (!isStaff && !storeId) return;
     const handleRealtimeAtt = () => {
-      getStoreAttendance(storeId, fromDate, toDate)
+      const fetchPromise = isStaff ? getMyAttendance() : getStoreAttendance(storeId, fromDate, toDate);
+      fetchPromise
         .then((res) => setRows(res.data || []))
         .catch(() => {});
     };
     window.addEventListener('store_attendance_updated', handleRealtimeAtt);
     return () => window.removeEventListener('store_attendance_updated', handleRealtimeAtt);
-  }, [storeId, fromDate, toDate]);
+  }, [storeId, fromDate, toDate, isStaff]);
 
   // Close calendar on outside click
   useEffect(() => {

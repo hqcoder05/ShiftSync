@@ -13,22 +13,36 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.shiftsync.employment.entity.Employment;
+import com.shiftsync.employment.enums.EmploymentStatus;
+import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.shared.security.SystemRole;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class UserService {
     private final AuditLogService auditLogService;
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmploymentRepository employmentRepository;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService) {
+    @Autowired
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService, @Autowired(required = false) EmploymentRepository employmentRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
+        this.employmentRepository = employmentRepository;
+    }
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService) {
+        this(userRepository, passwordEncoder, auditLogService, null);
     }
 
     @Transactional
@@ -55,6 +69,21 @@ public class UserService {
             return userRepository.findAll(pageable).map(UserMapper::toDTO);
         }
         return userRepository.searchUsers(search.trim(), pageable).map(UserMapper::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserDTO> getAllUsers(UUID actorId, SystemRole actorRole, String search, Pageable pageable) {
+        if (actorRole == SystemRole.MANAGER && actorId != null && employmentRepository != null) {
+            List<Employment> employments = employmentRepository.findByUserIdAndStatus(actorId, EmploymentStatus.ACTIVE);
+            List<UUID> storeIds = employments.stream().map(e -> e.getStore().getId()).distinct().toList();
+            if (storeIds.isEmpty()) {
+                return new PageImpl<>(Collections.emptyList(), pageable, 0);
+            }
+            String s = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+            return userRepository.searchUsersInStores(storeIds, s, pageable).map(UserMapper::toDTO);
+        }
+
+        return getAllUsers(search, pageable);
     }
 
     @Transactional(readOnly = true)

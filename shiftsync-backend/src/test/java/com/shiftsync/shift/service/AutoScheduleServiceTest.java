@@ -23,6 +23,7 @@ import com.shiftsync.store.entity.SchedulerConfiguration;
 import com.shiftsync.store.entity.StoreConfiguration;
 import com.shiftsync.store.repository.SchedulerConfigurationRepository;
 import com.shiftsync.store.repository.StoreConfigurationRepository;
+import com.shiftsync.layout.service.SpatialAllocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +59,7 @@ class AutoScheduleServiceTest {
     @Mock private BlackoutDateRepository blackoutDateRepository;
     @Mock private StoreConfigurationRepository storeConfigRepo;
     @Mock private SchedulerConfigurationRepository schedulerConfigRepo;
+    @Mock private SpatialAllocationService spatialAllocationService;
 
     @InjectMocks
     private AutoScheduleService service;
@@ -1180,6 +1182,9 @@ class AutoScheduleServiceTest {
 
         // Phải phân bổ cho 3 nhân viên khác nhau
         assertEquals(3, countByStaff.size(), "Phải chọn 3 nhân viên khác nhau");
+
+        // Verify spatial allocation service is invoked for auto-scheduled shifts
+        verify(spatialAllocationService).allocateZonesForShift(eq(storeId), eq(shift.getId()));
     }
 }
 

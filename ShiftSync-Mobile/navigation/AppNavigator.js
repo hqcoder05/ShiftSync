@@ -47,13 +47,6 @@ export default function AppNavigator() {
         const refreshToken = await AsyncStorage.getItem('refreshToken');
 
         if (token) {
-          // Nếu là token demo, vào thẳng app
-          if (token === 'demo-token') {
-            setInitialRoute('MainTabs');
-            setIsLoading(false);
-            return;
-          }
-
           // Thử refresh token ngầm khi khởi động để phiên luôn tươi mới
           if (refreshToken) {
             try {
