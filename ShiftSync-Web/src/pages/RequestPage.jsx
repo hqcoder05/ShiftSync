@@ -11,21 +11,7 @@ import {
   cancelLeaveRequest,
   updateLeaveReason,
 } from '../services/leaveService';
-import {
-  getStoreSwapRequests,
-  getMySwapRequests,
-  createSwapRequest,
-  respondToSwapRequest,
-  approveSwapRequest,
-  rejectSwapRequest,
-} from '../services/swapService';
-import {
-  getStoreAdjustmentRequests,
-  getMyAdjustmentRequests,
-  createAdjustmentRequest,
-  approveAdjustmentRequest,
-  rejectAdjustmentRequest,
-} from '../services/adjustmentService';
+
 import {
   createWorkforceRequest,
   getOutgoingWorkforceRequests,
@@ -124,8 +110,17 @@ const toISODate = (d) => {
 export default function RequestPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
-  const initialTab = (rawTab && rawTab !== 'general') ? rawTab : 'leave';
+  const validTabs = ['leave', 'workforce', 'proposals'];
+  const initialTab = validTabs.includes(rawTab) ? rawTab : 'leave';
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (rawTab === 'swaps' || rawTab === 'swap') {
+      window.location.replace('/marketplace?tab=SWAP');
+    } else if (rawTab === 'adjustments' || rawTab === 'adjustment') {
+      window.location.replace('/attendance');
+    }
+  }, [rawTab]);
 
   // Global Context
   const [stores, setStores] = useState([]);
@@ -144,8 +139,6 @@ export default function RequestPage() {
 
   // Data states for tabs
   const [leaveRequests, setLeaveRequests] = useState([]);
-  const [swapRequests, setSwapRequests] = useState([]);
-  const [adjustments, setAdjustments] = useState([]);
   const [outgoingWorkforce, setOutgoingWorkforce] = useState([]);
   const [incomingWorkforce, setIncomingWorkforce] = useState([]);
   const [myProposals, setMyProposals] = useState([]);
@@ -164,8 +157,6 @@ export default function RequestPage() {
 
   // Modals
   const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [showSwapModal, setShowSwapModal] = useState(false);
-  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Forms
@@ -173,20 +164,6 @@ export default function RequestPage() {
     leaveType: 'ANNUAL',
     startDate: '',
     endDate: '',
-    reason: '',
-  });
-
-  const [swapForm, setSwapForm] = useState({
-    fromShiftId: '',
-    toStaffId: '',
-    toShiftId: '',
-  });
-
-  const [adjustmentForm, setAdjustmentForm] = useState({
-    shiftId: '',
-    shiftDate: toISODate(new Date()),
-    requestedCheckIn: '08:00',
-    requestedCheckOut: '17:00',
     reason: '',
   });
 
@@ -198,45 +175,6 @@ export default function RequestPage() {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3500);
     toast.success(msg);
-  };
-
-  const openCreateSwapModal = async () => {
-    setShowSwapModal(true);
-    if (storeId) {
-      try {
-        const res = await getShiftsForStore(storeId);
-        const list = Array.isArray(res.data) ? res.data : [];
-        setStoreShifts(list);
-        if (list.length > 0 && !swapForm.fromShiftId) {
-          setSwapForm((prev) => ({ ...prev, fromShiftId: String(list[0].id) }));
-        }
-      } catch (e) {
-        console.error('Error loading shifts for swap:', e);
-      }
-    }
-  };
-
-  const openCreateAdjustmentModal = async () => {
-    setShowAdjustmentModal(true);
-    if (storeId) {
-      try {
-        const res = await getShiftsForStore(storeId);
-        const list = Array.isArray(res.data) ? res.data : [];
-        setStoreShifts(list);
-        if (list.length > 0 && !adjustmentForm.shiftId) {
-          const first = list[0];
-          setAdjustmentForm((prev) => ({
-            ...prev,
-            shiftId: String(first.id),
-            shiftDate: first.shiftDate || prev.shiftDate,
-            requestedCheckIn: first.startTime ? first.startTime.slice(0, 5) : prev.requestedCheckIn,
-            requestedCheckOut: first.endTime ? first.endTime.slice(0, 5) : prev.requestedCheckOut,
-          }));
-        }
-      } catch (e) {
-        console.error('Error loading shifts for adjustment:', e);
-      }
-    }
   };
 
   // Sync tab with URL
@@ -303,8 +241,6 @@ export default function RequestPage() {
   useEffect(() => {
     const handleSync = () => {
       if (activeTab === 'leave') refreshLeaveRequests();
-      else if (activeTab === 'swaps') refreshSwapRequests();
-      else if (activeTab === 'adjustments') refreshAdjustmentRequests();
       else if (activeTab === 'workforce' && isManager) fetchWorkforceData(storeId);
       else if (activeTab === 'proposals' && !isManager) {
         getMyWorkforceProposals().then((res) => setMyProposals(Array.isArray(res.data) ? res.data : []));
@@ -353,18 +289,6 @@ export default function RequestPage() {
         .then((res) => setLeaveRequests(Array.isArray(res.data) ? res.data : []))
         .catch(() => setLeaveRequests([]))
         .finally(() => setLoading(false));
-    } else if (activeTab === 'swaps') {
-      const fetchPromise = isManager ? getStoreSwapRequests(storeId) : getMySwapRequests();
-      fetchPromise
-        .then((res) => setSwapRequests(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setSwapRequests([]))
-        .finally(() => setLoading(false));
-    } else if (activeTab === 'adjustments') {
-      const fetchPromise = isManager ? getStoreAdjustmentRequests(storeId) : getMyAdjustmentRequests(storeId);
-      fetchPromise
-        .then((res) => setAdjustments(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setAdjustments([]))
-        .finally(() => setLoading(false));
     } else if (activeTab === 'workforce' && isManager) {
       fetchWorkforceData(storeId).finally(() => setLoading(false));
     } else if (activeTab === 'proposals' && !isManager) {
@@ -374,7 +298,6 @@ export default function RequestPage() {
         .finally(() => setLoading(false));
     }
   }, [storeId, activeTab, isManager]);
-
 
   const refreshLeaveRequests = async () => {
     if (!storeId) return;
@@ -386,31 +309,10 @@ export default function RequestPage() {
     }
   };
 
-  const refreshSwapRequests = async () => {
-    try {
-      const res = isManager ? await getStoreSwapRequests(storeId) : await getMySwapRequests();
-      setSwapRequests(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setSwapRequests([]);
-    }
-  };
-
-  const refreshAdjustmentRequests = async () => {
-    if (!storeId) return;
-    try {
-      const res = isManager ? await getStoreAdjustmentRequests(storeId) : await getMyAdjustmentRequests(storeId);
-      setAdjustments(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setAdjustments([]);
-    }
-  };
-
   // Realtime updates for requests
   useEffect(() => {
     const handleRequestsUpdated = () => {
       refreshLeaveRequests();
-      refreshSwapRequests();
-      refreshAdjustmentRequests();
       if (isManager) fetchWorkforceData(storeId);
     };
     window.addEventListener('store_requests_updated', handleRequestsUpdated);
@@ -519,156 +421,7 @@ export default function RequestPage() {
     }
   };
 
-  // Swap Handlers
-  const handleCreateSwap = async (e) => {
-    e.preventDefault();
-    if (!swapForm.fromShiftId || !swapForm.toStaffId) {
-      toast.warning('Vui lòng điền đủ mã ca làm và đồng nghiệp muốn đổi.');
-      return;
-    }
-    setActionLoading(true);
-    try {
-      await createSwapRequest({
-        fromShiftId: swapForm.fromShiftId,
-        toStaffId: swapForm.toStaffId,
-        toShiftId: swapForm.toShiftId || null,
-      });
-      setShowSwapModal(false);
-      setSwapForm({ fromShiftId: '', toStaffId: '', toShiftId: '' });
-      showToastMsg('Đã gửi đề xuất đổi ca tới đồng nghiệp.');
-      await refreshSwapRequests();
-      notifyRequestUpdated(storeId);
-      notifyShiftsUpdated(storeId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Không thể gửi đề xuất đổi ca.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
-  const handleRespondSwap = async (id, accept) => {
-    setActionLoading(true);
-    try {
-      await respondToSwapRequest(id, { accept });
-      showToastMsg(accept ? 'Đã đồng ý yêu cầu đổi ca.' : 'Đã từ chối yêu cầu đổi ca.');
-      await refreshSwapRequests();
-      notifyRequestUpdated(storeId);
-      notifyShiftsUpdated(storeId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi phản hồi đổi ca.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleManagerApproveSwap = async (id) => {
-    setActionLoading(true);
-    try {
-      await approveSwapRequest(id);
-      showToastMsg('Quản lý đã phê duyệt và hoán đổi ca thành công.');
-      await refreshSwapRequests();
-      notifyRequestUpdated(storeId);
-      notifyShiftsUpdated(storeId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi duyệt đổi ca.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleManagerRejectSwap = async (id) => {
-    setActionLoading(true);
-    try {
-      await rejectSwapRequest(id);
-      showToastMsg('Đã từ chối yêu cầu đổi ca.');
-      await refreshSwapRequests();
-      notifyRequestUpdated(storeId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi từ chối đổi ca.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Adjustment Handlers
-  const handleApproveAdjustment = async (id, reqStoreId) => {
-    const sId = reqStoreId || storeId || getActiveStoreId();
-    if (!sId) return;
-    setActionLoading(true);
-    try {
-      await approveAdjustmentRequest(sId, id);
-      showToastMsg('Đã phê duyệt điều chỉnh giờ chấm công.');
-      await refreshAdjustmentRequests();
-      notifyRequestUpdated(sId);
-      notifyAttendanceUpdated(sId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi duyệt điều chỉnh.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleRejectAdjustment = async (id, reqStoreId) => {
-    const sId = reqStoreId || storeId || getActiveStoreId();
-    if (!sId) return;
-    setActionLoading(true);
-    try {
-      await rejectAdjustmentRequest(sId, id);
-      showToastMsg('Đã từ chối điều chỉnh giờ chấm công.');
-      await refreshAdjustmentRequests();
-      notifyRequestUpdated(sId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi từ chối điều chỉnh.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCreateAdjustment = async (e) => {
-    e.preventDefault();
-    const sId = storeId || getActiveStoreId();
-    if (!sId) {
-      toast.warning('Vui lòng chọn chi nhánh trước khi gửi đơn.');
-      return;
-    }
-    if (!adjustmentForm.shiftId) {
-      toast.warning('Vui lòng chọn ca làm việc cần giải trình.');
-      return;
-    }
-    if (!adjustmentForm.reason?.trim()) {
-      toast.warning('Vui lòng nhập lý do giải trình.');
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const shiftDate = adjustmentForm.shiftDate || toISODate(new Date());
-      const reqIn = adjustmentForm.requestedCheckIn ? `${shiftDate}T${adjustmentForm.requestedCheckIn}:00+07:00` : null;
-      const reqOut = adjustmentForm.requestedCheckOut ? `${shiftDate}T${adjustmentForm.requestedCheckOut}:00+07:00` : null;
-
-      await createAdjustmentRequest(sId, {
-        shiftId: adjustmentForm.shiftId,
-        requestedCheckIn: reqIn,
-        requestedCheckOut: reqOut,
-        reason: adjustmentForm.reason.trim(),
-      });
-      setShowAdjustmentModal(false);
-      setAdjustmentForm({
-        shiftId: '',
-        shiftDate: toISODate(new Date()),
-        requestedCheckIn: '08:00',
-        requestedCheckOut: '17:00',
-        reason: '',
-      });
-      showToastMsg('Đã nộp giải trình chấm công thành công.');
-      await refreshAdjustmentRequests();
-      notifyRequestUpdated(sId);
-      notifyAttendanceUpdated(sId);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Không thể gửi giải trình chấm công.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // Workforce Handlers
   const openCreateWorkforceModal = async () => {
@@ -826,20 +579,7 @@ export default function RequestPage() {
     });
   }, [leaveRequests, statusFilter, search]);
 
-  const filteredSwaps = useMemo(() => {
-    return swapRequests.filter((r) => {
-      const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-      return matchStatus;
-    });
-  }, [swapRequests, statusFilter]);
 
-  const filteredAdjustments = useMemo(() => {
-    return adjustments.filter((r) => {
-      const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-      const matchSearch = !search || (r.staffName || '').toLowerCase().includes(search.toLowerCase()) || (r.reason || '').toLowerCase().includes(search.toLowerCase());
-      return matchStatus && matchSearch;
-    });
-  }, [adjustments, statusFilter, search]);
 
 
   const filteredOutgoingWorkforce = useMemo(() => {
@@ -994,28 +734,6 @@ export default function RequestPage() {
               </button>
             )}
 
-            {activeTab === 'swaps' && !isManager && (
-              <button
-                type="button"
-                className="req-btn-create"
-                onClick={openCreateSwapModal}
-                style={{ width: '100%', background: '#2563eb', color: '#fff', padding: '12px', borderRadius: '10px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
-              >
-                + Đề xuất đổi ca
-              </button>
-            )}
-
-            {activeTab === 'adjustments' && !isManager && (
-              <button
-                type="button"
-                className="req-btn-create"
-                onClick={openCreateAdjustmentModal}
-                style={{ width: '100%', background: '#d97706', color: '#fff', padding: '12px', borderRadius: '10px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
-              >
-                + Gửi giải trình chấm công
-              </button>
-            )}
-
             {activeTab === 'workforce' && isManager && (
               <button
                 type="button"
@@ -1062,8 +780,8 @@ export default function RequestPage() {
             </div>
             <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0 0' }}>
               {isManager
-                ? 'Tiếp nhận, kiểm tra và phê duyệt các đơn xin nghỉ phép, đổi ca, giải trình chấm công và điều phối mượn nhân sự liên chi nhánh.'
-                : 'Theo dõi tình trạng các đơn xin nghỉ phép, đề xuất đổi ca và giải trình chấm công của cá nhân bạn.'}
+                ? 'Tiếp nhận, kiểm tra và phê duyệt các đơn xin nghỉ phép và điều phối mượn nhân sự liên chi nhánh.'
+                : 'Theo dõi tình trạng các đơn xin nghỉ phép và lời mời đi chi viện ca làm việc của bạn.'}
             </p>
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'right', display: 'none', md: 'block' }}>
@@ -1082,28 +800,6 @@ export default function RequestPage() {
             {isManager ? 'Đơn nghỉ phép nhân viên' : 'Đơn xin nghỉ của tôi'}
             {leaveRequests.filter(r => r.status === 'PENDING').length > 0 && (
               <span className="req-badge-count">{leaveRequests.filter(r => r.status === 'PENDING').length}</span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`req-tab-btn ${activeTab === 'swaps' ? 'active' : ''}`}
-            onClick={() => handleTabChange('swaps')}
-          >
-            {isManager ? 'Yêu cầu đổi ca' : 'Đề xuất đổi ca của tôi'}
-            {swapRequests.filter(r => r.status === 'PENDING' || r.status === 'PENDING_MANAGER').length > 0 && (
-              <span className="req-badge-count">{swapRequests.filter(r => r.status === 'PENDING' || r.status === 'PENDING_MANAGER').length}</span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`req-tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`}
-            onClick={() => handleTabChange('adjustments')}
-          >
-            {isManager ? 'Giải trình chấm công' : 'Giải trình chấm công của tôi'}
-            {adjustments.filter(r => r.status === 'PENDING').length > 0 && (
-              <span className="req-badge-count">{adjustments.filter(r => r.status === 'PENDING').length}</span>
             )}
           </button>
 
@@ -2089,212 +1785,6 @@ export default function RequestPage() {
                 </button>
                 <button type="submit" disabled={actionLoading} style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
                   {actionLoading ? 'Đang gửi...' : 'Nộp đơn'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ MODAL 2: TẠO ĐỀ XUẤT ĐỔI CA ═══ */}
-      {showSwapModal && (
-        <div className="req-modal-overlay" onClick={() => setShowSwapModal(false)}>
-          <div className="req-create-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <div className="req-create-header">
-              <h2 className="req-create-title">Đề xuất đổi ca làm việc</h2>
-              <button type="button" className="req-btn-close-modal" onClick={() => setShowSwapModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreateSwap} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                  Ca làm việc của bạn cần đổi <span style={{ color: '#dc2626' }}>*</span>
-                </label>
-                {storeShifts.length > 0 ? (
-                  <select
-                    required
-                    value={swapForm.fromShiftId}
-                    onChange={(e) => setSwapForm({ ...swapForm, fromShiftId: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px', fontSize: '13px' }}
-                  >
-                    <option value="">-- Chọn ca làm việc của bạn --</option>
-                    {storeShifts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        📅 {fmtDate(s.shiftDate || s.date)}: {s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)} ({s.name || s.zoneName || 'Ca làm'})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    placeholder="Nhập mã Shift ID..."
-                    required
-                    value={swapForm.fromShiftId}
-                    onChange={(e) => setSwapForm({ ...swapForm, fromShiftId: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                  Chọn đồng nghiệp muốn đổi ca <span style={{ color: '#dc2626' }}>*</span>
-                </label>
-                <select
-                  required
-                  value={swapForm.toStaffId}
-                  onChange={(e) => setSwapForm({ ...swapForm, toStaffId: e.target.value })}
-                  style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px', fontSize: '13px' }}
-                >
-                  <option value="">-- Chọn nhân viên --</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.userId || emp.id}>
-                      {emp.fullName || emp.name} ({emp.role || 'Nhân viên'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                  Ca làm muốn đổi của đồng nghiệp (Tùy chọn)
-                </label>
-                {storeShifts.length > 0 ? (
-                  <select
-                    value={swapForm.toShiftId}
-                    onChange={(e) => setSwapForm({ ...swapForm, toShiftId: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px', fontSize: '13px' }}
-                  >
-                    <option value="">-- Chọn ca nhận lại nếu có (hoặc để trống) --</option>
-                    {storeShifts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        📅 {fmtDate(s.shiftDate || s.date)}: {s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)} ({s.name || s.zoneName || 'Ca làm'})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    placeholder="Mã ca của đồng nghiệp nếu có..."
-                    value={swapForm.toShiftId}
-                    onChange={(e) => setSwapForm({ ...swapForm, toShiftId: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                  />
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowSwapModal(false)} style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
-                  Hủy
-                </button>
-                <button type="submit" disabled={actionLoading} style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-                  {actionLoading ? 'Đang gửi...' : 'Gửi yêu cầu đổi'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ MODAL 3: TẠO GIẢI TRÌNH CHẤM CÔNG (STAFF) ═══ */}
-      {showAdjustmentModal && (
-        <div className="req-modal-overlay" onClick={() => setShowAdjustmentModal(false)}>
-          <div className="req-create-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <div className="req-create-header">
-              <h2 className="req-create-title">Gửi giải trình chấm công</h2>
-              <button type="button" className="req-btn-close-modal" onClick={() => setShowAdjustmentModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreateAdjustment} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                  Ca làm việc cần giải trình <span style={{ color: '#dc2626' }}>*</span>
-                </label>
-                {storeShifts.length > 0 ? (
-                  <select
-                    required
-                    value={adjustmentForm.shiftId}
-                    onChange={(e) => {
-                      const sel = storeShifts.find((s) => String(s.id) === e.target.value);
-                      setAdjustmentForm({
-                        ...adjustmentForm,
-                        shiftId: e.target.value,
-                        shiftDate: sel?.shiftDate || sel?.date || adjustmentForm.shiftDate,
-                        requestedCheckIn: sel?.startTime ? sel.startTime.slice(0, 5) : adjustmentForm.requestedCheckIn,
-                        requestedCheckOut: sel?.endTime ? sel.endTime.slice(0, 5) : adjustmentForm.requestedCheckOut,
-                      });
-                    }}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px', fontSize: '13px' }}
-                  >
-                    <option value="">-- Chọn ca làm việc cần giải trình --</option>
-                    {storeShifts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        📅 {fmtDate(s.shiftDate || s.date)}: {s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)} ({s.name || s.zoneName || 'Ca làm'})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    placeholder="Nhập mã ca làm việc (Shift ID)..."
-                    required
-                    value={adjustmentForm.shiftId}
-                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, shiftId: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Ngày làm việc</label>
-                <input
-                  type="date"
-                  required
-                  value={adjustmentForm.shiftDate}
-                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, shiftDate: e.target.value })}
-                  style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Giờ Check-in đề xuất</label>
-                  <input
-                    type="time"
-                    required
-                    value={adjustmentForm.requestedCheckIn}
-                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, requestedCheckIn: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Giờ Check-out đề xuất</label>
-                  <input
-                    type="time"
-                    required
-                    value={adjustmentForm.requestedCheckOut}
-                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, requestedCheckOut: e.target.value })}
-                    style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '0 10px' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Lý do giải trình</label>
-                <textarea
-                  rows="3"
-                  placeholder="Ví dụ: Quên quẹt thẻ do thiết bị lỗi, có xác nhận của đồng nghiệp..."
-                  value={adjustmentForm.reason}
-                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
-                  style={{ width: '100%', borderRadius: '8px', border: '1px solid #d1d5db', padding: '10px', fontSize: '13.5px' }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowAdjustmentModal(false)} style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
-                  Hủy
-                </button>
-                <button type="submit" disabled={actionLoading} style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: '#d97706', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-                  {actionLoading ? 'Đang gửi...' : 'Gửi giải trình'}
                 </button>
               </div>
             </form>

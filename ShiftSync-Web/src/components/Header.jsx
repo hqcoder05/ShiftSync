@@ -204,12 +204,10 @@ export default function Header() {
 
   const totalPendingRequests =
     pendingLeaveCount +
-    pendingSwapCount +
-    pendingAdjCount +
     pendingWorkforceCount +
     pendingStaffReqCount;
 
-  const totalNotifs = unreadNotifCount + totalPendingRequests;
+  const totalNotifs = unreadNotifCount + totalPendingRequests + pendingSwapCount + pendingAdjCount;
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -239,9 +237,11 @@ export default function Header() {
     if (type.includes('SCHEDULE')) {
       navigate('/schedule');
     } else if (type.includes('SWAP')) {
-      navigate('/requests?tab=swaps');
+      navigate('/marketplace?tab=SWAP');
     } else if (type.includes('LEAVE')) {
       navigate('/requests?tab=leave');
+    } else if (type.includes('WORKFORCE')) {
+      navigate('/requests?tab=workforce');
     } else if (type.includes('MARKET')) {
       navigate('/marketplace');
     } else if (type.includes('ATTENDANCE')) {
@@ -520,7 +520,7 @@ export default function Header() {
                       className="ss-notif-modern-row"
                       onClick={() => {
                         setNotifMenuOpen(false);
-                        navigate('/requests?tab=swaps');
+                        navigate('/marketplace?tab=SWAP');
                       }}
                     >
                       <div className="ss-notif-icon-badge badge-amber">
@@ -528,7 +528,7 @@ export default function Header() {
                       </div>
                       <div className="ss-notif-info">
                         <span className="ss-notif-title">Yêu cầu đổi ca</span>
-                        <span className="ss-notif-desc">Có {pendingSwapCount} yêu cầu đổi ca cần xử lý</span>
+                        <span className="ss-notif-desc">Có {pendingSwapCount} yêu cầu đổi ca cần xử lý (Sàn Marketplace)</span>
                       </div>
                       <span className="ss-notif-pill pill-amber">{pendingSwapCount}</span>
                     </div>
@@ -539,7 +539,7 @@ export default function Header() {
                       className="ss-notif-modern-row"
                       onClick={() => {
                         setNotifMenuOpen(false);
-                        navigate('/requests?tab=adjustments');
+                        navigate('/attendance');
                       }}
                     >
                       <div className="ss-notif-icon-badge badge-amber">
@@ -547,7 +547,7 @@ export default function Header() {
                       </div>
                       <div className="ss-notif-info">
                         <span className="ss-notif-title">Giải trình chấm công</span>
-                        <span className="ss-notif-desc">Có {pendingAdjCount} giải trình chấm công chờ duyệt</span>
+                        <span className="ss-notif-desc">Có {pendingAdjCount} giải trình chấm công chờ duyệt (Chấm công)</span>
                       </div>
                       <span className="ss-notif-pill pill-amber">{pendingAdjCount}</span>
                     </div>
@@ -655,8 +655,9 @@ export default function Header() {
         {visibleNavItems.map((item) => {
           const isCustomActive = item.aliases && item.aliases.includes(location.pathname);
           const reqCount = item.key === 'requests' ? totalPendingRequests : 0;
-          const mktCount = item.key === 'marketplace' ? openShiftsCount : 0;
-          const badgeCount = reqCount || mktCount;
+          const mktCount = item.key === 'marketplace' ? (openShiftsCount + pendingSwapCount) : 0;
+          const attCount = item.key === 'attendance' ? pendingAdjCount : 0;
+          const badgeCount = reqCount || mktCount || attCount;
 
           return (
             <NavLink
@@ -666,7 +667,7 @@ export default function Header() {
             >
               <span className="ss-nav-label">{item.label}</span>
               {badgeCount > 0 && (
-                <span className={`ss-nav-micro-badge ${item.key === 'marketplace' ? 'badge-market' : 'badge-req'}`}>
+                <span className={`ss-nav-micro-badge ${item.key === 'marketplace' ? 'badge-market' : item.key === 'attendance' ? 'badge-amber' : 'badge-req'}`}>
                   {badgeCount}
                 </span>
               )}

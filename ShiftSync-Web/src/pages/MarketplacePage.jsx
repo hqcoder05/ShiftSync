@@ -20,6 +20,7 @@ import {
   rejectAdjustmentRequest,
 } from '../services/adjustmentService';
 import {
+  createWorkforceRequest,
   getIncomingWorkforceRequests,
   getOutgoingWorkforceRequests,
   rejectWorkforceRequest,
@@ -186,6 +187,12 @@ export default function MarketplacePage() {
   const [eligibleStaffList, setEligibleStaffList] = useState([]);
   const [selectedEligibleStaffId, setSelectedEligibleStaffId] = useState('');
   const [proposingLoading, setProposingLoading] = useState(false);
+
+  // Create Workforce Request Modal
+  const [showCreateWorkforceModal, setShowCreateWorkforceModal] = useState(false);
+  const [createWfTargetStoreId, setCreateWfTargetStoreId] = useState('');
+  const [createWfShiftId, setCreateWfShiftId] = useState('');
+  const [createWfSubmitting, setCreateWfSubmitting] = useState(false);
 
   // Record Detail Modal
   const [showRecordDetailModal, setShowRecordDetailModal] = useState(false);
@@ -489,12 +496,19 @@ export default function MarketplacePage() {
       id: s.id,
       isShiftSwap: true,
       requesterName: s.fromStaffName || 'Nhân sự',
+      fromStaffName: s.fromStaffName,
+      toStaffName: s.toStaffName || 'Nhân viên đối tác',
+      fromStaffId: s.fromStaffId,
+      toStaffId: s.toStaffId,
+      fromShiftId: s.fromShiftId,
+      toShiftId: s.toShiftId,
+      employeeAccepted: Boolean(s.employeeAccepted),
       requestType: 'Yêu cầu hoán đổi ca làm',
       typeCategory: 'swap',
       status: s.status || 'PENDING',
       requestDate: s.fromShiftDate ? fmtDateVN(s.fromShiftDate) : 'Hôm nay',
       shiftInfo: `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ⇄ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`,
-      content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
+      content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận từ đối tác: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
     }));
 
     return [...staffSwaps, ...structuredSwaps].sort((a, b) => {
@@ -708,6 +722,10 @@ export default function MarketplacePage() {
   // 15. Real Swap Actions (Approve & Reject)
   const handleApproveSwap = async (req) => {
     if (!req?.id) return;
+    if (req.isShiftSwap && !req.employeeAccepted) {
+      showToast('✕ Chưa thể phê duyệt: Cần nhân viên đối tác chấp thuận trước khi quản lý phê duyệt.');
+      return;
+    }
     setActionLoadingId(req.id);
     try {
       if (req.isShiftSwap) {
@@ -855,6 +873,40 @@ export default function MarketplacePage() {
     }
   };
 
+  const handleOpenCreateWorkforceModal = () => {
+    const otherStores = stores.filter((s) => String(s.id) !== String(storeId));
+    if (otherStores.length > 0) {
+      setCreateWfTargetStoreId(String(otherStores[0].id));
+    }
+    if (storeShifts.length > 0) {
+      setCreateWfShiftId(String(storeShifts[0].id));
+    }
+    setShowCreateWorkforceModal(true);
+  };
+
+  const handleSubmitCreateWorkforce = async (e) => {
+    e.preventDefault();
+    if (!createWfTargetStoreId || !createWfShiftId) {
+      showToast('Vui lòng chọn chi nhánh đối tác và ca làm việc cần chi viện.');
+      return;
+    }
+    setCreateWfSubmitting(true);
+    try {
+      await createWorkforceRequest(storeId, {
+        targetStoreId: createWfTargetStoreId,
+        shiftId: createWfShiftId,
+      });
+      showToast('✓ Đã tạo yêu cầu mượn nhân sự gửi đến chi nhánh đối tác thành công!');
+      setShowCreateWorkforceModal(false);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi tạo yêu cầu: ${err.response?.data?.message || err.message || 'Không thể tạo yêu cầu mượn nhân sự.'}`);
+    } finally {
+      setCreateWfSubmitting(false);
+    }
+  };
+
   // 18. Staff General Request Actions (Proposal / Leave / Support)
   const handleApproveStaffRequest = async (req) => {
     if (!req?.id) return;
@@ -887,8 +939,52 @@ export default function MarketplacePage() {
     }
   };
 
-  const renderStatusBadge = (status) => {
+  const renderStatusBadge = (status, req = null) => {
     const st = (status || 'PENDING').toUpperCase();
+    if (req && req.isShiftSwap && st === 'PENDING') {
+      if (!req.employeeAccepted) {
+        return (
+          <span
+            className="mp-status-badge"
+            style={{
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              fontSize: '12px'
+            }}
+            title="Đang chờ nhân viên đối tác xác nhận đồng ý đổi ca"
+          >
+            ● Chờ NV đối tác đồng ý
+          </span>
+        );
+      }
+      return (
+        <span
+          className="mp-status-badge"
+          style={{
+            background: '#dbeafe',
+            color: '#1e40af',
+            border: '1px solid #bfdbfe',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            fontWeight: 600,
+            fontSize: '12px'
+          }}
+          title="Nhân viên đối tác đã đồng ý - Chờ Quản lý phê duyệt"
+        >
+          ● Chờ Quản lý duyệt
+        </span>
+      );
+    }
     if (st === 'PENDING') {
       return <span className="mp-status-badge status-pending">● Chờ duyệt</span>;
     }
@@ -1601,7 +1697,7 @@ export default function MarketplacePage() {
                               </div>
                             )}
                           </td>
-                          <td>{renderStatusBadge(req.status)}</td>
+                          <td>{renderStatusBadge(req.status, req)}</td>
                           <td style={{ fontSize: 13, color: '#64748b' }}>
                             {req.requestDate || (req.createdAt ? fmtDateTimeVN(req.createdAt) : 'Hôm nay')}
                           </td>
@@ -1614,17 +1710,37 @@ export default function MarketplacePage() {
                                     className="mp-btn-action-reject"
                                     disabled={actionLoadingId === req.id}
                                     onClick={() => handleRejectSwap(req)}
+                                    title="Từ chối yêu cầu đổi ca"
                                   >
                                     {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
                                   </button>
-                                  <button
-                                    type="button"
-                                    className="mp-btn-action-approve"
-                                    disabled={actionLoadingId === req.id}
-                                    onClick={() => handleApproveSwap(req)}
-                                  >
-                                    {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
-                                  </button>
+                                  {req.isShiftSwap && !req.employeeAccepted ? (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-approve"
+                                      disabled
+                                      style={{
+                                        opacity: 0.6,
+                                        cursor: 'not-allowed',
+                                        background: '#94a3b8',
+                                        borderColor: '#94a3b8',
+                                        color: '#ffffff'
+                                      }}
+                                      title="Cần nhân viên đối tác chấp thuận trước khi quản lý phê duyệt"
+                                    >
+                                      Chờ đối tác đồng ý
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-approve"
+                                      disabled={actionLoadingId === req.id}
+                                      onClick={() => handleApproveSwap(req)}
+                                      title="Phê duyệt hoán đổi ca"
+                                    >
+                                      {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                    </button>
+                                  )}
                                 </>
                               ) : (
                                 <button
@@ -1759,23 +1875,35 @@ export default function MarketplacePage() {
           {/* Tab 4: Mượn Nhân Sự Liên Chi Nhánh (/workforce-requests) */}
           {activeTab === 'WORKFORCE' && (
             <div>
-              <div className="mp-subtab-bar">
-                <button
-                  type="button"
-                  className={`mp-subtab-btn ${workforceSubTab === 'INCOMING' ? 'active' : ''}`}
-                  onClick={() => setWorkforceSubTab('INCOMING')}
-                >
-                  <span>Yêu cầu nhận chi viện (Incoming)</span>
-                  <span className="mp-tab-badge badge-blue">{incomingWorkforce.length}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`mp-subtab-btn ${workforceSubTab === 'OUTGOING' ? 'active' : ''}`}
-                  onClick={() => setWorkforceSubTab('OUTGOING')}
-                >
-                  <span>Yêu cầu gửi đi (Outgoing)</span>
-                  <span className="mp-tab-badge">{outgoingWorkforce.length}</span>
-                </button>
+              <div className="mp-subtab-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className={`mp-subtab-btn ${workforceSubTab === 'INCOMING' ? 'active' : ''}`}
+                    onClick={() => setWorkforceSubTab('INCOMING')}
+                  >
+                    <span>Yêu cầu nhận chi viện (Incoming)</span>
+                    <span className="mp-tab-badge badge-blue">{incomingWorkforce.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`mp-subtab-btn ${workforceSubTab === 'OUTGOING' ? 'active' : ''}`}
+                    onClick={() => setWorkforceSubTab('OUTGOING')}
+                  >
+                    <span>Yêu cầu gửi đi (Outgoing)</span>
+                    <span className="mp-tab-badge">{outgoingWorkforce.length}</span>
+                  </button>
+                </div>
+                {isManager && (
+                  <button
+                    type="button"
+                    className="mp-btn-urgent-primary"
+                    style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    onClick={handleOpenCreateWorkforceModal}
+                  >
+                    <span>+</span> Tạo yêu cầu mượn nhân sự
+                  </button>
+                )}
               </div>
 
               <div className="mp-table-card">
@@ -1926,7 +2054,7 @@ export default function MarketplacePage() {
                               </td>
                               <td>
                                 <div className="mp-table-actions">
-                                  {isPending ? (
+                                  {(wf.status === 'PENDING' || wf.status === 'PROPOSAL_SENT') ? (
                                     <button
                                       type="button"
                                       className="mp-btn-action-reject"
@@ -2608,6 +2736,105 @@ export default function MarketplacePage() {
                 {proposingLoading ? 'Đang gửi đề xuất...' : 'Xác nhận đề xuất'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 5.1: Tạo Yêu Cầu Mượn Nhân Sự (Workforce Create Request) */}
+      {showCreateWorkforceModal && (
+        <div className="mp-modal-backdrop" onClick={() => setShowCreateWorkforceModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Tạo Yêu Cầu Mượn Nhân Sự</h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowCreateWorkforceModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSubmitCreateWorkforce}>
+              <div className="mp-modal-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                  <div style={{ fontWeight: 600, color: '#166534' }}>🏢 Chi nhánh yêu cầu: {currentStore?.name}</div>
+                  <div style={{ fontSize: 12, color: '#15803d', marginTop: 2 }}>
+                    Gửi đề nghị chi viện nhân sự đến cửa hàng đối tác trong cùng hệ thống.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Chọn chi nhánh đối tác cần mượn nhân sự:
+                  </label>
+                  <select
+                    className="mp-quick-assign-select"
+                    style={{ width: '100%' }}
+                    value={createWfTargetStoreId}
+                    onChange={(e) => setCreateWfTargetStoreId(e.target.value)}
+                    required
+                  >
+                    {stores
+                      .filter((s) => String(s.id) !== String(storeId))
+                      .map((st) => (
+                        <option key={st.id} value={st.id}>
+                          🏬 {st.name} {st.address ? `(${st.address})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                    Chọn ca làm việc cần chi viện nhân sự:
+                  </label>
+                  <select
+                    className="mp-quick-assign-select"
+                    style={{ width: '100%' }}
+                    value={createWfShiftId}
+                    onChange={(e) => setCreateWfShiftId(e.target.value)}
+                    required
+                  >
+                    {storeShifts.map((sh) => {
+                      const reqCount = sh.requiredStaff || (sh.skillRequirements || []).reduce((acc, r) => acc + (r.requiredStaff || 0), 0);
+                      const assigned = (sh.shiftAssignments || []).length;
+                      const missing = Math.max(0, reqCount - assigned);
+                      const posName = sh.skillRequirements?.[0]?.skillName || 'Nhân sự';
+                      return (
+                        <option key={sh.id} value={sh.id}>
+                          {fmtDateVN(sh.shiftDate)} • {sh.startTime?.slice(0, 5)} - {sh.endTime?.slice(0, 5)} • {posName} (Đã có {assigned}/{reqCount} {missing > 0 ? `- Thiếu ${missing}` : ''})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {storeShifts.length === 0 && (
+                    <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>
+                      Chi nhánh hiện chưa có ca làm việc nào được thiết lập.
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  * Quản lý chi nhánh đối tác sẽ nhận được yêu cầu mượn nhân sự này trên hệ thống để rà soát danh sách nhân sự đủ điều kiện và đề xuất người phù hợp.
+                </div>
+              </div>
+              <div className="mp-modal-footer">
+                <button
+                  type="button"
+                  className="mp-btn-header-secondary"
+                  onClick={() => setShowCreateWorkforceModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="mp-btn-urgent-primary"
+                  disabled={createWfSubmitting || !createWfTargetStoreId || !createWfShiftId}
+                >
+                  {createWfSubmitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu mượn nhân sự'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
