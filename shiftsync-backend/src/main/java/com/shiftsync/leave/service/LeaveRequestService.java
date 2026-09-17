@@ -272,6 +272,50 @@ public class LeaveRequestService {
         return mapToDTO(leaveRequest);
     }
 
+    @Transactional(readOnly = true)
+    public com.shiftsync.leave.dto.LeaveImpactDTO getLeaveImpact(UUID storeId, UUID leaveId) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
+
+        if (!leaveRequest.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Leave request does not belong to this store", HttpStatus.FORBIDDEN);
+        }
+
+        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(
+                leaveRequest.getStaff().getId(),
+                leaveRequest.getStartDate(),
+                leaveRequest.getEndDate()
+        );
+
+        List<com.shiftsync.leave.dto.LeaveImpactDTO.ImpactedShiftDTO> impactedShifts = conflictingAssignments.stream()
+                .map(sa -> {
+                    com.shiftsync.shift.entity.Shift shift = sa.getShift();
+                    String skillName = (shift.getRequirements() != null && !shift.getRequirements().isEmpty() && shift.getRequirements().get(0).getSkill() != null)
+                            ? shift.getRequirements().get(0).getSkill().getName()
+                            : null;
+                    return com.shiftsync.leave.dto.LeaveImpactDTO.ImpactedShiftDTO.builder()
+                            .shiftId(shift.getId())
+                            .shiftDate(shift.getShiftDate())
+                            .startTime(shift.getStartTime())
+                            .endTime(shift.getEndTime())
+                            .storeId(shift.getStore() != null ? shift.getStore().getId() : null)
+                            .storeName(shift.getStore() != null ? shift.getStore().getName() : null)
+                            .skillName(skillName)
+                            .build();
+                })
+                .toList();
+
+        return com.shiftsync.leave.dto.LeaveImpactDTO.builder()
+                .leaveRequestId(leaveRequest.getId())
+                .staffId(leaveRequest.getStaff().getId())
+                .staffName(leaveRequest.getStaff().getFullName())
+                .startDate(leaveRequest.getStartDate())
+                .endDate(leaveRequest.getEndDate())
+                .totalConflictingShifts(impactedShifts.size())
+                .conflictingShifts(impactedShifts)
+                .build();
+    }
+
     private LeaveRequestDTO mapToDTO(LeaveRequest request) {
         return LeaveRequestDTO.builder()
                 .id(request.getId())

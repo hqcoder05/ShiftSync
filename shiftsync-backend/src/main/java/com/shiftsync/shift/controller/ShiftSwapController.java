@@ -85,6 +85,17 @@ public class ShiftSwapController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Cancel swap request")
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/swaps/{requestId}/cancel")
+    public ResponseEntity<Void> cancelSwap(
+            @PathVariable UUID requestId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        shiftSwapService.cancelSwapRequest(requestId, userDetails.getId());
+        return ResponseEntity.ok().build();
+    }
+
     @Operation(summary = "Get my swap requests (Staff)")
     @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
     @GetMapping("/users/me/swaps")

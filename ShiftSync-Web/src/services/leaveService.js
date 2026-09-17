@@ -22,3 +22,6 @@ export const rejectLeaveRequest = (storeId, id, data) =>
 
 export const updateLeaveReason = (storeId, id, reason) =>
   api.put(`/stores/${storeId}/leave-requests/${id}/reason`, { reason });
+
+export const getLeaveImpact = (storeId, id) =>
+  api.get(`/stores/${storeId}/leave-requests/${id}/impact`);

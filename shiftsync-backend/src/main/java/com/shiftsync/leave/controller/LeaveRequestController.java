@@ -94,4 +94,13 @@ public class LeaveRequestController {
         
         return ResponseEntity.ok(leaveRequestService.updateLeaveReason(storeId, id, userDetails.getId(), request.getReason()));
     }
+
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @GetMapping("/{id}/impact")
+    public ResponseEntity<com.shiftsync.leave.dto.LeaveImpactDTO> getLeaveImpact(
+            @PathVariable UUID storeId,
+            @PathVariable UUID id) {
+        
+        return ResponseEntity.ok(leaveRequestService.getLeaveImpact(storeId, id));
+    }
 }

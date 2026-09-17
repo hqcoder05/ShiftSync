@@ -12,6 +12,9 @@ public interface ShiftSwapRequestRepository extends JpaRepository<ShiftSwapReque
     List<ShiftSwapRequest> findByFromShiftId_StoreIdAndStatus(UUID storeId, SwapStatus status);
     List<ShiftSwapRequest> findByFromShiftId_StoreId(UUID storeId);
 
+    boolean existsByFromShiftIdAndStatus(UUID fromShiftId, SwapStatus status);
+    boolean existsByToShiftIdAndStatus(UUID toShiftId, SwapStatus status);
+
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(s) FROM ShiftSwapRequest s WHERE s.fromShift.store.id = :storeId " +
            "AND s.fromShift.shiftDate >= :startDate AND s.fromShift.shiftDate <= :endDate")
     long countSwapRequestsByStoreAndDateRange(@org.springframework.data.repository.query.Param("storeId") UUID storeId, 

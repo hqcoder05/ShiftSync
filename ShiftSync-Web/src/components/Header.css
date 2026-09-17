@@ -87,6 +87,18 @@
   border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
+.ss-nav-micro-badge.badge-indigo {
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.ss-nav-micro-badge.badge-amber {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
 /* Notification Bell Button */
 .ss-header-icon {
   border: none;

@@ -34,7 +34,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'DASHBOARD', key: 'dashboard' },
   { to: '/schedule', label: 'SCHEDULER', key: 'scheduler' },
   { to: '/availability', label: 'AVAILABILITY', key: 'availability', aliases: ['/staff-availability'] },
-  { to: '/attendance', label: 'ATTENDANCE', key: 'attendance' },
+  { to: '/time-workforce', label: 'TIME & WORKFORCE', key: 'time-workforce', aliases: ['/attendance'], title: 'Quản lý thời gian làm việc & trạng thái nhân sự' },
   { to: '/marketplace', label: 'MARKETPLACE', key: 'marketplace' },
   { to: '/requests', label: 'REQUESTS', key: 'requests', aliases: ['/request', '/reports'] },
   { to: '/payroll', label: 'PAYROLL', key: 'payroll' },
@@ -236,13 +236,13 @@ export default function Header() {
     } else if (type.includes('SWAP')) {
       navigate('/marketplace?tab=SWAP');
     } else if (type.includes('LEAVE')) {
-      navigate('/requests?tab=leave');
+      navigate('/time-workforce?tab=leave');
     } else if (type.includes('WORKFORCE')) {
-      navigate('/marketplace?tab=WORKFORCE');
+      navigate('/marketplace?tab=CROSS_STORE');
     } else if (type.includes('MARKET')) {
       navigate('/marketplace');
     } else if (type.includes('ATTENDANCE')) {
-      navigate('/attendance');
+      navigate('/time-workforce?tab=adjustments');
     } else {
       navigate('/');
     }
@@ -498,7 +498,7 @@ export default function Header() {
                       className="ss-notif-modern-row"
                       onClick={() => {
                         setNotifMenuOpen(false);
-                        navigate('/requests?tab=leave');
+                        navigate('/time-workforce?tab=leave');
                       }}
                     >
                       <div className="ss-notif-icon-badge badge-indigo">
@@ -506,7 +506,7 @@ export default function Header() {
                       </div>
                       <div className="ss-notif-info">
                         <span className="ss-notif-title">Đơn nghỉ phép chờ duyệt</span>
-                        <span className="ss-notif-desc">Có {pendingLeaveCount} đơn đang chờ phê duyệt</span>
+                        <span className="ss-notif-desc">Có {pendingLeaveCount} đơn đang chờ phê duyệt (Time & Workforce)</span>
                       </div>
                       <span className="ss-notif-pill pill-indigo">{pendingLeaveCount}</span>
                     </div>
@@ -536,7 +536,7 @@ export default function Header() {
                       className="ss-notif-modern-row"
                       onClick={() => {
                         setNotifMenuOpen(false);
-                        navigate('/attendance');
+                        navigate('/time-workforce?tab=adjustments');
                       }}
                     >
                       <div className="ss-notif-icon-badge badge-amber">
@@ -544,7 +544,7 @@ export default function Header() {
                       </div>
                       <div className="ss-notif-info">
                         <span className="ss-notif-title">Giải trình chấm công</span>
-                        <span className="ss-notif-desc">Có {pendingAdjCount} giải trình chấm công chờ duyệt (Chấm công)</span>
+                        <span className="ss-notif-desc">Có {pendingAdjCount} giải trình chấm công chờ duyệt (Time & Workforce)</span>
                       </div>
                       <span className="ss-notif-pill pill-amber">{pendingAdjCount}</span>
                     </div>
@@ -651,20 +651,21 @@ export default function Header() {
       <nav className="ss-header-nav" aria-label="Điều hướng chính">
         {visibleNavItems.map((item) => {
           const isCustomActive = item.aliases && item.aliases.includes(location.pathname);
-          const reqCount = item.key === 'requests' ? totalPendingRequests : 0;
+          const twCount = item.key === 'time-workforce' ? (pendingLeaveCount + pendingAdjCount) : 0;
           const mktCount = item.key === 'marketplace' ? (openShiftsCount + pendingSwapCount + pendingWorkforceCount) : 0;
-          const attCount = item.key === 'attendance' ? pendingAdjCount : 0;
-          const badgeCount = reqCount || mktCount || attCount;
+          const reqCount = item.key === 'requests' ? pendingStaffReqCount : 0;
+          const badgeCount = twCount || mktCount || reqCount;
 
           return (
             <NavLink
               key={item.to}
               to={item.to}
+              title={item.title || item.label}
               className={({ isActive }) => `ss-nav-item ${isActive || isCustomActive ? 'active' : ''}`}
             >
               <span className="ss-nav-label">{item.label}</span>
               {badgeCount > 0 && (
-                <span className={`ss-nav-micro-badge ${item.key === 'marketplace' ? 'badge-market' : item.key === 'attendance' ? 'badge-amber' : 'badge-req'}`}>
+                <span className={`ss-nav-micro-badge ${item.key === 'marketplace' ? 'badge-market' : item.key === 'time-workforce' ? 'badge-indigo' : 'badge-req'}`}>
                   {badgeCount}
                 </span>
               )}

@@ -56,8 +56,8 @@ export default function App() {
               <Route path="/availability" element={<StaffAvailabilityPage />} />
               <Route path="/staff-availability" element={<StaffAvailabilityPage />} />
               <Route path="/demand-planning" element={<ManagerRoute><DemandPlanningPage /></ManagerRoute>} />
-              <Route path="/quotas" element={<ManagerRoute><DemandPlanningPage /></ManagerRoute>} />
-              <Route path="/attendance" element={<AttendancePage />} />
+              <Route path="/time-workforce" element={<AttendancePage />} />
+              <Route path="/attendance" element={<Navigate to="/time-workforce" replace />} />
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/payroll" element={<PayrollPage />} />
               <Route path="/reports" element={<RequestPage />} />

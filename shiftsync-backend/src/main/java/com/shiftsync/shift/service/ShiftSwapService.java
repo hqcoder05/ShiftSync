@@ -46,6 +46,13 @@ public class ShiftSwapService {
             throw new BusinessException("Shifts must belong to the same store", HttpStatus.BAD_REQUEST);
         }
 
+        if (shiftSwapRequestRepository.existsByFromShiftIdAndStatus(fromShiftId, SwapStatus.PENDING)) {
+            throw new BusinessException("A pending swap request already exists for this shift", HttpStatus.CONFLICT);
+        }
+        if (shiftSwapRequestRepository.existsByToShiftIdAndStatus(toShiftId, SwapStatus.PENDING)) {
+            throw new BusinessException("Target shift already has a pending swap request", HttpStatus.CONFLICT);
+        }
+
         User fromStaff = userRepository.findById(fromStaffId).orElseThrow();
         User toStaff = userRepository.findById(toStaffId).orElseThrow();
 
@@ -152,10 +159,6 @@ public class ShiftSwapService {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
 
-        if (!request.isEmployeeAccepted()) {
-            throw new BusinessException("Employee has not accepted this swap yet", HttpStatus.BAD_REQUEST);
-        }
-
         if (request.getStatus() != SwapStatus.PENDING) {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
         }
@@ -178,13 +181,57 @@ public class ShiftSwapService {
             null
         );
         
-        notificationService.sendNotification(
-            request.getToStaff().getId(),
-            com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
-            "Shift Swap Rejected",
-            "The shift swap request you accepted has been rejected by the manager.",
-            null
-        );
+        if (request.getToStaff() != null) {
+            notificationService.sendNotification(
+                request.getToStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Shift Swap Rejected",
+                "The shift swap request has been rejected by the manager.",
+                null
+            );
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelSwapRequest(UUID requestId, UUID userId) {
+        ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
+                .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        if (request.getStatus() != SwapStatus.PENDING) {
+            throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
+
+        boolean isParty = request.getFromStaff().getId().equals(userId) || 
+                (request.getToStaff() != null && request.getToStaff().getId().equals(userId));
+        boolean isManager = user.getSystemRole() == com.shiftsync.shared.security.SystemRole.MANAGER || 
+                user.getSystemRole() == com.shiftsync.shared.security.SystemRole.ADMIN;
+
+        if (!isParty && !isManager) {
+            throw new BusinessException("You are not authorized to cancel this request", HttpStatus.FORBIDDEN);
+        }
+
+        request.setStatus(SwapStatus.CANCELLED);
+        shiftSwapRequestRepository.save(request);
+
+        auditLogService.log(userId, "CANCEL_SWAP", "ShiftSwapRequest", requestId, 
+                java.util.Map.of("status", "PENDING"), 
+                java.util.Map.of("status", "CANCELLED"));
+
+        UUID notifyTarget = request.getFromStaff().getId().equals(userId) 
+                ? (request.getToStaff() != null ? request.getToStaff().getId() : null)
+                : request.getFromStaff().getId();
+        if (notifyTarget != null) {
+            notificationService.sendNotification(
+                notifyTarget,
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Shift Swap Cancelled",
+                "The shift swap request has been cancelled.",
+                null
+            );
+        }
     }
 
     @Transactional(readOnly = true)

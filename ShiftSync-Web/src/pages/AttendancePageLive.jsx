@@ -1,9 +1,25 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
 import { getStoreAttendance, updateAttendanceRecord, getMyAttendance } from '../services/attendanceService';
-import { createAdjustmentRequest } from '../services/adjustmentService';
+import {
+  createAdjustmentRequest,
+  getMyAdjustmentRequests,
+  getStoreAdjustmentRequests,
+  approveAdjustmentRequest,
+  rejectAdjustmentRequest,
+} from '../services/adjustmentService';
+import {
+  getStoreLeaveRequests,
+  getMyLeaveRequests,
+  createLeaveRequest,
+  approveLeaveRequest,
+  rejectLeaveRequest,
+  cancelLeaveRequest,
+  updateLeaveReason,
+  getLeaveImpact,
+} from '../services/leaveService';
 import { toast } from '../context/ToastContext';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
@@ -123,6 +139,42 @@ export default function AttendancePageLive() {
   const [showCalendarPopover, setShowCalendarPopover] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
+
+  // Subtab State (URL synced)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const validTabs = ['attendance', 'adjustments', 'leave'];
+  const activeTab = validTabs.includes(rawTab) ? rawTab : 'attendance';
+  const handleTabChange = (tab) => setSearchParams({ tab });
+
+  // Leave Management State
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveStatusFilter, setLeaveStatusFilter] = useState('ALL');
+  const [leaveSearch, setLeaveSearch] = useState('');
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showImpactModal, setShowImpactModal] = useState(false);
+  const [selectedLeaveImpact, setSelectedLeaveImpact] = useState(null);
+  const [pendingApproveLeaveId, setPendingApproveLeaveId] = useState(null);
+  const [leaveForm, setLeaveForm] = useState({
+    leaveType: 'ANNUAL',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  });
+
+  // Attendance Adjustments State
+  const [adjustments, setAdjustments] = useState([]);
+  const [adjStatusFilter, setAdjStatusFilter] = useState('ALL');
+  const [adjSearch, setAdjSearch] = useState('');
+  const [showAdjModal, setShowAdjModal] = useState(false);
+  const [adjForm, setAdjForm] = useState({
+    date: toISODate(new Date()),
+    actualCheckIn: '',
+    actualCheckOut: '',
+    reason: '',
+  });
+
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Attendance data
   const [rows, setRows] = useState([]);
@@ -312,6 +364,273 @@ export default function AttendancePageLive() {
     document.addEventListener('mousedown', handleDocClick);
     return () => document.removeEventListener('mousedown', handleDocClick);
   }, []);
+
+  // Fetch Leave Requests
+  const fetchLeaves = useCallback(async () => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!sId) return;
+    try {
+      if (isManager) {
+        const res = await getStoreLeaveRequests(sId);
+        const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setLeaveRequests(list);
+      } else {
+        const res = await getMyLeaveRequests(sId);
+        const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setLeaveRequests(list);
+      }
+    } catch (e) {
+      console.error('Failed to load leaves', e);
+    }
+  }, [storeId, isManager]);
+
+  // Fetch Attendance Adjustments
+  const fetchAdjustments = useCallback(async () => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!sId) return;
+    try {
+      if (isManager) {
+        const res = await getStoreAdjustmentRequests(sId);
+        const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setAdjustments(list);
+      } else {
+        const res = await getMyAdjustmentRequests(sId);
+        const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setAdjustments(list);
+      }
+    } catch (e) {
+      console.error('Failed to load adjustments', e);
+    }
+  }, [storeId, isManager]);
+
+  useEffect(() => {
+    fetchLeaves();
+    fetchAdjustments();
+  }, [fetchLeaves, fetchAdjustments]);
+
+  // Realtime updates for requests & adjustments
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchLeaves();
+      fetchAdjustments();
+    };
+    window.addEventListener('store_requests_updated', handleRefresh);
+    window.addEventListener('store_attendance_updated', handleRefresh);
+    return () => {
+      window.removeEventListener('store_requests_updated', handleRefresh);
+      window.removeEventListener('store_attendance_updated', handleRefresh);
+    };
+  }, [fetchLeaves, fetchAdjustments]);
+
+  // Pending counts for subtabs
+  const pendingLeaveCount = leaveRequests.filter((r) => r.status === 'PENDING').length;
+  const pendingAdjCount = adjustments.filter((a) => a.status === 'PENDING').length;
+
+  // Filtered lists
+  const filteredLeaves = useMemo(() => {
+    return leaveRequests.filter((r) => {
+      const matchStatus = leaveStatusFilter === 'ALL' || r.status === leaveStatusFilter;
+      const matchSearch =
+        !leaveSearch ||
+        (r.staffName || '').toLowerCase().includes(leaveSearch.toLowerCase()) ||
+        (r.reason || '').toLowerCase().includes(leaveSearch.toLowerCase());
+      return matchStatus && matchSearch;
+    });
+  }, [leaveRequests, leaveStatusFilter, leaveSearch]);
+
+  const filteredAdjustments = useMemo(() => {
+    return adjustments.filter((a) => {
+      const matchStatus = adjStatusFilter === 'ALL' || a.status === adjStatusFilter;
+      const matchSearch =
+        !adjSearch ||
+        (a.staffName || '').toLowerCase().includes(adjSearch.toLowerCase()) ||
+        (a.reason || '').toLowerCase().includes(adjSearch.toLowerCase()) ||
+        (a.date || '').toLowerCase().includes(adjSearch.toLowerCase());
+      return matchStatus && matchSearch;
+    });
+  }, [adjustments, adjStatusFilter, adjSearch]);
+
+  // Leave Handlers
+  const handleOpenApproveImpact = async (leaveId) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!sId) return;
+    setActionLoading(true);
+    try {
+      const res = await getLeaveImpact(sId, leaveId);
+      setSelectedLeaveImpact(res.data);
+      setPendingApproveLeaveId(leaveId);
+      setShowImpactModal(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Không thể tải thông tin tác động lịch làm việc.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmApproveWithImpact = async () => {
+    if (!pendingApproveLeaveId) return;
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    setActionLoading(true);
+    try {
+      const res = await approveLeaveRequest(sId, pendingApproveLeaveId);
+      const warning = res.data?.warning;
+      if (warning) {
+        toast.success(`✓ Đã phê duyệt đơn nghỉ phép. ${warning}`);
+      } else {
+        toast.success('✓ Đã phê duyệt đơn nghỉ phép. Ca trống đã tự động mở trên Sàn Marketplace!');
+      }
+      setShowImpactModal(false);
+      setPendingApproveLeaveId(null);
+      setSelectedLeaveImpact(null);
+      await fetchLeaves();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId: sId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lỗi phê duyệt đơn nghỉ phép.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectLeave = async (leaveId) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    const reason = prompt('Nhập lý do từ chối đơn nghỉ phép (tùy chọn):') || '';
+    setActionLoading(true);
+    try {
+      await rejectLeaveRequest(sId, leaveId, { reason });
+      toast.success('Đã từ chối đơn nghỉ phép.');
+      await fetchLeaves();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lỗi từ chối đơn nghỉ phép.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelLeave = async (leaveId) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn xin nghỉ này?')) return;
+    setActionLoading(true);
+    try {
+      await cancelLeaveRequest(sId, leaveId);
+      toast.success('Đã hủy đơn xin nghỉ.');
+      await fetchLeaves();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Không thể hủy đơn nghỉ phép.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEditLeaveReason = async (leaveId, currentReason) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    const newReason = prompt('Nhập lý do xin nghỉ mới:', currentReason || '');
+    if (newReason === null) return;
+    const trimmed = newReason.trim();
+    if (trimmed === '' || trimmed === currentReason) return;
+    setActionLoading(true);
+    try {
+      await updateLeaveReason(sId, leaveId, trimmed);
+      toast.success('Đã cập nhật lý do và lưu thành công.');
+      await fetchLeaves();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Không thể cập nhật lý do.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateLeaveSubmit = async (e) => {
+    e.preventDefault();
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!leaveForm.startDate || !leaveForm.endDate) {
+      toast.error('Vui lòng chọn ngày bắt đầu và kết thúc.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await createLeaveRequest(sId, {
+        leaveType: leaveForm.leaveType,
+        startDate: leaveForm.startDate,
+        endDate: leaveForm.endDate,
+        reason: leaveForm.reason || undefined,
+      });
+      toast.success('Đã nộp đơn xin nghỉ phép thành công.');
+      setShowLeaveModal(false);
+      setLeaveForm({ leaveType: 'ANNUAL', startDate: '', endDate: '', reason: '' });
+      await fetchLeaves();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Không thể nộp đơn xin nghỉ.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Adjustments Handlers
+  const handleApproveAdjustment = async (adjId) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    setActionLoading(true);
+    try {
+      await approveAdjustmentRequest(sId, adjId, {});
+      toast.success('✓ Đã phê duyệt giải trình chấm công.');
+      await fetchAdjustments();
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lỗi phê duyệt giải trình.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectAdjustment = async (adjId) => {
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    const note = prompt('Lý do từ chối (tùy chọn):') || '';
+    setActionLoading(true);
+    try {
+      await rejectAdjustmentRequest(sId, adjId, { note });
+      toast.success('Đã từ chối giải trình chấm công.');
+      await fetchAdjustments();
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lỗi từ chối giải trình.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateAdjustmentSubmit = async (e) => {
+    e.preventDefault();
+    const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!adjForm.date || (!adjForm.actualCheckIn && !adjForm.actualCheckOut)) {
+      toast.error('Vui lòng chọn ngày và ít nhất một mốc giờ check-in hoặc check-out.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const inTime = adjForm.actualCheckIn ? `${adjForm.date}T${adjForm.actualCheckIn}:00` : null;
+      const outTime = adjForm.actualCheckOut ? `${adjForm.date}T${adjForm.actualCheckOut}:00` : null;
+      await createAdjustmentRequest(sId, {
+        date: adjForm.date,
+        checkInTime: inTime,
+        checkOutTime: outTime,
+        reason: adjForm.reason,
+      });
+      toast.success('Đã gửi giải trình chấm công thành công.');
+      setShowAdjModal(false);
+      setAdjForm({ date: toISODate(new Date()), actualCheckIn: '', actualCheckOut: '', reason: '' });
+      await fetchAdjustments();
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Không thể gửi giải trình chấm công.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Handlers for Date Navigator & Calendar Popover
   const openCalendarPopover = () => {
@@ -578,36 +897,72 @@ export default function AttendancePageLive() {
 
       {/* ═══ MAIN CONTENT ═══ */}
       <main className="att-main">
-        {/* ═══ TOPBAR (Row 1: Day/Week Toggle & Tóm tắt bảng lương) ═══ */}
-        <div className="att-topbar">
-          <div className="att-viewmode-toggle">
+        {/* ═══ TIME & WORKFORCE DOMAIN TABS ═══ */}
+        <div className="tw-header-container">
+          <div className="tw-header-title-area">
+            <h1 className="tw-page-title">TIME & WORKFORCE</h1>
+            <p className="tw-page-subtitle">Quản lý toàn diện thời gian làm việc & trạng thái nhân sự (Chấm công • Giải trình • Nghỉ phép)</p>
+          </div>
+          <div className="tw-domain-tabs">
             <button
               type="button"
-              className={`att-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
-              onClick={() => setViewMode('Ngày')}
+              className={`tw-domain-tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
+              onClick={() => handleTabChange('attendance')}
             >
-              Day
+              🕒 Chấm công trực tiếp
             </button>
             <button
               type="button"
-              className={`att-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
-              onClick={() => setViewMode('Tuần')}
+              className={`tw-domain-tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`}
+              onClick={() => handleTabChange('adjustments')}
             >
-              Week
+              📝 Giải trình chấm công
+              {pendingAdjCount > 0 && <span className="tw-tab-badge amber">{pendingAdjCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`tw-domain-tab-btn ${activeTab === 'leave' ? 'active' : ''}`}
+              onClick={() => handleTabChange('leave')}
+            >
+              🏖️ Đơn xin nghỉ phép
+              {pendingLeaveCount > 0 && <span className="tw-tab-badge indigo">{pendingLeaveCount}</span>}
             </button>
           </div>
+        </div>
 
-          <div className="att-topbar-actions">
-            <div className="att-capsule-card" style={{ marginRight: '8px' }}>
-              <button
-                type="button"
-                className="att-capsule-payroll-btn"
-                onClick={() => navigate('/requests?tab=adjustments')}
-                title={isManager ? "Xem danh sách yêu cầu điều chỉnh chấm công" : "Xem và gửi giải trình chấm công của bạn"}
-              >
-                {isManager ? 'Duyệt giải trình' : 'Giải trình chấm công'}
-              </button>
-            </div>
+        {/* ═══ TAB 1: CHẤM CÔNG TRỰC TIẾP (ATTENDANCE) ═══ */}
+        {activeTab === 'attendance' && (
+          <>
+            {/* ═══ TOPBAR (Row 1: Day/Week Toggle & Tóm tắt bảng lương) ═══ */}
+            <div className="att-topbar">
+              <div className="att-viewmode-toggle">
+                <button
+                  type="button"
+                  className={`att-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
+                  onClick={() => setViewMode('Ngày')}
+                >
+                  Day
+                </button>
+                <button
+                  type="button"
+                  className={`att-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
+                  onClick={() => setViewMode('Tuần')}
+                >
+                  Week
+                </button>
+              </div>
+
+              <div className="att-topbar-actions">
+                <div className="att-capsule-card" style={{ marginRight: '8px' }}>
+                  <button
+                    type="button"
+                    className="att-capsule-payroll-btn"
+                    onClick={() => handleTabChange('adjustments')}
+                    title={isManager ? "Xem danh sách yêu cầu điều chỉnh chấm công" : "Xem và gửi giải trình chấm công của bạn"}
+                  >
+                    {isManager ? 'Duyệt giải trình' : 'Giải trình chấm công'}
+                  </button>
+                </div>
             <div className="att-capsule-card">
               {isManager && (
                 <>
@@ -975,6 +1330,309 @@ export default function AttendancePageLive() {
             </div>
           )}
         </div>
+          </>
+        )}
+
+        {/* ═══ TAB 2: GIẢI TRÌNH CHẤM CÔNG (ADJUSTMENTS) ═══ */}
+        {activeTab === 'adjustments' && (
+          <div className="tw-tab-content">
+            <div className="tw-action-bar">
+              <div className="tw-filter-group">
+                <div style={{ position: 'relative', width: '220px' }}>
+                  <input
+                    type="text"
+                    className="att-time-input"
+                    style={{ height: '34px', padding: '4px 10px', fontSize: '13px' }}
+                    placeholder="Tìm theo tên hoặc lý do..."
+                    value={adjSearch}
+                    onChange={(e) => setAdjSearch(e.target.value)}
+                  />
+                  {adjSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setAdjSearch('')}
+                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {[
+                  { key: 'ALL', label: 'Tất cả' },
+                  { key: 'PENDING', label: 'Chờ duyệt' },
+                  { key: 'APPROVED', label: 'Đã duyệt' },
+                  { key: 'REJECTED', label: 'Đã từ chối' },
+                ].map((st) => (
+                  <button
+                    key={st.key}
+                    type="button"
+                    className={`tw-filter-pill ${adjStatusFilter === st.key ? 'active' : ''}`}
+                    onClick={() => setAdjStatusFilter(st.key)}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
+              {!isManager && (
+                <button
+                  type="button"
+                  className="tw-btn-create"
+                  onClick={() => setShowAdjModal(true)}
+                >
+                  + Gửi giải trình chấm công
+                </button>
+              )}
+            </div>
+
+            <div className="tw-table-card">
+              <table className="tw-data-table">
+                <thead>
+                  <tr>
+                    {isManager && <th>Nhân viên</th>}
+                    <th>Ngày làm việc</th>
+                    <th>Giờ vào đề xuất</th>
+                    <th>Giờ ra đề xuất</th>
+                    <th>Lý do giải trình</th>
+                    <th>Trạng thái</th>
+                    {isManager && <th style={{ textAlign: 'right' }}>Thao tác</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdjustments.length === 0 ? (
+                    <tr>
+                      <td colSpan={isManager ? 7 : 6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                        Không có yêu cầu giải trình chấm công nào.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAdjustments.map((a) => {
+                      const isPending = a.status === 'PENDING';
+                      return (
+                        <tr key={a.id}>
+                          {isManager && (
+                            <td>
+                              <strong>{a.staffName || 'Nhân viên'}</strong>
+                            </td>
+                          )}
+                          <td>{fmtShortDate(a.date)}</td>
+                          <td>{a.checkInTime ? fmtTimeAMPM(a.checkInTime) : '—'}</td>
+                          <td>{a.checkOutTime ? fmtTimeAMPM(a.checkOutTime) : '—'}</td>
+                          <td style={{ maxWidth: '280px' }}>
+                            <div>{a.reason || '—'}</div>
+                            {a.note && (
+                              <div style={{ fontSize: '11.5px', color: '#ef4444', fontStyle: 'italic', marginTop: '3px' }}>
+                                Ghi chú QL: {a.note}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`tw-status-pill ${a.status?.toLowerCase()}`}>
+                              {a.status === 'APPROVED' ? 'Đã duyệt' : a.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'}
+                            </span>
+                          </td>
+                          {isManager && (
+                            <td style={{ textAlign: 'right' }}>
+                              {isPending ? (
+                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="tw-btn-approve"
+                                    onClick={() => handleApproveAdjustment(a.id)}
+                                    disabled={actionLoading}
+                                  >
+                                    Duyệt
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="tw-btn-reject"
+                                    onClick={() => handleRejectAdjustment(a.id)}
+                                    disabled={actionLoading}
+                                  >
+                                    Từ chối
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TAB 3: ĐƠN XIN NGHỈ PHÉP (LEAVE REQUESTS) ═══ */}
+        {activeTab === 'leave' && (
+          <div className="tw-tab-content">
+            <div className="tw-action-bar">
+              <div className="tw-filter-group">
+                <div style={{ position: 'relative', width: '220px' }}>
+                  <input
+                    type="text"
+                    className="att-time-input"
+                    style={{ height: '34px', padding: '4px 10px', fontSize: '13px' }}
+                    placeholder="Tìm theo tên hoặc lý do..."
+                    value={leaveSearch}
+                    onChange={(e) => setLeaveSearch(e.target.value)}
+                  />
+                  {leaveSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setLeaveSearch('')}
+                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {[
+                  { key: 'ALL', label: 'Tất cả' },
+                  { key: 'PENDING', label: 'Chờ duyệt' },
+                  { key: 'APPROVED', label: 'Đã duyệt' },
+                  { key: 'REJECTED', label: 'Đã từ chối' },
+                ].map((st) => (
+                  <button
+                    key={st.key}
+                    type="button"
+                    className={`tw-filter-pill ${leaveStatusFilter === st.key ? 'active' : ''}`}
+                    onClick={() => setLeaveStatusFilter(st.key)}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
+              {!isManager && (
+                <button
+                  type="button"
+                  className="tw-btn-create"
+                  onClick={() => setShowLeaveModal(true)}
+                >
+                  + Nộp đơn xin nghỉ
+                </button>
+              )}
+            </div>
+
+            <div className="tw-table-card">
+              <table className="tw-data-table">
+                <thead>
+                  <tr>
+                    <th>{isManager ? 'Nhân viên' : 'Người nộp'}</th>
+                    <th>Loại nghỉ</th>
+                    <th>Thời gian nghỉ</th>
+                    <th>Lý do</th>
+                    <th>Trạng thái</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLeaves.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                        Không có đơn nghỉ phép nào.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLeaves.map((r) => {
+                      const isPending = r.status === 'PENDING';
+                      return (
+                        <tr key={r.id}>
+                          <td>
+                            <strong>{isManager ? (r.staffName || 'Nhân viên') : 'Tôi (Bạn)'}</strong>
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              background: r.leaveType === 'SICK' ? '#fee2e2' : r.leaveType === 'EMERGENCY' ? '#fef3c7' : '#e0e7ff',
+                              color: r.leaveType === 'SICK' ? '#991b1b' : r.leaveType === 'EMERGENCY' ? '#92400e' : '#3730a3',
+                            }}>
+                              {r.leaveType === 'SICK' ? 'Nghỉ ốm' : r.leaveType === 'EMERGENCY' ? 'Khẩn cấp' : 'Phép năm'}
+                            </span>
+                          </td>
+                          <td>
+                            {fmtShortDate(r.startDate)} → {fmtShortDate(r.endDate)}
+                          </td>
+                          <td style={{ maxWidth: '280px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <span>{r.reason || '—'}</span>
+                              {!isManager && isPending && (
+                                <button
+                                  type="button"
+                                  title="Chỉnh sửa lý do xin nghỉ"
+                                  onClick={() => handleEditLeaveReason(r.id, r.reason)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, fontSize: '13px', padding: '2px 4px' }}
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                            </div>
+                            {r.rejectionReason && (
+                              <div style={{ fontSize: '11.5px', color: '#dc2626', marginTop: '4px', fontStyle: 'italic' }}>
+                                Lý do từ chối: {r.rejectionReason}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`tw-status-pill ${r.status?.toLowerCase()}`}>
+                              {r.status === 'APPROVED' ? 'Đã duyệt' : r.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {isPending && isManager && (
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  className="tw-btn-approve"
+                                  onClick={() => handleOpenApproveImpact(r.id)}
+                                  disabled={actionLoading}
+                                  title="Đánh giá tác động nhân sự và phê duyệt"
+                                >
+                                  Phê duyệt
+                                </button>
+                                <button
+                                  type="button"
+                                  className="tw-btn-reject"
+                                  onClick={() => handleRejectLeave(r.id)}
+                                  disabled={actionLoading}
+                                >
+                                  Từ chối
+                                </button>
+                              </div>
+                            )}
+
+                            {isPending && !isManager && (
+                              <button
+                                type="button"
+                                className="tw-btn-cancel"
+                                onClick={() => handleCancelLeave(r.id)}
+                                disabled={actionLoading}
+                              >
+                                Hủy đơn
+                              </button>
+                            )}
+
+                            {!isPending && (
+                              <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ═══ PHOTO PREVIEW MODAL ═══ */}
@@ -1100,6 +1758,272 @@ export default function AttendancePageLive() {
                   disabled={isSaving}
                 >
                   {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STAFFING IMPACT CONFIRMATION MODAL (LEAVE APPROVAL) ═══ */}
+      {showImpactModal && selectedLeaveImpact && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setShowImpactModal(false)}>
+          <div className="tw-impact-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="tw-impact-header">
+              <div className="tw-impact-header-title">
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <span>Đánh giá tác động nhân sự trước khi duyệt nghỉ phép</span>
+              </div>
+              <button
+                type="button"
+                className="att-modal-close"
+                onClick={() => setShowImpactModal(false)}
+                disabled={actionLoading}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="tw-impact-body">
+              <div className="tw-impact-summary-box">
+                <p><strong>Nhân viên:</strong> {selectedLeaveImpact.staffName}</p>
+                <p><strong>Thời gian nghỉ:</strong> {fmtShortDate(selectedLeaveImpact.startDate)} → {fmtShortDate(selectedLeaveImpact.endDate)}</p>
+                <p>
+                  <strong>Số ca làm việc bị ảnh hưởng:</strong>{' '}
+                  <span style={{
+                    fontWeight: 700,
+                    color: selectedLeaveImpact.totalConflictingShifts > 0 ? '#dc2626' : '#16a34a',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: selectedLeaveImpact.totalConflictingShifts > 0 ? '#fee2e2' : '#dcfce7'
+                  }}>
+                    {selectedLeaveImpact.totalConflictingShifts} ca làm việc
+                  </span>
+                </p>
+              </div>
+
+              {selectedLeaveImpact.totalConflictingShifts > 0 ? (
+                <>
+                  <div className="tw-impact-table-wrap">
+                    <table className="tw-impact-table">
+                      <thead>
+                        <tr>
+                          <th>Ngày ca làm</th>
+                          <th>Khung giờ</th>
+                          <th>Chi nhánh</th>
+                          <th>Chuyên môn</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedLeaveImpact.conflictingShifts.map((cs) => (
+                          <tr key={cs.shiftId}>
+                            <td><strong>{fmtShortDate(cs.shiftDate)}</strong></td>
+                            <td>{cs.startTime?.slice(0, 5)} - {cs.endTime?.slice(0, 5)}</td>
+                            <td>{cs.storeName || 'Chi nhánh'}</td>
+                            <td>{cs.skillName || 'Nhân viên'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="tw-impact-warning-alert">
+                    <span style={{ fontSize: '20px' }}>📢</span>
+                    <div>
+                      <strong>Tự động điều phối Marketplace:</strong>
+                      <p style={{ margin: '4px 0 0 0' }}>
+                        Khi duyệt, hệ thống sẽ tự động gỡ nhân viên <strong>{selectedLeaveImpact.staffName}</strong> khỏi các ca trên và mở các ca trống này trên <strong>Sàn Marketplace</strong> với lý do: <em>"Nhu cầu phát sinh: Nhân viên {selectedLeaveImpact.staffName} nghỉ phép đã duyệt."</em> để điều phối bổ sung nhân sự kịp thời.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '16px', borderRadius: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '13px' }}>
+                  ✓ Nhân viên hiện không có ca làm việc nào được xếp trong khoảng thời gian nghỉ này. Bạn có thể an tâm phê duyệt.
+                </div>
+              )}
+            </div>
+
+            <div className="tw-impact-footer">
+              <button
+                type="button"
+                className="att-cancel-btn"
+                onClick={() => setShowImpactModal(false)}
+                disabled={actionLoading}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="tw-btn-confirm-approve"
+                onClick={handleConfirmApproveWithImpact}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Đang xử lý...' : 'Xác nhận duyệt & Mở ca lên Marketplace'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CREATE LEAVE MODAL ═══ */}
+      {showLeaveModal && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setShowLeaveModal(false)}>
+          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="att-modal-header">
+              <h3>Nộp đơn xin nghỉ phép</h3>
+              <button
+                type="button"
+                className="att-modal-close"
+                onClick={() => setShowLeaveModal(false)}
+                disabled={actionLoading}
+              >
+                ✕
+              </button>
+            </div>
+            <form className="att-edit-form" onSubmit={handleCreateLeaveSubmit}>
+              <div className="att-form-group">
+                <label>Loại nghỉ phép</label>
+                <select
+                  className="att-select-input"
+                  value={leaveForm.leaveType}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
+                >
+                  <option value="ANNUAL">Phép năm (ANNUAL)</option>
+                  <option value="SICK">Nghỉ ốm (SICK)</option>
+                  <option value="EMERGENCY">Khẩn cấp (EMERGENCY)</option>
+                </select>
+              </div>
+
+              <div className="att-form-group">
+                <label>Từ ngày</label>
+                <input
+                  type="date"
+                  className="att-time-input"
+                  value={leaveForm.startDate}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Đến ngày</label>
+                <input
+                  type="date"
+                  className="att-time-input"
+                  value={leaveForm.endDate}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Lý do nghỉ phép</label>
+                <textarea
+                  className="att-time-input"
+                  style={{ height: '80px', resize: 'vertical' }}
+                  placeholder="Nhập lý do chi tiết..."
+                  value={leaveForm.reason}
+                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
+                />
+              </div>
+
+              <div className="att-modal-actions">
+                <button
+                  type="button"
+                  className="att-cancel-btn"
+                  onClick={() => setShowLeaveModal(false)}
+                  disabled={actionLoading}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="att-save-btn"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Đang gửi...' : 'Nộp đơn'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CREATE ADJUSTMENT MODAL ═══ */}
+      {showAdjModal && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setShowAdjModal(false)}>
+          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="att-modal-header">
+              <h3>Gửi giải trình chấm công</h3>
+              <button
+                type="button"
+                className="att-modal-close"
+                onClick={() => setShowAdjModal(false)}
+                disabled={actionLoading}
+              >
+                ✕
+              </button>
+            </div>
+            <form className="att-edit-form" onSubmit={handleCreateAdjustmentSubmit}>
+              <div className="att-form-group">
+                <label>Ngày làm việc</label>
+                <input
+                  type="date"
+                  className="att-time-input"
+                  value={adjForm.date}
+                  onChange={(e) => setAdjForm((prev) => ({ ...prev, date: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Giờ vào thực tế (Check-In)</label>
+                <input
+                  type="time"
+                  className="att-time-input"
+                  value={adjForm.actualCheckIn}
+                  onChange={(e) => setAdjForm((prev) => ({ ...prev, actualCheckIn: e.target.value }))}
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Giờ ra thực tế (Check-Out)</label>
+                <input
+                  type="time"
+                  className="att-time-input"
+                  value={adjForm.actualCheckOut}
+                  onChange={(e) => setAdjForm((prev) => ({ ...prev, actualCheckOut: e.target.value }))}
+                />
+              </div>
+
+              <div className="att-form-group">
+                <label>Lý do giải trình (Bắt buộc)</label>
+                <textarea
+                  className="att-time-input"
+                  style={{ height: '80px', resize: 'vertical' }}
+                  placeholder="VD: Quên check-out khi tan ca, sự cố thiết bị chấm công..."
+                  value={adjForm.reason}
+                  onChange={(e) => setAdjForm((prev) => ({ ...prev, reason: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="att-modal-actions">
+                <button
+                  type="button"
+                  className="att-cancel-btn"
+                  onClick={() => setShowAdjModal(false)}
+                  disabled={actionLoading}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="att-save-btn"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Đang gửi...' : 'Gửi giải trình'}
                 </button>
               </div>
             </form>

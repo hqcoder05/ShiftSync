@@ -19,3 +19,6 @@ export const approveSwapRequest = (requestId) =>
 
 export const rejectSwapRequest = (requestId) =>
   api.post(`/swaps/${requestId}/reject`);
+
+export const cancelSwapRequest = (requestId) =>
+  api.post(`/swaps/${requestId}/cancel`);

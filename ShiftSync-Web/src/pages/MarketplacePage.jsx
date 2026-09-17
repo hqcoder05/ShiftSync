@@ -14,6 +14,7 @@ import {
   getStoreSwapRequests,
   approveSwapRequest,
   rejectSwapRequest,
+  cancelSwapRequest,
 } from '../services/swapService';
 import {
   getStoreAdjustmentRequests,
@@ -829,6 +830,28 @@ export default function MarketplacePage() {
       window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`✕ Lỗi từ chối: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleCancelSwap = async (req) => {
+    if (!req?.id) return;
+    if (!window.confirm('Bạn có chắc muốn hủy yêu cầu hoán đổi ca này?')) return;
+    setActionLoadingId(req.id);
+    try {
+      if (req.isShiftSwap) {
+        await cancelSwapRequest(req.id);
+        setStoreSwapList((prev) => prev.filter((s) => s.id !== req.id));
+      } else {
+        await updateRequestStatus(req.id, 'CANCELLED');
+      }
+      showToast('✓ Đã hủy yêu cầu hoán đổi ca làm việc.');
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi: ${err.response?.data?.message || err.message || 'Không thể hủy hoán đổi.'}`);
     } finally {
       setActionLoadingId(null);
     }
@@ -1853,6 +1876,25 @@ export default function MarketplacePage() {
                             <div className="mp-table-actions">
                               {isPending ? (
                                 <>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-cancel"
+                                    style={{
+                                      padding: '6px 11px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #cbd5e1',
+                                      background: '#ffffff',
+                                      color: '#64748b',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      cursor: 'pointer'
+                                    }}
+                                    disabled={actionLoadingId === req.id}
+                                    onClick={() => handleCancelSwap(req)}
+                                    title="Hủy yêu cầu đổi ca"
+                                  >
+                                    Hủy
+                                  </button>
                                   <button
                                     type="button"
                                     className="mp-btn-action-reject"
