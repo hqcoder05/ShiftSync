@@ -202,12 +202,9 @@ export default function Header() {
     };
   }, [fetchNotifications, fetchHeaderCounts]);
 
-  const totalPendingRequests =
-    pendingLeaveCount +
-    pendingWorkforceCount +
-    pendingStaffReqCount;
+  const totalPendingRequests = pendingLeaveCount;
 
-  const totalNotifs = unreadNotifCount + totalPendingRequests + pendingSwapCount + pendingAdjCount;
+  const totalNotifs = unreadNotifCount + totalPendingRequests + pendingSwapCount + pendingAdjCount + pendingWorkforceCount;
 
   const handleMarkAllAsRead = async () => {
     try {
@@ -241,7 +238,7 @@ export default function Header() {
     } else if (type.includes('LEAVE')) {
       navigate('/requests?tab=leave');
     } else if (type.includes('WORKFORCE')) {
-      navigate('/requests?tab=workforce');
+      navigate('/marketplace?tab=WORKFORCE');
     } else if (type.includes('MARKET')) {
       navigate('/marketplace');
     } else if (type.includes('ATTENDANCE')) {
@@ -558,7 +555,7 @@ export default function Header() {
                       className="ss-notif-modern-row"
                       onClick={() => {
                         setNotifMenuOpen(false);
-                        navigate('/requests?tab=workforce');
+                        navigate('/marketplace?tab=WORKFORCE');
                       }}
                     >
                       <div className="ss-notif-icon-badge badge-indigo">
@@ -566,7 +563,7 @@ export default function Header() {
                       </div>
                       <div className="ss-notif-info">
                         <span className="ss-notif-title">Chi viện nhân sự</span>
-                        <span className="ss-notif-desc">Có {pendingWorkforceCount} yêu cầu mượn/chi viện nhân sự</span>
+                        <span className="ss-notif-desc">Có {pendingWorkforceCount} yêu cầu mượn/chi viện nhân sự (Sàn Marketplace)</span>
                       </div>
                       <span className="ss-notif-pill pill-indigo">{pendingWorkforceCount}</span>
                     </div>
@@ -655,7 +652,7 @@ export default function Header() {
         {visibleNavItems.map((item) => {
           const isCustomActive = item.aliases && item.aliases.includes(location.pathname);
           const reqCount = item.key === 'requests' ? totalPendingRequests : 0;
-          const mktCount = item.key === 'marketplace' ? (openShiftsCount + pendingSwapCount) : 0;
+          const mktCount = item.key === 'marketplace' ? (openShiftsCount + pendingSwapCount + pendingWorkforceCount) : 0;
           const attCount = item.key === 'attendance' ? pendingAdjCount : 0;
           const badgeCount = reqCount || mktCount || attCount;
 

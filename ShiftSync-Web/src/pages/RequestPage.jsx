@@ -119,6 +119,8 @@ export default function RequestPage() {
       window.location.replace('/marketplace?tab=SWAP');
     } else if (rawTab === 'adjustments' || rawTab === 'adjustment') {
       window.location.replace('/attendance');
+    } else if (rawTab === 'workforce' || rawTab === 'proposals') {
+      window.location.replace('/marketplace?tab=WORKFORCE');
     }
   }, [rawTab]);
 
@@ -356,10 +358,17 @@ export default function RequestPage() {
     if (!sId) return;
     setActionLoading(true);
     try {
-      await approveLeaveRequest(sId, id);
-      showToastMsg('Đã phê duyệt đơn nghỉ phép.');
+      const res = await approveLeaveRequest(sId, id);
+      const warning = res.data?.warning;
+      if (warning) {
+        showToastMsg(`✓ Đã phê duyệt đơn nghỉ phép. ${warning}`);
+      } else {
+        showToastMsg('✓ Đã phê duyệt đơn nghỉ phép thành công.');
+      }
       await refreshLeaveRequests();
       notifyRequestUpdated(sId);
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId: sId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId: sId } }));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi duyệt đơn nghỉ phép.');
     } finally {

@@ -50,5 +50,8 @@ export const assignStaffToShift = (storeId, shiftId, staffId, zoneId, force = fa
 export const removeStaffFromShift = (storeId, shiftId, staffId) =>
   api.delete(`/stores/${storeId}/shifts/${shiftId}/assignments/${staffId}`);
 
+export const getEligibleStaffForShift = (storeId, shiftId) =>
+  api.get(`/stores/${storeId}/shifts/${shiftId}/eligible-staff`);
+
 // Backward compatibility alias
 export const getShiftRegistrations = getShiftAssignments;

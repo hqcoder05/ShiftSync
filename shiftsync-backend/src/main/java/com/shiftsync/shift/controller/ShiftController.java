@@ -123,4 +123,13 @@ public class ShiftController {
         shiftService.deleteShift(storeId, shiftId);
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(summary = "Get eligible staff candidates for a shift")
+    @PreAuthorize("@storeAccessService.canAccessStore(authentication, #storeId)")
+    @GetMapping("/{shiftId}/eligible-staff")
+    public ResponseEntity<List<com.shiftsync.employment.dto.EmploymentDTO>> getEligibleStaff(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId) {
+        return ResponseEntity.ok(shiftService.getEligibleStaffForShift(storeId, shiftId));
+    }
 }

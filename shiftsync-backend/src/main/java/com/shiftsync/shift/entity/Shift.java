@@ -59,6 +59,9 @@ public class Shift {
     @Builder.Default
     private boolean isOpen = false;
 
+    @Column(name = "note", length = 500)
+    private String note;
+
     @Version
     private Long version;
 

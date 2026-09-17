@@ -43,7 +43,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ShiftService {
     private final AuditLogService auditLogService;
 
@@ -58,6 +57,58 @@ public class ShiftService {
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final StoreZoneRepository storeZoneRepository;
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+    private final ShiftAssignmentValidator shiftAssignmentValidator;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ShiftService(
+            AuditLogService auditLogService,
+            ShiftRepository shiftRepository,
+            StoreRepository storeRepository,
+            com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository,
+            ShiftTemplateRepository shiftTemplateRepository,
+            SkillRepository skillRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            UserRepository userRepository,
+            PayrollPeriodRepository payrollPeriodRepository,
+            com.shiftsync.notification.service.NotificationService notificationService,
+            StoreZoneRepository storeZoneRepository,
+            com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository,
+            com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
+            ShiftAssignmentValidator shiftAssignmentValidator
+    ) {
+        this.auditLogService = auditLogService;
+        this.shiftRepository = shiftRepository;
+        this.storeRepository = storeRepository;
+        this.storeConfigRepository = storeConfigRepository;
+        this.shiftTemplateRepository = shiftTemplateRepository;
+        this.skillRepository = skillRepository;
+        this.shiftAssignmentRepository = shiftAssignmentRepository;
+        this.userRepository = userRepository;
+        this.payrollPeriodRepository = payrollPeriodRepository;
+        this.notificationService = notificationService;
+        this.storeZoneRepository = storeZoneRepository;
+        this.staffSkillRepository = staffSkillRepository;
+        this.employmentRepository = employmentRepository;
+        this.shiftAssignmentValidator = shiftAssignmentValidator;
+    }
+
+    public ShiftService(
+            AuditLogService auditLogService,
+            ShiftRepository shiftRepository,
+            StoreRepository storeRepository,
+            com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository,
+            ShiftTemplateRepository shiftTemplateRepository,
+            SkillRepository skillRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            UserRepository userRepository,
+            PayrollPeriodRepository payrollPeriodRepository,
+            com.shiftsync.notification.service.NotificationService notificationService,
+            StoreZoneRepository storeZoneRepository,
+            com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository
+    ) {
+        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, null, null);
+    }
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
         if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
@@ -617,6 +668,7 @@ public class ShiftService {
                 .assignedStaffCount(totalAssignedStaff)
                 .shortageStaff(totalShortageStaff)
                 .isOpen(entity.isOpen())
+                .note(entity.getNote())
                 .build();
     }
 
@@ -641,5 +693,24 @@ public class ShiftService {
             return zName.contains("pos") || zName.contains("cashier") || zName.contains("barista") || zName.contains("service");
         }
         return false;
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.shiftsync.employment.dto.EmploymentDTO> getEligibleStaffForShift(UUID storeId, UUID shiftId) {
+        verifyStoreExists(storeId);
+        Shift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+
+        if (!shift.getStore().getId().equals(storeId)) {
+            throw new BusinessException("Shift does not belong to store", HttpStatus.BAD_REQUEST);
+        }
+
+        List<com.shiftsync.employment.entity.Employment> activeEmployments =
+                employmentRepository.findByStoreIdAndStatus(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+
+        return activeEmployments.stream()
+                .filter(emp -> emp.getUser() != null && shiftAssignmentValidator.isEligible(shift, emp.getUser().getId()))
+                .map(com.shiftsync.employment.mapper.EmploymentMapper::toDTO)
+                .collect(Collectors.toList());
     }
 }

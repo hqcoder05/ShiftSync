@@ -37,6 +37,7 @@ public class LeaveRequestService {
     private final EmploymentRepository employmentRepository;
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final com.shiftsync.shift.repository.ShiftRepository shiftRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     @Transactional
@@ -153,16 +154,34 @@ public class LeaveRequestService {
             currentDate = currentDate.plusDays(1);
         }
 
-        // Check for conflicting published shifts
-        List<UUID> conflictingShifts = shiftAssignmentRepository.findConflictingPublishedShiftIds(
+        // Unassign staff from conflicting shifts during leave and mark shifts open on Marketplace
+        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(
                 leaveRequest.getStaff().getId(), 
                 leaveRequest.getStartDate(), 
                 leaveRequest.getEndDate()
         );
 
+        int unassignedCount = 0;
+        for (com.shiftsync.shift.entity.ShiftAssignment sa : conflictingAssignments) {
+            com.shiftsync.shift.entity.Shift shift = sa.getShift();
+            shiftAssignmentRepository.delete(sa);
+            unassignedCount++;
+
+            if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
+                shift.setOpen(true);
+                String note = "Nhu cầu phát sinh: Nhân viên " + leaveRequest.getStaff().getFullName() + " nghỉ phép đã duyệt.";
+                shift.setNote(note);
+                if (shift.getAvailabilityDeadline() == null || shift.getAvailabilityDeadline().isBefore(java.time.ZonedDateTime.now())) {
+                    java.time.ZonedDateTime deadline = shift.getShiftDate().atTime(shift.getStartTime()).atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+                    shift.setAvailabilityDeadline(deadline);
+                }
+                shiftRepository.save(shift);
+            }
+        }
+
         String warning = null;
-        if (!conflictingShifts.isEmpty()) {
-            warning = "Staff has " + conflictingShifts.size() + " published shifts conflicting with this leave: " + conflictingShifts.toString();
+        if (unassignedCount > 0) {
+            warning = "Đã tự động hủy phân công nhân viên khỏi " + unassignedCount + " ca làm và mở nhu cầu tuyển ca trên Marketplace.";
         }
 
         notificationService.sendNotification(
@@ -175,6 +194,10 @@ public class LeaveRequestService {
 
         try {
             realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_APPROVED", "leaveId", leaveId));
+            if (unassignedCount > 0) {
+                realtimeEventPublisher.publishStoreEvent(storeId, "marketplace", java.util.Map.of("action", "WORKFORCE_NEED_CREATED", "leaveId", leaveId));
+                realtimeEventPublisher.publishStoreEvent(storeId, "shifts", java.util.Map.of("action", "SHIFT_UNASSIGNED", "leaveId", leaveId));
+            }
         } catch (Exception ignored) {}
 
         return LeaveApproveResponse.builder()

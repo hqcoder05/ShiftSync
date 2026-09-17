@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import {
   getMarketplaceShifts,
@@ -6,7 +7,7 @@ import {
   unpublishShiftFromMarketplace,
   claimMarketplaceShift,
 } from '../services/marketplaceService';
-import { getShiftsForStore, assignStaffToShift } from '../services/shiftService';
+import { getShiftsForStore, assignStaffToShift, getEligibleStaffForShift } from '../services/shiftService';
 import { getStaffByStore } from '../services/employmentService';
 import { getRequests, updateRequestStatus } from '../services/requestService';
 import {
@@ -148,11 +149,40 @@ export default function MarketplacePage() {
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState('');
 
+  // URL Tab parsing & synchronization
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = (searchParams.get('tab') || '').toUpperCase();
+  const getInitialTab = () => {
+    if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') return 'WORKFORCE';
+    if (urlTab === 'SWAP' || urlTab === 'SWAPS') return 'SWAP';
+    if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') return 'OPEN';
+    if (urlTab === 'FILLED') return 'FILLED';
+    if (urlTab === 'ADJUSTMENT') return 'ADJUSTMENT';
+    if (urlTab === 'PROPOSAL') return 'PROPOSAL';
+    return 'OPEN';
+  };
+
   // Tabs & Views
-  const [activeTab, setActiveTab] = useState('OPEN'); // 'OPEN' | 'SWAP' | 'ADJUSTMENT' | 'WORKFORCE' | 'PROPOSAL' | 'FILLED'
+  const [activeTab, setActiveTab] = useState(getInitialTab); // 'OPEN' | 'SWAP' | 'ADJUSTMENT' | 'WORKFORCE' | 'PROPOSAL' | 'FILLED'
   const [workforceSubTab, setWorkforceSubTab] = useState('INCOMING'); // 'INCOMING' | 'OUTGOING'
   const [sortBy, setSortBy] = useState('URGENCY');
   const [showUrgentBanner, setShowUrgentBanner] = useState(true);
+
+  useEffect(() => {
+    if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') setActiveTab('WORKFORCE');
+    else if (urlTab === 'SWAP' || urlTab === 'SWAPS') setActiveTab('SWAP');
+    else if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') setActiveTab('OPEN');
+    else if (urlTab === 'FILLED') setActiveTab('FILLED');
+    else if (urlTab === 'ADJUSTMENT') setActiveTab('ADJUSTMENT');
+    else if (urlTab === 'PROPOSAL') setActiveTab('PROPOSAL');
+  }, [urlTab]);
+
+  // Eligible Candidates Modal (Calling backend ShiftAssignmentValidator)
+  const [showEligibleCandidatesModal, setShowEligibleCandidatesModal] = useState(false);
+  const [selectedShiftForEligibility, setSelectedShiftForEligibility] = useState(null);
+  const [eligibleCandidatesList, setEligibleCandidatesList] = useState([]);
+  const [loadingEligibleCandidates, setLoadingEligibleCandidates] = useState(false);
+  const [assigningCandidateId, setAssigningCandidateId] = useState(null);
 
   // Sidebar Filters
   const [statusFilters, setStatusFilters] = useState({
@@ -686,6 +716,39 @@ export default function MarketplacePage() {
       showToast(`Lỗi: ${err.response?.data?.message || 'Không thể chỉ định nhân sự.'}`);
     } finally {
       setQuickAssignLoadingId(null);
+    }
+  };
+
+  const handleOpenEligibleCandidates = async (shift) => {
+    setSelectedShiftForEligibility(shift);
+    setShowEligibleCandidatesModal(true);
+    setLoadingEligibleCandidates(true);
+    try {
+      const res = await getEligibleStaffForShift(storeId, shift.id);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setEligibleCandidatesList(list);
+    } catch (err) {
+      setEligibleCandidatesList([]);
+      showToast('✕ Không thể tải danh sách ứng viên đủ điều kiện.');
+    } finally {
+      setLoadingEligibleCandidates(false);
+    }
+  };
+
+  const handleAssignCandidateFromModal = async (staffId, staffName) => {
+    if (!selectedShiftForEligibility) return;
+    setAssigningCandidateId(staffId);
+    try {
+      await assignStaffToShift(storeId, selectedShiftForEligibility.id, staffId);
+      showToast(`✓ Đã phân công ${staffName} vào ca thành công.`);
+      setShowEligibleCandidatesModal(false);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi phân công: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setAssigningCandidateId(null);
     }
   };
 
@@ -1433,6 +1496,15 @@ export default function MarketplacePage() {
                       {/* Cột trái của Card */}
                       <div className="mp-card-left">
                         <div className="mp-card-tag-row">
+                          {shift.note && shift.note.toLowerCase().includes('nghỉ phép') ? (
+                            <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '12px' }}>
+                              ⚠️ Nhu cầu phát sinh: Nghỉ phép đã duyệt
+                            </span>
+                          ) : (
+                            <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '3px 8px', borderRadius: '6px', fontWeight: 600, fontSize: '12px' }}>
+                              📋 Định biên lịch chưa đủ người
+                            </span>
+                          )}
                           {shift.isUrgent && (
                             <span className="mp-tag-urgent">Khẩn cấp: Ca làm trong ngày</span>
                           )}
@@ -1451,7 +1523,7 @@ export default function MarketplacePage() {
                           <span className="mp-shift-code">{shift.code}</span>
                         </h3>
 
-                        <p className="mp-card-note">
+                        <p className="mp-card-note" style={{ color: shift.note?.toLowerCase().includes('nghỉ phép') ? '#991b1b' : '#334155', fontWeight: shift.note?.toLowerCase().includes('nghỉ phép') ? 600 : 400 }}>
                           {shift.note || `Ca làm việc cần bổ sung nhân sự trực tiếp trên sàn điều phối. Thiếu: ${shift.missingRolesText}.`}
                         </p>
 
@@ -1465,6 +1537,58 @@ export default function MarketplacePage() {
                           <span className="mp-meta-item">
                             Vị trí: <strong>{shift.primarySkill}</strong>
                           </span>
+                        </div>
+
+                        {/* 4 Core Questions Architecture */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                          gap: '8px',
+                          background: '#f8fafc',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          marginTop: '12px',
+                          fontSize: '12px'
+                        }}>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>1. Địa điểm (Where)</span>
+                            <strong style={{ color: '#0f172a' }}>{shift.storeName}</strong> • {shift.primarySkill}
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>2. Lý do (Why)</span>
+                            <span style={{ color: shift.note?.toLowerCase().includes('nghỉ phép') ? '#b91c1c' : '#475569', fontWeight: 600 }}>
+                              {shift.note?.toLowerCase().includes('nghỉ phép') ? 'Nghỉ phép đột xuất đã duyệt' : 'Định biên lịch ban đầu'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>3. Ứng viên (Who)</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEligibleCandidates(shift)}
+                              style={{
+                                background: '#0284c7',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '4px 9px',
+                                borderRadius: '6px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              👥 Xem ứng viên đủ điều kiện
+                            </button>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>4. Thao tác (Next)</span>
+                            <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                              {shift.isPublishedToMp ? 'Đang mở trên sàn' : 'Chỉ định / Mở sàn'}
+                            </span>
+                          </div>
                         </div>
 
                         {shift.skills && shift.skills.length > 0 && (
@@ -1492,6 +1616,30 @@ export default function MarketplacePage() {
                         <div className="mp-wage-detail">
                           {shift.hourlyRate.toLocaleString()}đ/giờ x {shift.duration} giờ làm
                         </div>
+
+                        {/* Nút Xem ứng viên đủ điều kiện trực tiếp */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEligibleCandidates(shift)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            marginBottom: '10px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #0284c7',
+                            background: '#f0f9ff',
+                            color: '#0284c7',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>👥 Xem ứng viên đủ điều kiện</span>
+                        </button>
 
                         {/* Dropdown chỉ định nhanh nhân sự thật */}
                         <div className="mp-quick-assign-block">
@@ -2899,6 +3047,168 @@ export default function MarketplacePage() {
                 type="button"
                 className="mp-btn-header-secondary"
                 onClick={() => setShowRecordDetailModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 6: Xem Ứng Viên Đủ Điều Kiện (Grounded via Backend ShiftAssignmentValidator) */}
+      {showEligibleCandidatesModal && selectedShiftForEligibility && (
+        <div className="mp-modal-backdrop" onClick={() => setShowEligibleCandidatesModal(false)}>
+          <div className="mp-modal-card" style={{ maxWidth: '640px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <div>
+                <h3 className="mp-modal-title">Ứng Viên Đủ Điều Kiện Nhận Ca ({selectedShiftForEligibility.code})</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Kiểm duyệt tự động qua thuật toán: Không trùng ca, không quá 40h/tuần, đạt kỹ năng chuyên môn.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowEligibleCandidatesModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mp-modal-body" style={{ maxHeight: '450px', overflowY: 'auto' }}>
+              <div style={{
+                background: '#f8fafc',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                border: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '8px',
+                fontSize: '12.5px'
+              }}>
+                <div><strong>Vị trí:</strong> {selectedShiftForEligibility.primarySkill}</div>
+                <div><strong>Ngày làm:</strong> {fmtDateVN(selectedShiftForEligibility.shiftDate)}</div>
+                <div><strong>Khung giờ:</strong> {selectedShiftForEligibility.startTimeStr} - {selectedShiftForEligibility.endTimeStr}</div>
+                <div><strong>Thiếu quân số:</strong> <span style={{ color: '#dc2626', fontWeight: 700 }}>{selectedShiftForEligibility.missingCount} nhân sự</span></div>
+              </div>
+
+              {loadingEligibleCandidates ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
+                  <div style={{ fontSize: '20px', marginBottom: '8px' }}>⏳</div>
+                  <div>Đang tính toán nhân sự thỏa điều kiện qua ShiftAssignmentValidator...</div>
+                </div>
+              ) : eligibleCandidatesList.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#991b1b', fontSize: '15px' }}>Không có nhân viên nội bộ đủ điều kiện</h4>
+                  <p style={{ margin: 0, color: '#b91c1c', fontSize: '12.5px' }}>
+                    Tất cả nhân sự trong chi nhánh đều đã có ca trùng giờ, bị chặn ngày phép, hoặc đã chạm giới hạn 40 giờ/tuần.
+                  </p>
+                  <div style={{ marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="mp-btn-action-detail"
+                      onClick={() => {
+                        setShowEligibleCandidatesModal(false);
+                        setActiveTab('WORKFORCE');
+                      }}
+                      style={{ padding: '8px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      Sang Tab Mượn Nhân Sự Liên Chi Nhánh ➔
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>✓</span> Tìm thấy {eligibleCandidatesList.length} nhân viên đủ 100% điều kiện nhận ca:
+                  </div>
+
+                  {eligibleCandidatesList.map((c) => {
+                    const cId = c.staffId || c.id;
+                    const cName = c.staffFullName || c.fullName || 'Nhân sự';
+                    const isAssigning = assigningCandidateId === cId;
+                    return (
+                      <div
+                        key={cId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 14px',
+                          borderRadius: '8px',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '50%',
+                            background: '#e0f2fe',
+                            color: '#0284c7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '14px'
+                          }}>
+                            {cName[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '13.5px' }}>
+                              {cName}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>
+                              {c.staffEmail || 'Chưa cập nhật email'} • {c.contractType?.name || 'Hợp đồng chuẩn'}
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                              <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                                ✓ Đủ điều kiện
+                              </span>
+                              <span style={{ fontSize: '11px', background: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: '4px' }}>
+                                {c.systemRole || 'STAFF'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isAssigning}
+                          onClick={() => handleAssignCandidateFromModal(cId, cName)}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: '#16a34a',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            fontSize: '12.5px',
+                            cursor: isAssigning ? 'not-allowed' : 'pointer',
+                            opacity: isAssigning ? 0.6 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {isAssigning ? 'Đang gán...' : 'Gán vào ca'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-header-secondary"
+                onClick={() => setShowEligibleCandidatesModal(false)}
               >
                 Đóng
               </button>
