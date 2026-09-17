@@ -27,6 +27,8 @@ import com.shiftsync.store.entity.StoreConfiguration;
 import com.shiftsync.store.repository.SchedulerConfigurationRepository;
 import com.shiftsync.store.repository.StoreConfigurationRepository;
 import com.shiftsync.store.repository.StoreRepository;
+import com.shiftsync.layout.entity.StoreZone;
+import com.shiftsync.layout.entity.Workstation;
 import com.shiftsync.layout.service.SpatialAllocationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -124,11 +126,19 @@ public class AutoScheduleService {
     static class Slot {
         Shift shift;
         UUID skillId;
+        com.shiftsync.layout.entity.StoreZone zone;
+        com.shiftsync.layout.entity.Workstation workstation;
         int eligibleCandidates = 0;
         
         public Slot(Shift shift, UUID skillId) {
+            this(shift, skillId, null, null);
+        }
+
+        public Slot(Shift shift, UUID skillId, com.shiftsync.layout.entity.StoreZone zone, com.shiftsync.layout.entity.Workstation workstation) {
             this.shift = shift;
             this.skillId = skillId;
+            this.zone = zone;
+            this.workstation = workstation;
         }
     }
     
@@ -298,12 +308,55 @@ public class AutoScheduleService {
         // 3. Flatten Shifts into Slots
         List<Slot> slots = new ArrayList<>();
         for (Shift shift : draftShifts) {
+            List<ShiftAssignment> existingOnShift = Collections.emptyList();
+            if (shift.getId() != null) {
+                existingOnShift = shiftAssignmentRepository.findByShiftId(shift.getId());
+            } else if (shift.getAssignments() != null) {
+                existingOnShift = shift.getAssignments();
+            }
+            if (existingOnShift == null) {
+                existingOnShift = Collections.emptyList();
+            }
+            final List<ShiftAssignment> activeNonAuto = existingOnShift.stream()
+                    .filter(a -> !a.isDeleted() && a.getSource() != AssignmentSource.AUTO)
+                    .collect(Collectors.toList());
+
             if (shift.getRequirements().isEmpty()) {
-                slots.add(new Slot(shift, null));
+                int remainingDemand = Math.max(0, 1 - activeNonAuto.size());
+                for (int i = 0; i < remainingDemand; i++) {
+                    slots.add(new Slot(shift, null, null, null));
+                }
             } else {
                 for (ShiftSkillRequirement req : shift.getRequirements()) {
-                    for (int i = 0; i < req.getRequiredCount(); i++) {
-                        slots.add(new Slot(shift, req.getSkill().getId()));
+                    long assignedCount = 0;
+                    if (req.getSkill() != null) {
+                        UUID targetSkillId = req.getSkill().getId();
+                        assignedCount = activeNonAuto.stream()
+                                .filter(a -> {
+                                    if (targetSkillId.equals(a.getRequiredSkillId())) {
+                                        if (req.getZone() != null && a.getZone() != null) {
+                                            return req.getZone().getId().equals(a.getZone().getId());
+                                        }
+                                        return true;
+                                    }
+                                    if (a.getRequiredSkillId() == null && a.getStaff() != null) {
+                                        StaffData sd = staffMap.get(a.getStaff().getId());
+                                        if (sd != null && hasValidSkill(sd, targetSkillId, shift.getShiftDate())) {
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                })
+                                .count();
+                    } else {
+                        assignedCount = activeNonAuto.size();
+                    }
+                    if (assignedCount == 0 && shift.getRequirements().size() == 1) {
+                        assignedCount = activeNonAuto.size();
+                    }
+                    int remainingDemand = Math.max(0, req.getRequiredCount() - (int) assignedCount);
+                    for (int i = 0; i < remainingDemand; i++) {
+                        slots.add(new Slot(shift, req.getSkill() != null ? req.getSkill().getId() : null, req.getZone(), req.getWorkstation()));
                     }
                 }
             }
@@ -390,6 +443,8 @@ public class AutoScheduleService {
                     .shift(bestSlot.getShift())
                     .staff(bestEmp.getEmployment().getUser())
                     .requiredSkillId(bestSlot.getSkillId())
+                    .zone(bestSlot.getZone())
+                    .workstation(bestSlot.getWorkstation())
                     .source(AssignmentSource.AUTO)
                     .build();
             
@@ -558,18 +613,24 @@ public class AutoScheduleService {
                 staffY.setMonthlyShiftCount(staffY.getMonthlyShiftCount() + 1);
                 staffY.setMonthlyAssignedHours(staffY.getMonthlyAssignedHours() + otherDuration);
 
-                // Lưu lại requiredSkillId của otherShift trước khi cập nhật existingAssignment
+                // Lưu lại requiredSkillId, zone, workstation của otherShift trước khi cập nhật existingAssignment
                 UUID otherSkillId = existingAssignment.getRequiredSkillId();
+                StoreZone otherZone = existingAssignment.getZone();
+                Workstation otherWorkstation = existingAssignment.getWorkstation();
 
                 // Cập nhật currentAssignments: đổi existingAssignment từ staffX→otherShift thành staffX→unassignedSlot
                 existingAssignment.setShift(unassignedSlot.getShift());
                 existingAssignment.setRequiredSkillId(unassignedSlot.getSkillId());
+                existingAssignment.setZone(unassignedSlot.getZone());
+                existingAssignment.setWorkstation(unassignedSlot.getWorkstation());
 
                 // Thêm assignment mới: staffY → otherShift (kế thừa requiredSkillId gốc của otherShift)
                 ShiftAssignment backfillAssignment = ShiftAssignment.builder()
                         .shift(otherShift)
                         .staff(staffY.getEmployment().getUser())
                         .requiredSkillId(otherSkillId)
+                        .zone(otherZone)
+                        .workstation(otherWorkstation)
                         .source(AssignmentSource.AUTO)
                         .build();
                 currentAssignments.add(backfillAssignment);

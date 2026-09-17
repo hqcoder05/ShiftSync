@@ -60,15 +60,30 @@ public class ShiftAssignmentValidator {
             }
 
             List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
+            List<com.shiftsync.shift.entity.ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shift.getId()).stream()
+                    .filter(a -> !a.isDeleted())
+                    .collect(java.util.stream.Collectors.toList());
+
             boolean hasAnyRequiredSkill = false;
             boolean hasValidUnexpiredSkill = false;
+            boolean hasAvailableMatchingRequirement = false;
 
             for (ShiftSkillRequirement req : shift.getRequirements()) {
+                if (req.getSkill() == null) continue;
+
+                long assignedForSkill = existingAssignments.stream()
+                        .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
+                        .count();
+                if (assignedForSkill == 0 && shift.getRequirements().size() == 1) {
+                    assignedForSkill = existingAssignments.size();
+                }
+                boolean reqHasCapacity = assignedForSkill < req.getRequiredCount();
+
                 for (StaffSkill staffSkill : staffSkills) {
                     boolean skillMatches = staffSkill.getSkillId().equals(req.getSkill().getId());
                     if (!skillMatches) {
                         Skill s = skillRepository.findById(staffSkill.getSkillId()).orElse(null);
-                        if (s != null && s.getName() != null && req.getSkill() != null && req.getSkill().getName() != null) {
+                        if (s != null && s.getName() != null && req.getSkill().getName() != null) {
                             skillMatches = s.getName().trim().equalsIgnoreCase(req.getSkill().getName().trim());
                         }
                     }
@@ -77,12 +92,15 @@ public class ShiftAssignmentValidator {
                         hasAnyRequiredSkill = true;
                         if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
                             hasValidUnexpiredSkill = true;
+                            if (reqHasCapacity) {
+                                hasAvailableMatchingRequirement = true;
+                            }
                         }
                     }
                 }
             }
 
-            if (!hasAnyRequiredSkill || !hasValidUnexpiredSkill) {
+            if (!hasAnyRequiredSkill || !hasValidUnexpiredSkill || !hasAvailableMatchingRequirement) {
                 return false;
             }
         }
@@ -120,29 +138,40 @@ public class ShiftAssignmentValidator {
             throw new BusinessException("Staff not available: Has blackout date on shift day", HttpStatus.BAD_REQUEST);
         }
 
-        // Slot capacity Check
-        if (!shift.getRequirements().isEmpty()) {
+        // Slot capacity and per-skill capacity Check
+        if (shift.getRequirements() != null && !shift.getRequirements().isEmpty()) {
             int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shift.getId());
             int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
             
             if (currentAssignedCount >= maxSlots) {
                 throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
             }
-        }
 
-        // Skill Checking
-        if (!shift.getRequirements().isEmpty()) {
             List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
-            
+            List<com.shiftsync.shift.entity.ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shift.getId()).stream()
+                    .filter(a -> !a.isDeleted())
+                    .collect(java.util.stream.Collectors.toList());
+
             boolean hasAnyRequiredSkill = false;
             boolean hasValidUnexpiredSkill = false;
+            boolean hasAvailableMatchingRequirement = false;
 
             for (ShiftSkillRequirement req : shift.getRequirements()) {
+                if (req.getSkill() == null) continue;
+
+                long assignedForSkill = existingAssignments.stream()
+                        .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
+                        .count();
+                if (assignedForSkill == 0 && shift.getRequirements().size() == 1) {
+                    assignedForSkill = existingAssignments.size();
+                }
+                boolean reqHasCapacity = assignedForSkill < req.getRequiredCount();
+
                 for (StaffSkill staffSkill : staffSkills) {
                     boolean skillMatches = staffSkill.getSkillId().equals(req.getSkill().getId());
                     if (!skillMatches) {
                         Skill s = skillRepository.findById(staffSkill.getSkillId()).orElse(null);
-                        if (s != null && s.getName() != null && req.getSkill() != null && req.getSkill().getName() != null) {
+                        if (s != null && s.getName() != null && req.getSkill().getName() != null) {
                             skillMatches = s.getName().trim().equalsIgnoreCase(req.getSkill().getName().trim());
                         }
                     }
@@ -152,6 +181,9 @@ public class ShiftAssignmentValidator {
                         
                         if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
                             hasValidUnexpiredSkill = true; // Level 2 passed
+                            if (reqHasCapacity) {
+                                hasAvailableMatchingRequirement = true; // Level 3: per-skill capacity passed
+                            }
                         }
                     }
                 }
@@ -163,6 +195,10 @@ public class ShiftAssignmentValidator {
             
             if (!hasValidUnexpiredSkill) {
                 throw new BusinessException("Staff's required skill has expired", HttpStatus.BAD_REQUEST);
+            }
+
+            if (!hasAvailableMatchingRequirement) {
+                throw new BusinessException("Slot full: Shift requirement capacity reached for matching skill", HttpStatus.BAD_REQUEST);
             }
         }
     }

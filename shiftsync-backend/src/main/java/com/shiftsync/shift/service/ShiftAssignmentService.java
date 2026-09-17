@@ -5,9 +5,11 @@ import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.enums.PayrollPeriodStatus;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
 import com.shiftsync.shift.entity.Shift;
@@ -94,7 +96,7 @@ public class ShiftAssignmentService {
 
         shiftAssignmentValidator.validateEligibility(shift, staffId, force);
 
-        // Resolve best matching zone and skill for this employee
+        // Resolve best matching zone and skill for this employee based on available requirement capacity
         StoreZone assignedZone = null;
         if (requestedZoneId != null) {
             assignedZone = storeZoneRepository.findById(requestedZoneId).orElse(null);
@@ -102,22 +104,57 @@ public class ShiftAssignmentService {
 
         UUID matchedSkillId = null;
 
+        List<ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shiftId).stream()
+                .filter(a -> !a.isDeleted())
+                .collect(Collectors.toList());
         List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
         List<StoreZone> storeZones = storeZoneRepository.findByStoreId(storeId);
 
-        // 1. Check if shift has explicit requirements with zones that match staff skills
-        if (assignedZone == null && shift.getRequirements() != null && !shift.getRequirements().isEmpty()) {
+        // 1. Check if shift has explicit requirements that match staff skills and have remaining capacity
+        if (shift.getRequirements() != null && !shift.getRequirements().isEmpty()) {
+            List<ShiftSkillRequirement> candidateReqs = new ArrayList<>();
             for (ShiftSkillRequirement req : shift.getRequirements()) {
-                if (req.getSkill() != null) {
-                    boolean staffHasSkill = staffSkills.stream()
-                            .anyMatch(ss -> ss.getSkillId().equals(req.getSkill().getId()));
-                    if (staffHasSkill) {
-                        matchedSkillId = req.getSkill().getId();
-                        if (req.getZone() != null) {
-                            assignedZone = req.getZone();
-                            break;
-                        }
-                    }
+                if (req.getSkill() == null) continue;
+
+                boolean staffHasSkill = staffSkills.stream()
+                        .anyMatch(ss -> {
+                            boolean idMatch = ss.getSkillId().equals(req.getSkill().getId());
+                            if (!idMatch) {
+                                Skill s = skillRepository.findById(ss.getSkillId()).orElse(null);
+                                if (s != null && s.getName() != null && req.getSkill().getName() != null) {
+                                    idMatch = s.getName().trim().equalsIgnoreCase(req.getSkill().getName().trim());
+                                }
+                            }
+                            return idMatch && (ss.getExpirationDate() == null || !ss.getExpirationDate().isBefore(shift.getShiftDate()));
+                        });
+                if (!staffHasSkill) continue;
+
+                long currentAssigned = existingAssignments.stream()
+                        .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
+                        .count();
+                if (currentAssigned == 0 && shift.getRequirements().size() == 1) {
+                    currentAssigned = existingAssignments.size();
+                }
+
+                if (currentAssigned < req.getRequiredCount()) {
+                    candidateReqs.add(req);
+                }
+            }
+
+            if (!candidateReqs.isEmpty()) {
+                ShiftSkillRequirement chosenReq;
+                if (requestedZoneId != null) {
+                    chosenReq = candidateReqs.stream()
+                            .filter(r -> r.getZone() != null && r.getZone().getId().equals(requestedZoneId))
+                            .findFirst()
+                            .orElse(candidateReqs.get(0));
+                } else {
+                    chosenReq = candidateReqs.get(0);
+                }
+
+                matchedSkillId = chosenReq.getSkill().getId();
+                if (assignedZone == null && chosenReq.getZone() != null) {
+                    assignedZone = chosenReq.getZone();
                 }
             }
         }
@@ -146,6 +183,11 @@ public class ShiftAssignmentService {
         // 3. Fallback: if still null, pick first available zone
         if (assignedZone == null && !storeZones.isEmpty()) {
             assignedZone = storeZones.get(0);
+        }
+
+        // Fallback for matchedSkillId: if still null, use staff's first skill
+        if (matchedSkillId == null && !staffSkills.isEmpty()) {
+            matchedSkillId = staffSkills.get(0).getSkillId();
         }
 
         ShiftAssignment assignment = ShiftAssignment.builder()
