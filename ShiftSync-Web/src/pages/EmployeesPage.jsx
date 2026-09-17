@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import PayrollPage from './PayrollPage';
 import Sidebar from '../components/Sidebar';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
@@ -43,6 +44,10 @@ const getEmployeeAvatar = (emp) => {
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const currentTab = searchParams.get('tab') === 'payroll' ? 'payroll' : 'staff';
+
   const [employees, setEmployees] = useState([]);
   const [stores, setStores] = useState([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -302,20 +307,54 @@ export default function EmployeesPage() {
   }, [showModal]);
 
   return (
-    <div className="emp-page">
-      {/* Black Toast */}
-      {toastMsg && <div className="black-toast">{toastMsg}</div>}
+    <div className="emp-page-container">
+      {/* ═══ DOMAIN SUBTAB BAR ═══ */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', background: '#fff', padding: '0 24px' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/employees', { replace: true })}
+          style={{
+            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
+            borderBottom: currentTab === 'staff' ? '3px solid #0d9488' : '3px solid transparent',
+            color: currentTab === 'staff' ? '#0d9488' : '#64748b',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          👥 Danh sách nhân viên
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/employees?tab=payroll', { replace: true })}
+          style={{
+            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
+            borderBottom: currentTab === 'payroll' ? '3px solid #0d9488' : '3px solid transparent',
+            color: currentTab === 'payroll' ? '#0d9488' : '#64748b',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          💰 Bảng lương (Payroll)
+        </button>
+      </div>
 
-      <Sidebar
-        search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
-        pageNav={{
-          currentTo: '/employees',
-          options: [
-            { to: '/employees', label: 'Người dùng' },
-            { to: '/stores', label: 'Chi nhánh & Vị trí' },
-          ],
-        }}
-      />
+      {currentTab === 'payroll' ? (
+        <div style={{ padding: '0' }}>
+          <PayrollPage />
+        </div>
+      ) : (
+        <div className="emp-page">
+          {/* Black Toast */}
+          {toastMsg && <div className="black-toast">{toastMsg}</div>}
+
+          <Sidebar
+            search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
+            pageNav={{
+              currentTo: '/employees',
+              options: [
+                { to: '/employees', label: 'Người dùng' },
+                { to: '/stores', label: 'Chi nhánh & Vị trí' },
+              ],
+            }}
+          />
 
       <main className="emp-main">
         {/* Page Header with Add CTA */}
@@ -740,6 +779,8 @@ export default function EmployeesPage() {
         }}
         onClose={() => setShowAvatarModal(false)}
       />
+        </div>
+      )}
     </div>
   );
 }

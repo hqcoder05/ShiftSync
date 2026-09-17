@@ -32,13 +32,10 @@ import Avatar3DWeb from './Avatar3DWeb';
 import { AVATAR_OPTIONS, getAvatarById } from './avatarConfigs';
 const NAV_ITEMS = [
   { to: '/', label: 'DASHBOARD', key: 'dashboard' },
-  { to: '/schedule', label: 'SCHEDULER', key: 'scheduler' },
-  { to: '/availability', label: 'AVAILABILITY', key: 'availability', aliases: ['/staff-availability'] },
-  { to: '/time-workforce', label: 'TIME & WORKFORCE', key: 'time-workforce', aliases: ['/attendance'], title: 'Quản lý thời gian làm việc & trạng thái nhân sự' },
+  { to: '/schedule', label: 'WORKFORCE SCHEDULING', key: 'scheduler', aliases: ['/availability', '/staff-availability'], title: 'Lập lịch & Quản lý khả năng nhân sự' },
+  { to: '/time-workforce', label: 'TIME & WORKFORCE', key: 'time-workforce', aliases: ['/attendance', '/requests', '/request'], title: 'Quản lý thời gian làm việc & trạng thái nhân sự' },
   { to: '/marketplace', label: 'MARKETPLACE', key: 'marketplace' },
-  { to: '/requests', label: 'REQUESTS', key: 'requests', aliases: ['/request', '/reports'] },
-  { to: '/payroll', label: 'PAYROLL', key: 'payroll' },
-  { to: '/employees', label: 'EMPLOYEES', key: 'employees', aliases: ['/skills', '/stores'], roles: ['ADMIN', 'MANAGER'] },
+  { to: '/employees', label: 'EMPLOYEES', key: 'employees', aliases: ['/skills', '/stores', '/payroll'], roles: ['ADMIN', 'MANAGER'] },
   { to: '/admin', label: 'ADMIN', key: 'admin', roles: ['ADMIN'] },
 ];
 
@@ -653,8 +650,7 @@ export default function Header() {
           const isCustomActive = item.aliases && item.aliases.includes(location.pathname);
           const twCount = item.key === 'time-workforce' ? (pendingLeaveCount + pendingAdjCount) : 0;
           const mktCount = item.key === 'marketplace' ? (openShiftsCount + pendingSwapCount + pendingWorkforceCount) : 0;
-          const reqCount = item.key === 'requests' ? pendingStaffReqCount : 0;
-          const badgeCount = twCount || mktCount || reqCount;
+          const badgeCount = twCount || mktCount;
 
           return (
             <NavLink

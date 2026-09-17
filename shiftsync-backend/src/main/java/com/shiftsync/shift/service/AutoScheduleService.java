@@ -70,6 +70,7 @@ public class AutoScheduleService {
     private final StoreRepository storeRepository;
     private final HeadcountQuotaService headcountQuotaService;
     private final SpatialAllocationService spatialAllocationService;
+    private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
     @Autowired
     public AutoScheduleService(
@@ -83,7 +84,8 @@ public class AutoScheduleService {
             SchedulerConfigurationRepository schedulerConfigRepo,
             StoreRepository storeRepository,
             HeadcountQuotaService headcountQuotaService,
-            @Autowired(required = false) SpatialAllocationService spatialAllocationService) {
+            @Autowired(required = false) SpatialAllocationService spatialAllocationService,
+            @Autowired(required = false) com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository) {
         this.shiftRepository = shiftRepository;
         this.shiftAssignmentRepository = shiftAssignmentRepository;
         this.employmentRepository = employmentRepository;
@@ -95,6 +97,7 @@ public class AutoScheduleService {
         this.storeRepository = storeRepository;
         this.headcountQuotaService = headcountQuotaService;
         this.spatialAllocationService = spatialAllocationService;
+        this.leaveRequestRepository = leaveRequestRepository;
     }
 
     public AutoScheduleService(
@@ -109,7 +112,7 @@ public class AutoScheduleService {
             StoreRepository storeRepository,
             HeadcountQuotaService headcountQuotaService) {
         this(shiftRepository, shiftAssignmentRepository, employmentRepository, staffSkillRepository,
-             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, storeRepository, headcountQuotaService, null);
+             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, storeRepository, headcountQuotaService, null, null);
     }
 
     // Overload for benchmark tests
@@ -123,7 +126,7 @@ public class AutoScheduleService {
             StoreConfigurationRepository storeConfigRepo,
             SchedulerConfigurationRepository schedulerConfigRepo) {
         this(shiftRepository, shiftAssignmentRepository, employmentRepository, staffSkillRepository,
-             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, null, null, null);
+             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, null, null, null, null);
     }
 
     // Helper classes for processing
@@ -153,6 +156,7 @@ public class AutoScheduleService {
         List<StaffSkill> skills;
         List<Availability> availabilities;
         List<BlackoutDate> blackoutDates;
+        Set<LocalDate> approvedLeaveDates;
         List<Shift> currentSchedule; // both existing assignments and newly assigned
         double assignedHours = 0;
         int monthlyShiftCount = 0; // TỔNG SỐ CA TRONG THÁNG (BA Fairness - Lỗi 1)
@@ -317,6 +321,22 @@ public class AutoScheduleService {
                         Collectors.summingDouble(a -> getDurationInHours(a.getShift()))
                 ));
 
+        Map<UUID, Set<LocalDate>> leaveMap = new HashMap<>();
+        if (leaveRequestRepository != null) {
+            leaveRequestRepository.findByStoreIdAndStatus(storeId, com.shiftsync.leave.enums.LeaveStatus.APPROVED)
+                    .forEach(lr -> {
+                        if (lr.getStaff() != null && lr.getStartDate() != null && lr.getEndDate() != null) {
+                            UUID sid = lr.getStaff().getId();
+                            leaveMap.computeIfAbsent(sid, k -> new HashSet<>());
+                            LocalDate cur = lr.getStartDate();
+                            while (!cur.isAfter(lr.getEndDate())) {
+                                leaveMap.get(sid).add(cur);
+                                cur = cur.plusDays(1);
+                            }
+                        }
+                    });
+        }
+
         Map<UUID, StaffData> staffMap = new HashMap<>();
         
         for (Employment emp : activeEmployments) {
@@ -326,6 +346,7 @@ public class AutoScheduleService {
             data.setSkills(skillsMap.getOrDefault(sid, Collections.emptyList()));
             data.setAvailabilities(availabilityMap.getOrDefault(sid, Collections.emptyList()));
             data.setBlackoutDates(blackoutMap.getOrDefault(sid, Collections.emptyList()));
+            data.setApprovedLeaveDates(leaveMap.getOrDefault(sid, Collections.emptySet()));
             
             List<ShiftAssignment> existingAssignments = assignmentsMap.getOrDefault(sid, Collections.emptyList());
             
@@ -1003,6 +1024,11 @@ public class AutoScheduleService {
         boolean isBlackout = empData.getBlackoutDates().stream()
                 .anyMatch(b -> b.getDate().equals(shift.getShiftDate()));
         if (isBlackout) return true;
+
+        // Check Approved Leaves
+        if (empData.getApprovedLeaveDates() != null && empData.getApprovedLeaveDates().contains(shift.getShiftDate())) {
+            return true;
+        }
         
         // Availability Check: Staff MUST have an availability slot covering the shift
         short shiftDayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);

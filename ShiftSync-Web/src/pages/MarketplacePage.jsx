@@ -158,24 +158,21 @@ export default function MarketplacePage() {
     if (urlTab === 'SWAP' || urlTab === 'SWAPS') return 'SWAP';
     if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') return 'OPEN';
     if (urlTab === 'FILLED') return 'FILLED';
-    if (urlTab === 'ADJUSTMENT') return 'ADJUSTMENT';
-    if (urlTab === 'PROPOSAL') return 'PROPOSAL';
     return 'OPEN';
   };
 
   // Tabs & Views
-  const [activeTab, setActiveTab] = useState(getInitialTab); // 'OPEN' | 'SWAP' | 'ADJUSTMENT' | 'WORKFORCE' | 'PROPOSAL' | 'FILLED'
+  const [activeTab, setActiveTab] = useState(getInitialTab); // 'OPEN' | 'SWAP' | 'WORKFORCE' | 'FILLED'
   const [workforceSubTab, setWorkforceSubTab] = useState('INCOMING'); // 'INCOMING' | 'OUTGOING'
   const [sortBy, setSortBy] = useState('URGENCY');
   const [showUrgentBanner, setShowUrgentBanner] = useState(true);
+  const [shiftEligibleStaffMap, setShiftEligibleStaffMap] = useState({});
 
   useEffect(() => {
     if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') setActiveTab('WORKFORCE');
     else if (urlTab === 'SWAP' || urlTab === 'SWAPS') setActiveTab('SWAP');
     else if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') setActiveTab('OPEN');
     else if (urlTab === 'FILLED') setActiveTab('FILLED');
-    else if (urlTab === 'ADJUSTMENT') setActiveTab('ADJUSTMENT');
-    else if (urlTab === 'PROPOSAL') setActiveTab('PROPOSAL');
   }, [urlTab]);
 
   // Eligible Candidates Modal (Calling backend ShiftAssignmentValidator)
@@ -453,11 +450,50 @@ export default function MarketplacePage() {
     return understaffedShifts.filter((s) => !s.isPublishedToMp);
   }, [understaffedShifts]);
 
-  // 7. Dynamic Smart Recommendation Candidates for a Shift
+  // 6.2. Fetch eligible candidates from backend Source of Truth for open shifts
+  useEffect(() => {
+    if (!storeId || !understaffedShifts || understaffedShifts.length === 0) return;
+    understaffedShifts.forEach((shift) => {
+      if (shift?.id && !shiftEligibleStaffMap[shift.id]) {
+        getEligibleStaffForShift(storeId, shift.id)
+          .then((res) => {
+            const list = Array.isArray(res.data) ? res.data : [];
+            setShiftEligibleStaffMap((prev) => ({ ...prev, [shift.id]: list }));
+          })
+          .catch(() => {});
+      }
+    });
+  }, [storeId, understaffedShifts]);
+
+  // 7. Dynamic Smart Recommendation Candidates for a Shift (backed by Backend Source of Truth)
   const getSmartCandidatesForShift = (shift) => {
     const shiftDuration = shift.duration || calcShiftDurationHours(shift.startTime, shift.endTime);
-    const targetSkill = (shift.primarySkill || '').toLowerCase().trim();
+    const backendEligible = shiftEligibleStaffMap[shift.id];
 
+    // Source of Truth: Backend ShiftAssignmentValidator response
+    if (backendEligible && Array.isArray(backendEligible)) {
+      return backendEligible.map((emp) => {
+        const id = emp.staffId || emp.id || emp.userId;
+        const currentHours = staffWeeklyHours[id] || 0;
+        const newHours = currentHours + shiftDuration;
+        return {
+          id,
+          name: emp.staffFullName || emp.fullName || 'Nhân sự đủ chuẩn',
+          role: emp.skillName || emp.position || emp.jobTitle || 'Nhân viên',
+          currentHours,
+          newHours,
+          weeklyHours: `${currentHours}/40h ${newHours <= 32 ? '(An toàn)' : '(Đạt chuẩn)'}`,
+          matchRate: '100% đạt chuẩn backend',
+          tag: 'Đủ điều kiện',
+          tagType: newHours <= 32 ? 'REC' : 'VALID',
+          canAssign: true,
+          otWarning: null,
+        };
+      }).slice(0, 3);
+    }
+
+    // Fallback: Initial local recommendation before async fetch resolves
+    const targetSkill = (shift.primarySkill || '').toLowerCase().trim();
     return employees
       .map((emp) => {
         const id = emp.staffId || emp.id;
@@ -499,10 +535,11 @@ export default function MarketplacePage() {
           otWarning,
         };
       })
+      .filter((c) => c.canAssign)
       .sort((a, b) => {
         const order = { REC: 1, VALID: 2, OT: 3 };
         if (order[a.tagType] !== order[b.tagType]) return order[a.tagType] - order[b.tagType];
-        return a.newHours - b.newHours; // Ưu tiên người ít giờ hơn
+        return a.newHours - b.newHours;
       })
       .slice(0, 3);
   };
@@ -1431,18 +1468,7 @@ export default function MarketplacePage() {
                   <span className="mp-tab-badge">{allSwapRequests.length}</span>
                 )}
               </button>
-              <button
-                type="button"
-                className={`mp-tab-btn ${activeTab === 'ADJUSTMENT' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ADJUSTMENT')}
-              >
-                <span>Giải trình chấm công</span>
-                {pendingAdjustmentCount > 0 ? (
-                  <span className="mp-tab-badge badge-yellow">{pendingAdjustmentCount} chờ xử lý</span>
-                ) : (
-                  <span className="mp-tab-badge">{adjustmentsList.length}</span>
-                )}
-              </button>
+
               <button
                 type="button"
                 className={`mp-tab-btn ${activeTab === 'WORKFORCE' ? 'active' : ''}`}
@@ -1455,18 +1481,7 @@ export default function MarketplacePage() {
                   <span className="mp-tab-badge">{incomingWorkforce.length}</span>
                 )}
               </button>
-              <button
-                type="button"
-                className={`mp-tab-btn ${activeTab === 'PROPOSAL' ? 'active' : ''}`}
-                onClick={() => setActiveTab('PROPOSAL')}
-              >
-                <span>Đề xuất nhân sự</span>
-                {pendingStaffRequestCount > 0 ? (
-                  <span className="mp-tab-badge badge-yellow">{pendingStaffRequestCount} chờ xử lý</span>
-                ) : (
-                  <span className="mp-tab-badge">{staffRequestsList.length}</span>
-                )}
-              </button>
+
               <button
                 type="button"
                 className={`mp-tab-btn ${activeTab === 'FILLED' ? 'active' : ''}`}

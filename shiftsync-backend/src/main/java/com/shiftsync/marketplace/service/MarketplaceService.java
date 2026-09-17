@@ -31,6 +31,7 @@ public class MarketplaceService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final RedissonClient redissonClient;
     private final com.shiftsync.shift.service.ShiftValidationService shiftValidationService;
+    private final com.shiftsync.shift.service.ShiftAssignmentValidator shiftAssignmentValidator;
     private final com.shiftsync.auth.repository.UserRepository userRepository;
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
@@ -154,8 +155,8 @@ public class MarketplaceService {
                 throw new BusinessException("Ca này đã có người nhanh tay nhận mất!", HttpStatus.CONFLICT);
             }
 
-            // Validate conflicts
-            shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
+            // Unified eligibility validation (skill, availability, blackout, leave, weekly hours, capacity)
+            shiftAssignmentValidator.validateEligibility(shift, staffId, false);
 
             com.shiftsync.auth.entity.User staff = userRepository.findById(staffId)
                     .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));

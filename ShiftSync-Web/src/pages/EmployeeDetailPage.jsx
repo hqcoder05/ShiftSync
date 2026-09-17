@@ -918,7 +918,15 @@ export default function EmployeeDetailPage() {
             onClick={() => setActiveTab('attendance')}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>receipt_long</span>
-            <span>Lịch sử chấm công &amp; Bảng lương</span>
+            <span>Lịch sử chấm công</span>
+          </button>
+          <button
+            type="button"
+            className={`ed-tab-btn ${activeTab === 'payroll' ? 'active' : ''}`}
+            onClick={() => setActiveTab('payroll')}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>payments</span>
+            <span>Bảng lương &amp; Thu nhập</span>
           </button>
           <button
             type="button"
@@ -930,6 +938,105 @@ export default function EmployeeDetailPage() {
           </button>
         </div>
       </section>
+
+      {/* =================================================================
+          4A. Dedicated Payroll & Payslip View (when activeTab === 'payroll')
+          ================================================================= */}
+      {activeTab === 'payroll' && (
+        <section style={{ maxWidth: '1440px', margin: '0 auto 24px auto', padding: '0 24px' }}>
+          <div className="ed-card" style={{ padding: '24px' }}>
+            <div className="ed-card-header" style={{ marginBottom: '20px' }}>
+              <div className="ed-card-header-left">
+                <div className="ed-card-icon-box" style={{ backgroundColor: 'rgba(13, 148, 136, 0.1)', color: '#0d9488' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>payments</span>
+                </div>
+                <div>
+                  <h3 className="ed-card-title" style={{ fontSize: '18px' }}>Phiếu lương &amp; Thu nhập tạm tính</h3>
+                  <span style={{ fontSize: '13px', color: 'var(--emp-outline)' }}>Thống kê chi tiết công và mức lương áp dụng tháng hiện tại</span>
+                </div>
+              </div>
+              <Link
+                to="/employees?tab=payroll"
+                className="ed-btn-primary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+              >
+                <span>Xem Bảng Lương Toàn Cục</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_forward</span>
+              </Link>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Lương giờ cơ bản</span>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                  {hourlyRateNum.toLocaleString('vi-VN')} đ/h
+                </div>
+                <span style={{ fontSize: '11px', color: '#0d9488', marginTop: '4px', display: 'block' }}>Theo hợp đồng lao động</span>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng giờ làm tháng này</span>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                  {kpis.monthHours} giờ
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>Chỉ tiêu: {kpis.targetHours}h ({kpis.targetPercent}%)</span>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                <span style={{ fontSize: '12px', color: '#166534', fontWeight: 600 }}>Thu nhập tạm tính</span>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
+                  {Number(kpis.estimatedSalary).toLocaleString('vi-VN')} đ
+                </div>
+                <span style={{ fontSize: '11px', color: '#166534', marginTop: '4px', display: 'block' }}>Đã tính theo số ca thực tế</span>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Điểm chuyên cần</span>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                  {kpis.attScore}%
+                </div>
+                <span style={{ fontSize: '11px', color: kpis.noLateThisWeek ? '#0d9488' : '#eab308', marginTop: '4px', display: 'block' }}>
+                  {kpis.noLateThisWeek ? '✓ Không trễ ca tuần này' : '⚠️ Có trễ ca phát sinh'}
+                </span>
+              </div>
+            </div>
+
+            {/* Pay matrix table */}
+            <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 12px 0', color: '#1e293b' }}>Định mức thù lao theo từng vị trí kiêm nhiệm:</h4>
+            <div className="ed-pay-table-wrapper">
+              <table className="ed-pay-table">
+                <thead>
+                  <tr>
+                    <th>Vị trí chuyên môn</th>
+                    <th>Loại hình</th>
+                    <th>Mức lương chuẩn</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payMatrix.map(pm => (
+                    <tr key={pm.id}>
+                      <td className="ed-skill-cell">
+                        <span className="ed-skill-dot" style={{ backgroundColor: pm.color }}></span>
+                        {pm.name}
+                      </td>
+                      <td style={{ color: 'var(--emp-outline)' }}>{pm.type}</td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 700, color: pm.type === 'Định mức chính' ? 'var(--emp-primary)' : 'var(--emp-on-surface)' }}>
+                        {pm.rate}
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#0d9488', fontWeight: 600 }}>
+                          ✓ Đang áp dụng
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* =================================================================
           4. Main Profile View (2-Column Dense Grid)

@@ -28,10 +28,17 @@ public class ShiftAssignmentValidator {
     private final StaffSkillRepository staffSkillRepository;
     private final SkillRepository skillRepository;
     private final ShiftValidationService shiftValidationService;
+    private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
     @Transactional(readOnly = true)
     public boolean isEligible(Shift shift, UUID staffId) {
         if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {
+            return false;
+        }
+
+        boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
+                .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+        if (hasApprovedLeave) {
             return false;
         }
 
@@ -136,6 +143,13 @@ public class ShiftAssignmentValidator {
         boolean hasBlackout = blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate());
         if (hasBlackout) {
             throw new BusinessException("Staff not available: Has blackout date on shift day", HttpStatus.BAD_REQUEST);
+        }
+
+        // Approved Leave Request Check
+        boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
+                .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+        if (hasApprovedLeave) {
+            throw new BusinessException("Nhân viên có lịch nghỉ phép đã được phê duyệt vào ngày này", HttpStatus.BAD_REQUEST);
         }
 
         // Slot capacity and per-skill capacity Check

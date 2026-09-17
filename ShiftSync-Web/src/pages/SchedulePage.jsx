@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import StaffAvailabilityPage from './StaffAvailabilityPage';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
@@ -329,8 +330,23 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
 /* ── Component ────────────────────────────────────────────── */
 export default function SchedulePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const userRole = localStorage.getItem('userRole') || 'STAFF';
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+
+  /* -- Sub-tab: "Lập lịch" vs "Khả dụng nhân viên" -- */
+  const [scheduleSubTab, setScheduleSubTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') === 'availability' ? 'availability' : 'board';
+  });
+
+  // Sync subtab when URL changes (e.g. from Header alias click)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab === 'availability') setScheduleSubTab('availability');
+    else if (!tab) setScheduleSubTab('board');
+  }, [location.search]);
 
   /* -- data state -- */
   const [stores, setStores] = useState([]);
@@ -1592,8 +1608,43 @@ export default function SchedulePage() {
   /* ── Render ────────────────────────────────────── */
   return (
     <div className="sch-page">
+      {/* ═══ DOMAIN SUBTAB BAR ═══ */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', background: '#fff', padding: '0 24px' }}>
+        <button
+          type="button"
+          onClick={() => { setScheduleSubTab('board'); navigate('/schedule', { replace: true }); }}
+          style={{
+            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
+            borderBottom: scheduleSubTab === 'board' ? '3px solid #0d9488' : '3px solid transparent',
+            color: scheduleSubTab === 'board' ? '#0d9488' : '#64748b',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          📅 Lập lịch & Bảng ca
+        </button>
+        <button
+          type="button"
+          onClick={() => { setScheduleSubTab('availability'); navigate('/schedule?tab=availability', { replace: true }); }}
+          style={{
+            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
+            borderBottom: scheduleSubTab === 'availability' ? '3px solid #0d9488' : '3px solid transparent',
+            color: scheduleSubTab === 'availability' ? '#0d9488' : '#64748b',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          👥 Khả dụng nhân viên
+        </button>
+      </div>
+
+      {/* ═══ AVAILABILITY SUB-TAB: embed StaffAvailabilityPage ═══ */}
+      {scheduleSubTab === 'availability' && (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <StaffAvailabilityPage />
+        </div>
+      )}
+
       {/* ═══ MAIN (Full width layout, sidebar removed per user request) ═══ */}
-      <main className="sch-main">
+      {scheduleSubTab === 'board' && <main className="sch-main">
         {/* ═══ TOPBAR (Row 1: Ngày/Tuần Toggle & Capsule Action Box - Ảnh 1) ═══ */}
         <div className="sch-topbar">
           <div className="sch-viewmode-toggle">
@@ -2416,7 +2467,7 @@ export default function SchedulePage() {
         </div>
       </div>
         )}
-      </main>
+      </main>}
 
       {/* ═══ MODAL: Tạo lịch làm việc ═══ */}
       {showRegisterModal && (
