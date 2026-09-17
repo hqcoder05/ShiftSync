@@ -264,7 +264,7 @@ public class AutoScheduleService {
         List<UUID> draftShiftIds = draftShifts.stream().map(Shift::getId).collect(Collectors.toList());
         List<ShiftAssignment> existingAutoAssignments = draftShiftIds.stream()
                 .flatMap(sid -> shiftAssignmentRepository.findByShiftId(sid).stream())
-                .filter(a -> a.getSource() == AssignmentSource.AUTO)
+                .filter(a -> !a.isDeleted() && a.getSource() == AssignmentSource.AUTO)
                 .collect(Collectors.toList());
         if (!existingAutoAssignments.isEmpty()) {
             shiftAssignmentRepository.deleteAll(existingAutoAssignments);
@@ -298,12 +298,15 @@ public class AutoScheduleService {
         LocalDate extendedEndDate = bufferEnd.isAfter(isoEnd) ? bufferEnd : isoEnd;
 
         Map<UUID, List<ShiftAssignment>> assignmentsMap = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, extendedStartDate, extendedEndDate).stream()
+                .filter(a -> !a.isDeleted())
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId()));
 
         // Lỗi 5: Tính tổng giờ đã làm trong tháng (không phụ thuộc độ dài ca 8h)
         LocalDate monthStart = request.getStartDate().withDayOfMonth(1);
         LocalDate monthEnd = request.getEndDate().withDayOfMonth(request.getEndDate().lengthOfMonth());
-        List<ShiftAssignment> monthlyAssignments = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, monthStart, monthEnd);
+        List<ShiftAssignment> monthlyAssignments = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, monthStart, monthEnd).stream()
+                .filter(a -> !a.isDeleted())
+                .collect(Collectors.toList());
 
         Map<UUID, Long> monthlyShiftCountMap = monthlyAssignments.stream()
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId(), Collectors.counting()));
@@ -480,7 +483,9 @@ public class AutoScheduleService {
                             // khiến PT bị dồn ca tới ~60% còn FT bị ép xuống ~36.6%. Dùng utilizationRatio đảm bảo công bằng tương đối theo dung lượng hợp đồng.
                             .thenComparing(Comparator.comparingDouble(StaffData::getUtilizationRatio).reversed())
                             // Tie-break 2: Hash động kết hợp shiftId + userId để không bao giờ thiên vị cố định một nhân viên giữa các slot
-                            .thenComparing(empData -> (long) java.util.Objects.hash(finalSlot.getShift().getId(), empData.getEmployment().getUser().getId())))
+                            .thenComparing(empData -> (long) java.util.Objects.hash(finalSlot.getShift().getId(), empData.getEmployment().getUser().getId()))
+                            // Tie-break 3: Fallback định danh tuyệt đối bằng userId để đảm bảo tính tất định 100%
+                            .thenComparing(empData -> empData.getEmployment().getUser().getId()))
                     .orElse(bestSlotCandidates.get(0));
 
             // 8. Make Assignment
@@ -827,7 +832,13 @@ public class AutoScheduleService {
                 double otherDuration = getDurationInHours(otherShift);
 
                 // (a) Tạm thời xóa otherShift khỏi lịch của staffX để kiểm tra HC
-                staffX.getCurrentSchedule().remove(otherShift);
+                for (Iterator<Shift> it = staffX.getCurrentSchedule().iterator(); it.hasNext(); ) {
+                    Shift s = it.next();
+                    if ((s.getId() != null && s.getId().equals(otherShift.getId())) || s == otherShift) {
+                        it.remove();
+                        break;
+                    }
+                }
 
                 // (b) Kiểm tra staffX có thỏa mãn HC1-HC5 cho unassignedSlot sau khi bỏ otherShift không
                 boolean staffXCanTakeUnassigned = hasValidSkill(staffX, unassignedSlot.getSkillId(), unassignedSlot.getShift().getShiftDate())
@@ -860,7 +871,8 @@ public class AutoScheduleService {
 
                 StaffData staffY = staffYCandidates.stream()
                         .min(Comparator.comparingDouble(StaffData::getMonthlyAssignedHours)
-                                .thenComparing(StaffData::getUtilizationRatio))
+                                .thenComparing(StaffData::getUtilizationRatio)
+                                .thenComparing(c -> c.getEmployment().getUser().getId()))
                         .orElse(null);
 
                 if (staffY == null) {
