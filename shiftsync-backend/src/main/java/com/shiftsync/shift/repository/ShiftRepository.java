@@ -21,6 +21,9 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill"})
     List<Shift> findByStoreIdAndShiftDate(UUID storeId, LocalDate shiftDate);
     
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"requirements", "requirements.skill"})
+    Optional<Shift> findByStoreIdAndShiftDateAndStartTimeAndEndTime(UUID storeId, LocalDate shiftDate, java.time.LocalTime startTime, java.time.LocalTime endTime);
+
     Optional<Shift> findByIdAndStoreId(UUID id, UUID storeId);
 
     List<Shift> findByStoreIdAndStatusAndIsOpenTrue(UUID storeId, com.shiftsync.shift.enums.ShiftStatus status);

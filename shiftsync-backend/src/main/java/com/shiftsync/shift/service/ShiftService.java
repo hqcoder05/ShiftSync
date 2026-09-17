@@ -57,6 +57,7 @@ public class ShiftService {
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final StoreZoneRepository storeZoneRepository;
+    private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
         if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
@@ -135,9 +136,17 @@ public class ShiftService {
 
         if (request.getStaffId() != null) {
             userRepository.findById(request.getStaffId()).ifPresent(staff -> {
+                UUID requiredSkillId = request.getSkillId();
+                if (requiredSkillId == null) {
+                    List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staff.getId());
+                    if (!staffSkills.isEmpty()) {
+                        requiredSkillId = staffSkills.get(0).getSkillId();
+                    }
+                }
                 ShiftAssignment assignment = ShiftAssignment.builder()
                         .shift(savedShift)
                         .staff(staff)
+                        .requiredSkillId(requiredSkillId)
                         .source(AssignmentSource.MANUAL)
                         .build();
                 shiftAssignmentRepository.save(assignment);
@@ -164,6 +173,23 @@ public class ShiftService {
 
         if (shift.getStatus() != ShiftStatus.DRAFT) {
             throw new BusinessException("Cannot modify requirements of a shift that is already published", HttpStatus.BAD_REQUEST);
+        }
+
+        if (requirements == null) {
+            requirements = Collections.emptyList();
+        }
+
+        java.util.Set<UUID> seenSkillIds = new java.util.HashSet<>();
+        for (ShiftRequirementRequest req : requirements) {
+            if (req.getSkillId() == null) {
+                throw new BusinessException("Skill ID cannot be null in requirements", HttpStatus.BAD_REQUEST);
+            }
+            if (req.getRequiredCount() < 0) {
+                throw new BusinessException("Required count cannot be negative: " + req.getRequiredCount(), HttpStatus.BAD_REQUEST);
+            }
+            if (!seenSkillIds.add(req.getSkillId())) {
+                throw new BusinessException("Duplicate skill requirement for skill: " + req.getSkillId(), HttpStatus.BAD_REQUEST);
+            }
         }
 
         List<StoreZone> storeZones = storeZoneRepository.findByStoreId(storeId);
@@ -231,11 +257,7 @@ public class ShiftService {
             checkDateNotLocked(storeId, date);
 
             for (BulkDemandPlanningRequest.ShiftDemandConfig dConfig : request.getShifts()) {
-                Shift shift = shiftRepository.findByStoreIdAndShiftDate(storeId, date).stream()
-                        .filter(s -> s.getStartTime() != null && s.getEndTime() != null
-                                && s.getStartTime().equals(dConfig.getStartTime())
-                                && s.getEndTime().equals(dConfig.getEndTime()))
-                        .findFirst()
+                Shift shift = shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, date, dConfig.getStartTime(), dConfig.getEndTime())
                         .orElse(null);
 
                 if (shift == null) {
@@ -247,6 +269,7 @@ public class ShiftService {
                             .endTime(dConfig.getEndTime())
                             .status(ShiftStatus.DRAFT)
                             .availabilityDeadline(deadline)
+                            .requirements(new ArrayList<>())
                             .build();
                     shift = shiftRepository.save(shift);
                     createdCount++;
@@ -258,9 +281,16 @@ public class ShiftService {
                 }
 
                 List<ShiftSkillRequirement> reqEntities = new ArrayList<>();
+                java.util.Set<UUID> seenSkillIds = new java.util.HashSet<>();
                 if (dConfig.getRequirements() != null) {
                     for (ShiftRequirementRequest req : dConfig.getRequirements()) {
-                        if (req.getRequiredCount() <= 0) continue;
+                        if (req.getSkillId() == null) continue;
+                        if (req.getRequiredCount() < 0) {
+                            throw new BusinessException("Required count cannot be negative: " + req.getRequiredCount(), HttpStatus.BAD_REQUEST);
+                        }
+                        if (!seenSkillIds.add(req.getSkillId())) {
+                            throw new BusinessException("Duplicate skill requirement for skill: " + req.getSkillId(), HttpStatus.BAD_REQUEST);
+                        }
                         Skill skill = skillMap.get(req.getSkillId());
                         if (skill == null) {
                             skill = skillRepository.findByIdAndStoreId(req.getSkillId(), storeId).orElse(null);
@@ -393,9 +423,17 @@ public class ShiftService {
             if (existing.isEmpty() || !existing.get(0).getStaff().getId().equals(request.getStaffId())) {
                 shiftAssignmentRepository.deleteAll(existing);
                 userRepository.findById(request.getStaffId()).ifPresent(staff -> {
+                    UUID requiredSkillId = request.getSkillId();
+                    if (requiredSkillId == null) {
+                        List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staff.getId());
+                        if (!staffSkills.isEmpty()) {
+                            requiredSkillId = staffSkills.get(0).getSkillId();
+                        }
+                    }
                     ShiftAssignment assignment = ShiftAssignment.builder()
                             .shift(saved)
                             .staff(staff)
+                            .requiredSkillId(requiredSkillId)
                             .source(AssignmentSource.MANUAL)
                             .build();
                     shiftAssignmentRepository.save(assignment);
