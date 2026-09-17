@@ -14,6 +14,19 @@ import {
   approveSwapRequest,
   rejectSwapRequest,
 } from '../services/swapService';
+import {
+  getStoreAdjustmentRequests,
+  approveAdjustmentRequest,
+  rejectAdjustmentRequest,
+} from '../services/adjustmentService';
+import {
+  getIncomingWorkforceRequests,
+  getOutgoingWorkforceRequests,
+  rejectWorkforceRequest,
+  cancelWorkforceRequest,
+  createWorkforceProposal,
+  getEligibleStaffForRequest,
+} from '../services/workforceService';
 import { getPositions } from '../services/headcountQuotaService';
 import './MarketplacePage.css';
 
@@ -98,6 +111,21 @@ const fmtDateVN = (dStr) => {
   }
 };
 
+const fmtDateTimeVN = (isoStr) => {
+  if (!isoStr) return '—';
+  try {
+    const d = new Date(isoStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${mins} ${day}/${month}/${year}`;
+  } catch {
+    return isoStr;
+  }
+};
+
 export default function MarketplacePage() {
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || localStorage.getItem('storeId') || '');
@@ -106,6 +134,9 @@ export default function MarketplacePage() {
   const [storeShifts, setStoreShifts] = useState([]);
   const [requestsList, setRequestsList] = useState([]);
   const [storeSwapList, setStoreSwapList] = useState([]);
+  const [adjustmentsList, setAdjustmentsList] = useState([]);
+  const [incomingWorkforce, setIncomingWorkforce] = useState([]);
+  const [outgoingWorkforce, setOutgoingWorkforce] = useState([]);
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -117,7 +148,8 @@ export default function MarketplacePage() {
   const [toast, setToast] = useState('');
 
   // Tabs & Views
-  const [activeTab, setActiveTab] = useState('OPEN'); // 'OPEN' | 'SWAP' | 'FILLED'
+  const [activeTab, setActiveTab] = useState('OPEN'); // 'OPEN' | 'SWAP' | 'ADJUSTMENT' | 'WORKFORCE' | 'PROPOSAL' | 'FILLED'
+  const [workforceSubTab, setWorkforceSubTab] = useState('INCOMING'); // 'INCOMING' | 'OUTGOING'
   const [sortBy, setSortBy] = useState('URGENCY');
   const [showUrgentBanner, setShowUrgentBanner] = useState(true);
 
@@ -147,6 +179,17 @@ export default function MarketplacePage() {
   const [showAuditLogModal, setShowAuditLogModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDetailShift, setSelectedDetailShift] = useState(null);
+
+  // Propose Staff Modal (Workforce)
+  const [showProposeStaffModal, setShowProposeStaffModal] = useState(false);
+  const [selectedWorkforceReqForPropose, setSelectedWorkforceReqForPropose] = useState(null);
+  const [eligibleStaffList, setEligibleStaffList] = useState([]);
+  const [selectedEligibleStaffId, setSelectedEligibleStaffId] = useState('');
+  const [proposingLoading, setProposingLoading] = useState(false);
+
+  // Record Detail Modal
+  const [showRecordDetailModal, setShowRecordDetailModal] = useState(false);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState(null);
 
   // Quick assign states map: { [shiftId]: staffId }
   const [quickAssignMap, setQuickAssignMap] = useState({});
@@ -192,10 +235,12 @@ export default function MarketplacePage() {
     window.addEventListener('store_requests_updated', handleSyncUpdate);
     window.addEventListener('store_marketplace_updated', handleSyncUpdate);
     window.addEventListener('store_shifts_updated', handleSyncUpdate);
+    window.addEventListener('store_attendance_updated', handleSyncUpdate);
     return () => {
       window.removeEventListener('store_requests_updated', handleSyncUpdate);
       window.removeEventListener('store_marketplace_updated', handleSyncUpdate);
       window.removeEventListener('store_shifts_updated', handleSyncUpdate);
+      window.removeEventListener('store_attendance_updated', handleSyncUpdate);
     };
   }, [storeId]);
 
@@ -209,9 +254,12 @@ export default function MarketplacePage() {
       getStaffByStore(storeId, 0, 100).catch(() => ({ data: [] })),
       getRequests().catch(() => []),
       getPositions(storeId).catch(() => []),
-      getStoreSwapRequests(storeId, 'PENDING').catch(() => ({ data: [] }))
+      getStoreSwapRequests(storeId).catch(() => ({ data: [] })),
+      getStoreAdjustmentRequests(storeId).catch(() => ({ data: [] })),
+      getIncomingWorkforceRequests(storeId).catch(() => ({ data: [] })),
+      getOutgoingWorkforceRequests(storeId).catch(() => ({ data: [] })),
     ])
-      .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes]) => {
+      .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes, adjRes, incWfRes, outWfRes]) => {
         const mpList = Array.isArray(mpRes.data) ? mpRes.data : (mpRes.data?.content || []);
         const shList = Array.isArray(shiftsRes.data) ? shiftsRes.data : (shiftsRes.data?.content || []);
         const rawStaff = Array.isArray(staffRes.data) ? staffRes.data : (staffRes.data?.content || []);
@@ -219,12 +267,18 @@ export default function MarketplacePage() {
           (emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN'
         );
         const rawSwaps = Array.isArray(storeSwapsRes?.data) ? storeSwapsRes.data : (storeSwapsRes?.data?.content || []);
+        const rawAdjs = Array.isArray(adjRes?.data) ? adjRes.data : (adjRes?.data?.content || []);
+        const rawIncWf = Array.isArray(incWfRes?.data) ? incWfRes.data : (incWfRes?.data?.content || []);
+        const rawOutWf = Array.isArray(outWfRes?.data) ? outWfRes.data : (outWfRes?.data?.content || []);
 
         setOpenShifts(mpList);
         setStoreShifts(shList);
         setEmployees(nonManagers);
         setRequestsList(Array.isArray(reqList) ? reqList : (reqList?.content || []));
         setStoreSwapList(rawSwaps);
+        setAdjustmentsList(rawAdjs);
+        setIncomingWorkforce(rawIncWf);
+        setOutgoingWorkforce(rawOutWf);
         setPositions(Array.isArray(posList) ? posList : []);
       })
       .finally(() => setLoading(false));
@@ -416,37 +470,73 @@ export default function MarketplacePage() {
   };
 
   // 8. Dynamic Swap Requests from /api/requests and /stores/{storeId}/swaps
-  const swapRequests = useMemo(() => {
+  const allSwapRequests = useMemo(() => {
     // 8.1. From StaffRequests (/api/requests)
     const staffSwaps = (requestsList || [])
       .filter(
         (r) =>
-          (r.status === 'PENDING' || !r.status) &&
-          (r.typeCategory === 'swap' ||
-            (r.requestType && r.requestType.toLowerCase().includes('đổi ca')))
+          r.typeCategory === 'swap' ||
+          (r.requestType && r.requestType.toLowerCase().includes('đổi ca'))
       )
       .map((r) => ({
         ...r,
         isShiftSwap: false,
+        status: r.status || 'PENDING',
       }));
 
     // 8.2. From ShiftSwapRequest (/stores/{storeId}/swaps)
-    const structuredSwaps = (storeSwapList || [])
-      .filter((s) => s.status === 'PENDING')
-      .map((s) => ({
-        id: s.id,
-        isShiftSwap: true,
-        requesterName: s.fromStaffName || 'Nhân sự',
-        requestType: 'Yêu cầu hoán đổi ca làm',
-        typeCategory: 'swap',
-        status: s.status,
-        requestDate: s.fromShiftDate ? fmtDateVN(s.fromShiftDate) : 'Hôm nay',
-        shiftInfo: `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ⇄ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`,
-        content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
-      }));
+    const structuredSwaps = (storeSwapList || []).map((s) => ({
+      id: s.id,
+      isShiftSwap: true,
+      requesterName: s.fromStaffName || 'Nhân sự',
+      requestType: 'Yêu cầu hoán đổi ca làm',
+      typeCategory: 'swap',
+      status: s.status || 'PENDING',
+      requestDate: s.fromShiftDate ? fmtDateVN(s.fromShiftDate) : 'Hôm nay',
+      shiftInfo: `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ⇄ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`,
+      content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
+    }));
 
-    return [...staffSwaps, ...structuredSwaps];
+    return [...staffSwaps, ...structuredSwaps].sort((a, b) => {
+      if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+      if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+      return 0;
+    });
   }, [requestsList, storeSwapList]);
+
+  // Backward compatibility reference for any existing filter
+  const swapRequests = useMemo(() => {
+    return allSwapRequests.filter((s) => s.status === 'PENDING');
+  }, [allSwapRequests]);
+
+  // 8.3. Badges and Counts for Operations Domains
+  const pendingSwapCount = useMemo(() => {
+    return allSwapRequests.filter((s) => s.status === 'PENDING').length;
+  }, [allSwapRequests]);
+
+  const pendingAdjustmentCount = useMemo(() => {
+    return (adjustmentsList || []).filter((a) => a.status === 'PENDING').length;
+  }, [adjustmentsList]);
+
+  const pendingIncomingWorkforceCount = useMemo(() => {
+    return (incomingWorkforce || []).filter((w) => w.status === 'PENDING' || w.status === 'PROPOSAL_SENT').length;
+  }, [incomingWorkforce]);
+
+  const staffRequestsList = useMemo(() => {
+    return (requestsList || []).filter(
+      (r) =>
+        r.typeCategory !== 'swap' &&
+        !(r.requestType && r.requestType.toLowerCase().includes('đổi ca'))
+    );
+  }, [requestsList]);
+
+  const pendingStaffRequestCount = useMemo(() => {
+    return staffRequestsList.filter((r) => r.status === 'PENDING' || !r.status).length;
+  }, [staffRequestsList]);
+
+  const totalPendingActionableCount = useMemo(() => {
+    return pendingSwapCount + pendingAdjustmentCount + pendingIncomingWorkforceCount + pendingStaffRequestCount;
+  }, [pendingSwapCount, pendingAdjustmentCount, pendingIncomingWorkforceCount, pendingStaffRequestCount]);
 
   // 9. Dynamic Filled / Assigned Shifts
   const filledShifts = useMemo(() => {
@@ -663,6 +753,160 @@ export default function MarketplacePage() {
     }
   };
 
+  // 16. Attendance Adjustment Actions
+  const handleApproveAdjustment = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await approveAdjustmentRequest(storeId, req.id);
+      showToast(`✓ Đã phê duyệt giải trình chấm công của ${req.staffName || 'nhân viên'}!`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi phê duyệt: ${err.response?.data?.message || err.message || 'Không thể duyệt.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectAdjustment = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await rejectAdjustmentRequest(storeId, req.id);
+      showToast(`✕ Đã từ chối giải trình chấm công của ${req.staffName || 'nhân viên'}.`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi từ chối: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // 17. Workforce Request Actions
+  const handleRejectWorkforce = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await rejectWorkforceRequest(storeId, req.id);
+      showToast(`✓ Đã từ chối yêu cầu chi viện nhân sự.`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi: ${err.response?.data?.message || err.message || 'Thao tác thất bại.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleCancelWorkforce = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await cancelWorkforceRequest(storeId, req.id);
+      showToast(`✓ Đã hủy yêu cầu chi viện nhân sự.`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi: ${err.response?.data?.message || err.message || 'Thao tác thất bại.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleOpenProposeStaffModal = async (req) => {
+    setSelectedWorkforceReqForPropose(req);
+    setShowProposeStaffModal(true);
+    try {
+      const res = await getEligibleStaffForRequest(storeId, req.id);
+      const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      setEligibleStaffList(list.length > 0 ? list : employees);
+      if (list.length > 0) {
+        setSelectedEligibleStaffId(list[0].staffId || list[0].id);
+      } else if (employees.length > 0) {
+        setSelectedEligibleStaffId(employees[0].staffId || employees[0].id);
+      }
+    } catch {
+      setEligibleStaffList(employees);
+      if (employees.length > 0) {
+        setSelectedEligibleStaffId(employees[0].staffId || employees[0].id);
+      }
+    }
+  };
+
+  const handleSubmitProposeStaff = async () => {
+    if (!selectedWorkforceReqForPropose || !selectedEligibleStaffId) return;
+    setProposingLoading(true);
+    try {
+      await createWorkforceProposal(storeId, selectedWorkforceReqForPropose.id, {
+        staffId: selectedEligibleStaffId,
+      });
+      showToast(`✓ Đã gửi đề xuất nhân sự chi viện thành công!`);
+      setShowProposeStaffModal(false);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi đề xuất: ${err.response?.data?.message || err.message || 'Không thể đề xuất.'}`);
+    } finally {
+      setProposingLoading(false);
+    }
+  };
+
+  // 18. Staff General Request Actions (Proposal / Leave / Support)
+  const handleApproveStaffRequest = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await updateRequestStatus(req.id, 'APPROVED');
+      showToast(`✓ Đã phê duyệt yêu cầu của ${cleanText(req.requesterName)}!`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+      window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi: ${err.response?.data?.message || err.message || 'Không thể duyệt.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectStaffRequest = async (req) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await updateRequestStatus(req.id, 'REJECTED');
+      showToast(`✕ Đã từ chối yêu cầu của ${cleanText(req.requesterName)}.`);
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`✕ Lỗi: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const renderStatusBadge = (status) => {
+    const st = (status || 'PENDING').toUpperCase();
+    if (st === 'PENDING') {
+      return <span className="mp-status-badge status-pending">● Chờ duyệt</span>;
+    }
+    if (st === 'APPROVED' || st === 'ACCEPTED' || st === 'COMPLETED') {
+      return <span className="mp-status-badge status-approved">✓ Đã phê duyệt</span>;
+    }
+    if (st === 'REJECTED' || st === 'MANAGER_REJECTED' || st === 'STAFF_REJECTED' || st === 'DECLINED') {
+      return <span className="mp-status-badge status-rejected">✕ Đã từ chối</span>;
+    }
+    if (st === 'PROPOSAL_SENT' || st === 'PROPOSED') {
+      return <span className="mp-status-badge status-proposal">➔ Đã đề xuất</span>;
+    }
+    if (st === 'CANCELLED') {
+      return <span className="mp-status-badge status-cancelled">Đã hủy</span>;
+    }
+    return <span className="mp-status-badge status-pending">{st}</span>;
+  };
+
   return (
     <div className="mp-page-wrapper">
       {/* ── 1. Top Urgent Alert Banner ── */}
@@ -721,10 +965,10 @@ export default function MarketplacePage() {
           <div className="mp-kpi-sub sub-red">Cần Store Manager chỉ định trực tiếp</div>
         </div>
         <div className="mp-kpi-card kpi-orange">
-          <div className="mp-kpi-number">{swapRequests.length}</div>
-          <div className="mp-kpi-label">Yêu cầu hoán đổi ca</div>
+          <div className="mp-kpi-number">{totalPendingActionableCount}</div>
+          <div className="mp-kpi-label">Yêu cầu cần xử lý</div>
           <div className="mp-kpi-sub">
-            {swapRequests.length > 0 ? 'Đang chờ quản lý phê duyệt' : 'Không có yêu cầu tồn đọng'}
+            {totalPendingActionableCount > 0 ? `${totalPendingActionableCount} yêu cầu đang chờ duyệt` : 'Đã xử lý tất cả yêu cầu'}
           </div>
         </div>
         <div className="mp-kpi-card kpi-slate">
@@ -984,13 +1228,13 @@ export default function MarketplacePage() {
         <main className="mp-main-content">
           {/* Thanh Tabs & Sort */}
           <div className="mp-tabs-bar">
-            <div className="mp-tabs-group">
+            <div className="mp-tabs-group" style={{ flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className={`mp-tab-btn ${activeTab === 'OPEN' ? 'active' : ''}`}
                 onClick={() => setActiveTab('OPEN')}
               >
-                <span>Ca đang mở trên sàn</span>
+                <span>Ca mở &amp; Đăng ca</span>
                 <span className="mp-tab-badge">{understaffedShifts.length}</span>
               </button>
               <button
@@ -998,31 +1242,73 @@ export default function MarketplacePage() {
                 className={`mp-tab-btn ${activeTab === 'SWAP' ? 'active' : ''}`}
                 onClick={() => setActiveTab('SWAP')}
               >
-                <span>Yêu cầu đổi ca chờ duyệt</span>
-                <span className="mp-tab-badge badge-yellow">{swapRequests.length} chờ xử lý</span>
+                <span>Yêu cầu đổi ca</span>
+                {pendingSwapCount > 0 ? (
+                  <span className="mp-tab-badge badge-yellow">{pendingSwapCount} chờ xử lý</span>
+                ) : (
+                  <span className="mp-tab-badge">{allSwapRequests.length}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'ADJUSTMENT' ? 'active' : ''}`}
+                onClick={() => setActiveTab('ADJUSTMENT')}
+              >
+                <span>Giải trình chấm công</span>
+                {pendingAdjustmentCount > 0 ? (
+                  <span className="mp-tab-badge badge-yellow">{pendingAdjustmentCount} chờ xử lý</span>
+                ) : (
+                  <span className="mp-tab-badge">{adjustmentsList.length}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'WORKFORCE' ? 'active' : ''}`}
+                onClick={() => setActiveTab('WORKFORCE')}
+              >
+                <span>Mượn nhân sự</span>
+                {pendingIncomingWorkforceCount > 0 ? (
+                  <span className="mp-tab-badge badge-blue">{pendingIncomingWorkforceCount} cần điều phối</span>
+                ) : (
+                  <span className="mp-tab-badge">{incomingWorkforce.length}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={`mp-tab-btn ${activeTab === 'PROPOSAL' ? 'active' : ''}`}
+                onClick={() => setActiveTab('PROPOSAL')}
+              >
+                <span>Đề xuất nhân sự</span>
+                {pendingStaffRequestCount > 0 ? (
+                  <span className="mp-tab-badge badge-yellow">{pendingStaffRequestCount} chờ xử lý</span>
+                ) : (
+                  <span className="mp-tab-badge">{staffRequestsList.length}</span>
+                )}
               </button>
               <button
                 type="button"
                 className={`mp-tab-btn ${activeTab === 'FILLED' ? 'active' : ''}`}
                 onClick={() => setActiveTab('FILLED')}
               >
-                <span>Đã phân công xong</span>
+                <span>Đã phân công</span>
                 <span className="mp-tab-badge">{filledShifts.length}</span>
               </button>
             </div>
 
-            <div className="mp-sort-wrap">
-              <span>Sắp xếp:</span>
-              <select
-                className="mp-sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="URGENCY">Mức độ khẩn cấp (thời hạn & thiếu nhân sự)</option>
-                <option value="TIME">Thời gian bắt đầu ca</option>
-                <option value="WAGE">Mức thù lao cao nhất</option>
-              </select>
-            </div>
+            {activeTab === 'OPEN' && (
+              <div className="mp-sort-wrap">
+                <span>Sắp xếp:</span>
+                <select
+                  className="mp-sort-select"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="URGENCY">Mức độ khẩn cấp (thời hạn &amp; thiếu nhân sự)</option>
+                  <option value="TIME">Thời gian bắt đầu ca</option>
+                  <option value="WAGE">Mức thù lao cao nhất</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Tab 1: Danh Sách Ca Đang Mở (100% Dynamic từ CSDL) */}
@@ -1263,63 +1549,529 @@ export default function MarketplacePage() {
             </div>
           )}
 
-          {/* Tab 2: Yêu Cầu Hoán Đổi Ca Chờ Duyệt (100% Dynamic từ /api/requests) */}
+          {/* Tab 2: Yêu Cầu Hoán Đổi Ca Chờ Duyệt (100% Dynamic từ Backend) */}
           {activeTab === 'SWAP' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {swapRequests.length === 0 ? (
-                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
-                  <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Không có yêu cầu đổi ca nào đang chờ duyệt</h3>
-                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Tất cả các yêu cầu đổi ca từ nhân sự đã được xử lý xong.</p>
+            <div className="mp-table-card">
+              {allSwapRequests.length === 0 ? (
+                <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 16, color: '#0f172a' }}>Không có yêu cầu đổi ca nào</h3>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Toàn bộ các yêu cầu đổi ca của nhân sự đã được xử lý.</p>
                 </div>
               ) : (
-                swapRequests.map((req) => (
-                  <div key={req.id} className="mp-shift-card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="mp-tag-no-applicant">Yêu cầu đổi ca</span>
-                        <strong style={{ fontSize: 16 }}>{getRequestTypeTitle(req)}</strong>
-                      </div>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>{req.requestDate || req.requestTime || 'Hôm nay'}</span>
-                    </div>
-                    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Người gửi đề xuất</div>
-                        <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{cleanText(req.requesterName)}</div>
-                        <div style={{ fontSize: 12.5, color: '#334155' }}>
-                          Ca làm: <strong>{getRequestShiftTitle(req)}</strong>
-                        </div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 12.5, color: '#475569', margin: '12px 0 16px', lineHeight: 1.5 }}>
-                      {cleanText(req.content) || 'Xin phép Quản lý duyệt hoán đổi ca làm việc để thuận tiện lịch học / công việc cá nhân.'}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                      <button
-                        type="button"
-                        className="mp-btn-header-secondary"
-                        style={{ color: '#dc2626' }}
-                        disabled={actionLoadingId === req.id}
-                        onClick={() => handleRejectSwap(req)}
-                      >
-                        {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
-                      </button>
-                      <button
-                        type="button"
-                        className="mp-btn-urgent-primary"
-                        disabled={actionLoadingId === req.id}
-                        onClick={() => handleApproveSwap(req)}
-                      >
-                        {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt hoán đổi'}
-                      </button>
-                    </div>
-                  </div>
-                ))
+                <table className="mp-table">
+                  <thead>
+                    <tr>
+                      <th>Người yêu cầu</th>
+                      <th>Loại yêu cầu</th>
+                      <th>Chi tiết ca đổi</th>
+                      <th>Trạng thái</th>
+                      <th>Ngày yêu cầu</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSwapRequests.map((req) => {
+                      const isPending = req.status === 'PENDING';
+                      return (
+                        <tr key={req.id}>
+                          <td>
+                            <div className="mp-user-cell">
+                              <div className="mp-avatar-circle">
+                                {(req.requesterName || req.fromStaffName || 'N')[0]?.toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="mp-user-name">{cleanText(req.requesterName || req.fromStaffName || 'Nhân sự')}</div>
+                                <div className="mp-user-sub">{req.isShiftSwap ? 'Đổi ca trực tiếp' : 'Đề xuất đổi ca'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>
+                              {getRequestTypeTitle(req)}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>
+                              {req.shiftInfo || getRequestShiftTitle(req)}
+                            </div>
+                            {req.content && (
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {cleanText(req.content)}
+                              </div>
+                            )}
+                          </td>
+                          <td>{renderStatusBadge(req.status)}</td>
+                          <td style={{ fontSize: 13, color: '#64748b' }}>
+                            {req.requestDate || (req.createdAt ? fmtDateTimeVN(req.createdAt) : 'Hôm nay')}
+                          </td>
+                          <td>
+                            <div className="mp-table-actions">
+                              {isPending ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-reject"
+                                    disabled={actionLoadingId === req.id}
+                                    onClick={() => handleRejectSwap(req)}
+                                  >
+                                    {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-approve"
+                                    disabled={actionLoadingId === req.id}
+                                    onClick={() => handleApproveSwap(req)}
+                                  >
+                                    {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="mp-btn-action-detail"
+                                  onClick={() => {
+                                    setSelectedDetailRecord({
+                                      ...req,
+                                      recordDomain: 'SWAP',
+                                      domainTitle: 'Yêu cầu hoán đổi ca làm việc',
+                                    });
+                                    setShowRecordDetailModal(true);
+                                  }}
+                                >
+                                  Xem chi tiết
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
           )}
 
-          {/* Tab 3: Đã Phân Công Xong (100% Dynamic từ CSDL) */}
+          {/* Tab 3: Giải Trình Chấm Công (100% Dynamic từ /attendance-adjustments) */}
+          {activeTab === 'ADJUSTMENT' && (
+            <div className="mp-table-card">
+              {adjustmentsList.length === 0 ? (
+                <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 16, color: '#0f172a' }}>Không có giải trình chấm công nào</h3>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Không có đề xuất điều chỉnh giờ chấm công cần xử lý.</p>
+                </div>
+              ) : (
+                <table className="mp-table">
+                  <thead>
+                    <tr>
+                      <th>Nhân sự</th>
+                      <th>Loại yêu cầu</th>
+                      <th>Thời gian &amp; Lý do giải trình</th>
+                      <th>Trạng thái</th>
+                      <th>Thời điểm gửi</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adjustmentsList.map((adj) => {
+                      const isPending = adj.status === 'PENDING';
+                      return (
+                        <tr key={adj.id}>
+                          <td>
+                            <div className="mp-user-cell">
+                              <div className="mp-avatar-circle">
+                                {(adj.staffName || 'N')[0]?.toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="mp-user-name">{adj.staffName || 'Nhân viên'}</div>
+                                <div className="mp-user-sub">Mã: #{String(adj.id).slice(0, 6).toUpperCase()}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>Giải trình chấm công</span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 13, color: '#1e293b' }}>
+                              Vào: <strong>{fmtDateTimeVN(adj.requestedCheckIn)}</strong> ➔ Ra: <strong>{fmtDateTimeVN(adj.requestedCheckOut)}</strong>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
+                              Lý do: <em>{adj.reason || 'Không ghi lý do'}</em>
+                            </div>
+                          </td>
+                          <td>{renderStatusBadge(adj.status)}</td>
+                          <td style={{ fontSize: 13, color: '#64748b' }}>
+                            {fmtDateTimeVN(adj.createdAt)}
+                          </td>
+                          <td>
+                            <div className="mp-table-actions">
+                              {isPending ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-reject"
+                                    disabled={actionLoadingId === adj.id}
+                                    onClick={() => handleRejectAdjustment(adj)}
+                                  >
+                                    {actionLoadingId === adj.id ? 'Đang xử lý...' : 'Từ chối'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-approve"
+                                    disabled={actionLoadingId === adj.id}
+                                    onClick={() => handleApproveAdjustment(adj)}
+                                  >
+                                    {actionLoadingId === adj.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="mp-btn-action-detail"
+                                  onClick={() => {
+                                    setSelectedDetailRecord({
+                                      ...adj,
+                                      requesterName: adj.staffName,
+                                      recordDomain: 'ADJUSTMENT',
+                                      domainTitle: 'Giải trình điều chỉnh chấm công',
+                                      shiftInfo: `Vào: ${fmtDateTimeVN(adj.requestedCheckIn)} — Ra: ${fmtDateTimeVN(adj.requestedCheckOut)}`,
+                                      content: `Lý do: ${adj.reason || 'Không có'}. Phê duyệt bởi: ${adj.approvedByName || adj.approvedBy || 'Hệ thống'}`,
+                                    });
+                                    setShowRecordDetailModal(true);
+                                  }}
+                                >
+                                  Xem chi tiết
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Tab 4: Mượn Nhân Sự Liên Chi Nhánh (/workforce-requests) */}
+          {activeTab === 'WORKFORCE' && (
+            <div>
+              <div className="mp-subtab-bar">
+                <button
+                  type="button"
+                  className={`mp-subtab-btn ${workforceSubTab === 'INCOMING' ? 'active' : ''}`}
+                  onClick={() => setWorkforceSubTab('INCOMING')}
+                >
+                  <span>Yêu cầu nhận chi viện (Incoming)</span>
+                  <span className="mp-tab-badge badge-blue">{incomingWorkforce.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`mp-subtab-btn ${workforceSubTab === 'OUTGOING' ? 'active' : ''}`}
+                  onClick={() => setWorkforceSubTab('OUTGOING')}
+                >
+                  <span>Yêu cầu gửi đi (Outgoing)</span>
+                  <span className="mp-tab-badge">{outgoingWorkforce.length}</span>
+                </button>
+              </div>
+
+              <div className="mp-table-card">
+                {workforceSubTab === 'INCOMING' ? (
+                  incomingWorkforce.length === 0 ? (
+                    <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                      <h3 style={{ margin: '0 0 6px', fontSize: 16, color: '#0f172a' }}>Không có yêu cầu mượn nhân sự nào</h3>
+                      <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Các chi nhánh khác hiện không có yêu cầu chi viện tới cửa hàng này.</p>
+                    </div>
+                  ) : (
+                    <table className="mp-table">
+                      <thead>
+                        <tr>
+                          <th>Đơn vị yêu cầu</th>
+                          <th>Loại yêu cầu</th>
+                          <th>Chi tiết ca cần người</th>
+                          <th>Trạng thái</th>
+                          <th>Thời điểm tạo</th>
+                          <th style={{ textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incomingWorkforce.map((wf) => {
+                          const isPending = wf.status === 'PENDING';
+                          return (
+                            <tr key={wf.id}>
+                              <td>
+                                <div className="mp-user-cell">
+                                  <div className="mp-avatar-circle" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                                    🏢
+                                  </div>
+                                  <div>
+                                    <div className="mp-user-name">{wf.requestingStoreName || 'Chi nhánh đối tác'}</div>
+                                    <div className="mp-user-sub">Người tạo: {wf.creatorName || 'Quản lý'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontWeight: 600, color: '#1e40af' }}>Chi viện liên chi nhánh</span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>
+                                  Ngày: <strong>{fmtDateVN(wf.shiftDate)}</strong>
+                                </div>
+                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                  Khung giờ: {String(wf.shiftStartTime || '').slice(0, 5)} – {String(wf.shiftEndTime || '').slice(0, 5)}
+                                </div>
+                              </td>
+                              <td>{renderStatusBadge(wf.status)}</td>
+                              <td style={{ fontSize: 13, color: '#64748b' }}>
+                                {fmtDateTimeVN(wf.createdAt)}
+                              </td>
+                              <td>
+                                <div className="mp-table-actions">
+                                  {isPending ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="mp-btn-action-reject"
+                                        disabled={actionLoadingId === wf.id}
+                                        onClick={() => handleRejectWorkforce(wf)}
+                                      >
+                                        {actionLoadingId === wf.id ? 'Đang xử lý...' : 'Từ chối'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="mp-btn-action-propose"
+                                        onClick={() => handleOpenProposeStaffModal(wf)}
+                                      >
+                                        Đề xuất NV
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-detail"
+                                      onClick={() => {
+                                        setSelectedDetailRecord({
+                                          ...wf,
+                                          requesterName: wf.requestingStoreName,
+                                          recordDomain: 'WORKFORCE',
+                                          domainTitle: 'Yêu cầu mượn nhân sự liên chi nhánh',
+                                          shiftInfo: `Ca ngày: ${fmtDateVN(wf.shiftDate)} (${wf.shiftStartTime} - ${wf.shiftEndTime})`,
+                                          content: `Chi nhánh yêu cầu: ${wf.requestingStoreName} gửi đến ${wf.targetStoreName}. Trạng thái: ${wf.status}. Đề xuất: ${(wf.proposals || []).length} nhân sự.`,
+                                        });
+                                        setShowRecordDetailModal(true);
+                                      }}
+                                    >
+                                      Xem chi tiết
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                ) : (
+                  outgoingWorkforce.length === 0 ? (
+                    <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                      <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Chưa có yêu cầu chi viện nhân sự nào được gửi đi.</p>
+                    </div>
+                  ) : (
+                    <table className="mp-table">
+                      <thead>
+                        <tr>
+                          <th>Chi nhánh hỗ trợ</th>
+                          <th>Loại yêu cầu</th>
+                          <th>Chi tiết ca cần người</th>
+                          <th>Trạng thái</th>
+                          <th>Thời điểm tạo</th>
+                          <th style={{ textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {outgoingWorkforce.map((wf) => {
+                          const isPending = wf.status === 'PENDING';
+                          return (
+                            <tr key={wf.id}>
+                              <td>
+                                <div className="mp-user-cell">
+                                  <div className="mp-avatar-circle" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                    🏢
+                                  </div>
+                                  <div>
+                                    <div className="mp-user-name">{wf.targetStoreName || 'Chi nhánh lân cận'}</div>
+                                    <div className="mp-user-sub">Gửi bởi: {wf.creatorName || 'Tôi'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontWeight: 600, color: '#475569' }}>Yêu cầu mượn nhân sự</span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>
+                                  Ngày: <strong>{fmtDateVN(wf.shiftDate)}</strong>
+                                </div>
+                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                  Khung giờ: {String(wf.shiftStartTime || '').slice(0, 5)} – {String(wf.shiftEndTime || '').slice(0, 5)}
+                                </div>
+                              </td>
+                              <td>{renderStatusBadge(wf.status)}</td>
+                              <td style={{ fontSize: 13, color: '#64748b' }}>
+                                {fmtDateTimeVN(wf.createdAt)}
+                              </td>
+                              <td>
+                                <div className="mp-table-actions">
+                                  {isPending ? (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-reject"
+                                      disabled={actionLoadingId === wf.id}
+                                      onClick={() => handleCancelWorkforce(wf)}
+                                    >
+                                      {actionLoadingId === wf.id ? 'Đang hủy...' : 'Hủy yêu cầu'}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-detail"
+                                      onClick={() => {
+                                        setSelectedDetailRecord({
+                                          ...wf,
+                                          requesterName: wf.requestingStoreName,
+                                          recordDomain: 'WORKFORCE',
+                                          domainTitle: 'Yêu cầu mượn nhân sự gửi đi',
+                                          shiftInfo: `Ca ngày: ${fmtDateVN(wf.shiftDate)} (${wf.shiftStartTime} - ${wf.shiftEndTime})`,
+                                          content: `Yêu cầu gửi đến: ${wf.targetStoreName}. Trạng thái: ${wf.status}.`,
+                                        });
+                                        setShowRecordDetailModal(true);
+                                      }}
+                                    >
+                                      Xem chi tiết
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab 5: Đề Xuất Nhân Sự (/requests non-swap) */}
+          {activeTab === 'PROPOSAL' && (
+            <div className="mp-table-card">
+              {staffRequestsList.length === 0 ? (
+                <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 16, color: '#0f172a' }}>Không có đề xuất nhân sự nào</h3>
+                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Tất cả các đề xuất và nguyện vọng của nhân sự đã được xử lý.</p>
+                </div>
+              ) : (
+                <table className="mp-table">
+                  <thead>
+                    <tr>
+                      <th>Người gửi đề xuất</th>
+                      <th>Loại đề xuất</th>
+                      <th>Chi tiết &amp; Nội dung</th>
+                      <th>Trạng thái</th>
+                      <th>Thời gian</th>
+                      <th style={{ textAlign: 'right' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffRequestsList.map((req) => {
+                      const isPending = req.status === 'PENDING' || !req.status;
+                      return (
+                        <tr key={req.id}>
+                          <td>
+                            <div className="mp-user-cell">
+                              <div className="mp-avatar-circle">
+                                {(req.requesterName || 'N')[0]?.toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="mp-user-name">{cleanText(req.requesterName || 'Nhân viên')}</div>
+                                <div className="mp-user-sub">{req.recipient || 'Quản lý cửa hàng'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>
+                              {getRequestTypeTitle(req)}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>
+                              {req.shiftInfo || req.startDate ? `${req.shiftInfo || 'Ca làm'} • ${req.startDate || ''}` : 'Theo đề xuất'}
+                            </div>
+                            {req.content && (
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {cleanText(req.content)}
+                              </div>
+                            )}
+                          </td>
+                          <td>{renderStatusBadge(req.status)}</td>
+                          <td style={{ fontSize: 13, color: '#64748b' }}>
+                            {req.requestDate || (req.createdAt ? fmtDateTimeVN(req.createdAt) : 'Hôm nay')}
+                          </td>
+                          <td>
+                            <div className="mp-table-actions">
+                              {isPending ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-reject"
+                                    disabled={actionLoadingId === req.id}
+                                    onClick={() => handleRejectStaffRequest(req)}
+                                  >
+                                    {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="mp-btn-action-approve"
+                                    disabled={actionLoadingId === req.id}
+                                    onClick={() => handleApproveStaffRequest(req)}
+                                  >
+                                    {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="mp-btn-action-detail"
+                                  onClick={() => {
+                                    setSelectedDetailRecord({
+                                      ...req,
+                                      recordDomain: 'PROPOSAL',
+                                      domainTitle: getRequestTypeTitle(req),
+                                    });
+                                    setShowRecordDetailModal(true);
+                                  }}
+                                >
+                                  Xem chi tiết
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Tab 6: Đã Phân Công Xong (100% Dynamic từ CSDL) */}
           {activeTab === 'FILLED' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {filledShifts.length === 0 ? (
@@ -1786,6 +2538,140 @@ export default function MarketplacePage() {
                 type="button"
                 className="mp-btn-header-secondary"
                 onClick={() => setShowDetailModal(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 5: Đề Xuất Nhân Sự Chi Viện (Workforce Proposal) */}
+      {showProposeStaffModal && selectedWorkforceReqForPropose && (
+        <div className="mp-modal-backdrop" onClick={() => setShowProposeStaffModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">Đề Xuất Nhân Sự Chi Viện</h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowProposeStaffModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mp-modal-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 14 }}>
+                <div>Đơn vị yêu cầu: <strong>{selectedWorkforceReqForPropose.requestingStoreName}</strong></div>
+                <div>Ca chi viện: <strong>{fmtDateVN(selectedWorkforceReqForPropose.shiftDate)}</strong> ({String(selectedWorkforceReqForPropose.shiftStartTime || '').slice(0, 5)} – {String(selectedWorkforceReqForPropose.shiftEndTime || '').slice(0, 5)})</div>
+              </div>
+
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                Chọn nhân sự đề xuất chi viện:
+              </label>
+              <select
+                className="mp-quick-assign-select"
+                style={{ width: '100%', marginBottom: 14 }}
+                value={selectedEligibleStaffId}
+                onChange={(e) => setSelectedEligibleStaffId(e.target.value)}
+              >
+                {eligibleStaffList.map((emp) => {
+                  const empId = emp.staffId || emp.id;
+                  const name = emp.staffFullName || emp.fullName || emp.name || 'Nhân sự';
+                  const role = emp.position || emp.jobTitle || 'Nhân viên';
+                  return (
+                    <option key={empId} value={empId}>
+                      {name} ({role})
+                    </option>
+                  );
+                })}
+              </select>
+
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                * Nhân viên được đề xuất sẽ nhận thông báo trên ứng dụng để xác nhận đồng ý hỗ trợ chi viện chi nhánh bạn.
+              </div>
+            </div>
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-header-secondary"
+                onClick={() => setShowProposeStaffModal(false)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="mp-btn-urgent-primary"
+                disabled={proposingLoading || !selectedEligibleStaffId}
+                onClick={handleSubmitProposeStaff}
+              >
+                {proposingLoading ? 'Đang gửi đề xuất...' : 'Xác nhận đề xuất'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 6: Xem Chi Tiết Yêu Cầu / Đề Xuất */}
+      {showRecordDetailModal && selectedDetailRecord && (
+        <div className="mp-modal-backdrop" onClick={() => setShowRecordDetailModal(false)}>
+          <div className="mp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <h3 className="mp-modal-title">
+                Chi Tiết {selectedDetailRecord.domainTitle || 'Yêu Cầu'}
+              </h3>
+              <button
+                type="button"
+                className="mp-modal-close-btn"
+                onClick={() => setShowRecordDetailModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mp-modal-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 12, color: '#64748b' }}>
+                  Mã: #{String(selectedDetailRecord.id).slice(0, 8).toUpperCase()}
+                </span>
+                {renderStatusBadge(selectedDetailRecord.status)}
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, marginBottom: 14 }}>
+                <div>Người yêu cầu / Đơn vị: <strong>{cleanText(selectedDetailRecord.requesterName || selectedDetailRecord.staffName || selectedDetailRecord.creatorName || 'Nhân sự')}</strong></div>
+                {selectedDetailRecord.recipient && (
+                  <div>Nơi nhận: <strong>{selectedDetailRecord.recipient}</strong></div>
+                )}
+                {selectedDetailRecord.shiftInfo && (
+                  <div>Thông tin ca / Thời gian: <strong>{selectedDetailRecord.shiftInfo}</strong></div>
+                )}
+                {selectedDetailRecord.createdAt && (
+                  <div>Thời điểm gửi: <strong>{fmtDateTimeVN(selectedDetailRecord.createdAt)}</strong></div>
+                )}
+              </div>
+
+              {selectedDetailRecord.content && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Nội dung chi tiết:</div>
+                  <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, color: '#334155', whiteSpace: 'pre-wrap' }}>
+                    {cleanText(selectedDetailRecord.content)}
+                  </div>
+                </div>
+              )}
+
+              {selectedDetailRecord.reason && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Lý do giải trình:</div>
+                  <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, color: '#334155' }}>
+                    {cleanText(selectedDetailRecord.reason)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mp-modal-footer">
+              <button
+                type="button"
+                className="mp-btn-header-secondary"
+                onClick={() => setShowRecordDetailModal(false)}
               >
                 Đóng
               </button>
