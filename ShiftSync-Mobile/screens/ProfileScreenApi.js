@@ -16,12 +16,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-const AVATAR_OPTIONS = [
-  { id: 'dilan', source: require('../assets/avatar-dilan-jon.png'), label: 'Dilan' },
-  { id: 'mew',   source: require('../assets/avatar-mew-ama.png'),   label: 'Mew'   },
-  { id: 'paul',  source: require('../assets/avatar-paul-lee.png'),  label: 'Paul'  },
-  { id: 'thia',  source: require('../assets/avatar-thia-ago.png'),  label: 'Thia'  },
-];
+import { AVATAR_ROSTER, getAvatarById } from '../constants/avatarRegistry';
+import AvatarCollectionModal from '../components/AvatarCollectionModal';
 
 const AVATAR_STORAGE_KEY = '@user_profile_avatar';
 import BottomNavbar from '../components/BottomNavbar';
@@ -70,8 +66,9 @@ export default function ProfileScreen({ navigation }) {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Derived avatar source from selectedAvatarId
-  const currentAvatar = AVATAR_OPTIONS.find(a => a.id === selectedAvatarId)?.source ?? AVATAR_OPTIONS[0].source;
+  // Derived avatar object from canonical registry
+  const currentAvatarObj = getAvatarById(selectedAvatarId);
+  const currentAvatar = currentAvatarObj.source;
 
   const handleSelectAvatar = async (avatarId) => {
     setSelectedAvatarId(avatarId);
@@ -96,7 +93,7 @@ export default function ProfileScreen({ navigation }) {
         // 2. Load avatar specifically for this user
         const avatarKey = `@user_profile_avatar_${userId}`;
         const savedAvatar = await AsyncStorage.getItem(avatarKey);
-        if (savedAvatar && AVATAR_OPTIONS.some(a => a.id === savedAvatar)) {
+        if (savedAvatar && AVATAR_ROSTER.some(a => a.id === savedAvatar)) {
           setSelectedAvatarId(savedAvatar);
         } else {
           setSelectedAvatarId('dilan');
@@ -248,7 +245,7 @@ export default function ProfileScreen({ navigation }) {
               >
                 <Image source={currentAvatar} style={styles.avatar} />
                 <View style={styles.avatarEditBadge}>
-                  <Text style={styles.avatarEditIcon}>✎</Text>
+                  <Text style={styles.avatarEditIcon}>3D</Text>
                 </View>
               </Pressable>
 
@@ -262,50 +259,13 @@ export default function ProfileScreen({ navigation }) {
               </View>
             </View>
 
-            {/* ── Avatar Picker Modal ── */}
-            <Modal
+            {/* ── Avatar 3D Collection Modal ── */}
+            <AvatarCollectionModal
               visible={showAvatarPicker}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setShowAvatarPicker(false)}
-            >
-              <Pressable style={styles.pickerOverlay} onPress={() => setShowAvatarPicker(false)}>
-                <View style={styles.pickerSheet}>
-                  <Text style={styles.pickerTitle}>Chọn ảnh đại diện</Text>
-                  <FlatList
-                    data={AVATAR_OPTIONS}
-                    keyExtractor={item => item.id}
-                    numColumns={2}
-                    scrollEnabled={false}
-                    columnWrapperStyle={styles.pickerRow}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerItem,
-                          selectedAvatarId === item.id && styles.pickerItemSelected,
-                        ]}
-                        onPress={() => handleSelectAvatar(item.id)}
-                        activeOpacity={0.75}
-                      >
-                        <Image source={item.source} style={styles.pickerAvatar} />
-                        <Text style={styles.pickerLabel}>{item.label}</Text>
-                        {selectedAvatarId === item.id && (
-                          <View style={styles.pickerCheckBadge}>
-                            <Text style={styles.pickerCheckIcon}>✓</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  />
-                  <TouchableOpacity
-                    style={styles.pickerCancelBtn}
-                    onPress={() => setShowAvatarPicker(false)}
-                  >
-                    <Text style={styles.pickerCancelText}>Hủy</Text>
-                  </TouchableOpacity>
-                </View>
-              </Pressable>
-            </Modal>
+              currentAvatarId={selectedAvatarId}
+              onSelectAvatar={handleSelectAvatar}
+              onClose={() => setShowAvatarPicker(false)}
+            />
 
             <View style={styles.cardLine} />
 

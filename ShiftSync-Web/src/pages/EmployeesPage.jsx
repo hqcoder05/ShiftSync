@@ -9,6 +9,8 @@ import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import { AVATAR_ROSTER, getAvatarById, getAvatarForEmployee } from '../features/avatars/avatarRegistry';
+import AvatarCollectionModal from '../features/avatars/AvatarCollectionModal';
 import townIllustration from '../assets/illustrations/town-illustration.png';
 import './EmployeesPage.css';
 
@@ -20,13 +22,12 @@ const EMPLOYMENT_TYPES = [
   { value: 'INTERN', label: 'Thực tập' },
 ];
 
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
+const getEmployeeAvatar = (emp) => {
+  if (!emp) return getAvatarById('dilan').source;
+  const custom = emp.id ? localStorage.getItem(`user_profile_avatar_${emp.id}`) : null;
+  if (custom) return getAvatarById(custom).source;
+  return getAvatarForEmployee(emp).source;
 };
-const DEFAULT_AVATAR = avatarPaul;
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
@@ -41,6 +42,11 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState(null);
   const [activeTab, setActiveTab] = useState('hoso');
   const [savedUserId, setSavedUserId] = useState(null);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [currentSelectedAvatarId, setCurrentSelectedAvatarId] = useState(() => {
+    const myId = localStorage.getItem('userId');
+    return (myId && localStorage.getItem(`user_profile_avatar_${myId}`)) || 'dilan';
+  });
 
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
   const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
@@ -299,13 +305,25 @@ export default function EmployeesPage() {
             <h1>Quản lý người dùng</h1>
             <p className="emp-subtitle">Danh sách tất cả tài khoản nhân viên, quản lý và phân quyền hệ thống</p>
           </div>
-          <button type="button" className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated" onClick={openCreate}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Thêm nhân viên</span>
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="ss-btn ss-btn-outline"
+              onClick={() => setShowAvatarModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
+              title="Khám phá và chọn trong 17 Avatar 3D Digital Twin"
+            >
+              <span style={{ fontSize: '15px' }}>👤</span>
+              <span>Bộ sưu tập Avatar 3D</span>
+            </button>
+            <button type="button" className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated" onClick={openCreate}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Thêm nhân viên</span>
+            </button>
+          </div>
         </div>
 
         {error && !showModal && (
@@ -359,7 +377,7 @@ export default function EmployeesPage() {
                     >
                       <img
                         className="emp-avatar"
-                        src={AVATAR_MAP[emp.fullName] || DEFAULT_AVATAR}
+                        src={getEmployeeAvatar(emp)}
                         alt={emp.fullName || 'Avatar'}
                       />
                       <div className="emp-name-details">
@@ -689,6 +707,20 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+      {/* 3D Avatar Collection Modal */}
+      <AvatarCollectionModal
+        isOpen={showAvatarModal}
+        currentAvatarId={currentSelectedAvatarId}
+        onSelectAvatar={(newId) => {
+          setCurrentSelectedAvatarId(newId);
+          const myId = localStorage.getItem('userId');
+          if (myId) {
+            localStorage.setItem(`user_profile_avatar_${myId}`, newId);
+          }
+          showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).name}`);
+        }}
+        onClose={() => setShowAvatarModal(false)}
+      />
     </div>
   );
 }

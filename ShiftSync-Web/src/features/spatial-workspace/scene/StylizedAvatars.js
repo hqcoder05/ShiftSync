@@ -16,6 +16,7 @@ import { getRoleTheme } from '../visualization/ZoneStatus';
 import { characterGeometries as geo } from './character/CharacterGeometries';
 import { characterMaterials as mat } from './character/CharacterMaterials';
 import { buildRoleOutfit } from './character/CharacterOutfits';
+import { getAvatarById } from '../../avatars/avatarRegistry';
 
 /**
  * Creates a lightweight stylized low-poly employee avatar
@@ -29,10 +30,12 @@ export function createStylizedAvatar({
   isSelected = false,
   seed = 0,
 }) {
-  const roleName = employee?.skillName || employee?.role || employee?.position || 'Nhân viên';
+  const savedAvatarId = employee?.id ? localStorage.getItem(`user_profile_avatar_${employee.id}`) : null;
+  const canonicalAvatar = savedAvatarId ? getAvatarById(savedAvatarId) : (employee?.avatarId ? getAvatarById(employee.avatarId) : null);
+  const roleName = employee?.skillName || employee?.role || employee?.position || canonicalAvatar?.role || 'Nhân viên';
   const roleTheme = getRoleTheme(roleName);
   const normRole = (roleName || '').toLowerCase();
-  const safeSeed = seed || Math.random() * 100;
+  const safeSeed = seed || (canonicalAvatar?.id ? canonicalAvatar.id.charCodeAt(0) : Math.random() * 100);
 
   const group = new THREE.Group();
   group.position.set(x, y, z);

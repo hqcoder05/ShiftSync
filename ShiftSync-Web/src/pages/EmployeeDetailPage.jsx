@@ -10,15 +10,16 @@ import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import { AVATAR_ROSTER, getAvatarById, getAvatarForEmployee } from '../features/avatars/avatarRegistry';
+import AvatarCollectionModal from '../features/avatars/AvatarCollectionModal';
 import './EmployeeDetailPage.css';
 
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
+const getEmployeeAvatar = (emp) => {
+  if (!emp) return getAvatarById('dilan').source;
+  const custom = emp.id ? localStorage.getItem(`user_profile_avatar_${emp.id}`) : null;
+  if (custom) return getAvatarById(custom).source;
+  return getAvatarForEmployee(emp).source;
 };
-const DEFAULT_AVATAR = avatarPaul;
 
 export default function EmployeeDetailPage() {
   const { id } = useParams();
@@ -35,6 +36,8 @@ export default function EmployeeDetailPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
   const [toastMessage, setToastMessage] = useState('');
   const toastTimerRef = useRef(null);
 
@@ -737,16 +740,25 @@ export default function EmployeeDetailPage() {
             {/* Identity Group */}
             <div className="ed-identity-group">
               <div className="ed-avatar-box">
-                <div className="ed-avatar-circle">
-                  {initials}
+                <div
+                  className="ed-avatar-circle"
+                  style={{ cursor: 'pointer', overflow: 'hidden' }}
+                  onClick={() => setShowAvatarModal(true)}
+                  title="Nhấn để mở Bộ sưu tập Avatar 3D"
+                >
+                  <img
+                    src={getEmployeeAvatar(employee)}
+                    alt={employee?.fullName || 'Avatar'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 </div>
                 <button
                   type="button"
                   className="ed-camera-btn"
-                  title="Thay ảnh hồ sơ"
-                  onClick={() => showToast('Tính năng tải ảnh hồ sơ đang kết nối lưu trữ')}
+                  title="Chọn Avatar 3D Digital Twin"
+                  onClick={() => setShowAvatarModal(true)}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>photo_camera</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800 }}>3D</span>
                 </button>
                 <span className="ed-active-chip">
                   <span className="ed-active-chip-ping"></span>
@@ -1569,6 +1581,20 @@ export default function EmployeeDetailPage() {
           </div>
         </div>
       )}
+
+      {/* 3D Avatar Collection Modal */}
+      <AvatarCollectionModal
+        isOpen={showAvatarModal}
+        currentAvatarId={selectedAvatarId}
+        onSelectAvatar={(newId) => {
+          setSelectedAvatarId(newId);
+          if (employee?.id) {
+            localStorage.setItem(`user_profile_avatar_${employee.id}`, newId);
+          }
+          showToast(`Đã cập nhật Avatar 3D cho ${employee?.fullName || 'nhân viên'}: ${getAvatarById(newId).name}`);
+        }}
+        onClose={() => setShowAvatarModal(false)}
+      />
     </div>
   );
 }
