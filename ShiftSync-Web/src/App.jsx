@@ -16,6 +16,7 @@ import SkillsPage from './pages/SkillsPage';
 import SettingsPage from './pages/SettingsPage';
 import DemandPlanningPage from './pages/DemandPlanningPage';
 import StaffAvailabilityPage from './pages/StaffAvailabilityPage';
+import AdminPage from './pages/AdminPage';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
@@ -29,6 +30,14 @@ function ManagerRoute({ children }) {
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
     return <Navigate to="/requests" replace />;
+  }
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  if (userRole !== 'ADMIN') {
+    return <Navigate to="/" replace />;
   }
   return children;
 }
@@ -62,6 +71,7 @@ export default function App() {
               <Route path="/skills" element={<ManagerRoute><SkillsPage /></ManagerRoute>} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/config" element={<SettingsPage />} />
+              <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>

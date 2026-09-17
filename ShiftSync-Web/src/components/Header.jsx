@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { to: '/requests', label: 'REQUESTS', key: 'requests', aliases: ['/request', '/reports'] },
   { to: '/payroll', label: 'PAYROLL', key: 'payroll' },
   { to: '/employees', label: 'EMPLOYEES', key: 'employees', aliases: ['/skills', '/stores'], roles: ['ADMIN', 'MANAGER'] },
+  { to: '/admin', label: 'ADMIN', key: 'admin', roles: ['ADMIN'] },
 ];
 
 export default function Header() {
@@ -643,6 +644,23 @@ export default function Header() {
             </div>
 
             <div className="ss-dropdown-divider" />
+
+            {isAdmin && (
+              <button
+                type="button"
+                className={`ss-dropdown-item ${location.pathname === '/admin' ? 'selected' : ''}`}
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate('/admin');
+                }}
+                role="menuitem"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Quản trị hệ thống (Admin)</span>
+              </button>
+            )}
 
             <button
               type="button"
