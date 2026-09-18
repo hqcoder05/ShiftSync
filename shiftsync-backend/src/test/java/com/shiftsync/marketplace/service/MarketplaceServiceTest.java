@@ -45,6 +45,7 @@ public class MarketplaceServiceTest {
     @Mock private ShiftAssignmentRepository shiftAssignmentRepository;
     @Mock private RedissonClient redissonClient;
     @Mock private ShiftValidationService shiftValidationService;
+    @Mock private com.shiftsync.shift.service.ShiftAssignmentValidator shiftAssignmentValidator;
     @Mock private UserRepository userRepository;
     @Mock private EmploymentRepository employmentRepository;
     @Mock private StaffSkillRepository staffSkillRepository;

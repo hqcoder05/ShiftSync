@@ -52,10 +52,12 @@ public class ShiftAssignmentValidator {
             return false;
         }
 
-        boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
-                .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
-        if (hasApprovedLeave) {
-            return false;
+        if (leaveRequestRepository != null) {
+            boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
+                    .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+            if (hasApprovedLeave) {
+                return false;
+            }
         }
 
         try {
@@ -162,10 +164,12 @@ public class ShiftAssignmentValidator {
         }
 
         // Approved Leave Request Check
-        boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
-                .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
-        if (hasApprovedLeave) {
-            throw new BusinessException("Nhân viên có lịch nghỉ phép đã được phê duyệt vào ngày này", HttpStatus.BAD_REQUEST);
+        if (leaveRequestRepository != null) {
+            boolean hasApprovedLeave = leaveRequestRepository.findOverlappingRequests(staffId, shift.getShiftDate(), shift.getShiftDate())
+                    .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+            if (hasApprovedLeave) {
+                throw new BusinessException("Nhân viên có lịch nghỉ phép đã được phê duyệt vào ngày này", HttpStatus.BAD_REQUEST);
+            }
         }
 
         // Slot capacity and per-skill capacity Check

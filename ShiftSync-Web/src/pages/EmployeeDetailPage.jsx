@@ -4,7 +4,7 @@ import { getEmployeeById, getEmployees, updateEmployee, deleteEmployee } from '.
 import { getAllStores } from '../services/storeService';
 import { getStoresByStaff, assignStaffToStore } from '../services/employmentService';
 import { getShiftsForStore } from '../services/shiftService';
-import { getSkillsByStore } from '../services/skillService';
+import { getAllSkills, getSkillsByStore, getStaffSkills, updateStaffSkills } from '../services/skillService';
 import { getStoreAttendance } from '../services/attendanceService';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
@@ -26,7 +26,9 @@ import {
   EyeOff,
   X,
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Plus,
+  Search
 } from 'lucide-react';
 import './EmployeeDetailPage.css';
 
@@ -102,6 +104,63 @@ export default function EmployeeDetailPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Skills Management
+  const [allSkills, setAllSkills] = useState([]);
+  const [staffSkills, setStaffSkills] = useState([]);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+  const [showSkillPicker, setShowSkillPicker] = useState(false);
+  const [skillSearch, setSkillSearch] = useState('');
+  const skillPopoverRef = useRef(null);
+
+  // Click outside to close skill combobox popover
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (skillPopoverRef.current && !skillPopoverRef.current.contains(e.target)) {
+        setShowSkillPicker(false);
+      }
+    };
+    if (showSkillPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSkillPicker]);
+
+  // Filtered available skills for combobox
+  const filteredAvailableSkills = useMemo(() => {
+    const selectedIds = new Set(selectedSkills.map((s) => s.id));
+    return allSkills
+      .filter((s) => !selectedIds.has(s.id))
+      .filter((s) => {
+        if (!skillSearch.trim()) return true;
+        const q = skillSearch.toLowerCase();
+        return (
+          (s.name || '').toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q)
+        );
+      });
+  }, [allSkills, selectedSkills, skillSearch]);
+
+  const handleOpenEditModal = () => {
+    setEditForm({
+      fullName: employee?.fullName || '',
+      phone: employee?.phone || '',
+      email: employee?.email || '',
+      password: '',
+      cccd: empMeta.cccd || '',
+      storeId: editForm.storeId,
+      status: employee?.status || 'ACTIVE',
+      address: empMeta.address || '',
+      dob: empMeta.dob || '',
+      gender: empMeta.gender || 'Nam'
+    });
+    setSelectedSkills([...staffSkills]);
+    setShowSkillPicker(false);
+    setSkillSearch('');
+    setShowEditModal(true);
+  };
 
   const showToast = (msg) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -218,7 +277,31 @@ export default function EmployeeDetailPage() {
           gender: currentMeta.gender || 'Nam'
         });
 
-        // 6. Load Shifts for Store to calculate real schedule & KPIs
+        // 6. Load all skills in the system & staff assigned skills
+        let fetchedAllSkills = [];
+        try {
+          const allSkRes = await getAllSkills();
+          fetchedAllSkills = Array.isArray(allSkRes.data) ? allSkRes.data : (allSkRes.data?.content || []);
+          setAllSkills(fetchedAllSkills);
+        } catch (e) {
+          console.warn('Cannot load all skills:', e);
+        }
+
+        if (empData.id) {
+          try {
+            const staffSkRes = await getStaffSkills(empData.id);
+            const assignedIds = Array.isArray(staffSkRes.data) ? staffSkRes.data : [];
+            const matched = fetchedAllSkills.filter(sk => assignedIds.includes(sk.id));
+            setStaffSkills(matched);
+            setSelectedSkills(matched);
+          } catch (e) {
+            console.warn('Cannot load staff skills:', e);
+            setStaffSkills([]);
+            setSelectedSkills([]);
+          }
+        }
+
+        // 7. Load Shifts for Store to calculate real schedule & KPIs
         if (targetStoreId) {
           try {
             const shiftsRes = await getShiftsForStore(targetStoreId);
@@ -229,7 +312,7 @@ export default function EmployeeDetailPage() {
             setShifts([]);
           }
 
-          // 7. Load Skills for Store
+          // 8. Load Skills for Store
           try {
             const skillsRes = await getSkillsByStore(targetStoreId);
             const skData = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
@@ -239,7 +322,7 @@ export default function EmployeeDetailPage() {
             setSkills([]);
           }
 
-          // 8. Load Attendance for Store
+          // 9. Load Attendance for Store
           try {
             const attRes = await getStoreAttendance(targetStoreId);
             const attData = Array.isArray(attRes.data) ? attRes.data : (attRes.data?.content || []);
@@ -512,6 +595,15 @@ export default function EmployeeDetailPage() {
       setEmpMeta(updatedMeta);
       localStorage.setItem(`emp_meta_${employee.id}`, JSON.stringify(updatedMeta));
 
+      // 4. Update staff skills in backend atomically
+      try {
+        const skillIdsToSave = selectedSkills.map(s => s.id);
+        await updateStaffSkills(employee.id, skillIdsToSave);
+        setStaffSkills([...selectedSkills]);
+      } catch (err) {
+        console.warn('Staff skills sync warning:', err.message);
+      }
+
       // Update local state
       setEmployee(prev => ({
         ...prev,
@@ -658,21 +750,7 @@ export default function EmployeeDetailPage() {
               id="btn-edit-modal"
               type="button"
               className="ed-btn-outline"
-              onClick={() => {
-                setEditForm({
-                  fullName: employee?.fullName || '',
-                  phone: employee?.phone || '',
-                  email: employee?.email || '',
-                  password: '',
-                  cccd: empMeta.cccd || '',
-                  storeId: editForm.storeId,
-                  status: employee?.status || 'ACTIVE',
-                  address: empMeta.address || '',
-                  dob: empMeta.dob || '',
-                  gender: empMeta.gender || 'Nam'
-                });
-                setShowEditModal(true);
-              }}
+              onClick={handleOpenEditModal}
               title="Chỉnh sửa thông tin nhân sự"
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--emp-outline)' }}>edit</span>
@@ -1071,21 +1149,7 @@ export default function EmployeeDetailPage() {
               <button
                 type="button"
                 className="ed-card-edit-link"
-                onClick={() => {
-                  setEditForm({
-                    fullName: employee?.fullName || '',
-                    phone: employee?.phone || '',
-                    email: employee?.email || '',
-                    password: '',
-                    cccd: empMeta.cccd || '',
-                    storeId: editForm.storeId,
-                    status: employee?.status || 'ACTIVE',
-                    address: empMeta.address || '',
-                    dob: empMeta.dob || '',
-                    gender: empMeta.gender || 'Nam'
-                  });
-                  setShowEditModal(true);
-                }}
+                onClick={handleOpenEditModal}
                 title="Sửa thông tin"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
@@ -1113,6 +1177,35 @@ export default function EmployeeDetailPage() {
               <div className="ed-info-row">
                 <span className="ed-info-label">Địa chỉ thường trú</span>
                 <span className="ed-info-val">{empMeta.address}</span>
+              </div>
+              <div className="ed-info-row" style={{ alignItems: 'flex-start' }}>
+                <span className="ed-info-label">Kỹ năng đảm nhiệm</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '65%', justifyContent: 'flex-end' }}>
+                  {staffSkills.length > 0 ? (
+                    staffSkills.map((sk) => (
+                      <span
+                        key={sk.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          color: '#065f46',
+                          fontSize: '11.5px',
+                          fontWeight: 500
+                        }}
+                      >
+                        {sk.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="ed-info-val" style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                      Chưa gán kỹ năng
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1650,6 +1743,91 @@ export default function EmployeeDetailPage() {
                     </span>
                   </button>
                 </div>
+              </div>
+
+              {/* Row 7: Skill Assignment */}
+              <div className="ed-skill-section">
+                <div className="ed-section-header">
+                  <div className="ed-section-title">
+                    <span>Kỹ năng đảm nhiệm</span>
+                    <span className="ed-skill-count-badge">{selectedSkills.length} kỹ năng</span>
+                  </div>
+                  <p className="ed-section-subtitle">
+                    Gán các kỹ năng mà nhân viên có thể thực hiện trong ca làm việc.
+                  </p>
+                </div>
+
+                <div className="ed-chips-wrap">
+                  {selectedSkills.map((skill) => (
+                    <span key={skill.id} className="ed-chip">
+                      {skill.name}
+                      <button
+                        type="button"
+                        className="ed-chip-remove"
+                        onClick={() => setSelectedSkills(prev => prev.filter(s => s.id !== skill.id))}
+                        title={`Bỏ kỹ năng ${skill.name}`}
+                        aria-label={`Bỏ kỹ năng ${skill.name}`}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="ed-add-skill-btn"
+                    onClick={() => setShowSkillPicker(prev => !prev)}
+                  >
+                    <Plus size={14} />
+                    <span>Thêm kỹ năng</span>
+                  </button>
+                </div>
+
+                {/* Combobox Popover */}
+                {showSkillPicker && (
+                  <div className="ed-combobox-popover" ref={skillPopoverRef}>
+                    <div className="ed-combobox-search">
+                      <Search size={14} color="#94a3b8" />
+                      <input
+                        type="text"
+                        className="ed-combobox-input"
+                        placeholder="Tìm kiếm kỹ năng..."
+                        value={skillSearch}
+                        onChange={(e) => setSkillSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <ul className="ed-skill-list">
+                      {filteredAvailableSkills.length > 0 ? (
+                        filteredAvailableSkills.map((skill) => (
+                          <li
+                            key={skill.id}
+                            className="ed-skill-item"
+                            onClick={() => {
+                              setSelectedSkills(prev => [...prev, skill]);
+                              setSkillSearch('');
+                              setShowSkillPicker(false);
+                            }}
+                          >
+                            <div className="ed-skill-item-info">
+                              <span style={{ fontWeight: 600 }}>{skill.name}</span>
+                              {skill.description && (
+                                <span className="ed-skill-item-desc">{skill.description}</span>
+                              )}
+                            </div>
+                            <Plus size={14} color="#059669" />
+                          </li>
+                        ))
+                      ) : (
+                        <li className="ed-empty-skills">
+                          {allSkills.length === 0
+                            ? 'Chưa có kỹ năng nào trên hệ thống'
+                            : 'Không tìm thấy kỹ năng phù hợp'}
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}

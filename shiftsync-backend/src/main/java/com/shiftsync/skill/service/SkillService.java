@@ -42,6 +42,32 @@ public class SkillService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<UUID> getSkillIdsByStaffId(UUID staffId) {
+        return staffSkillRepository.findByStaffId(staffId).stream()
+                .map(StaffSkill::getSkillId)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void replaceStaffSkills(UUID staffId, List<UUID> newSkillIds) {
+        // Delete existing skills for this staff member
+        List<StaffSkill> existing = staffSkillRepository.findByStaffId(staffId);
+        staffSkillRepository.deleteAll(existing);
+
+        // Add new skills
+        if (newSkillIds != null && !newSkillIds.isEmpty()) {
+            List<StaffSkill> toSave = newSkillIds.stream()
+                    .distinct()
+                    .map(skillId -> StaffSkill.builder()
+                            .staffId(staffId)
+                            .skillId(skillId)
+                            .build())
+                    .collect(Collectors.toList());
+            staffSkillRepository.saveAll(toSave);
+        }
+    }
+
     @Transactional
     public SkillDTO createSkill(UUID storeId, SkillRequest request) {
         Store store = storeRepository.findById(storeId)
