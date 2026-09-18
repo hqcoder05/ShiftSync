@@ -35,6 +35,11 @@ build/
 ###  ENV ###
 .env
 
+### Backups & SQL Dumps ###
+*.sql
+!src/main/resources/**/*.sql
+!scripts/**/*.sql
+
 ### Firebase ###
 firebase-service-account.json
 src/main/resources/firebase-service-account.json

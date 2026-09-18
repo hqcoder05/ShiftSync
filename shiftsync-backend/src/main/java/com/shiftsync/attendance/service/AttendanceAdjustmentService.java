@@ -43,12 +43,13 @@ public class AttendanceAdjustmentService {
     private final UserRepository userRepository;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final StoreConfigurationRepository storeConfigurationRepository;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date, String action) {
-        if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+        if (date != null && payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
                 storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
-            throw new BusinessException("Cannot " + action + ": period is locked", HttpStatus.BAD_REQUEST);
+            throw new BusinessException("Cannot " + action + ": payroll period is locked or already confirmed", HttpStatus.CONFLICT);
         }
     }
 
@@ -105,8 +106,8 @@ public class AttendanceAdjustmentService {
         AttendanceAdjustmentRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Request not found", HttpStatus.NOT_FOUND));
 
-        if (!request.getShift().getStore().getId().equals(storeId)) {
-            throw new BusinessException("Request does not belong to this store", HttpStatus.BAD_REQUEST);
+        if (request.getShift() == null || request.getShift().getStore() == null || !request.getShift().getStore().getId().equals(storeId)) {
+            throw new BusinessException("Request does not belong to this store", HttpStatus.FORBIDDEN);
         }
 
         if (request.getStatus() != AdjustmentStatus.PENDING) {
@@ -118,10 +119,19 @@ public class AttendanceAdjustmentService {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
 
-        // Update or create Attendance
-        // Determine status based on check-in time
-        StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId).orElseGet(StoreConfiguration::new);
-        java.time.LocalDateTime shiftStart = java.time.LocalDateTime.of(request.getShift().getShiftDate(), request.getShift().getStartTime());
+        if (manager.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN 
+                && !employmentRepository.isStaffInStore(managerId, storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+            throw new BusinessException("Manager does not have permission to manage this store", HttpStatus.FORBIDDEN);
+        }
+
+        // Determine late/present status based on store configuration
+        StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId).orElse(null);
+        int lateGrace = (config != null && config.getLateGraceMinutes() != null) ? config.getLateGraceMinutes() : 5;
+
+        java.time.LocalDate sDate = request.getShift().getShiftDate() != null ? request.getShift().getShiftDate() : java.time.LocalDate.now();
+        java.time.LocalTime sTime = request.getShift().getStartTime() != null ? request.getShift().getStartTime() : java.time.LocalTime.of(0, 0);
+        java.time.LocalDateTime shiftStart = java.time.LocalDateTime.of(sDate, sTime);
+
         AttendanceStatus calculatedStatus = AttendanceStatus.PRESENT;
         
         Attendance attendance = request.getAttendance();
@@ -131,34 +141,31 @@ public class AttendanceAdjustmentService {
         }
         
         if (effectiveCheckIn != null) {
-            if (effectiveCheckIn.toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
+            if (effectiveCheckIn.toLocalDateTime().isAfter(shiftStart.plusMinutes(lateGrace))) {
                 calculatedStatus = AttendanceStatus.LATE;
             }
         }
 
         if (attendance == null) {
-            // Need to create new Attendance
             ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(request.getShift().getId(), request.getStaff().getId())
                     .orElseThrow(() -> new BusinessException("Staff is not assigned to this shift", HttpStatus.BAD_REQUEST));
             
-            attendance = Attendance.builder()
-                    .shiftAssignment(assignment)
-                    .checkInTime(request.getRequestedCheckIn())
-                    .checkOutTime(request.getRequestedCheckOut())
-                    .status(calculatedStatus)
-                    .build();
-            attendance = attendanceRepository.save(attendance);
-            request.setAttendance(attendance);
-        } else {
-            if (request.getRequestedCheckIn() != null) {
-                attendance.setCheckInTime(request.getRequestedCheckIn());
-            }
-            if (request.getRequestedCheckOut() != null) {
-                attendance.setCheckOutTime(request.getRequestedCheckOut());
-            }
-            attendance.setStatus(calculatedStatus);
-            attendanceRepository.save(attendance);
+            // Check if an attendance record already exists for this assignment to prevent unique constraint violation
+            attendance = attendanceRepository.findByShiftAssignmentId(assignment.getId())
+                    .orElseGet(() -> Attendance.builder()
+                            .shiftAssignment(assignment)
+                            .build());
         }
+
+        if (request.getRequestedCheckIn() != null) {
+            attendance.setCheckInTime(request.getRequestedCheckIn());
+        }
+        if (request.getRequestedCheckOut() != null) {
+            attendance.setCheckOutTime(request.getRequestedCheckOut());
+        }
+        attendance.setStatus(calculatedStatus);
+        attendance = attendanceRepository.save(attendance);
+        request.setAttendance(attendance);
 
         request.setStatus(AdjustmentStatus.APPROVED);
         request.setApprovedBy(manager);
@@ -185,8 +192,8 @@ public class AttendanceAdjustmentService {
         AttendanceAdjustmentRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Request not found", HttpStatus.NOT_FOUND));
 
-        if (!request.getShift().getStore().getId().equals(storeId)) {
-            throw new BusinessException("Request does not belong to this store", HttpStatus.BAD_REQUEST);
+        if (request.getShift() == null || request.getShift().getStore() == null || !request.getShift().getStore().getId().equals(storeId)) {
+            throw new BusinessException("Request does not belong to this store", HttpStatus.FORBIDDEN);
         }
 
         if (request.getStatus() != AdjustmentStatus.PENDING) {
@@ -197,6 +204,11 @@ public class AttendanceAdjustmentService {
 
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
+
+        if (manager.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN 
+                && !employmentRepository.isStaffInStore(managerId, storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+            throw new BusinessException("Manager does not have permission to manage this store", HttpStatus.FORBIDDEN);
+        }
 
         request.setStatus(AdjustmentStatus.REJECTED);
         request.setApprovedBy(manager);

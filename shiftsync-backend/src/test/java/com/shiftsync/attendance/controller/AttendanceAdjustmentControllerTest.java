@@ -82,4 +82,44 @@ public class AttendanceAdjustmentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(managerUser.getId(), response.getBody().getStaffId());
     }
+
+    @Test
+    public void testManagerCanApproveAdjustmentRequest() {
+        UUID requestId = UUID.randomUUID();
+        AdjustmentResponseDTO responseDTO = AdjustmentResponseDTO.builder()
+                .id(requestId)
+                .staffId(staffUser.getId())
+                .status(com.shiftsync.attendance.enums.AdjustmentStatus.APPROVED)
+                .approvedBy(managerUser.getId())
+                .build();
+
+        when(service.approveRequest(storeId, requestId, managerUser.getId())).thenReturn(responseDTO);
+
+        ResponseEntity<AdjustmentResponseDTO> response = controller.approveRequest(storeId, requestId, managerUser);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(com.shiftsync.attendance.enums.AdjustmentStatus.APPROVED, response.getBody().getStatus());
+        verify(service, times(1)).approveRequest(storeId, requestId, managerUser.getId());
+    }
+
+    @Test
+    public void testManagerCanRejectAdjustmentRequest() {
+        UUID requestId = UUID.randomUUID();
+        AdjustmentResponseDTO responseDTO = AdjustmentResponseDTO.builder()
+                .id(requestId)
+                .staffId(staffUser.getId())
+                .status(com.shiftsync.attendance.enums.AdjustmentStatus.REJECTED)
+                .approvedBy(managerUser.getId())
+                .build();
+
+        when(service.rejectRequest(storeId, requestId, managerUser.getId())).thenReturn(responseDTO);
+
+        ResponseEntity<AdjustmentResponseDTO> response = controller.rejectRequest(storeId, requestId, managerUser);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(com.shiftsync.attendance.enums.AdjustmentStatus.REJECTED, response.getBody().getStatus());
+        verify(service, times(1)).rejectRequest(storeId, requestId, managerUser.getId());
+    }
 }

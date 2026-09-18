@@ -54,6 +54,8 @@ public class AttendanceAdjustmentServiceTest {
     private PayrollPeriodRepository payrollPeriodRepository;
     @Mock
     private StoreConfigurationRepository storeConfigurationRepository;
+    @Mock
+    private com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
 
     @Mock
     private NotificationService notificationService;
@@ -69,8 +71,8 @@ public class AttendanceAdjustmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        staff = User.builder().id(UUID.randomUUID()).fullName("Staff 1").build();
-        manager = User.builder().id(UUID.randomUUID()).fullName("Manager 1").build();
+        staff = User.builder().id(UUID.randomUUID()).fullName("Staff 1").systemRole(com.shiftsync.shared.security.SystemRole.STAFF).build();
+        manager = User.builder().id(UUID.randomUUID()).fullName("Manager 1").systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build();
         store = Store.builder().id(UUID.randomUUID()).build();
         shift = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(LocalDate.now()).startTime(java.time.LocalTime.of(9, 0)).build();
         assignment = ShiftAssignment.builder().id(UUID.randomUUID()).staff(staff).shift(shift).build();
@@ -168,6 +170,111 @@ public class AttendanceAdjustmentServiceTest {
         assertEquals(AdjustmentStatus.APPROVED, result.getStatus());
         verify(attendanceRepository, times(1)).save(any()); // Creates new attendance
         assertEquals(createdAttendance.getId(), request.getAttendance().getId());
+    }
+
+    @Test
+    void approveRequest_WithoutExistingAttendance_ExistingAssignmentAttendanceInDB() {
+        // Attendance field on request is null, but DB already has Attendance for this assignment
+        AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .attendance(null)
+                .status(AdjustmentStatus.PENDING)
+                .requestedCheckIn(OffsetDateTime.now())
+                .build();
+
+        Attendance existingInDb = Attendance.builder().id(UUID.randomUUID()).shiftAssignment(assignment).build();
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staff.getId())).thenReturn(Optional.of(assignment));
+        when(attendanceRepository.findByShiftAssignmentId(assignment.getId())).thenReturn(Optional.of(existingInDb));
+        when(storeConfigurationRepository.findByStoreId(any())).thenReturn(Optional.of(new com.shiftsync.store.entity.StoreConfiguration()));
+        when(attendanceRepository.save(any())).thenReturn(existingInDb);
+        when(requestRepository.save(any())).thenReturn(request);
+
+        AdjustmentResponseDTO result = service.approveRequest(store.getId(), request.getId(), manager.getId());
+
+        assertEquals(AdjustmentStatus.APPROVED, result.getStatus());
+        // Verify we update existingInDb rather than creating a duplicate
+        verify(attendanceRepository, times(1)).save(existingInDb);
+        assertEquals(existingInDb.getId(), request.getAttendance().getId());
+    }
+
+    @Test
+    void approveRequest_NonExistentRequest() {
+        UUID nonExistentId = UUID.randomUUID();
+        when(requestRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), nonExistentId, manager.getId()));
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatus());
+    }
+
+    @Test
+    void approveRequest_WrongStore() {
+        UUID otherStoreId = UUID.randomUUID();
+        AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
+                .id(UUID.randomUUID())
+                .shift(shift) // belongs to store
+                .staff(staff)
+                .status(AdjustmentStatus.PENDING)
+                .build();
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(otherStoreId, request.getId(), manager.getId()));
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, ex.getStatus());
+    }
+
+    @Test
+    void approveRequest_AlreadyApproved() {
+        AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .status(AdjustmentStatus.APPROVED)
+                .build();
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Only pending requests can be approved"));
+    }
+
+    @Test
+    void approveRequest_AlreadyRejected() {
+        AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .status(AdjustmentStatus.REJECTED)
+                .build();
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Only pending requests can be approved"));
+    }
+
+    @Test
+    void approveRequest_LockedPeriod() {
+        AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .status(AdjustmentStatus.PENDING)
+                .build();
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(true);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("payroll period is locked"));
     }
 
     @Test

@@ -116,6 +116,27 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        logger.warn("Data integrity violation: {}", ex.getMessage());
+        return new ResponseEntity<>(
+            buildResponse("DATA_INTEGRITY_VIOLATION", "Database constraint violation or conflict occurred", null), 
+            HttpStatus.CONFLICT
+        );
+    }
+
+    @ExceptionHandler({
+        org.springframework.orm.ObjectOptimisticLockingFailureException.class,
+        jakarta.persistence.OptimisticLockException.class
+    })
+    public ResponseEntity<Map<String, Object>> handleOptimisticLocking(Exception ex) {
+        logger.warn("Optimistic locking conflict: {}", ex.getMessage());
+        return new ResponseEntity<>(
+            buildResponse("OPTIMISTIC_LOCK_CONFLICT", "This record was modified by another transaction. Please refresh and try again.", null), 
+            HttpStatus.CONFLICT
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
         logger.error("Unhandled exception: ", ex);
