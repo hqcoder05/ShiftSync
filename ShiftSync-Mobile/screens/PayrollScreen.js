@@ -179,7 +179,13 @@ export default function PayrollScreen({ navigation }) {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    const unsubscribe = navigation?.addListener?.('focus', () => {
+      loadData();
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [navigation, loadData]);
 
   // ═══════════════════════════════════════════════════════════
   // VIEW 2: BÁO CÁO THU NHẬP CHI TIẾT (luongmobile.docx image1.png)
@@ -389,7 +395,7 @@ export default function PayrollScreen({ navigation }) {
             </Text>
           ) : (
             payslips.map((ps, idx) => {
-              const isDetailed = ps.month === 8 || ps.month === 7 || payslips.length === 1;
+              const statusInfo = getPayrollStatusInfo(ps.periodStatus, ps.isEstimate);
               return (
                 <Pressable
                   key={ps.id || idx}
@@ -400,27 +406,25 @@ export default function PayrollScreen({ navigation }) {
                   <View style={styles.payslipRowLeft}>
                     <Text style={styles.payslipTitle}>{ps.title}</Text>
 
-                    {isDetailed ? (
-                      <View style={styles.payslipDetailWrap}>
-                        <View style={styles.yellowDotLine}>
-                          <View style={styles.yellowBullet} />
-                          <Text style={styles.detailedAmount}>{formatVND(ps.totalAmount)}</Text>
-                        </View>
-                        <Text style={styles.payslipRangeText}>{ps.periodRange}</Text>
-                        <View style={styles.payslipRoleWrap}>
-                          <View style={styles.roleTagDot} />
-                          <Text style={styles.roleTagText}>{ps.role}</Text>
-                        </View>
+                    <View style={styles.payslipDetailWrap}>
+                      <View style={styles.yellowDotLine}>
+                        <View style={styles.yellowBullet} />
+                        <Text style={styles.detailedAmount}>{formatVND(ps.totalAmount)}</Text>
                       </View>
-                    ) : (
                       <Text style={styles.payslipRangeText}>{ps.periodRange}</Text>
-                    )}
+                      <View style={styles.payslipRoleWrap}>
+                        <View style={styles.roleTagDot} />
+                        <Text style={styles.roleTagText}>{ps.role}</Text>
+                        <Text style={styles.statusDotSeparator}>•</Text>
+                        <Text style={[styles.roleTagText, { color: statusInfo.color, fontWeight: '600' }]}>
+                          {statusInfo.text}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
 
-                  {/* Right info (for simple months) */}
-                  {!isDetailed && (
-                    <Text style={styles.goldSalaryAmount}>{formatVND(ps.totalAmount)}</Text>
-                  )}
+                  {/* Right chevron */}
+                  <Text style={styles.rowChevron}>›</Text>
                 </Pressable>
               );
             })
@@ -567,6 +571,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555555',
     fontWeight: '500',
+  },
+  statusDotSeparator: {
+    fontSize: 13,
+    color: '#BBBBBB',
+  },
+  rowChevron: {
+    fontSize: 22,
+    color: '#AAAAAA',
+    fontWeight: '300',
+    paddingRight: 8,
   },
   goldSalaryAmount: {
     fontSize: 16,
