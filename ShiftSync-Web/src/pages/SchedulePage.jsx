@@ -715,7 +715,7 @@ export default function SchedulePage() {
       const res = await allocateZonesForShift(storeId, current3DShift.id);
       if (res?.data) {
         setAllocatedSequence(res.data.assignments || []);
-        showToast('Phân bổ không gian 3D', `✓ Đã phân bổ tối ưu ${res.data.assignedCount || active3DStaff.length} nhân sự vào các khu vực theo thuật toán Max-Min Dispersion!`);
+        showToast('Phân bổ không gian 3D', `Đã phân bổ tối ưu ${res.data.assignedCount || active3DStaff.length} nhân sự vào các khu vực theo thuật toán Max-Min Dispersion!`);
         loadData();
       }
     } catch (err) {
@@ -897,7 +897,7 @@ export default function SchedulePage() {
     try {
       const res = await autoScheduleShifts(storeId, { startDate, endDate });
       const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
-      showToast('Thành Công! 🤖', msg);
+      showToast('Thành Công! ', msg);
       loadData();
       notifyShiftUpdates();
     } catch (err) {
@@ -1172,7 +1172,7 @@ export default function SchedulePage() {
         // Continue even if already published
       }
       showToast(
-        'Duyệt ca thành công! 🎉',
+        'Duyệt ca thành công! ',
         `Đã duyệt và phân công ca ${DOW_VI[slot.dayOfWeek]} (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) cho ${empName}. Ca làm việc đã được xuất bản và hiển thị ngay trên ứng dụng của nhân viên!`
       );
       loadData();
@@ -1580,7 +1580,7 @@ export default function SchedulePage() {
     try {
       await publishShifts(storeId, dateFrom, dateTo);
       showToast(
-        'Xuất bản thành công! 🎉',
+        'Xuất bản thành công! ',
         `Lịch làm việc từ ${fmtFull(displayedDates[0])} đến ${fmtFull(displayedDates[displayedDates.length - 1])} đã được xuất bản và thông báo đến nhân viên.`
       );
       loadData();
@@ -1597,7 +1597,7 @@ export default function SchedulePage() {
     try {
       showToast('Đang xếp lịch tự động', 'Hệ thống đang chạy thuật toán tối ưu 8 bước...');
       await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
-      showToast('Xếp lịch tự động thành công! 🎉', 'Đã phân bổ ca làm việc tối ưu cho tuần.');
+      showToast('Xếp lịch tự động thành công! ', 'Đã phân bổ ca làm việc tối ưu cho tuần.');
       loadData();
       notifyShiftUpdates();
     } catch (err) {
@@ -1620,7 +1620,7 @@ export default function SchedulePage() {
             cursor: 'pointer', transition: 'all 0.15s',
           }}
         >
-          📅 Lập lịch & Bảng ca
+          Lập lịch & Bảng ca
         </button>
         <button
           type="button"
@@ -1632,7 +1632,7 @@ export default function SchedulePage() {
             cursor: 'pointer', transition: 'all 0.15s',
           }}
         >
-          👥 Khả dụng nhân viên
+          Khả dụng nhân sự
         </button>
       </div>
 
@@ -1847,8 +1847,8 @@ export default function SchedulePage() {
                 <div className="sch-calendar-popover" onClick={(e) => e.stopPropagation()}>
                   <div className="sch-cal-popover-header">
                     <div className="sch-cal-month-year">
-                      <span>{MONTH_NAMES_VI[calMonth]} ▾</span>
-                      <span>{calYear} ▾</span>
+                      <span>{MONTH_NAMES_VI[calMonth]}</span>
+                      <span>{calYear}</span>
                     </div>
                     <div className="sch-cal-header-nav">
                       <button
@@ -1967,7 +1967,7 @@ export default function SchedulePage() {
             }}>
               {/* Left: Day Pills */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', whiteSpace: 'nowrap' }}>📅 Ngày:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', whiteSpace: 'nowrap' }}>Ngày:</span>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {weekDatesFull.map((d, idx) => {
                     const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -2112,7 +2112,7 @@ export default function SchedulePage() {
           <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             {viewMode === 'Ngày' && (
               <div className="sch-day-nav-pills-bar">
-                <span className="sch-day-nav-label">📅 Chọn ngày:</span>
+                <span className="sch-day-nav-label">Chọn ngày:</span>
                 <div className="sch-day-nav-list">
                   {weekDatesFull.map((d, idx) => {
                     const dIso = toISODate(d);
@@ -2224,7 +2224,7 @@ export default function SchedulePage() {
                   <tr className="sch-demand-summary-row" key="demand-summary-row">
                     <td className="sch-col-emp">
                       <div className="sch-emp-cell sch-demand-cell-header">
-                        <div className="sch-demand-avatar">📋</div>
+                        
                         <div>
                           <div className="sch-emp-name" style={{ color: '#0f766e', fontWeight: 700 }}>
                             Nhu cầu định biên
@@ -2486,9 +2486,7 @@ export default function SchedulePage() {
                   type="button"
                   className="sch-modal-close"
                   onClick={() => setShowRegisterModal(false)}
-                >
-                  ✕
-                </button>
+                >&times;</button>
               </div>
             </div>
 
@@ -2733,9 +2731,7 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowAddUserModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <label>
@@ -2837,9 +2833,7 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowEditEmpModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="sch-modal-grid">
@@ -2914,9 +2908,7 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowViewModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="sch-view-emp-header">
@@ -3019,9 +3011,7 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowCrossStoreModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="sch-cross-list">
@@ -3137,15 +3127,13 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowAvailabilityModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="sch-avail-modal-body">
               {loadingAvail ? (
                 <div style={{ textAlign: 'center', padding: '36px', color: '#666', fontSize: '14px' }}>
-                  ⏳ Đang tải lịch đăng ký của nhân viên...
+                  Đang tải lịch đăng ký của nhân viên...
                 </div>
               ) : staffAvailSlots.length === 0 ? (
                 <div className="sch-avail-empty-box">
@@ -3262,9 +3250,7 @@ export default function SchedulePage() {
             type="button"
             className="sch-toast-close"
             onClick={() => setToastNotification(null)}
-          >
-            ✕
-          </button>
+          >&times;</button>
         </div>
       )}
       {/* ═══ CONFIRM DIALOG ═══ */}
@@ -3302,7 +3288,7 @@ export default function SchedulePage() {
           initialDateIso={demandTargetDate || toISODate(displayedDates[0])}
           onSuccess={() => {
             showToast(
-              'Đã cập nhật định biên! 🎉',
+              'Đã cập nhật định biên! ',
               'Kế hoạch định biên nhân sự đã được đồng bộ với lịch làm việc.'
             );
             loadData();
@@ -3316,16 +3302,14 @@ export default function SchedulePage() {
           <div className="sch-modal sch-auto-schedule-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sch-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22, color: '#0284c7' }}>⚡</span>
+                
                 <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a' }}>Tự động xếp ca làm việc (AI Scheduler)</h2>
               </div>
               <button
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowAutoScheduleModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <p style={{ margin: '8px 0 16px', fontSize: 13, color: '#64748b' }}>
@@ -3422,7 +3406,7 @@ export default function SchedulePage() {
                       endDate: autoScheduleDates.endDate,
                     });
                     const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
-                    showToast('Thành Công! 🤖', msg);
+                    showToast('Thành Công! ', msg);
                     loadData();
                     notifyShiftUpdates();
                   } catch (err) {

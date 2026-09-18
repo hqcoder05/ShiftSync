@@ -162,7 +162,7 @@ export default function StaffAvailabilityPage() {
         startTime: createForm.startTime.length === 5 ? `${createForm.startTime}:00` : createForm.startTime,
         endTime: createForm.endTime.length === 5 ? `${createForm.endTime}:00` : createForm.endTime,
       });
-      showToast('Đăng ký thành công! 🎉', 'Khung giờ rảnh đã được lưu vào hệ thống.');
+      showToast('Đăng ký thành công! ', 'Khung giờ rảnh đã được lưu vào hệ thống.');
       setShowCreateModal(false);
       loadData();
     } catch (err) {
@@ -175,7 +175,7 @@ export default function StaffAvailabilityPage() {
     if (!window.confirm('Bạn có chắc chắn muốn xoá khung giờ rảnh này?')) return;
     try {
       await deleteAvailability(slotId);
-      showToast('Đã xoá thành công! 🗑️', 'Khung giờ rảnh đã được gỡ bỏ.');
+      showToast('Đã xoá thành công! ', 'Khung giờ rảnh đã được gỡ bỏ.');
       loadData();
     } catch (err) {
       showToast('Lỗi xoá', err.response?.data?.message || 'Không thể xoá khung giờ rảnh.');
@@ -473,7 +473,7 @@ export default function StaffAvailabilityPage() {
   /* ── Remind missing employees ── */
   const handleRemindMissing = () => {
     showToast(
-      'Đã gửi thông báo nhắc nhở! 🔔',
+      'Đã gửi thông báo nhắc nhở! ',
       `Hệ thống đã gửi thông báo đến ${missingCount} nhân viên chưa nộp lịch đăng ký tuần này.`
     );
   };
@@ -515,7 +515,7 @@ export default function StaffAvailabilityPage() {
       };
       await createShift(storeId, payload);
       showToast(
-        'Phân ca thành công! 🎉',
+        'Phân ca thành công! ',
         `Đã xếp ca làm việc cho ${emp.fullName} vào ${DOW_VI[date.getDay()]} (${fmtTime(slot.startTime)} - ${fmtTime(slot.endTime)})`
       );
       setQuickAssignModal(null);
@@ -645,7 +645,7 @@ export default function StaffAvailabilityPage() {
             />
           </div>
           <div className="avail-kpi-subtext">
-            <strong>🔒 Đã xếp: {weeklyAnalytics.assignedHours}h</strong> • <span>🟢 Còn rảnh: {weeklyAnalytics.remainingFreeHours}h</span>
+            <strong>Đã xếp: {weeklyAnalytics.assignedHours}h</strong> • <span>Còn rảnh: {weeklyAnalytics.remainingFreeHours}h</span>
           </div>
         </div>
 
@@ -667,7 +667,7 @@ export default function StaffAvailabilityPage() {
           </div>
           <div className="avail-kpi-subtext">
             {weeklyAnalytics.freeSlotsCount === 0 ? (
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Toàn bộ ca đăng ký đã được phân công</span>
+              <span style={{ color: '#16a34a', fontWeight: 600 }}>Toàn bộ ca đăng ký đã được phân công</span>
             ) : (
               <span>{weeklyAnalytics.freeStaffCount} nhân viên sẵn sàng nhận thêm ca</span>
             )}
@@ -754,9 +754,7 @@ export default function StaffAvailabilityPage() {
               type="button"
               className="avail-search-clear"
               onClick={() => setSearchKeyword('')}
-            >
-              ✕
-            </button>
+            >&times;</button>
           )}
         </div>
 
@@ -784,10 +782,10 @@ export default function StaffAvailabilityPage() {
             className="avail-select-filter"
           >
             <option value="ALL">Tất cả trạng thái ({employees.length} NV)</option>
-            <option value="STILL_FREE">🟢 THỰC SỰ CÒN RẢNH ({weeklyAnalytics.freeStaffCount} NV có ca trống)</option>
-            <option value="OCCUPIED">🔒 ĐÃ KÍN LỊCH ({weeklyAnalytics.occupiedStaffCount} NV đã có ca)</option>
-            <option value="SUBMITTED">📝 Đã đăng ký lịch rảnh ({submittedCount} NV)</option>
-            <option value="MISSING">⚠️ Chưa nộp lịch ({missingCount} NV)</option>
+            <option value="STILL_FREE">THỰC SỰ CÒN RẢNH ({weeklyAnalytics.freeStaffCount} NV có ca trống)</option>
+            <option value="OCCUPIED">ĐÃ KÍN LỊCH ({weeklyAnalytics.occupiedStaffCount} NV đã có ca)</option>
+            <option value="SUBMITTED">Đã đăng ký lịch rảnh ({submittedCount} NV)</option>
+            <option value="MISSING">Chưa nộp lịch ({missingCount} NV)</option>
           </select>
         </div>
 
@@ -829,22 +827,22 @@ export default function StaffAvailabilityPage() {
 
                         {staffWithSlots.length === 0 ? (
                           <div className="avail-th-avail-count empty" title="Không có nhân viên nào đăng ký ngày này">
-                            ⚪ 0 người đăng ký
+                            0 người đăng ký
                           </div>
                         ) : freeStaff.length > 0 ? (
                           <div className="avail-th-count-stack">
                             <div className="avail-th-avail-count free" title={`${freeStaff.length} nhân viên còn rảnh chưa xếp ca`}>
-                              🟢 {freeStaff.length} người còn rảnh
+                              {freeStaff.length} người còn rảnh
                             </div>
                             {assignedStaff.length > 0 && (
                               <div className="avail-th-sub-count" title={`${assignedStaff.length} nhân viên đã có ca`}>
-                                🔒 {assignedStaff.length} đã có ca
+                                {assignedStaff.length} đã có ca
                               </div>
                             )}
                           </div>
                         ) : (
                           <div className="avail-th-avail-count full" title={`Tất cả ${assignedStaff.length} nhân viên đã được xếp ca kín lịch`}>
-                            🔒 Đã kín lịch ({assignedStaff.length}/{staffWithSlots.length})
+                            Đã kín lịch ({assignedStaff.length}/{staffWithSlots.length})
                           </div>
                         )}
                       </th>
@@ -905,9 +903,9 @@ export default function StaffAvailabilityPage() {
                                       Đăng ký: <strong>{empSlots.length} ca</strong> ({empStats.declaredHours}h)
                                     </span>
                                     {empStats.isFullyOccupied ? (
-                                      <span className="avail-emp-tag occupied">🔒 Đã kín lịch</span>
+                                      <span className="avail-emp-tag occupied">Đã kín lịch</span>
                                     ) : (
-                                      <span className="avail-emp-tag free">🟢 Còn {empStats.freeCount} ca rảnh</span>
+                                      <span className="avail-emp-tag free">Còn {empStats.freeCount} ca rảnh</span>
                                     )}
                                   </div>
                                 ) : (
@@ -967,10 +965,10 @@ export default function StaffAvailabilityPage() {
                                         }}
                                         title={
                                           isAssigned
-                                            ? `🔒 Đã có ca: ${fmtTime(assignedShift.startTime)} - ${fmtTime(assignedShift.endTime)} (Đã bận / Kín lịch). Bấm xem chi tiết ca.`
+                                            ? `Đã có ca: ${fmtTime(assignedShift.startTime)} - ${fmtTime(assignedShift.endTime)} (Đã bận / Kín lịch). Bấm xem chi tiết ca.`
                                             : isStaff
-                                              ? `🟢 Khung giờ rảnh (${timeStr}). Bấm để xoá.`
-                                              : `🟢 Còn rảnh (${timeStr}). Bấm để xếp ca làm việc cho ${emp.fullName}.`
+                                              ? `Khung giờ rảnh (${timeStr}). Bấm để xoá.`
+                                              : `Còn rảnh (${timeStr}). Bấm để xếp ca làm việc cho ${emp.fullName}.`
                                         }
                                       >
                                         <div className="avail-slot-card-top">
@@ -985,7 +983,7 @@ export default function StaffAvailabilityPage() {
 
                                         {isAssigned ? (
                                           <div className="avail-slot-assigned-badge">
-                                            <span className="avail-lock-text">🔒 Đã có ca: {fmtTime(assignedShift.startTime)} - {fmtTime(assignedShift.endTime)}</span>
+                                            <span className="avail-lock-text">Đã có ca: {fmtTime(assignedShift.startTime)} - {fmtTime(assignedShift.endTime)}</span>
                                             <span className="avail-busy-pill">Kín lịch</span>
                                           </div>
                                         ) : (
@@ -1015,7 +1013,7 @@ export default function StaffAvailabilityPage() {
                   <tr className="avail-tfoot-row">
                     <td className="avail-tfoot-label">
                       <div className="avail-tfoot-title">Tổng hợp trạng thái ngày:</div>
-                      <div className="avail-tfoot-sub">🟢 Còn rảnh • 🔒 Đã có ca</div>
+                      <div className="avail-tfoot-sub">Còn rảnh • Đã có ca</div>
                     </td>
                     {weekDatesFull.map((d) => {
                       const dow = d.getDay();
@@ -1033,14 +1031,14 @@ export default function StaffAvailabilityPage() {
                             <span className="avail-tfoot-pill empty">—</span>
                           ) : freeStaff.length > 0 ? (
                             <div className="avail-tfoot-pill-group">
-                              <span className="avail-tfoot-pill free">🟢 {freeStaff.length} còn rảnh</span>
+                              <span className="avail-tfoot-pill free">{freeStaff.length} còn rảnh</span>
                               {assignedStaff.length > 0 && (
-                                <span className="avail-tfoot-pill assigned">🔒 {assignedStaff.length} có ca</span>
+                                <span className="avail-tfoot-pill assigned">{assignedStaff.length} có ca</span>
                               )}
                             </div>
                           ) : (
                             <span className="avail-tfoot-pill full" title="Tất cả nhân sự đăng ký ngày này đã được phân ca">
-                              🔒 0 rảnh • {assignedStaff.length} có ca
+                              0 rảnh • {assignedStaff.length} có ca
                             </span>
                           )}
                         </td>
@@ -1123,11 +1121,11 @@ export default function StaffAvailabilityPage() {
                 <div className="avail-timeslot-column">
                   <div className="avail-timeslot-col-header morning">
                     <div className="avail-col-header-left">
-                      <span className="avail-col-icon">🌅</span>
+                      <span className="avail-col-icon"></span>
                       <div>
                         <h3 className="avail-col-title">Ca Sáng (06:00 – 14:00)</h3>
                         <span className="avail-col-sub">
-                          {morningStaff.length} đăng ký • 🟢 {morningFreeCount} còn rảnh • 🔒 {morningAssignedCount} có ca
+                          {morningStaff.length} đăng ký • {morningFreeCount} còn rảnh • {morningAssignedCount} có ca
                         </span>
                       </div>
                     </div>
@@ -1164,7 +1162,7 @@ export default function StaffAvailabilityPage() {
                                   onClick={() => handleOpenShiftDetailModal(emp, mSlot, selectedDateObj, assigned)}
                                   title="Đã kín lịch. Bấm xem chi tiết ca"
                                 >
-                                  🔒 Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
+                                  Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
                                 </button>
                               ) : (
                                 <button
@@ -1188,11 +1186,11 @@ export default function StaffAvailabilityPage() {
                 <div className="avail-timeslot-column">
                   <div className="avail-timeslot-col-header afternoon">
                     <div className="avail-col-header-left">
-                      <span className="avail-col-icon">🌆</span>
+                      <span className="avail-col-icon"></span>
                       <div>
                         <h3 className="avail-col-title">Ca Chiều & Tối (14:00 – 22:00)</h3>
                         <span className="avail-col-sub">
-                          {afternoonStaff.length} đăng ký • 🟢 {afternoonFreeCount} còn rảnh • 🔒 {afternoonAssignedCount} có ca
+                          {afternoonStaff.length} đăng ký • {afternoonFreeCount} còn rảnh • {afternoonAssignedCount} có ca
                         </span>
                       </div>
                     </div>
@@ -1229,7 +1227,7 @@ export default function StaffAvailabilityPage() {
                                   onClick={() => handleOpenShiftDetailModal(emp, aSlot, selectedDateObj, assigned)}
                                   title="Đã kín lịch. Bấm xem chi tiết ca"
                                 >
-                                  🔒 Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
+                                  Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
                                 </button>
                               ) : (
                                 <button
@@ -1277,9 +1275,7 @@ export default function StaffAvailabilityPage() {
                 type="button"
                 className="avail-modal-close"
                 onClick={() => setQuickAssignModal(null)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <form onSubmit={handleSubmitQuickAssign} className="avail-modal-form">
@@ -1364,9 +1360,7 @@ export default function StaffAvailabilityPage() {
                 type="button"
                 className="avail-modal-close"
                 onClick={() => setShiftDetailModal(null)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="avail-modal-form">
@@ -1408,7 +1402,7 @@ export default function StaffAvailabilityPage() {
                 <div className="avail-summary-row">
                   <span className="avail-summary-label">Trạng thái:</span>
                   <span className="avail-summary-val" style={{ color: '#16a34a', fontWeight: 700 }}>
-                    ✓ ĐÃ BỐ TRÍ CA (PUBLISHED)
+                    ĐÃ BỐ TRÍ CA (PUBLISHED)
                   </span>
                 </div>
                 {shiftDetailModal.shift.note && (
@@ -1454,9 +1448,7 @@ export default function StaffAvailabilityPage() {
                 type="button"
                 className="avail-modal-close"
                 onClick={() => setShowCreateModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <form onSubmit={handleCreateAvailability} className="avail-modal-form">
               <div className="avail-form-group">
@@ -1520,7 +1512,7 @@ export default function StaffAvailabilityPage() {
       {/* ═══ TOAST NOTIFICATION ═══ */}
       {toast && (
         <div className="avail-toast">
-          <div className="avail-toast-icon">✓</div>
+          
           <div className="avail-toast-body">
             <div className="avail-toast-title">{toast.title}</div>
             <div className="avail-toast-msg">{toast.message}</div>

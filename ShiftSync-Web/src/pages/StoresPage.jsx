@@ -166,7 +166,7 @@ export default function StoresPage() {
       setNewSkillColor(PRESET_COLORS[0]);
       setShowAddSkill(false);
       loadSkills(expandedStoreId);
-      showToast(`✓ Đã thêm vị trí "${newSkillName.trim()}"`);
+      showToast(`Đã thêm vị trí "${newSkillName.trim()}"`);
     } catch (err) {
       setSkillFormError(err.response?.data?.message || 'Thêm thất bại');
     }
@@ -179,9 +179,9 @@ export default function StoresPage() {
       await updateSkill(storeId, skillId, { name: skill.name, description: editingSkillColor });
       setEditingSkillId(null);
       loadSkills(storeId);
-      showToast('✓ Đã cập nhật màu vị trí');
+      showToast('Đã cập nhật màu vị trí');
     } catch {
-      showToast('✗ Cập nhật màu thất bại');
+      showToast('Lỗi: Cập nhật màu thất bại');
     }
   };
 
@@ -190,9 +190,9 @@ export default function StoresPage() {
     try {
       await deleteSkill(storeId, skillId);
       loadSkills(storeId);
-      showToast(`✓ Đã xoá vị trí "${skillName}"`);
+      showToast(`Đã xoá vị trí "${skillName}"`);
     } catch (err) {
-      showToast(err.response?.data?.message || '✗ Xoá thất bại (vị trí đang được dùng)');
+      showToast(err.response?.data?.message || 'Lỗi: Xoá thất bại (vị trí đang được dùng)');
     }
   };
 
@@ -316,10 +316,10 @@ export default function StoresPage() {
     try {
       if (editing) {
         await updateStore(editing.id, payload);
-        showToast(`✓ Đã cập nhật chi nhánh "${payload.name}"`);
+        showToast(`Đã cập nhật chi nhánh "${payload.name}"`);
       } else {
         await createStore(payload);
-        showToast(`✓ Đã thêm chi nhánh "${payload.name}"`);
+        showToast(`Đã thêm chi nhánh "${payload.name}"`);
       }
       closeModal();
       load();
@@ -335,7 +335,7 @@ export default function StoresPage() {
     try {
       await deleteStore(id);
       load();
-      showToast(`✓ Đã xoá chi nhánh "${name}"`);
+      showToast(`Đã xoá chi nhánh "${name}"`);
     } catch (err) {
       setError(err.response?.data?.message || 'Xoá thất bại');
     }
@@ -400,14 +400,14 @@ export default function StoresPage() {
                         onClick={() => handleToggleExpand(s.id, 'skills')}
                         title="Xem vị trí công việc"
                       >
-                        🏷️ Vị trí ({skills.length})
+                        Vị trí ({skills.length})
                       </button>
                       <button
                         className={`store-expand-btn ss-btn-elevated store-3d-btn ${isExpanded && currentTab === 'spatial' ? 'active' : ''}`}
                         onClick={() => handleToggleExpand(s.id, 'spatial')}
                         title="Xem & thiết kế không gian 3D"
                       >
-                        🏢 Không gian 3D
+                        Không gian 3D
                       </button>
                       <button onClick={() => openEdit(s)}>Sửa</button>
                       <button onClick={() => handleDelete(s.id, s.name)}>Xoá</button>
@@ -423,14 +423,14 @@ export default function StoresPage() {
                           className={`store-tab-btn ${currentTab === 'skills' ? 'active' : ''}`}
                           onClick={() => setStoreTabs((prev) => ({ ...prev, [s.id]: 'skills' }))}
                         >
-                          🏷️ Vị trí công việc ({skills.length})
+                          Vị trí công việc ({skills.length})
                         </button>
                         <button
                           type="button"
                           className={`store-tab-btn ${currentTab === 'spatial' ? 'active' : ''}`}
                           onClick={() => setStoreTabs((prev) => ({ ...prev, [s.id]: 'spatial' }))}
                         >
-                          🏢 Không gian &amp; Phân khu 3D
+                          Không gian &amp; Phân khu 3D
                         </button>
                       </div>
 
@@ -516,16 +516,14 @@ export default function StoresPage() {
                                           }}
                                           title="Đổi màu"
                                         >
-                                          🎨
+                                          
                                         </button>
                                       )}
                                       <button
                                         className="store-skill-delete"
                                         onClick={() => handleDeleteSkill(s.id, sk.id, sk.name)}
                                         title="Xoá vị trí"
-                                      >
-                                        ✕
-                                      </button>
+                                      >&times;</button>
                                     </div>
                                   </div>
                                 );
@@ -559,7 +557,7 @@ export default function StoresPage() {
           >
             <div className="store-modal-header">
               <h2>{editing ? 'Sửa chi nhánh' : 'Thêm chi nhánh'}</h2>
-              <button type="button" className="store-modal-close" onClick={closeModal}>✕</button>
+              <button type="button" className="store-modal-close" onClick={closeModal}>&times;</button>
             </div>
 
             {modalError && <p className="store-modal-error">{modalError}</p>}
@@ -595,7 +593,7 @@ export default function StoresPage() {
                           className="store-suggestion-item"
                           onClick={() => handleSelectSuggestion(loc)}
                         >
-                          <span className="store-suggestion-pin">📍</span>
+                          
                           <span className="store-suggestion-title">{loc.name}</span>
                         </div>
                       ))}

@@ -556,7 +556,7 @@ export default function PayrollPage() {
               {selectedPeriod?.label ||
                 (periods.length === 0 ? 'Chưa có kỳ lương' : 'Chọn kỳ lương')}
             </span>
-            <span className="pay-arrow">▾</span>
+            <span className="pay-arrow"></span>
           </button>
 
           {showPeriodDropdown && (
@@ -617,7 +617,7 @@ export default function PayrollPage() {
                   if (myRow) handleDownloadPdf(myRow.payrollId || myRow.id, selectedPeriod?.label);
                 }}
               >
-                {downloadingPdfId ? 'ĐANG TẢI PDF...' : '📄 TẢI PHIẾU LƯƠNG (PDF)'}
+                {downloadingPdfId ? 'ĐANG TẢI PDF...' : 'TẢI PHIẾU LƯƠNG (PDF)'}
               </button>
             </div>
           ) : periods.length === 0 ? (
@@ -652,7 +652,7 @@ export default function PayrollPage() {
                     style={{ background: '#2563EB', color: '#FFFFFF', borderColor: '#1D4ED8' }}
                     onClick={() => handleUpdatePeriodStatus('CONFIRMED')}
                   >
-                    ✓ CHỐT BẢNG LƯƠNG
+                    CHỐT BẢNG LƯƠNG
                   </button>
                   <button
                     type="button"
@@ -665,7 +665,7 @@ export default function PayrollPage() {
                     }
                     disabled={isGenerating}
                   >
-                    {isGenerating ? 'ĐANG TÍNH...' : '🔄 TÍNH LẠI KỲ NÀY'}
+                    {isGenerating ? 'ĐANG TÍNH...' : 'TÍNH LẠI KỲ NÀY'}
                   </button>
                 </>
               )}
@@ -677,7 +677,7 @@ export default function PayrollPage() {
                   style={{ background: '#16A34A', color: '#FFFFFF', borderColor: '#15803D' }}
                   onClick={() => handleUpdatePeriodStatus('PAID')}
                 >
-                  ✓ ĐÃ THANH TOÁN
+                  ĐÃ THANH TOÁN
                 </button>
               )}
             </div>
@@ -714,7 +714,7 @@ export default function PayrollPage() {
             onClick={() => setSelectedStaff('ALL')}
           >
             <span className="pay-staff-all-text">Tất cả ({computedRows.length})</span>
-            <span className="pay-staff-all-arrow">▲</span>
+            <span className="pay-staff-all-arrow"></span>
           </div>
 
           <div className="pay-staff-list">
@@ -802,7 +802,7 @@ export default function PayrollPage() {
                         disabled={downloadingPdfId === (row.payrollId || row.id)}
                         onClick={() => handleDownloadPdf(row.payrollId || row.id, selectedPeriod?.label)}
                       >
-                        {downloadingPdfId === (row.payrollId || row.id) ? '...' : '📄 Tải PDF'}
+                        {downloadingPdfId === (row.payrollId || row.id) ? '...' : 'Tải PDF'}
                       </button>
                     </td>
                   </tr>
@@ -854,9 +854,7 @@ export default function PayrollPage() {
                 type="button"
                 className="pay-modal-close"
                 onClick={() => setShowNewPeriodModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <p style={{ fontSize: '13px', color: '#71717A', margin: '8px 0 16px' }}>
               Hệ thống sẽ tự động quét toàn bộ ca làm việc (shifts) và bản chấm công (attendances) trong tháng được chọn để tính lương, giờ làm và tăng ca cho nhân viên.
@@ -926,9 +924,7 @@ export default function PayrollPage() {
                     type="button"
                     className="pay-modal-close"
                     onClick={() => setShowExportModal(false)}
-                  >
-                    ✕
-                  </button>
+                  >&times;</button>
                 </div>
 
                 <div className="pay-export-summary">

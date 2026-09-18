@@ -475,9 +475,9 @@ export default function AttendancePageLive() {
       const res = await approveLeaveRequest(sId, pendingApproveLeaveId);
       const warning = res.data?.warning;
       if (warning) {
-        toast.success(`✓ Đã phê duyệt đơn nghỉ phép. ${warning}`);
+        toast.success(`Đã phê duyệt đơn nghỉ phép. ${warning}`);
       } else {
-        toast.success('✓ Đã phê duyệt đơn nghỉ phép. Ca trống đã tự động mở trên Sàn Marketplace!');
+        toast.success('Đã phê duyệt đơn nghỉ phép. Ca trống đã tự động mở trên Sàn Marketplace!');
       }
       setShowImpactModal(false);
       setPendingApproveLeaveId(null);
@@ -577,7 +577,7 @@ export default function AttendancePageLive() {
     setActionLoading(true);
     try {
       await approveAdjustmentRequest(sId, adjId, {});
-      toast.success('✓ Đã phê duyệt giải trình chấm công.');
+      toast.success('Đã phê duyệt giải trình chấm công.');
       await fetchAdjustments();
       window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
     } catch (err) {
@@ -809,7 +809,7 @@ export default function AttendancePageLive() {
               onClick={() => setShowStoreList((v) => !v)}
             >
               <span className="att-filter-label">Chi nhánh</span>
-              <span className={`att-filter-arrow${showStoreList ? ' open' : ''}`}>▾</span>
+              <span className={`att-filter-arrow${showStoreList ? ' open' : ''}`}></span>
             </div>
 
             {/* List các chi nhánh xổ xuống */}
@@ -828,7 +828,7 @@ export default function AttendancePageLive() {
                     }}
                   >
                     <span style={{ flex: 1 }}>{s.name}</span>
-                    {isSelected && <span style={{ color: '#256b1f', fontWeight: 'bold' }}>✓</span>}
+                    {isSelected && <span style={{ color: '#256b1f', fontWeight: 'bold' }}>[x]</span>}
                   </div>
                 );
               })}
@@ -857,7 +857,7 @@ export default function AttendancePageLive() {
               onClick={() => setShowUserList((v) => !v)}
             >
               <span className="att-filter-label">Người dùng</span>
-              <span className={`att-filter-arrow${showUserList ? ' open' : ''}`}>▾</span>
+              <span className={`att-filter-arrow${showUserList ? ' open' : ''}`}></span>
             </div>
             <div className={`att-filter-collapse${showUserList ? ' expanded' : ''}`}>
               <div
@@ -909,14 +909,14 @@ export default function AttendancePageLive() {
               className={`tw-domain-tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
               onClick={() => handleTabChange('attendance')}
             >
-              🕒 Chấm công trực tiếp
+              Chấm công trực tiếp
             </button>
             <button
               type="button"
               className={`tw-domain-tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`}
               onClick={() => handleTabChange('adjustments')}
             >
-              📝 Giải trình chấm công
+              Giải trình chấm công
               {pendingAdjCount > 0 && <span className="tw-tab-badge amber">{pendingAdjCount}</span>}
             </button>
             <button
@@ -924,7 +924,7 @@ export default function AttendancePageLive() {
               className={`tw-domain-tab-btn ${activeTab === 'leave' ? 'active' : ''}`}
               onClick={() => handleTabChange('leave')}
             >
-              🏖️ Đơn xin nghỉ phép
+              Đơn xin nghỉ phép
               {pendingLeaveCount > 0 && <span className="tw-tab-badge indigo">{pendingLeaveCount}</span>}
             </button>
           </div>
@@ -1041,8 +1041,8 @@ export default function AttendancePageLive() {
               <div className="att-calendar-popover" onClick={(e) => e.stopPropagation()}>
                 <div className="att-cal-popover-header">
                   <div className="att-cal-month-year">
-                    <span>{MONTH_NAMES_VI[calMonth]} ▾</span>
-                    <span>{calYear} ▾</span>
+                    <span>{MONTH_NAMES_VI[calMonth]}</span>
+                    <span>{calYear}</span>
                   </div>
                   <div className="att-cal-header-nav">
                     <button
@@ -1129,7 +1129,7 @@ export default function AttendancePageLive() {
               fontWeight: '600',
             }}
           >
-            <span style={{ fontSize: '18px' }}>⚠️</span>
+            
             <span>
               Hệ thống phát hiện{' '}
               <strong>
@@ -1308,7 +1308,7 @@ export default function AttendancePageLive() {
                               onClick={() => handleOpenEdit(row)}
                               title="Chỉnh sửa giờ chấm công của nhân viên"
                             >
-                              ✏️ Sửa
+                              Sửa
                             </button>
                           ) : (
                             <span className="att-muted">—</span>
@@ -1352,9 +1352,7 @@ export default function AttendancePageLive() {
                       type="button"
                       onClick={() => setAdjSearch('')}
                       style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-                    >
-                      ✕
-                    </button>
+                    >&times;</button>
                   )}
                 </div>
                 {[
@@ -1486,9 +1484,7 @@ export default function AttendancePageLive() {
                       type="button"
                       onClick={() => setLeaveSearch('')}
                       style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-                    >
-                      ✕
-                    </button>
+                    >&times;</button>
                   )}
                 </div>
                 {[
@@ -1571,7 +1567,7 @@ export default function AttendancePageLive() {
                                   onClick={() => handleEditLeaveReason(r.id, r.reason)}
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, fontSize: '13px', padding: '2px 4px' }}
                                 >
-                                  ✏️
+                                  Sửa
                                 </button>
                               )}
                             </div>
@@ -1645,9 +1641,7 @@ export default function AttendancePageLive() {
                 type="button"
                 className="att-photo-close-btn"
                 onClick={() => setPreviewPhoto(null)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <div className="att-photo-modal-body">
               <img
@@ -1671,9 +1665,7 @@ export default function AttendancePageLive() {
                 className="att-modal-close"
                 onClick={() => setEditingRow(null)}
                 disabled={isSaving}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <form className="att-edit-form" onSubmit={handleSaveEdit}>
               <div className="att-form-info-box">
@@ -1771,7 +1763,7 @@ export default function AttendancePageLive() {
           <div className="tw-impact-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="tw-impact-header">
               <div className="tw-impact-header-title">
-                <span style={{ fontSize: '18px' }}>⚠️</span>
+                
                 <span>Đánh giá tác động nhân sự trước khi duyệt nghỉ phép</span>
               </div>
               <button
@@ -1779,9 +1771,7 @@ export default function AttendancePageLive() {
                 className="att-modal-close"
                 onClick={() => setShowImpactModal(false)}
                 disabled={actionLoading}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="tw-impact-body">
@@ -1828,7 +1818,7 @@ export default function AttendancePageLive() {
                   </div>
 
                   <div className="tw-impact-warning-alert">
-                    <span style={{ fontSize: '20px' }}>📢</span>
+                    
                     <div>
                       <strong>Tự động điều phối Marketplace:</strong>
                       <p style={{ margin: '4px 0 0 0' }}>
@@ -1839,7 +1829,7 @@ export default function AttendancePageLive() {
                 </>
               ) : (
                 <div style={{ padding: '16px', borderRadius: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '13px' }}>
-                  ✓ Nhân viên hiện không có ca làm việc nào được xếp trong khoảng thời gian nghỉ này. Bạn có thể an tâm phê duyệt.
+                  Nhân viên hiện không có ca làm việc nào được xếp trong khoảng thời gian nghỉ này. Bạn có thể an tâm phê duyệt.
                 </div>
               )}
             </div>
@@ -1877,9 +1867,7 @@ export default function AttendancePageLive() {
                 className="att-modal-close"
                 onClick={() => setShowLeaveModal(false)}
                 disabled={actionLoading}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <form className="att-edit-form" onSubmit={handleCreateLeaveSubmit}>
               <div className="att-form-group">
@@ -1961,9 +1949,7 @@ export default function AttendancePageLive() {
                 className="att-modal-close"
                 onClick={() => setShowAdjModal(false)}
                 disabled={actionLoading}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <form className="att-edit-form" onSubmit={handleCreateAdjustmentSubmit}>
               <div className="att-form-group">

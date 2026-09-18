@@ -584,9 +584,7 @@ export default function AdminPage() {
                   type="button"
                   className="adm-search-clear"
                   onClick={() => setSearchQuery('')}
-                >
-                  ✕
-                </button>
+                >&times;</button>
               )}
             </div>
 
@@ -763,9 +761,7 @@ export default function AdminPage() {
                               className="adm-mgr-unlink-btn"
                               title="Gỡ Quản lý khỏi chi nhánh này"
                               onClick={() => handleRemoveManagerFromStore(store.id, store.name)}
-                            >
-                              ✕
-                            </button>
+                            >&times;</button>
                           </div>
                         ) : (
                           <div className="adm-store-unassigned-box">
@@ -1059,9 +1055,7 @@ export default function AdminPage() {
                 type="button"
                 className="adm-modal-close"
                 onClick={() => setShowAssignModal(false)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
 
             <div className="adm-modal-body">
@@ -1159,9 +1153,7 @@ export default function AdminPage() {
                   type="button"
                   className="adm-modal-close"
                   onClick={() => setShowStoreModal(false)}
-                >
-                  ✕
-                </button>
+                >&times;</button>
               </div>
 
               <div className="adm-modal-body">
@@ -1267,9 +1259,7 @@ export default function AdminPage() {
                   type="button"
                   className="adm-modal-close"
                   onClick={() => setShowUserModal(false)}
-                >
-                  ✕
-                </button>
+                >&times;</button>
               </div>
 
               <div className="adm-modal-body">
@@ -1372,9 +1362,7 @@ export default function AdminPage() {
                 type="button"
                 className="adm-modal-close"
                 onClick={() => setConfirmDelete(null)}
-              >
-                ✕
-              </button>
+              >&times;</button>
             </div>
             <div className="adm-modal-body">
               <p>

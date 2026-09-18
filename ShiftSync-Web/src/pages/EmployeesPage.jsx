@@ -242,7 +242,7 @@ export default function EmployeesPage() {
         setSavedUserId(newId);
       }
       fetchEmployees();
-      showToast(editing ? '✓ Đã cập nhật hồ sơ nhân viên' : '✓ Đã tạo nhân viên mới');
+      showToast(editing ? 'Đã cập nhật hồ sơ nhân viên' : 'Đã tạo nhân viên mới');
       setActiveTab('phancong'); 
     } catch (err) {
       const status = err.response?.status;
@@ -276,7 +276,7 @@ export default function EmployeesPage() {
       });
       setShowModal(false);
       fetchEmployees();
-      showToast('✓ Đã lưu phân công thành công');
+      showToast('Đã lưu phân công thành công');
     } catch (err) {
       setError(err.response?.data?.message || 'Phân công thất bại');
     } finally {
@@ -289,7 +289,7 @@ export default function EmployeesPage() {
     try { 
       await deleteEmployee(id); 
       fetchEmployees();
-      showToast('✓ Đã xoá nhân viên');
+      showToast('Đã xoá nhân viên');
     } catch (err) { 
       setError(err.response?.data?.message || 'Xoá thất bại'); 
     }
@@ -320,7 +320,7 @@ export default function EmployeesPage() {
             cursor: 'pointer', transition: 'all 0.15s',
           }}
         >
-          👥 Danh sách nhân viên
+          Danh sách nhân viên
         </button>
         <button
           type="button"
@@ -332,7 +332,7 @@ export default function EmployeesPage() {
             cursor: 'pointer', transition: 'all 0.15s',
           }}
         >
-          💰 Bảng lương (Payroll)
+          Bảng lương (Payroll)
         </button>
       </div>
 
@@ -371,7 +371,7 @@ export default function EmployeesPage() {
               style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
               title="Khám phá và chọn trong 17 Avatar 3D Digital Twin"
             >
-              <span style={{ fontSize: '15px' }}>👤</span>
+              
               <span>Bộ sưu tập Avatar 3D</span>
             </button>
             <button type="button" className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated" onClick={openCreate}>
@@ -531,9 +531,7 @@ export default function EmployeesPage() {
               className="emp-modal-close"
               onClick={() => setShowModal(false)}
               aria-label="Đóng cửa sổ"
-            >
-              ✕
-            </button>
+            >&times;</button>
 
             <div className="emp-modal-body">
               <nav className="emp-tabs" aria-label="Tab thông tin">

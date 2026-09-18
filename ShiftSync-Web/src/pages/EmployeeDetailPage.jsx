@@ -453,7 +453,7 @@ export default function EmployeeDetailPage() {
     if (editForm.password && editForm.password.trim() !== '') {
       const pwdError = validatePassword(editForm.password);
       if (pwdError) {
-        showToast(`❌ ${pwdError}`);
+        showToast(`Lỗi: ${pwdError}`);
         return;
       }
     }
@@ -508,10 +508,10 @@ export default function EmployeeDetailPage() {
 
       setShowEditModal(false);
       setEditForm(prev => ({ ...prev, password: '' }));
-      showToast('✓ Cập nhật hồ sơ nhân sự thành công!');
+      showToast('Cập nhật hồ sơ nhân sự thành công!');
     } catch (err) {
       console.error('Update error:', err);
-      showToast('❌ Cập nhật thất bại: ' + (err.response?.data?.message || err.message));
+      showToast('Lỗi: Cập nhật thất bại: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsSaving(false);
     }
@@ -526,12 +526,12 @@ export default function EmployeeDetailPage() {
 
     const pwdError = validatePassword(newPassword);
     if (pwdError) {
-      showToast(`❌ ${pwdError}`);
+      showToast(`Lỗi: ${pwdError}`);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      showToast('❌ Xác nhận mật khẩu không khớp!');
+      showToast('Lỗi: Xác nhận mật khẩu không khớp!');
       return;
     }
 
@@ -546,10 +546,10 @@ export default function EmployeeDetailPage() {
 
       setShowPasswordModal(false);
       setPasswordForm({ newPassword: '', confirmPassword: '' });
-      showToast('✓ Đã cập nhật mật khẩu mới cho nhân viên thành công!');
+      showToast('Đã cập nhật mật khẩu mới cho nhân viên thành công!');
     } catch (err) {
       console.error('Password change error:', err);
-      showToast('❌ Đổi mật khẩu thất bại: ' + (err.response?.data?.message || err.message));
+      showToast('Lỗi: Đổi mật khẩu thất bại: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsSaving(false);
     }
@@ -732,7 +732,7 @@ export default function EmployeeDetailPage() {
                       if (confirm(`Bạn có chắc chắn muốn xóa nhân viên ${employee?.fullName}?`)) {
                         deleteEmployee(employee.id)
                           .then(() => {
-                            showToast('✓ Đã xóa nhân viên!');
+                            showToast('Đã xóa nhân viên!');
                             setTimeout(() => navigate('/employees'), 1000);
                           })
                           .catch(err => showToast('Lỗi khi xóa: ' + err.message));
@@ -996,7 +996,7 @@ export default function EmployeeDetailPage() {
                   {kpis.attScore}%
                 </div>
                 <span style={{ fontSize: '11px', color: kpis.noLateThisWeek ? '#0d9488' : '#eab308', marginTop: '4px', display: 'block' }}>
-                  {kpis.noLateThisWeek ? '✓ Không trễ ca tuần này' : '⚠️ Có trễ ca phát sinh'}
+                  {kpis.noLateThisWeek ? 'Không trễ ca tuần này' : 'Có trễ ca phát sinh'}
                 </span>
               </div>
             </div>
@@ -1026,7 +1026,7 @@ export default function EmployeeDetailPage() {
                       </td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#0d9488', fontWeight: 600 }}>
-                          ✓ Đang áp dụng
+                          Đang áp dụng
                         </span>
                       </td>
                     </tr>

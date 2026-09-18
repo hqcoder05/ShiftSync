@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getStoreLeaveRequests, getMyLeaveRequests } from '../services/leaveService';
@@ -481,7 +481,7 @@ export default function RequestPage() {
                 <ArrowLeftRight size={16} color="#6366f1" />
                 <div>
                   <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a' }}>Hoán đổi ca làm (Shift Swap)</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Target đồng ý trước ➔ Manager phê duyệt</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Target đồng ý trước &rarr; Manager phê duyệt</div>
                 </div>
               </div>
               {stats.pendingSwap > 0 ? (
