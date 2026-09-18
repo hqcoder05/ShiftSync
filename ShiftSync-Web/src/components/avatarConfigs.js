@@ -313,11 +313,20 @@ export function getAvatarById(id) {
 
 export function getAvatarForEmployee(emp) {
   if (!emp) return 'dilan';
+  if (typeof emp === 'string') {
+    const lower = emp.toLowerCase().trim();
+    const matched = AVATAR_OPTIONS.find(a => a.id === lower);
+    if (matched) return matched.id;
+    const charCode = [...emp].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const index = charCode % AVATAR_OPTIONS.length;
+    return AVATAR_OPTIONS[index].id;
+  }
   if (emp.avatarId) return emp.avatarId;
-  const name = emp.fullName || emp.name || emp.email || '';
+  const name = emp.fullName || emp.name || emp.staffName || emp.userFullName || emp.employeeName || emp.email || '';
   if (!name) return 'dilan';
-  const charCode = name.charCodeAt(0) + (name.charCodeAt(name.length - 1) || 0);
+  const charCode = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const index = charCode % AVATAR_OPTIONS.length;
   return AVATAR_OPTIONS[index].id;
 }
+
 

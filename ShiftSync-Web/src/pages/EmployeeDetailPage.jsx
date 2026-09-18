@@ -6,48 +6,16 @@ import { getStoresByStaff, assignStaffToStore } from '../services/employmentServ
 import { getShiftsForStore } from '../services/shiftService';
 import { getAllSkills, getSkillsByStore, getStaffSkills, updateStaffSkills } from '../services/skillService';
 import { getStoreAttendance } from '../services/attendanceService';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
-import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
-import {
-  User,
-  Mail,
-  Phone,
-  CreditCard,
-  Building2,
-  CheckCircle2,
-  MapPin,
-  Lock,
-  Eye,
-  EyeOff,
-  X,
-  ChevronDown,
-  UserCheck,
-  Plus,
-  Search
-} from 'lucide-react';
-import './EmployeeDetailPage.css';
 
 const getEmployeeAvatarId = (emp) => {
   if (!emp) return 'dilan';
   const custom = emp.id ? localStorage.getItem(`user_profile_avatar_${emp.id}`) : null;
   if (custom) return custom;
   if (emp.avatarId) return emp.avatarId;
-  return getAvatarForEmployee(emp).id;
-};
-
-const getEmployeeAvatar = (emp) => {
-  const id = getEmployeeAvatarId(emp);
-  const thumb = getAvatarThumbnail(id);
-  if (thumb) return thumb;
-  if (id === 'mew') return avatarMew;
-  if (id === 'paul') return avatarPaul;
-  if (id === 'thia') return avatarThia;
-  return avatarDilan;
+  return getAvatarForEmployee(emp);
 };
 
 export default function EmployeeDetailPage() {
@@ -858,11 +826,7 @@ export default function EmployeeDetailPage() {
                   onClick={() => setShowAvatarModal(true)}
                   title="Nhấn để mở Bộ sưu tập Avatar 3D"
                 >
-                  <img
-                    src={getEmployeeAvatar(employee)}
-                    alt={employee?.fullName || 'Avatar'}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+                  <Avatar3DWeb avatarId={getEmployeeAvatarId(employee)} size={96} interactive={true} />
                 </div>
                 <button
                   type="button"

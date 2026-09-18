@@ -37,20 +37,9 @@ import {
   ExternalLink,
   Printer
 } from 'lucide-react';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './StaffAvailabilityPage.css';
-
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
-};
-const DEFAULT_AVATAR = avatarPaul;
-const getAvatar = (name = '') => AVATAR_MAP[name] || DEFAULT_AVATAR;
 
 const getRoleBadgeClass = (pos = '') => {
   const p = (pos || '').toLowerCase();
@@ -877,11 +866,7 @@ export default function StaffAvailabilityPage() {
                         <td className="avail-td-emp">
                           <div className="avail-emp-card">
                             <div className="avail-emp-avatar-wrap">
-                              <img
-                                src={getAvatar(emp.fullName)}
-                                alt={emp.fullName}
-                                className="avail-emp-avatar"
-                              />
+                              <Avatar3DWeb avatarId={emp.avatarId || getAvatarForEmployee(emp)} size={40} />
                               {hasSubmitted ? (
                                 <span className="avail-emp-status-dot submitted" title="Đã nộp lịch rảnh" />
                               ) : (

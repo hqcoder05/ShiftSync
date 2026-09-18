@@ -13,24 +13,9 @@ import {
   removeStaffFromStore
 } from '../services/adminService';
 import { getContractTypes } from '../services/contractTypeService';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './AdminPage.css';
-
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Paul Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Thia Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Mew Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
-  'Dilan Jon': avatarDilan,
-};
-const DEFAULT_AVATAR = avatarPaul;
-const getAvatar = (name = '') => AVATAR_MAP[name] || DEFAULT_AVATAR;
 
 const POPULAR_LOCATIONS = [
   { name: '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh', lat: 10.7743, lng: 106.7032 },
@@ -744,11 +729,7 @@ export default function AdminPage() {
 
                         {manager ? (
                           <div className="adm-store-mgr-card">
-                            <img
-                              src={getAvatar(manager.fullName)}
-                              alt={manager.fullName}
-                              className="adm-store-mgr-avatar"
-                            />
+                            <Avatar3DWeb avatarId={manager.avatarId || getAvatarForEmployee(manager.fullName)} size={38} />
                             <div className="adm-store-mgr-details">
                               <div className="adm-store-mgr-name">{manager.fullName}</div>
                               <div className="adm-store-mgr-email">{manager.email}</div>
@@ -830,11 +811,7 @@ export default function AdminPage() {
                           <td>
                             {manager ? (
                               <div className="adm-table-mgr-flex">
-                                <img
-                                  src={getAvatar(manager.fullName)}
-                                  alt=""
-                                  className="adm-table-mgr-avatar"
-                                />
+                                <Avatar3DWeb avatarId={manager.avatarId || getAvatarForEmployee(manager.fullName)} size={32} />
                                 <div>
                                   <div className="adm-table-mgr-name">{manager.fullName}</div>
                                   <div className="adm-table-mgr-sub">{manager.email}</div>
@@ -911,11 +888,7 @@ export default function AdminPage() {
                   return (
                     <div key={mId} className="adm-manager-card">
                       <div className="adm-manager-card-top">
-                        <img
-                          src={getAvatar(mgr.fullName)}
-                          alt={mgr.fullName}
-                          className="adm-manager-avatar"
-                        />
+                        <Avatar3DWeb avatarId={mgr.avatarId || getAvatarForEmployee(mgr.fullName)} size={44} />
                         <div className="adm-manager-info">
                           <h3 className="adm-manager-name">{mgr.fullName}</h3>
                           <span className="adm-manager-email">{mgr.email}</span>
@@ -997,11 +970,7 @@ export default function AdminPage() {
                       <tr key={uId}>
                         <td>
                           <div className="adm-table-mgr-flex">
-                            <img
-                              src={getAvatar(u.fullName)}
-                              alt=""
-                              className="adm-table-mgr-avatar"
-                            />
+                            <Avatar3DWeb avatarId={u.avatarId || getAvatarForEmployee(u.fullName)} size={32} />
                             <strong>{u.fullName}</strong>
                           </div>
                         </td>

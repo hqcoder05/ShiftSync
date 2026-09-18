@@ -13,38 +13,11 @@ import {
 import { toast } from '../context/ToastContext';
 import Payroll3DCharacterWeb from '../components/Payroll3DCharacterWeb';
 import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './PayrollPage.css';
 
-// Illustrations & Avatars
+// Illustrations
 import luongIllustration from '../assets/illustrations/luong.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-
-const AVATAR_LIST = [avatarPaul, avatarThia, avatarMew, avatarDilan];
-const AVATAR_MAP = {
-  'Dilan. Jon': avatarDilan,
-  'Dilan . Jon': avatarDilan,
-  'Mew. Ama': avatarMew,
-  'Thia. Ago': avatarThia,
-  'Paul. Lee': avatarPaul,
-  'Quoc Manager': avatarPaul,
-  'Quoc Staff': avatarDilan,
-  'Store Manager Alice': avatarThia,
-  'Store Manager Bob': avatarPaul,
-};
-
-// Deterministic diverse avatar generator
-const getStaffAvatar = (name = '', id = '') => {
-  if (AVATAR_MAP[name]) return AVATAR_MAP[name];
-  const key = String(id || name || '');
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = key.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_LIST[Math.abs(hash) % AVATAR_LIST.length];
-};
 
 // Format currency to standard Vietnamese Dong (normalize if legacy seed had thousands)
 export const formatVND = (num) => {
@@ -722,14 +695,14 @@ export default function PayrollPage() {
           <div className="pay-staff-list">
             {computedRows.map((emp) => {
               const isSelected = selectedStaff === emp.name || selectedStaff === emp.id;
-              const avatarSrc = getStaffAvatar(emp.name, emp.staffId || emp.id);
+              const avatarId = emp.avatarId || getAvatarForEmployee(emp.name);
               return (
                 <div
                   key={emp.id}
                   className={`pay-staff-item ${isSelected ? 'active' : ''}`}
                   onClick={() => setSelectedStaff(emp.name)}
                 >
-                  <img src={avatarSrc} alt={emp.name} className="pay-staff-avatar" />
+                  <Avatar3DWeb avatarId={avatarId} size={36} />
                   <div className="pay-staff-info">
                     <div className="pay-staff-name">{emp.name}</div>
                     <div className="pay-staff-role">{emp.role}</div>
@@ -760,12 +733,12 @@ export default function PayrollPage() {
             </thead>
             <tbody>
               {visibleRows.map((row) => {
-                const avatarSrc = getStaffAvatar(row.name, row.staffId || row.id);
+                const avatarId = row.avatarId || getAvatarForEmployee(row.name);
                 return (
                   <tr key={row.id}>
                     <td className="td-staff">
                       <div className="pay-cell-staff">
-                        <img src={avatarSrc} alt={row.name} className="pay-table-avatar" />
+                        <Avatar3DWeb avatarId={avatarId} size={38} />
                         <div>
                           <div className="pay-table-name">{row.name}</div>
                           <div className="pay-table-role">{row.role}</div>

@@ -21,19 +21,7 @@ import {
   getLeaveImpact,
 } from '../services/leaveService';
 import { toast } from '../context/ToastContext';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import './AttendancePageLive.css';
-
-const AVATARS = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
-};
-const DEFAULT_AVATAR = avatarPaul;
 
 const MONTH_NAMES_VI = [
   'Tháng Một', 'Tháng Hai', 'Tháng Ba', 'Tháng Tư', 'Tháng Năm', 'Tháng Sáu',

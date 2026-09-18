@@ -31,6 +31,8 @@ import {
   getEligibleStaffForRequest,
 } from '../services/workforceService';
 import { getPositions } from '../services/headcountQuotaService';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './MarketplacePage.css';
 
 const toISODate = (d) => d.toISOString().slice(0, 10);
@@ -1516,8 +1518,8 @@ export default function MarketplacePage() {
                         <tr key={req.id}>
                           <td>
                             <div className="mp-user-cell">
-                              <div className="mp-avatar-circle">
-                                {(req.requesterName || req.fromStaffName || 'N')[0]?.toUpperCase()}
+                              <div style={{ width: 34, height: 34, flexShrink: 0 }}>
+                                <Avatar3DWeb avatarId={req.avatarId || getAvatarForEmployee(req.requesterName || req.fromStaffName)} size={34} />
                               </div>
                               <div>
                                 <div className="mp-user-name">{cleanText(req.requesterName || req.fromStaffName || 'Nhân sự')}</div>

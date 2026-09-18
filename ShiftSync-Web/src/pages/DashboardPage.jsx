@@ -8,23 +8,10 @@ import { getStoreAttendance } from '../services/attendanceService';
 import { getSkillsByStore } from '../services/skillService';
 import { getStoreLayout, getStoreZones } from '../services/layoutService';
 import DashboardSpatialSummary from '../components/spatial/DashboardSpatialSummary';
-
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import iconCalendar from '../assets/icons/icon-calendar.png';
 import './DashboardPage.css';
-
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
-};
-
-const DEFAULT_AVATAR = avatarPaul;
-const getAvatar = (name) => AVATAR_MAP[name] || DEFAULT_AVATAR;
 
 const TIMELINE_HOURS = [
   '6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM',
@@ -458,7 +445,7 @@ export default function DashboardPage() {
       return {
         id: att.id || `att-${idx}`,
         name: empName,
-        avatar: getAvatar(empName),
+        avatarId: att.avatarId || getAvatarForEmployee(empName),
         type: typeLabel,
         statusClass,
         date: fmtDM(new Date(att.shiftDate || att.date || s2DateISO)),
@@ -1005,11 +992,7 @@ export default function DashboardPage() {
                 {todayAttendance.map((item) => (
                   <div key={item.id} className="db-att-modern-card" onClick={() => navigate('/attendance')}>
                     <div className="db-att-card-avatar-wrap">
-                      {item.avatar ? (
-                        <img src={item.avatar} alt={item.name} className="db-att-card-avatar" />
-                      ) : (
-                        <div className="db-att-card-avatar-placeholder">{item.name.slice(0, 2)}</div>
-                      )}
+                      <Avatar3DWeb avatarId={item.avatarId} size={38} />
                       <span className={`db-att-status-dot dot-${item.statusClass}`} />
                     </div>
 
@@ -1044,11 +1027,7 @@ export default function DashboardPage() {
                 {yesterdayAttendance.map((item) => (
                   <div key={item.id} className="db-att-modern-card" onClick={() => navigate('/attendance')}>
                     <div className="db-att-card-avatar-wrap">
-                      {item.avatar ? (
-                        <img src={item.avatar} alt={item.name} className="db-att-card-avatar" />
-                      ) : (
-                        <div className="db-att-card-avatar-placeholder">{item.name.slice(0, 2)}</div>
-                      )}
+                      <Avatar3DWeb avatarId={item.avatarId} size={38} />
                       <span className={`db-att-status-dot dot-${item.statusClass}`} />
                     </div>
 

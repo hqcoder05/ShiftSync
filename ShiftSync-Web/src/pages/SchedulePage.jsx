@@ -17,10 +17,8 @@ import iconCard from '../assets/icons/icon-credit-card.png';
 import iconAi from '../assets/icons/icon-ai.png';
 import iconUser from '../assets/icons/icon-user.png';
 import iconLocation from '../assets/icons/location_on.png';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './SchedulePage.css';
 
 /* ── Helpers ────────────────────────────────────────────── */
@@ -123,17 +121,6 @@ export const getSkillColor = (sk) => {
 };
 
 const colorFor = (name = '') => defaultColorFor(name);
-
-// Avatar map — khớp với EmployeesPage
-const AVATAR_MAP = {
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Dilan. Jon': avatarDilan,
-};
-const DEFAULT_AVATAR = avatarPaul; // fallback khi không khớp tên
-
-const getAvatar = (name = '') => AVATAR_MAP[name] || DEFAULT_AVATAR;
 
 // DOW labels in Vietnamese
 const DOW_VI = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -2288,11 +2275,7 @@ export default function SchedulePage() {
                           }
                         >
                           <div className="sch-emp-avatar-wrap">
-                            <img
-                              className="sch-emp-avatar"
-                              src={getAvatar(name)}
-                              alt={name}
-                            />
+                            <Avatar3DWeb avatarId={emp.avatarId || getAvatarForEmployee(emp)} size={38} />
                             {/* Icon tam giác vàng (!) cạnh tên nhân viên: Chỉ hiện khi nhân viên đã gửi lịch */}
                             {hasSubmittedAvail && (
                               <span

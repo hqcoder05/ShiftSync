@@ -4,33 +4,18 @@ import PayrollPage from './PayrollPage';
 import Sidebar from '../components/Sidebar';
 import { getEmployees, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
-import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
-import avatarThia from '../assets/avatars/avatar-thia-ago.png';
-import avatarMew from '../assets/avatars/avatar-mew-ama.png';
-import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
-import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
 import AddUserModal from '../components/AddUserModal';
 import './EmployeesPage.css';
-
 
 const getEmployeeAvatarId = (emp) => {
   if (!emp) return 'dilan';
   const custom = emp.id ? localStorage.getItem(`user_profile_avatar_${emp.id}`) : null;
   if (custom) return custom;
   if (emp.avatarId) return emp.avatarId;
-  return getAvatarForEmployee(emp).id;
-};
-
-const getEmployeeAvatar = (emp) => {
-  const id = getEmployeeAvatarId(emp);
-  const thumb = getAvatarThumbnail(id);
-  if (thumb) return thumb;
-  if (id === 'mew') return avatarMew;
-  if (id === 'paul') return avatarPaul;
-  if (id === 'thia') return avatarThia;
-  return avatarDilan;
+  return getAvatarForEmployee(emp);
 };
 
 export default function EmployeesPage() {
@@ -251,11 +236,9 @@ export default function EmployeesPage() {
                       onClick={() => navigate(`/employees/${emp.id || emp.email}`)}
                       title="Xem và chỉnh sửa hồ sơ chi tiết"
                     >
-                      <img
-                        className="emp-avatar"
-                        src={getEmployeeAvatar(emp)}
-                        alt={emp.fullName || 'Avatar'}
-                      />
+                      <div className="emp-avatar-3d-wrap" style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Avatar3DWeb avatarId={getEmployeeAvatarId(emp)} size={44} />
+                      </div>
                       <div className="emp-name-details">
                         <span className="emp-name-text">{emp.fullName || 'Chưa đặt tên'}</span>
                         {emp.phone && <span className="emp-phone-text">{emp.phone}</span>}
