@@ -800,7 +800,7 @@ export default function DashboardPage() {
       <div className="db-brand-bar">
         <div className="db-brand-left">
           <div className="db-brand-logo-wrap">
-            <img src={avatarPaul} alt="ShiftSync Logo" className="db-brand-logo-img" />
+            <Avatar3DWeb avatarId="paul" size={32} />
           </div>
           <span className="db-brand-title">ShiftSync</span>
           {currentStoreName && (
