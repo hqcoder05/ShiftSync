@@ -35,8 +35,20 @@ export default function FlowerMascot3DWeb({
     if (!container) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-    camera.position.set(0, 0.1, 4.3); // Kéo camera gần hơn cho 2 nhân vật to rõ
+    
+    // Tính toán góc nhìn và vị trí camera thông minh đảm bảo không bao giờ bị cắt mép (ngăn cách / giới hạn)
+    const aspect = width / height;
+    const fov = 35;
+    const fovRad = (fov * Math.PI) / 180;
+    // Đảm bảo không gian ngang tối thiểu 7.0 units để 2 bé tách biệt hoàn toàn
+    const minHorizSpan = 7.0;
+    const minVertSpan = 3.8;
+    const zForW = minHorizSpan / (2 * Math.tan(fovRad / 2) * aspect);
+    const zForH = minVertSpan / (2 * Math.tan(fovRad / 2));
+    const camZ = Math.max(7.5, zForW, zForH);
+
+    const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 100);
+    camera.position.set(0, 0.06, camZ);
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -147,9 +159,10 @@ export default function FlowerMascot3DWeb({
     scene.add(duoRoot);
 
     // ── NHÂN VẬT 1: BÉ TRÒN VÀNG ĐỘI BẠCH TUỘC HỒNG (Bên Trái) ──
+    const baseOctoX = -1.55;
     const octoMascot = new THREE.Group();
-    octoMascot.position.set(-0.70, -0.05, 0); // Đứng gần nhau thân thiết
-    octoMascot.rotation.y = 0.28;
+    octoMascot.position.set(baseOctoX, -0.05, 0); // Đứng cách xa hẳn bên trái
+    octoMascot.rotation.y = 0.15;
     duoRoot.add(octoMascot);
 
     const octoBodyGeo = new THREE.SphereGeometry(0.72, 22, 18);
@@ -224,18 +237,25 @@ export default function FlowerMascot3DWeb({
     octoLegR.position.set(0.26, -0.74, 0);
     octoMascot.add(octoLegR);
 
+    // Cánh tay có khớp xoay vẫy chào tương tác
     const octoArmGeo = new THREE.SphereGeometry(0.14, 10, 10);
+    const octoArmLGroup = new THREE.Group();
+    octoArmLGroup.position.set(-0.62, 0.02, 0.05);
     const octoArmL = new THREE.Mesh(octoArmGeo, yellowMat);
-    octoArmL.position.set(-0.76, -0.1, 0);
-    octoArmL.scale.set(0.8, 1.4, 0.8);
-    octoArmL.rotation.z = 0.35;
-    octoMascot.add(octoArmL);
+    octoArmL.position.set(-0.12, 0.12, 0);
+    octoArmL.scale.set(0.85, 1.4, 0.85);
+    octoArmL.rotation.z = -0.25;
+    octoArmLGroup.add(octoArmL);
+    octoMascot.add(octoArmLGroup);
 
+    const octoArmRGroup = new THREE.Group();
+    octoArmRGroup.position.set(0.62, 0.02, 0.05);
     const octoArmR = new THREE.Mesh(octoArmGeo, yellowMat);
-    octoArmR.position.set(0.76, -0.1, 0);
-    octoArmR.scale.set(0.8, 1.4, 0.8);
+    octoArmR.position.set(0.12, -0.10, 0);
+    octoArmR.scale.set(0.85, 1.4, 0.85);
     octoArmR.rotation.z = -0.35;
-    octoMascot.add(octoArmR);
+    octoArmRGroup.add(octoArmR);
+    octoMascot.add(octoArmRGroup);
 
     const octoHat = new THREE.Group();
     octoHat.position.set(0.28, 0.66, 0.08);
@@ -264,9 +284,10 @@ export default function FlowerMascot3DWeb({
     octoHat.add(octHR);
 
     // ── NHÂN VẬT 2: BÉ VỊT VÀNG MỎ CAM LỌN TÓC XOĂN (Bên Phải) ──
+    const baseDuckX = 1.55;
     const duckMascot = new THREE.Group();
-    duckMascot.position.set(0.70, -0.05, 0); // Đứng gần bé bạch tuộc
-    duckMascot.rotation.y = -0.28;
+    duckMascot.position.set(baseDuckX, -0.05, 0); // Đứng cách xa hẳn bên phải
+    duckMascot.rotation.y = -0.15;
     duoRoot.add(duckMascot);
 
     const duckHeadGeo = new THREE.SphereGeometry(0.78, 24, 20);
@@ -346,18 +367,25 @@ export default function FlowerMascot3DWeb({
     duckBody.position.set(0, -0.32, 0);
     duckMascot.add(duckBody);
 
+    // 2 Cánh tay nhỏ có khớp vai vẫy chào tương tác
     const duckWingGeo = new THREE.SphereGeometry(0.14, 10, 10);
+    const duckWingLGroup = new THREE.Group();
+    duckWingLGroup.position.set(-0.55, -0.22, 0.05);
     const duckWingL = new THREE.Mesh(duckWingGeo, yellowMat);
-    duckWingL.position.set(-0.62, -0.28, 0.05);
-    duckWingL.scale.set(0.7, 1.3, 0.7);
+    duckWingL.position.set(-0.08, -0.08, 0);
+    duckWingL.scale.set(0.75, 1.3, 0.75);
     duckWingL.rotation.z = 0.25;
-    duckMascot.add(duckWingL);
+    duckWingLGroup.add(duckWingL);
+    duckMascot.add(duckWingLGroup);
 
+    const duckWingRGroup = new THREE.Group();
+    duckWingRGroup.position.set(0.55, -0.22, 0.05);
     const duckWingR = new THREE.Mesh(duckWingGeo, yellowMat);
-    duckWingR.position.set(0.62, -0.28, 0.05);
-    duckWingR.scale.set(0.7, 1.3, 0.7);
+    duckWingR.position.set(0.10, 0.12, 0);
+    duckWingR.scale.set(0.75, 1.3, 0.75);
     duckWingR.rotation.z = -0.25;
-    duckMascot.add(duckWingR);
+    duckWingRGroup.add(duckWingR);
+    duckMascot.add(duckWingRGroup);
 
     const duckFootGeo = new THREE.SphereGeometry(0.11, 10, 10);
     const duckFootL = new THREE.Mesh(duckFootGeo, orangeFeetMat);
@@ -469,24 +497,93 @@ export default function FlowerMascot3DWeb({
         duoRoot.rotation.y += 0.0025;
       }
 
-      const freq = isHovered ? 6.8 : 3.4;
-      const bounceAmp = isHovered ? 0.14 : 0.055;
+      // ── 1. CHẠY QUA CHẠY LẠI (TROT & RUN BACK AND FORTH) ──
+      const runFreq = isHovered ? 2.2 : 1.15;
+      const runAmp = isHovered ? 0.30 : 0.18;
+      const runOffset = Math.sin(elapsed * runFreq) * runAmp;
+      const runFollow = Math.sin(elapsed * runFreq - 0.42) * runAmp;
 
-      octoMascot.position.y = -0.05 + Math.abs(Math.sin(elapsed * freq)) * bounceAmp;
-      octoMascot.rotation.z = Math.sin(elapsed * freq) * (isHovered ? 0.08 : 0.04);
-      octoArmR.rotation.z = -0.35 - Math.sin(elapsed * (freq + 2)) * (isHovered ? 0.6 : 0.28);
-      octoHat.position.y = 0.66 + Math.sin(elapsed * (freq * 1.6)) * 0.035;
+      octoMascot.position.x = baseOctoX + runOffset;
+      duckMascot.position.x = baseDuckX + runFollow;
 
-      duckMascot.position.y = -0.05 + Math.abs(Math.cos(elapsed * freq)) * bounceAmp;
-      duckMascot.rotation.z = -Math.sin(elapsed * freq) * (isHovered ? 0.08 : 0.04);
-      duckWingL.rotation.z = 0.25 + Math.sin(elapsed * (freq + 2)) * (isHovered ? 0.6 : 0.28);
-      curlGroup.rotation.z = Math.sin(elapsed * 4.5) * 0.12;
+      // ── 2. BƯỚC CHÂN LẠCH BẠCH & NGHIÊNG NGƯỜI KHI CHẠY ──
+      const walkFreq = isHovered ? 13 : 7.2;
+      const walkPhase = elapsed * walkFreq;
+      const runLean = -Math.cos(elapsed * runFreq) * 0.07;
 
-      const talkAngle = Math.sin(elapsed * 1.5) * 0.15;
-      octoMascot.rotation.y = 0.25 + talkAngle;
-      duckMascot.rotation.y = -0.25 - talkAngle;
+      octoMascot.rotation.z = runLean + Math.sin(walkPhase) * (isHovered ? 0.06 : 0.035);
+      duckMascot.rotation.z = runLean - Math.sin(walkPhase) * (isHovered ? 0.06 : 0.035);
 
-      const targetScale = isHovered ? 1.18 : 1.0;
+      // Chân bước lạch bạch nhịp nhàng
+      octoLegL.position.z = Math.sin(walkPhase) * 0.12;
+      octoLegR.position.z = -Math.sin(walkPhase) * 0.12;
+      octoLegL.position.y = -0.74 + Math.max(0, Math.sin(walkPhase)) * 0.06;
+      octoLegR.position.y = -0.74 + Math.max(0, -Math.sin(walkPhase)) * 0.06;
+
+      duckFootL.position.z = Math.sin(walkPhase + 0.6) * 0.10;
+      duckFootR.position.z = -Math.sin(walkPhase + 0.6) * 0.10;
+      duckFootL.position.y = -0.66 + Math.max(0, Math.sin(walkPhase + 0.6)) * 0.05;
+      duckFootR.position.y = -0.66 + Math.max(0, -Math.sin(walkPhase + 0.6)) * 0.05;
+
+      // ── 3. NHẢY LÊN & TƯƠNG TÁC (JUMP & HOP) ──
+      const jumpPeriod = 6.2;
+      const jumpTime = elapsed % jumpPeriod;
+      let octoJump = 0;
+      let duckJump = 0;
+
+      if (jumpTime > 0.8 && jumpTime < 1.9) {
+        // Bé tròn vàng nhảy tưng lên trêu bé vịt
+        const p = (jumpTime - 0.8) / 1.1;
+        octoJump = Math.sin(p * Math.PI) * 0.38;
+      } else if (jumpTime > 3.4 && jumpTime < 4.5) {
+        // Bé vịt phấn khích nhảy cẫng lên đáp lại
+        const p = (jumpTime - 3.4) / 1.1;
+        duckJump = Math.sin(p * Math.PI) * 0.38;
+      }
+
+      if (isHovered) {
+        // Khi người dùng bấm/hover vào: Cả 2 cùng nhảy cẫng lên ăn mừng cực vui nhộn!
+        octoJump = Math.abs(Math.sin(elapsed * 8.5)) * 0.28;
+        duckJump = Math.abs(Math.cos(elapsed * 8.5)) * 0.28;
+      }
+
+      const baseBounce = Math.abs(Math.sin(walkPhase)) * 0.045;
+      octoMascot.position.y = -0.05 + baseBounce + octoJump;
+      duckMascot.position.y = -0.05 + (Math.abs(Math.cos(walkPhase)) * 0.045) + duckJump;
+
+      // Bé bạch tuộc hồng trên đầu nhún theo điệu nhảy
+      octoHat.position.y = 0.66 + Math.sin(elapsed * 9) * 0.04 + (octoJump > 0.05 ? 0.08 : 0);
+      octoHat.rotation.z = -0.22 + Math.sin(elapsed * 7) * 0.10;
+
+      // Lọn tóc xoăn bé vịt đung đưa
+      curlGroup.rotation.z = Math.sin(elapsed * 5.0) * 0.15;
+
+      // ── 4. VẪY TAY CHÀO TƯƠNG TÁC (WAVING ARMS) ──
+      const waveSpeed = isHovered ? 12 : 7;
+      // Tay trái bé tròn vàng giơ lên cao vẫy chào người dùng:
+      octoArmLGroup.rotation.z = 0.85 + Math.sin(elapsed * waveSpeed) * 0.45;
+      octoArmLGroup.rotation.x = Math.cos(elapsed * waveSpeed * 0.5) * 0.22;
+      octoArmRGroup.rotation.z = -0.35 + Math.sin(walkPhase) * 0.2;
+
+      // Cánh phải bé vịt vẫy chào đáp lại:
+      duckWingRGroup.rotation.z = -0.75 - Math.sin(elapsed * waveSpeed + 1.2) * 0.42;
+      duckWingRGroup.rotation.x = Math.cos(elapsed * waveSpeed * 0.5 + 1.2) * 0.20;
+      duckWingLGroup.rotation.z = 0.25 - Math.sin(walkPhase) * 0.2;
+
+      // ── 5. TƯƠNG TÁC QUAY ĐẦU (NHÌN NHAU & NHÌN NGƯỜI DÙNG) ──
+      const lookTimer = Math.sin(elapsed * 0.85);
+      if (lookTimer > 0.2) {
+        // Hướng về phía trước nhìn người dùng cười vẫy chào
+        octoMascot.rotation.y = THREE.MathUtils.lerp(octoMascot.rotation.y, 0.05, 0.08);
+        duckMascot.rotation.y = THREE.MathUtils.lerp(duckMascot.rotation.y, -0.05, 0.08);
+      } else {
+        // Quay vào nhau trò chuyện thân thiết
+        octoMascot.rotation.y = THREE.MathUtils.lerp(octoMascot.rotation.y, 0.32, 0.08);
+        duckMascot.rotation.y = THREE.MathUtils.lerp(duckMascot.rotation.y, -0.32, 0.08);
+      }
+
+      // Scale khi hover
+      const targetScale = isHovered ? 1.08 : 1.0;
       duoRoot.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
 
       timer += 0.016;

@@ -4,6 +4,8 @@ import com.shiftsync.shift.enums.ShiftStatus;
 import com.shiftsync.store.entity.Store;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -67,6 +69,7 @@ public class Shift {
     private List<ShiftSkillRequirement> requirements = new ArrayList<>();
 
     @OneToMany(mappedBy = "shift")
+    @Fetch(FetchMode.SUBSELECT)
     @Builder.Default
     private List<ShiftAssignment> assignments = new ArrayList<>();
     

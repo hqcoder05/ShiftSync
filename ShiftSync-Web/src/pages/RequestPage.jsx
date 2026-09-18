@@ -6,6 +6,7 @@ import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
 import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import Avatar3DWeb from '../components/Avatar3DWeb';
+import PaperPlane3DWeb from '../components/PaperPlane3DWeb';
 import './RequestPage.css';
 
 const getAvatarId = (name = '', avatarId = null) => {
@@ -109,6 +110,8 @@ export default function RequestPage() {
 
   // Toast feedback
   const [toast, setToast] = useState('');
+  // ✈️ 3D Paper Plane launch trigger
+  const [planeLaunched, setPlaneLaunched] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -401,6 +404,10 @@ export default function RequestPage() {
         content: `Kính gửi: ${fullRecipient}\n\n${createForm.content}`
       });
 
+      // ✈️ Phóng máy bay giấy 3D
+      setPlaneLaunched(true);
+      setTimeout(() => setPlaneLaunched(false), 2600);
+
       await loadData();
       setShowCreateModal(false);
       setCreateForm({
@@ -585,7 +592,16 @@ export default function RequestPage() {
       <main className="req-main">
         {/* Top bar */}
         <div className="req-top-bar">
-          <h1 className="req-heading">Yêu cầu</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 className="req-heading">Yêu cầu</h1>
+            {/* ✈️ Máy bay giấy 3D origami phóng khi gửi yêu cầu */}
+            <PaperPlane3DWeb
+              launched={planeLaunched}
+              color="#4ade80"
+              width={75}
+              height={55}
+            />
+          </div>
 
           {/* ── Capsule Action Card (Chuẩn gọn đẹp liền mạch) ─── */}
           <div className="req-capsule-wrapper" ref={calRef}>

@@ -57,6 +57,7 @@ public class ShiftService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<ShiftDTO> getShiftsByStoreId(UUID storeId, ShiftStatus statusFilter, boolean isStaff) {
         verifyStoreExists(storeId);
         return shiftRepository.findByStoreId(storeId).stream()

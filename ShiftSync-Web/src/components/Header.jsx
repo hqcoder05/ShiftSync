@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import './Header.css';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import Avatar3DWeb from './Avatar3DWeb';
+import HoloCard3DWeb from './HoloCard3DWeb';
 import { AVATAR_OPTIONS } from './avatarConfigs';
 import { getAllAvatarThumbnails } from './avatarThumbnails';
 import api from '../services/api';
@@ -26,6 +27,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [showHoloModal, setShowHoloModal] = useState(false);
   const [previewAvatarId, setPreviewAvatarId] = useState('dilan');
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [thumbnails, setThumbnails] = useState({});
@@ -173,6 +175,15 @@ export default function Header() {
                 }}
               >
                 <span>Đổi Avatar 3D</span>
+              </button>
+              <button
+                className="ss-dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShowHoloModal(true);
+                }}
+              >
+                <span>✨ Thẻ 3D Hologram</span>
               </button>
               <button
                 className={`ss-dropdown-item ${location.pathname === '/admin' ? 'selected' : ''}`}
@@ -449,6 +460,96 @@ export default function Header() {
           </div>
         );
       })()}
+
+      {/* ═══ MODAL THẺ NHÂN VIÊN 3D HOLOGRAM CẦU VỒNG ═══ */}
+      {showHoloModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+          onClick={() => setShowHoloModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#0F172A',
+              borderRadius: 24,
+              padding: '24px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+              border: '1px solid rgba(74, 222, 128, 0.35)',
+              position: 'relative',
+              maxWidth: 440,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>✨</span>
+                <h3 style={{ margin: 0, color: '#F8FAFC', fontSize: 17, fontWeight: 700 }}>
+                  Thẻ Hologram 3D Cầu Vồng
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowHoloModal(false)}
+                style={{
+                  background: '#1E293B',
+                  border: 'none',
+                  color: '#94A3B8',
+                  fontSize: 14,
+                  borderRadius: 12,
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ margin: '0 0 16px', color: '#94A3B8', fontSize: 12.5, textAlign: 'center' }}>
+              💡 Rê chuột để nghiêng thẻ và cảm nhận ánh cầu vồng hologram đổi màu đa chiều
+            </p>
+
+            <HoloCard3DWeb
+              userName={currentUser?.fullName || 'Paul. Lee'}
+              role={currentUser?.role || 'Staff Member'}
+              staffCode={`SS-00${currentUser?.id || 1}`}
+              width={340}
+              height={215}
+            />
+
+            <button
+              onClick={() => setShowHoloModal(false)}
+              style={{
+                marginTop: 18,
+                padding: '8px 24px',
+                borderRadius: 10,
+                border: 'none',
+                background: 'linear-gradient(135deg, #10B981, #059669)',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+              }}
+            >
+              Đóng thẻ
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

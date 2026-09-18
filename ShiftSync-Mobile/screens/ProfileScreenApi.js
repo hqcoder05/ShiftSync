@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import BottomNavbar from '../components/BottomNavbar';
 import Avatar3D from '../components/Avatar3D';
+import EmployeeCard3D from '../components/EmployeeCard3D';
 import { AVATAR_OPTIONS, getAvatar3DProps } from '../components/avatarConfigs';
 import { getAllAvatarThumbnails } from '../components/avatarThumbnails';
 import { getMyProfile, getMyStores, updateMyAvatar } from '../services/profileService';
@@ -67,6 +68,13 @@ export default function ProfileScreen({ navigation }) {
   const [previewAvatarId, setPreviewAvatarId] = useState('dilan');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    birthDate: '',
+    birthPlace: '',
+    phone: '',
+    gender: '',
+  });
 
   const handleSelectAvatar = async (avatarId) => {
     setSelectedAvatarId(avatarId);
@@ -195,6 +203,14 @@ export default function ProfileScreen({ navigation }) {
     setTimeout(() => setSaveStatus(''), 2000);
   };
 
+  const handleSavePersonalInfo = () => {
+    updateField('birthDate', editForm.birthDate);
+    updateField('birthPlace', editForm.birthPlace);
+    updateField('phone', editForm.phone);
+    updateField('gender', editForm.gender);
+    setShowEditModal(false);
+  };
+
   const handleLogout = async () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
       { text: 'Hủy', style: 'cancel' },
@@ -248,99 +264,25 @@ export default function ProfileScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* ═══ YELLOW PROFILE CARD ═══ */}
-          <View style={styles.profileCard}>
-            <View style={styles.nameLine}>
-              {/* Avatar – tap to open picker */}
-              <Pressable
-                onPress={() => {
-                  setPreviewAvatarId(selectedAvatarId || 'dilan');
-                  setShowAvatarPicker(true);
-                }}
-                style={styles.avatarWrapper}
-                accessibilityLabel="Chọn ảnh đại diện"
-              >
-                <View style={styles.avatar}>
-                  <Avatar3D size={84} {...getAvatar3DProps(selectedAvatarId)} />
-                </View>
-                <View style={styles.avatarEditBadge}>
-                  <Text style={styles.avatarEditIcon}>✎</Text>
-                </View>
-              </Pressable>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nameDisplay} numberOfLines={1}>
-                  {profile.fullName || 'Nhân viên'}
-                </Text>
-                <Text style={styles.positionSubtitle} numberOfLines={1}>
-                  {profile.position || 'Chưa phân công'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.cardLine} />
-
-            <View style={styles.workDetails}>
-              <View style={styles.inlineWorkRow}>
-                <Text style={styles.workLabel}>Cửa hàng:</Text>
-                <Text style={styles.inlineWorkValue} numberOfLines={1}>
-                  {profile.storeName || 'Chưa phân công chi nhánh'}
-                </Text>
-              </View>
-
-              <View style={styles.inlineWorkRow}>
-                <Text style={styles.workLabel}>Mã nhân viên:</Text>
-                <Text style={styles.inlineWorkValue}>
-                  {profile.staffCode || '—'}
-                </Text>
-              </View>
-
-              <View style={styles.inlineWorkRow}>
-                <Text style={styles.workLabel}>Vị trí:</Text>
-                <Text style={styles.inlineWorkValue}>
-                  {profile.position || 'Chưa phân công vị trí'}
-                </Text>
-              </View>
-
-              <View style={styles.inlineWorkRow}>
-                <Text style={styles.workLabel}>Địa chỉ làm việc:</Text>
-                <Text style={styles.inlineWorkValue} numberOfLines={2}>
-                  {profile.storeAddress || 'Chưa có địa chỉ'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* ═══ THÔNG TIN CÁ NHÂN (Group 136) ═══ */}
-          <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
-          <View style={styles.whiteBlock}>
-            <EditableRow
-              label="Ngày sinh"
-              value={profile.birthDate}
-              onChangeText={(t) => updateField('birthDate', t)}
-              placeholder="Chưa cập nhật (VD: DD/MM/YYYY)"
-            />
-            <EditableRow
-              label="Nơi sinh"
-              value={profile.birthPlace}
-              onChangeText={(t) => updateField('birthPlace', t)}
-              placeholder="Chưa cập nhật nơi sinh"
-            />
-            <EditableRow
-              label="Thông tin liên hệ"
-              value={profile.phone}
-              onChangeText={(t) => updateField('phone', t)}
-              placeholder="Chưa cập nhật SĐT"
-              keyboardType="phone-pad"
-            />
-            <EditableRow
-              label="Giới tính"
-              value={profile.gender}
-              onChangeText={(t) => updateField('gender', t)}
-              placeholder="Chưa cập nhật giới tính"
-              last
-            />
-          </View>
+          {/* ═══ THẺ NHÂN VIÊN 3D FLIP 2 MẶT (CHÂN THỰC & ĐỘNG) ═══ */}
+          <EmployeeCard3D
+            profile={profile}
+            selectedAvatarId={selectedAvatarId}
+            getAvatar3DProps={getAvatar3DProps}
+            onOpenAvatarPicker={() => {
+              setPreviewAvatarId(selectedAvatarId || 'dilan');
+              setShowAvatarPicker(true);
+            }}
+            onEditPersonalInfo={() => {
+              setEditForm({
+                birthDate: profile.birthDate || '',
+                birthPlace: profile.birthPlace || '',
+                phone: profile.phone || '',
+                gender: profile.gender || '',
+              });
+              setShowEditModal(true);
+            }}
+          />
 
           {/* ═══ THÔNG TIN ĐĂNG NHẬP (Group 138) ═══ */}
           <Text style={styles.sectionTitle}>Thông tin đăng nhập</Text>
@@ -484,6 +426,97 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* ═══ MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN (MẶT SAU THẺ 3D) ═══ */}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalOverlay}>
+          <View style={styles.editInfoSheet}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.editModalTitle}>Chỉnh sửa thông tin cá nhân</Text>
+                <Text style={styles.editModalSubtitle}>Cập nhật dữ liệu hiển thị mặt sau thẻ 3D</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowEditModal(false)}
+                hitSlop={12}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseX}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalFormContent}>
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>Ngày sinh</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  value={editForm.birthDate}
+                  onChangeText={(text) => setEditForm((prev) => ({ ...prev, birthDate: text }))}
+                  placeholder="VD: 15/08/1998"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>Nơi sinh</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  value={editForm.birthPlace}
+                  onChangeText={(text) => setEditForm((prev) => ({ ...prev, birthPlace: text }))}
+                  placeholder="VD: TP. Hồ Chí Minh"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>Số điện thoại</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  value={editForm.phone}
+                  onChangeText={(text) => setEditForm((prev) => ({ ...prev, phone: text }))}
+                  placeholder="VD: 0912 345 678"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>Giới tính</Text>
+                <View style={styles.genderPillsRow}>
+                  {['Nam', 'Nữ', 'Khác'].map((g) => {
+                    const isSelected = editForm.gender === g;
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[styles.genderPill, isSelected && styles.genderPillActive]}
+                        onPress={() => setEditForm((prev) => ({ ...prev, gender: g }))}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.genderPillText, isSelected && styles.genderPillTextActive]}>
+                          {g}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleSavePersonalInfo}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalSaveBtnText}>Lưu thay đổi</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNavbar navigation={navigation} activeRoute="Profile" />
     </SafeAreaView>
   );
@@ -531,6 +564,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  /* ═══ 3D Holo Card Container ═══ */
+  holoCardContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+    overflow: 'visible',
   },
 
   /* ═══ Profile Card (Yellow #FFF8E1) ═══ */
@@ -581,203 +623,11 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  /* ═══ Avatar Picker Modal (Spotlight 3D Stage) ═══ */
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  pickerSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 28,
-    maxHeight: '90%',
-  },
-  pickerHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  pickerSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  pickerCloseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerCloseX: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#555',
-  },
 
-  /* ── Featured Spotlight Stage ── */
-  spotlightCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F7F8FA',
-    borderRadius: 18,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#E8ECF0',
-    marginBottom: 14,
-  },
-  spotlight3DWrap: {
-    width: 110,
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spotlightInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  spotlightNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  spotlightIcon: {
-    fontSize: 18,
-  },
-  spotlightName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#222',
-  },
-  spotlightUsingTag: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginLeft: 4,
-  },
-  spotlightUsingText: {
-    fontSize: 10.5,
-    color: '#2E7D32',
-    fontWeight: '700',
-  },
-  spotlightDesc: {
-    fontSize: 12,
-    color: '#555',
-    marginTop: 3,
-    lineHeight: 16,
-  },
-  spotlightHint: {
-    fontSize: 10.5,
-    color: '#888',
-    marginTop: 3,
-  },
-  spotlightSelectBtn: {
-    marginTop: 8,
-    backgroundColor: '#428531',
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  spotlightSelectBtnActive: {
-    backgroundColor: '#2E7D32',
-  },
-  spotlightSelectBtnText: {
-    color: '#FFF',
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
 
-  pickerGridTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#444',
-    marginBottom: 8,
-  },
-  pickerGridRow: {
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  pickerCard: {
-    width: '31%',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 12,
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1.5,
-    borderColor: '#EEEEEE',
-    position: 'relative',
-  },
-  pickerCardPreviewing: {
-    borderColor: '#428531',
-    backgroundColor: '#F1F8EE',
-  },
-  pickerCardSelected: {
-    borderColor: '#428531',
-  },
-  pickerCardCheck: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#428531',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerCardCheckText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  pickerBadgeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-  },
-  pickerHairAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 12,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-  },
-  pickerEmojiText: {
-    fontSize: 18,
-    marginTop: 4,
-  },
-  pickerCardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 6,
-  },
-  pickerCardLabelActive: {
-    color: '#428531',
-    fontWeight: '700',
-  },
+
+
+
   nameDisplay: {
     fontSize: 20,
     fontWeight: '700',
@@ -1081,5 +931,121 @@ const styles = StyleSheet.create({
   },
   pickerEmojiText: {
     fontSize: 30,
+  },
+
+  /* ═══ MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN STYLES ═══ */
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  editInfoSheet: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  editModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  editModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseX: {
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '700',
+  },
+  modalFormContent: {
+    gap: 14,
+  },
+  modalInputGroup: {
+    gap: 6,
+  },
+  modalInputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  modalTextInput: {
+    height: 44,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
+  },
+  genderPillsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  genderPill: {
+    flex: 1,
+    height: 38,
+    borderRadius: 9,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  genderPillActive: {
+    borderColor: '#428531',
+    backgroundColor: '#EDF7EB',
+  },
+  genderPillText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  genderPillTextActive: {
+    color: '#428531',
+    fontWeight: '700',
+  },
+  modalSaveBtn: {
+    height: 46,
+    backgroundColor: '#428531',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#428531',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  modalSaveBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

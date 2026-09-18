@@ -12,11 +12,16 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { getMyRequests, createStaffRequest } from '../services/requestService';
 import { getMyShifts } from '../services/shiftService';
-import { getMyProfile } from '../services/profileService';
+import { getMyProfile, getMyStores } from '../services/profileService';
+import { getSkillsByStore } from '../services/skillService';
+import { resolveRoleColor } from './ScheduleScreen';
 import BottomNavbar from '../components/BottomNavbar';
+
+import PaperPlane3D from '../components/PaperPlane3D';
 
 // ── Asset Icons ─────────────────────────────────────────────────────────────
 const iconHac = require('../assets/icon_hac.png');
@@ -45,7 +50,7 @@ const EMPTY_SHIFT = {
   timeRange: '—',
   location: 'Cửa hàng được phân công',
   role: 'Nhân viên',
-  color: '#8DD9CC',
+  color: '#5BC8B8',
 };
 
 const SUGGESTED_SWAP_STAFF = [
@@ -61,7 +66,16 @@ export default function RequestScreen({ navigation, route }) {
   const [availableShifts, setAvailableShifts] = useState([]);
   const [currentUserName, setCurrentUserName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
+  const [filterStatus, setFilterStatus] = useState(null);
+  const [planeLaunched, setPlaneLaunched] = useState(false); // ✨ Trigger máy bay giấy 3D phóng
+
+  const triggerLaunchPlane = () => {
+    setPlaneLaunched(false);
+    setTimeout(() => {
+      setPlaneLaunched(true);
+      setTimeout(() => setPlaneLaunched(false), 2600);
+    }, 40);
+  };
 
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
@@ -137,9 +151,42 @@ export default function RequestScreen({ navigation, route }) {
         setRequests(reqData.value || []);
       }
 
+      let storeSkills = [];
       if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
-        setCurrentUserName(profileRes.value.data.fullName || 'Nhân viên');
+        const user = profileRes.value.data;
+        setCurrentUserName(user.fullName || 'Nhân viên');
+        if (user.id) {
+          try {
+            const { data: stores } = await getMyStores(user.id);
+            const activeStore = stores?.find((s) => s.status === 'ACTIVE') || stores?.[0];
+            const activeStoreId = activeStore?.storeId || activeStore?.id;
+            if (activeStoreId) {
+              const skRes = await getSkillsByStore(activeStoreId);
+              const rawSkills = skRes?.data?.content || skRes?.data || [];
+              storeSkills = Array.isArray(rawSkills) ? rawSkills : [];
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
       }
+
+      const getShiftColor = (s, rName) => {
+        if (s.color && s.color.startsWith('#')) return s.color;
+        if (s.requirements?.[0]?.skill?.description?.startsWith('#')) {
+          return s.requirements[0].skill.description;
+        }
+        const sSkillId = s.skillId || s.location;
+        const matched = storeSkills.find(
+          (sk) => (sSkillId && (sk.id === sSkillId || sk.name.toLowerCase() === String(sSkillId).toLowerCase())) ||
+                  (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase()) ||
+                  (rName && sk.name.toLowerCase() === rName.toLowerCase())
+        );
+        if (matched && matched.description && matched.description.startsWith('#')) {
+          return matched.description;
+        }
+        return resolveRoleColor(matched ? matched.name : rName);
+      };
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
         const mapped = shiftsRes.value.data.map((s, idx) => {
@@ -147,14 +194,15 @@ export default function RequestScreen({ navigation, route }) {
           const dow = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
           const dayStr = String(d.getDate()).padStart(2, '0');
           const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const rName = s.skillName || s.requiredSkillName || 'Barista';
           return {
             id: s.id || `shift-${idx}`,
             shiftDate: s.shiftDate,
             dayLabel: `${dow} (${dayStr}/${monthStr})`,
             timeRange: `${String(s.startTime).slice(0, 5)} - ${String(s.endTime).slice(0, 5)}`,
             location: s.storeAddress || s.storeName || 'Highlands Tây Thạnh Tân Phú',
-            role: s.skillName || s.requiredSkillName || 'Barista',
-            color: s.color || '#8DD9CC',
+            role: rName,
+            color: getShiftColor(s, rName),
           };
         });
 
@@ -200,6 +248,8 @@ export default function RequestScreen({ navigation, route }) {
       setLeaveModalVisible(false);
       setLeaveReason('');
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
+      // 📨 Kích hoạt máy bay giấy 3D phóng!
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       showToast('Thất bại', 'Không thể gửi yêu cầu xin nghỉ', 'error');
@@ -221,6 +271,8 @@ export default function RequestScreen({ navigation, route }) {
       });
       setSwapModalVisible(false);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff}`);
+      // 📨 Kích hoạt máy bay giấy 3D phóng!
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       showToast('Thất bại', 'Không thể gửi yêu cầu đổi ca', 'error');
@@ -247,6 +299,8 @@ export default function RequestScreen({ navigation, route }) {
       setAbsentModalVisible(false);
       setAbsentReason('');
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
+      // 📨 Kích hoạt máy bay giấy 3D phóng!
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       showToast('Thất bại', 'Không thể gửi yêu cầu xin vắng', 'error');
@@ -293,19 +347,47 @@ export default function RequestScreen({ navigation, route }) {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 1. Header (Xử lý yêu cầu) ── */}
+        {/* ── 1. Header (Xử lý yêu cầu - Bố cục chuẩn, không bị đè chữ) ── */}
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={() => navigation?.goBack?.()}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Đóng trang yêu cầu"
           >
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Xử lý yêu cầu</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Xử lý yêu cầu</Text>
+          </View>
         </View>
 
-        <View style={styles.headerDivider} />
+        {/* ── ✈️ TRẠM TIẾP NHẬN YÊU CẦU 3D VỚI MÁY BAY GIẤY ORIGAMI ── */}
+        <TouchableOpacity
+          style={styles.hero3DCard}
+          activeOpacity={0.92}
+          onPress={triggerLaunchPlane}
+        >
+          <View style={styles.hero3DInfo}>
+            <Text style={styles.hero3DTitle}>Gửi yêu cầu ca trực</Text>
+            <Text style={styles.hero3DSubtitle}>
+              Đơn xin nghỉ, đổi ca & vắng mặt được chuyển tức thì tới Quản lý
+            </Text>
+          </View>
+
+          <View style={styles.heroPlaneContainer}>
+            {PaperPlane3D && (
+              <PaperPlane3D
+                launched={planeLaunched}
+                color="#f8fafc"
+                accentColor="#428531"
+                width={145}
+                height={120}
+                onPress={triggerLaunchPlane}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
 
         {/* ── 2. Top 3 Filter Cards (Ảnh 2 trong docx) ── */}
         <View style={styles.filterCardsRow}>
@@ -933,39 +1015,85 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // ── Header ──
+  // ── Header (Không dùng absolute, flex-start row rõ ràng) ──
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: 40,
+    marginBottom: 12,
+    gap: 12,
   },
   closeBtn: {
-    position: 'absolute',
-    left: 0,
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   closeBtnText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: '#334155',
+  },
+  headerTitleWrap: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '600',
-    color: '#000000',
+    fontWeight: '800',
+    color: '#0F172A',
   },
+
+  // ── Hero 3D Card (Trạm tiếp nhận yêu cầu với máy bay 3D to rõ) ──
+  hero3DCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 18,
+    padding: 14,
+    paddingRight: 6,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(66, 133, 49, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#22c55e',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  hero3DInfo: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  hero3DTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  hero3DSubtitle: {
+    fontSize: 11.5,
+    color: '#4B5563',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  heroPlaneContainer: {
+    width: 145,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   headerDivider: {
     height: 1.5,
     backgroundColor: 'rgba(240, 236, 236, 0.8)',
     marginVertical: 14,
   },
 
-  // ── Top 3 Filter Cards ──
+  // ── Top 3 Filter Cards (3D Bevel & Shadow Elevation) ──
   filterCardsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -975,16 +1103,24 @@ const styles = StyleSheet.create({
   filterCard: {
     flex: 1,
     backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: 'rgba(81, 163, 61, 0.25)',
+    borderTopColor: '#FFFFFF',
     paddingVertical: 10,
     paddingHorizontal: 8,
-    height: 64,
+    height: 66,
+    shadowColor: '#428531',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   filterCardActive: {
-    borderColor: '#51A33D',
+    borderColor: '#428531',
     backgroundColor: '#DEF4D7',
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
   },
   filterCardContent: {
     flexDirection: 'row',
@@ -994,7 +1130,7 @@ const styles = StyleSheet.create({
   },
   filterCardText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1E1E1E',
     lineHeight: 16,
   },
@@ -1003,15 +1139,15 @@ const styles = StyleSheet.create({
     height: 30,
   },
 
-  // ── 3 Action Buttons (Tạo yêu cầu mới) ──
+  // ── 3 Action Buttons (Tạo yêu cầu mới - 3D Pill Cards) ──
   actionSectionContainer: {
     marginTop: 10,
     marginBottom: 6,
   },
   actionSectionHeading: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333333',
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 10,
   },
   actionButtonsRow: {
@@ -1022,15 +1158,21 @@ const styles = StyleSheet.create({
   actionCardPill: {
     flex: 1,
     backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    height: 62,
+    height: 66,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: 'rgba(81, 163, 61, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(81, 163, 61, 0.25)',
+    borderTopColor: '#FFFFFF',
+    shadowColor: '#428531',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   actionCardPillText: {
     fontSize: 13,
@@ -1310,7 +1452,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 34,
     borderRadius: 3,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: '#5BC8B8',
     marginRight: 12,
   },
   miniInfo: {
@@ -1335,7 +1477,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: '#5BC8B8',
   },
   miniRoleText: {
     fontSize: 12.5,

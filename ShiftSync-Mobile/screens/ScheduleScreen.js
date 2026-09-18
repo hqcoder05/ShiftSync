@@ -17,6 +17,7 @@ import {
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
 import { getMyProfile, getMyStores } from '../services/profileService';
+import { getSkillsByStore } from '../services/skillService';
 import BottomNavbar from '../components/BottomNavbar';
 
 // ── Action Icons & Avatars ──────────────────────────────────────────────────
@@ -39,49 +40,122 @@ const AVATAR_MAP = {
   'Vivi.an': avatarDilan,
 };
 
-// ── Color palette matching the Web Schedule (Figma Prototype) ─────────────
+// ── Color palette matching the Web Schedule (Figma Prototype & SkillsPage) ─────────────
+export const SHIFT_COLORS = [
+  '#5BC8B8', // teal/green - Barista / Pha chế
+  '#D97FB2', // pink - Cashier / Thu ngân
+  '#D98080', // salmon/red - Kitchen / Bếp
+  '#C8C84A', // yellow-green - Service / Phục vụ
+  '#7AA8D9', // blue - Supervisor / Giám sát / Quản lý
+];
+
+export const PRESET_ROLE_COLORS = [
+  '#5BC8B8', // teal
+  '#D97FB2', // pink
+  '#D98080', // salmon/red
+  '#C8C84A', // yellow-green
+  '#7AA8D9', // blue
+  '#FFA726', // orange
+  '#AB47BC', // purple
+  '#26A69A', // green
+];
+
+export const resolveRoleColor = (roleName = '') => {
+  if (!roleName) return '#5BC8B8';
+  const r = roleName.toLowerCase().trim();
+  if (r.includes('barista') || r.includes('pha chế') || r.includes('pha che')) return '#5BC8B8';
+  if (r.includes('cashier') || r.includes('thu ngân') || r.includes('thu ngan')) return '#D97FB2';
+  if (r.includes('kitchen') || r.includes('bếp') || r.includes('bep')) return '#D98080';
+  if (r.includes('service') || r.includes('phục vụ') || r.includes('phuc vu')) return '#C8C84A';
+  if (r.includes('supervisor') || r.includes('giám sát') || r.includes('quản lý') || r.includes('quan ly')) return '#7AA8D9';
+  const code = [...r].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return SHIFT_COLORS[code % SHIFT_COLORS.length];
+};
+
 const ROLE_THEMES = {
   Barista: {
-    color: '#8DD9CC',      // Teal / Mint
-    cardBg: 'rgba(141, 217, 204, 0.15)',
-    activeBorder: '#8DD9CC',
-    activeBg: 'rgba(141, 217, 204, 0.25)',
-    dotColor: '#8DD9CC',
+    color: '#5BC8B8',      // Teal / Mint
+    cardBg: 'rgba(91, 200, 184, 0.15)',
+    activeBorder: '#5BC8B8',
+    activeBg: 'rgba(91, 200, 184, 0.25)',
+    dotColor: '#5BC8B8',
+  },
+  'Pha chế': {
+    color: '#5BC8B8',
+    cardBg: 'rgba(91, 200, 184, 0.15)',
+    activeBorder: '#5BC8B8',
+    activeBg: 'rgba(91, 200, 184, 0.25)',
+    dotColor: '#5BC8B8',
   },
   Cashier: {
-    color: '#D98DB3',      // Pink / Mauve
-    cardBg: 'rgba(217, 141, 179, 0.12)',
-    activeBorder: '#D98DB3',
-    activeBg: 'rgba(217, 141, 179, 0.25)',
-    dotColor: '#D98DB3',
+    color: '#D97FB2',      // Pink / Mauve
+    cardBg: 'rgba(217, 127, 178, 0.15)',
+    activeBorder: '#D97FB2',
+    activeBg: 'rgba(217, 127, 178, 0.25)',
+    dotColor: '#D97FB2',
+  },
+  'Thu ngân': {
+    color: '#D97FB2',
+    cardBg: 'rgba(217, 127, 178, 0.15)',
+    activeBorder: '#D97FB2',
+    activeBg: 'rgba(217, 127, 178, 0.25)',
+    dotColor: '#D97FB2',
   },
   Kitchen: {
     color: '#D98080',      // Salmon / Coral
-    cardBg: 'rgba(217, 128, 128, 0.12)',
+    cardBg: 'rgba(217, 128, 128, 0.15)',
+    activeBorder: '#D98080',
+    activeBg: 'rgba(217, 128, 128, 0.25)',
+    dotColor: '#D98080',
+  },
+  'Bếp': {
+    color: '#D98080',
+    cardBg: 'rgba(217, 128, 128, 0.15)',
     activeBorder: '#D98080',
     activeBg: 'rgba(217, 128, 128, 0.25)',
     dotColor: '#D98080',
   },
   Service: {
-    color: '#D9D98D',      // Yellow-green / Olive
-    cardBg: 'rgba(217, 217, 141, 0.1)',
-    activeBorder: '#D9D98D',
-    activeBg: 'rgba(217, 217, 141, 0.25)',
-    dotColor: '#D9D98D',
+    color: '#C8C84A',      // Yellow-green / Olive
+    cardBg: 'rgba(200, 200, 74, 0.15)',
+    activeBorder: '#C8C84A',
+    activeBg: 'rgba(200, 200, 74, 0.25)',
+    dotColor: '#C8C84A',
+  },
+  'Phục vụ': {
+    color: '#C8C84A',
+    cardBg: 'rgba(200, 200, 74, 0.15)',
+    activeBorder: '#C8C84A',
+    activeBg: 'rgba(200, 200, 74, 0.25)',
+    dotColor: '#C8C84A',
   },
   Supervisor: {
     color: '#7AA8D9',      // Blue
-    cardBg: 'rgba(122, 168, 217, 0.12)',
+    cardBg: 'rgba(122, 168, 217, 0.15)',
+    activeBorder: '#7AA8D9',
+    activeBg: 'rgba(122, 168, 217, 0.25)',
+    dotColor: '#7AA8D9',
+  },
+  'Giám sát': {
+    color: '#7AA8D9',
+    cardBg: 'rgba(122, 168, 217, 0.15)',
+    activeBorder: '#7AA8D9',
+    activeBg: 'rgba(122, 168, 217, 0.25)',
+    dotColor: '#7AA8D9',
+  },
+  'Quản lý': {
+    color: '#7AA8D9',
+    cardBg: 'rgba(122, 168, 217, 0.15)',
     activeBorder: '#7AA8D9',
     activeBg: 'rgba(122, 168, 217, 0.25)',
     dotColor: '#7AA8D9',
   },
   Default: {
-    color: '#8DD9CC',
-    cardBg: 'rgba(141, 217, 204, 0.15)',
-    activeBorder: '#8DD9CC',
-    activeBg: 'rgba(141, 217, 204, 0.25)',
-    dotColor: '#8DD9CC',
+    color: '#5BC8B8',
+    cardBg: 'rgba(91, 200, 184, 0.15)',
+    activeBorder: '#5BC8B8',
+    activeBg: 'rgba(91, 200, 184, 0.25)',
+    dotColor: '#5BC8B8',
   }
 };
 
@@ -134,7 +208,7 @@ const EMPTY_SHIFT = {
   timeRange: '—',
   location: 'Cửa hàng được phân công',
   role: 'Nhân viên',
-  color: '#8DD9CC',
+  color: '#5BC8B8',
 };
 
 const SUGGESTED_SWAP_STAFF = [
@@ -219,9 +293,10 @@ export default function ScheduleScreen({ navigation }) {
   const fetchScheduleData = async () => {
     try {
       setLoading(true);
-      // 1. Fetch current user & stores
+      // 1. Fetch current user & stores & store skills
       let activeStoreId = null;
       let currentUser = null;
+      let storeSkills = [];
       try {
         const { data: user } = await getMyProfile();
         currentUser = user;
@@ -233,9 +308,40 @@ export default function ScheduleScreen({ navigation }) {
           const activeStore = stores?.find((s) => s.status === 'ACTIVE') || stores?.[0];
           activeStoreId = activeStore?.storeId || activeStore?.id;
         }
+        if (activeStoreId) {
+          try {
+            const skRes = await getSkillsByStore(activeStoreId);
+            const rawSkills = skRes?.data?.content || skRes?.data || [];
+            storeSkills = Array.isArray(rawSkills) ? rawSkills : [];
+          } catch (err) {
+            // ignore
+          }
+        }
       } catch (e) {
         // backend offline
       }
+
+      const getShiftColor = (s, roleName) => {
+        // 1. Direct color from backend shiftDTO
+        if (s.color && s.color.startsWith('#')) return s.color;
+        if (s.requirements?.[0]?.skill?.description?.startsWith('#')) {
+          return s.requirements[0].skill.description;
+        }
+
+        // 2. Match with store skills configured on Web
+        const sSkillId = s.skillId || s.location;
+        const matched = storeSkills.find(
+          (sk) => (sSkillId && (sk.id === sSkillId || sk.name.toLowerCase() === String(sSkillId).toLowerCase())) ||
+                  (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase()) ||
+                  (roleName && sk.name.toLowerCase() === roleName.toLowerCase())
+        );
+        if (matched && matched.description && matched.description.startsWith('#')) {
+          return matched.description;
+        }
+
+        // 3. Fallback to exact same color resolution as Web
+        return resolveRoleColor(matched ? matched.name : roleName);
+      };
 
       // 2. Fetch real my shifts from API
       const res = await getMyShifts().catch(() => null);
@@ -251,7 +357,7 @@ export default function ScheduleScreen({ navigation }) {
             return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
           };
           const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-          const shiftColor = s.color || s.requirements?.[0]?.skill?.description || (ROLE_THEMES[role]?.color) || '#8DD9CC';
+          const shiftColor = getShiftColor(s, role);
           return {
             id: s.id || `live-my-${idx}`,
             shiftDate: s.shiftDate,
@@ -290,7 +396,7 @@ export default function ScheduleScreen({ navigation }) {
               return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
             };
             const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-            const shiftColor = s.color || s.requirements?.[0]?.skill?.description || (ROLE_THEMES[role]?.color) || '#8DD9CC';
+            const shiftColor = getShiftColor(s, role);
             return {
               id: s.id || `live-store-${idx}`,
               shiftDate: s.shiftDate,
@@ -444,15 +550,22 @@ export default function ScheduleScreen({ navigation }) {
       roleName = roleOrShift;
     }
 
-    if (!color) {
-      color = ROLE_THEMES[roleName]?.color || '#8DD9CC';
+    if (!color || !color.startsWith('#')) {
+      color = resolveRoleColor(roleName);
+    }
+
+    let r = 91, g = 200, b = 184;
+    if (color && color.startsWith('#') && color.length >= 7) {
+      r = parseInt(color.slice(1, 3), 16) || 91;
+      g = parseInt(color.slice(3, 5), 16) || 200;
+      b = parseInt(color.slice(5, 7), 16) || 184;
     }
 
     return {
       color,
-      cardBg: color.startsWith('#') ? `${color}1A` : 'rgba(141, 217, 204, 0.15)',
+      cardBg: `rgba(${r}, ${g}, ${b}, 0.15)`,
       activeBorder: color,
-      activeBg: color.startsWith('#') ? `${color}33` : 'rgba(141, 217, 204, 0.25)',
+      activeBg: `rgba(${r}, ${g}, ${b}, 0.25)`,
       dotColor: color,
     };
   };
@@ -904,7 +1017,7 @@ export default function ScheduleScreen({ navigation }) {
                 <Text style={styles.popupAvatarName}>Dilan. Jon</Text>
               </View>
 
-              <View style={[styles.popupVerticalBar, { backgroundColor: selectedSwapShift?.color || '#8DD9CC' }]} />
+              <View style={[styles.popupVerticalBar, { backgroundColor: selectedSwapShift?.color || '#5BC8B8' }]} />
 
               <View style={styles.popupShiftInfo}>
                 <Text style={styles.popupTimeRange}>
@@ -914,7 +1027,7 @@ export default function ScheduleScreen({ navigation }) {
                 </Text>
                 <Text style={styles.popupLocation}>{selectedSwapShift?.location || 'Cửa hàng được phân công'}</Text>
                 <View style={styles.popupRoleRow}>
-                  <View style={[styles.popupRoleDot, { backgroundColor: selectedSwapShift?.color || '#8DD9CC' }]} />
+                  <View style={[styles.popupRoleDot, { backgroundColor: selectedSwapShift?.color || '#5BC8B8' }]} />
                   <Text style={styles.popupRoleText}>{selectedSwapShift?.role || 'Nhân viên'}</Text>
                 </View>
               </View>
@@ -1028,7 +1141,7 @@ export default function ScheduleScreen({ navigation }) {
                 <Text style={styles.popupAvatarName}>Dilan. Jon</Text>
               </View>
 
-              <View style={[styles.popupVerticalBar, { backgroundColor: selectedAbsentShift?.color || '#8DD9CC' }]} />
+              <View style={[styles.popupVerticalBar, { backgroundColor: selectedAbsentShift?.color || '#5BC8B8' }]} />
 
               <View style={styles.popupShiftInfo}>
                 <Text style={styles.popupTimeRange}>
@@ -1038,7 +1151,7 @@ export default function ScheduleScreen({ navigation }) {
                 </Text>
                 <Text style={styles.popupLocation}>{selectedAbsentShift?.location || 'Cửa hàng được phân công'}</Text>
                 <View style={styles.popupRoleRow}>
-                  <View style={[styles.popupRoleDot, { backgroundColor: selectedAbsentShift?.color || '#8DD9CC' }]} />
+                  <View style={[styles.popupRoleDot, { backgroundColor: selectedAbsentShift?.color || '#5BC8B8' }]} />
                   <Text style={styles.popupRoleText}>{selectedAbsentShift?.role || 'Nhân viên'}</Text>
                 </View>
               </View>
@@ -1564,7 +1677,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 34,
     borderRadius: 3,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: '#5BC8B8',
     marginRight: 12,
   },
   popupShiftInfo: {
@@ -1589,7 +1702,7 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 4.5,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: '#5BC8B8',
   },
   popupRoleText: {
     fontSize: 12.5,

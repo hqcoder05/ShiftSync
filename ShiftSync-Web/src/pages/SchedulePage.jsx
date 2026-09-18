@@ -27,8 +27,16 @@ const SHIFT_COLORS = [
   '#7AA8D9', // blue
 ];
 
-const colorFor = (name = '') =>
-  SHIFT_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % SHIFT_COLORS.length];
+const colorFor = (name = '') => {
+  if (!name) return SHIFT_COLORS[0];
+  const n = name.toLowerCase().trim();
+  if (n.includes('barista') || n.includes('pha chế') || n.includes('pha che')) return '#5BC8B8';
+  if (n.includes('cashier') || n.includes('thu ngân') || n.includes('thu ngan')) return '#D97FB2';
+  if (n.includes('kitchen') || n.includes('bếp') || n.includes('bep')) return '#D98080';
+  if (n.includes('service') || n.includes('phục vụ') || n.includes('phuc vu')) return '#C8C84A';
+  if (n.includes('supervisor') || n.includes('giám sát') || n.includes('quản lý') || n.includes('quan ly')) return '#7AA8D9';
+  return SHIFT_COLORS[[...n].reduce((a, c) => a + c.charCodeAt(0), 0) % SHIFT_COLORS.length];
+};
 
 // Avatar map — khớp với EmployeesPage
 const AVATAR_MAP = {
@@ -514,28 +522,14 @@ export default function SchedulePage() {
     return colorFor(skObj.name);
   };
 
-  /**
-   * getShiftPositionColor
-   * Đảm bảo ca làm việc trên Scheduler hiển thị đúng màu của Vị trí
-   */
   const getShiftPositionColor = (s, emp) => {
-    // ✅ Priority 1: Backend-stored color (set when manager assigns position with color)
-    if (s.color && s.color.startsWith('#')) return s.color;
-
+    // 1. Shift's specific assigned position (skill) has top priority
     const sSkillId = s.skillId || s.location;
     let matchedSkill = skills.find(
-      (sk) => sk.id === sSkillId || sk.name === sSkillId || (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase())
+      (sk) => (sSkillId && (sk.id === sSkillId || sk.name.toLowerCase() === String(sSkillId).toLowerCase())) ||
+              (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase())
     );
 
-    if (!matchedSkill && emp) {
-      const pos = emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
-      const empSkillId = emp.skillId || emp.skill?.id;
-      matchedSkill = skills.find(
-        (sk) => (empSkillId && sk.id === empSkillId) || (pos && sk.name.toLowerCase() === pos.toLowerCase())
-      );
-    }
-
-    // ✅ Priority 2: Color from the matched Skill's description field
     if (matchedSkill) {
       if (matchedSkill.description && matchedSkill.description.startsWith('#')) {
         return matchedSkill.description;
@@ -543,9 +537,28 @@ export default function SchedulePage() {
       return colorFor(matchedSkill.name);
     }
 
+    // 2. Custom color saved on shift
+    if (s.color && s.color.startsWith('#')) return s.color;
+
     if (s.skillName) return colorFor(s.skillName);
     if (s.location && isNaN(s.location)) return colorFor(s.location);
-    if (emp?.position) return colorFor(emp.position);
+
+    // 3. Fallback to employee's default position
+    if (emp) {
+      const pos = emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
+      const empSkillId = emp.skillId || emp.skill?.id;
+      matchedSkill = skills.find(
+        (sk) => (empSkillId && sk.id === empSkillId) || (pos && sk.name.toLowerCase() === pos.toLowerCase())
+      );
+      if (matchedSkill) {
+        if (matchedSkill.description && matchedSkill.description.startsWith('#')) {
+          return matchedSkill.description;
+        }
+        return colorFor(matchedSkill.name);
+      }
+      if (pos) return colorFor(pos);
+    }
+
     return SHIFT_COLORS[0];
   };
 
@@ -604,7 +617,7 @@ export default function SchedulePage() {
     };
     const shiftSkillId = shift.skillId || shift.location || '';
     const matchedSkill = skills.find((s) => s.id === shiftSkillId || s.name === shiftSkillId);
-    const resolvedColor = shift.color || (matchedSkill ? getSkillColor(matchedSkill) : SHIFT_COLORS[0]);
+    const resolvedColor = (matchedSkill ? getSkillColor(matchedSkill) : null) || shift.color || SHIFT_COLORS[0];
 
     setRegisterForm({
       staffId: empId || shift.staffId || '',

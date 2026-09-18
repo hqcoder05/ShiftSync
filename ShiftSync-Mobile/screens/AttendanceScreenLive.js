@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -19,6 +20,12 @@ import { StatusBar } from 'expo-status-bar';
 
 import { getMyAttendance, submitSelfieAttendance } from '../services/attendanceService';
 import { getMyShifts } from '../services/shiftService';
+
+// AttendanceBadge3D — thẻ nhân viên 3D chỉ trên web runtime
+let AttendanceBadge3D = null;
+if (Platform.OS === 'web') {
+  try { AttendanceBadge3D = require('../components/AttendanceBadge3D.web').default; } catch (e) {}
+}
 
 const localDateISO = () => {
   const d = new Date();
@@ -238,6 +245,9 @@ export default function AttendanceScreenLive({ navigation }) {
     );
   }
 
+  // Trạng thái badge 3D dựa theo check-in/out
+  const badgeStatus = isCheckedOut ? 'checkedOut' : isCheckedIn ? 'checkedIn' : 'idle';
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -248,6 +258,18 @@ export default function AttendanceScreenLive({ navigation }) {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} />}
       >
         <Text style={styles.headerTitle}>Chấm công ca làm</Text>
+
+        {/* 🎴 THẺ NHÂN VIÊN 3D LƠ LỬNG */}
+        {AttendanceBadge3D && (
+          <View style={styles.badge3DContainer}>
+            <AttendanceBadge3D
+              status={badgeStatus}
+              userName={shift?.storeName || 'Nhân viên'}
+              width={200}
+              height={220}
+            />
+          </View>
+        )}
 
         {/* ══ TUỲ CHỌN CHẾ ĐỘ CHẤM CÔNG KHI TEST ══ */}
         <View style={styles.modeContainer}>
@@ -802,4 +824,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modalCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+
+  // Badge 3D
+  badge3DContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    overflow: 'visible',
+  },
 });

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Thêm useNavigate để chuyển trang
+import { useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
+import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
 import './LoginPage.css';
 
 const LogoIcon = ({ size = 32, color = '#4CAF50' }) => (
@@ -19,7 +20,16 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const navigate = useNavigate(); // Hook chuyển trang
+  const [mascotStatus, setMascotStatus] = useState('idle');
+  const navigate = useNavigate();
+
+  const handleEmailFocus = () => {
+    setMascotStatus('email');
+  };
+
+  const handleBlur = () => {
+    setMascotStatus('idle');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,23 +37,26 @@ export default function LoginPage() {
 
     const errMsg = validateLoginForm(email, password);
     if (errMsg) { 
-      setError(errMsg); 
+      setError(errMsg);
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
       return; 
     }
 
     try {
-      const res = await login(email, password); // res chính là data thật (authService đã unwrap), KHÔNG có res.data
-
+      const res = await login(email, password);
       const token = res.accessToken;
       localStorage.setItem('token', token);
       localStorage.setItem('accessToken', token);
 
-      console.log('Login thành công:', res);
-
-      // Chuyển vào trang Dashboard sau khi đăng nhập thành công
-      navigate('/'); 
+      setMascotStatus('success');
+      setTimeout(() => {
+        navigate('/');
+      }, 1200);
     } catch (err) {
       setError(err.response?.data?.message || 'Sai email hoặc mật khẩu');
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
     }
   };
 
@@ -53,6 +66,17 @@ export default function LoginPage() {
         <LogoIcon />
         <span className="login-logo-text">ShiftSync</span>
       </div>
+
+      {/* 🌟 Mascot 3D tương tác theo form */}
+      <div style={{ marginBottom: -10, overflow: 'visible' }}>
+        <LoginMascot3DWeb
+          status={mascotStatus}
+          emailLength={email.length}
+          width={280}
+          height={180}
+        />
+      </div>
+
       <div className="login-card">
         <form onSubmit={handleSubmit}>
           <input
@@ -60,6 +84,8 @@ export default function LoginPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onFocus={handleEmailFocus}
+            onBlur={handleBlur}
             className="login-input"
           />
           <input
@@ -67,6 +93,8 @@ export default function LoginPage() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onFocus={() => setMascotStatus('password')}
+            onBlur={handleBlur}
             className="login-input"
           />
           {error && <p className="login-error">{error}</p>}

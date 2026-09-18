@@ -381,8 +381,8 @@ export default function DashboardScreen({ navigation }) {
           <Text style={s.stat}>
             {calculatedStats.otHours} <Text style={s.statEnd}>giờ</Text>
           </Text>
-          <View style={s.incomeArt}>
-            <FlowerMascot3D width={200} height={175} interactive={true} />
+          <View style={s.incomeArt} pointerEvents="box-none">
+            <FlowerMascot3D width={220} height={185} interactive={true} />
           </View>
         </View>
       </ScrollView>
@@ -540,5 +540,5 @@ const s = StyleSheet.create({
   amount: { fontSize: 31, color: '#46A83A', marginTop: 7 },
   stat: { fontSize: 24, color: '#46A83A', marginTop: 3 },
   statEnd: { fontSize: 15, color: '#45494A' },
-  incomeArt: { position: 'absolute', width: 200, height: 175, right: 0, bottom: 0 },
+  incomeArt: { position: 'absolute', width: 220, height: 185, right: 0, bottom: 0 },
 });

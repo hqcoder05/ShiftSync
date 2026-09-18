@@ -5,6 +5,7 @@ import { getEmployees } from '../services/employeeService';
 import { getSkillsByStore } from '../services/skillService';
 import { getStoreAttendance, updateAttendanceRecord } from '../services/attendanceService';
 import CompactDropdownFilter from '../components/CompactDropdownFilter';
+import AttendanceBadge3DWeb from '../components/AttendanceBadge3DWeb';
 import avatarPaul from '../assets/avatars/avatar-paul-lee.png';
 import avatarThia from '../assets/avatars/avatar-thia-ago.png';
 import avatarMew from '../assets/avatars/avatar-mew-ama.png';
@@ -127,6 +128,7 @@ export default function AttendancePageLive() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [badgeStatus, setBadgeStatus] = useState('idle'); // 'idle' | 'checking' | 'checkedIn' | 'checkedOut'
 
   // Edit attendance state (Quản lý chỉnh sửa giờ chấm công)
   const [editingRow, setEditingRow] = useState(null);
@@ -464,6 +466,38 @@ export default function AttendancePageLive() {
           </div>
 
           <div className="att-topbar-actions">
+            {/* 💳 Thẻ chấm công 3D lơ lửng, bấm để quẹt thẻ lật 360° */}
+            <div
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginRight: 8,
+                padding: '2px 8px',
+                borderRadius: 12,
+                backgroundColor: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                transition: 'all 0.2s ease',
+              }}
+              onClick={() => {
+                setBadgeStatus('checking');
+                setTimeout(() => setBadgeStatus('checkedIn'), 1400);
+                setTimeout(() => setBadgeStatus('idle'), 4200);
+              }}
+              title="Chạm để mô phỏng quẹt thẻ điểm danh 3D"
+            >
+              <AttendanceBadge3DWeb
+                status={badgeStatus}
+                userName="Nhân viên"
+                width={50}
+                height={55}
+              />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>
+                {badgeStatus === 'checking' ? 'Đang quẹt...' : badgeStatus === 'checkedIn' ? '✔ Đã vào ca' : 'Quẹt thẻ 3D'}
+              </span>
+            </div>
+
             <div className="att-capsule-card">
               <button
                 type="button"
