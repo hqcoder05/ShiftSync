@@ -25,6 +25,15 @@ const formatVND = (num) => {
   return Number(num).toLocaleString('vi-VN') + ' VNĐ';
 };
 
+const formatDateDMY = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = String(dateStr).split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 export default function PayrollScreen({ navigation }) {
   const [payslips, setPayslips] = useState([]);
   const [selectedPayslip, setSelectedPayslip] = useState(null);
@@ -57,7 +66,10 @@ export default function PayrollScreen({ navigation }) {
           const stores = storeRes?.data || [];
           if (stores.length > 0) {
             const r = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
-            if (r) userHourlyRate = Number(r);
+            if (r) {
+              const numR = Number(r);
+              userHourlyRate = numR < 1000 ? numR * 1000 : numR;
+            }
           }
         }
       } catch (e) {
@@ -92,16 +104,26 @@ export default function PayrollScreen({ navigation }) {
           const month = d.getMonth() + 1;
           const year = d.getFullYear();
           const workedH = Number(p.totalHours || 0);
+          const otH = Number(p.otHours || 0);
+          const baseH = Math.max(0, workedH - otH);
           const totalAmt = Number(p.totalAmount || 0);
           const baseAmt = Number(p.baseAmount || totalAmt);
+          const rate = (baseH > 0 && baseAmt > 0)
+            ? Math.round(baseAmt / baseH)
+            : (workedH > 0 && baseAmt > 0 ? Math.round(baseAmt / workedH) : userHourlyRate);
+
+          const rangeStr = (p.periodStartDate && p.periodEndDate)
+            ? `${formatDateDMY(p.periodStartDate)} – ${formatDateDMY(p.periodEndDate)}`
+            : `Tháng ${month}/${year}`;
+
           return {
             id: p.id || `api-${idx}`,
             month,
             year,
             title: `Phiếu lương tháng ${month}`,
-            periodRange: `${p.periodStartDate || '01/08/26'} – ${p.periodEndDate || '31/08/26'}`,
+            periodRange: rangeStr,
             role: userRole,
-            hourlyRate: workedH ? Math.round(baseAmt / workedH) : userHourlyRate,
+            hourlyRate: rate,
             totalShifts: Math.round(workedH / 8) || completedDays || 1,
             completedShifts: Math.round(workedH / 8) || completedDays || 1,
             scheduledHours: workedH || Math.round(completedHours) || 8,
@@ -109,7 +131,7 @@ export default function PayrollScreen({ navigation }) {
             workedDays: Math.round(workedH / 8) || completedDays || 1,
             baseAmount: baseAmt,
             deduction: 0,
-            allowance: 120000,
+            allowance: Number(p.otAmount || 0) + Number(p.holidayAmount || 0),
             totalAmount: totalAmt,
           };
         });

@@ -18,14 +18,6 @@ import { getMyShifts } from '../services/shiftService';
 import { getMyProfile } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 
-// ── Asset Icons ─────────────────────────────────────────────────────────────
-const iconHac = require('../assets/icon_hac.png');
-const iconNote = require('../assets/icon_note.png');
-const iconLich = require('../assets/icon_lich.png');
-const iconKinh = require('../assets/icon-kinh.png');
-const iconLoa = require('../assets/icon-loa.png');
-const iconDua = require('../assets/icon-dua.png');
-
 // ── Avatars ─────────────────────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
 const avatarMew = require('../assets/avatar-mew-ama.png');
@@ -286,7 +278,7 @@ export default function RequestScreen({ navigation, route }) {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 1. Header (Xử lý yêu cầu) ── */}
+        {/* ── 1. Header (Quản lý yêu cầu) ── */}
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.closeBtn}
@@ -295,81 +287,43 @@ export default function RequestScreen({ navigation, route }) {
           >
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Xử lý yêu cầu</Text>
+          <Text style={styles.headerTitle}>Quản lý yêu cầu</Text>
         </View>
 
         <View style={styles.headerDivider} />
 
-        {/* ── 2. Top 3 Filter Cards (Ảnh 2 trong docx) ── */}
-        <View style={styles.filterCardsRow}>
-          {/* Đã duyệt + Chim hạc */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'APPROVED' && styles.filterCardActive
-            ]}
-            onPress={() => handleFilterToggle('APPROVED')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Đã{'\n'}duyệt</Text>
-              <Image source={iconHac} style={styles.filterCardIcon} resizeMode="contain" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Chờ duyệt + Note */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'PENDING' && styles.filterCardActive
-            ]}
-            onPress={() => handleFilterToggle('PENDING')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Chờ{'\n'}duyệt</Text>
-              <Image source={iconNote} style={styles.filterCardIcon} resizeMode="contain" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Từ chối + Lịch */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'REJECTED' && styles.filterCardActive
-            ]}
-            onPress={() => handleFilterToggle('REJECTED')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Từ{'\n'}chối</Text>
-              <Image source={iconLich} style={styles.filterCardIcon} resizeMode="contain" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 3. KHU VỰC TẠO YÊU CẦU MỚI (3 BOX XANH GIỐNG ẢNH ĐỔI CA / ẢNH 3) ── */}
+        {/* ── 2. Khu vực Tạo Yêu Cầu Mới ── */}
         <View style={styles.actionSectionContainer}>
           <Text style={styles.actionSectionHeading}>Tạo yêu cầu mới</Text>
           <View style={styles.actionButtonsRow}>
-            {/* 1. Hỗ trợ đổi ca */}
+            {/* 1. Đổi ca */}
             <TouchableOpacity
               style={styles.actionCardPill}
               onPress={() => setSwapModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
-              <Image source={iconKinh} style={styles.actionCardPillIcon} resizeMode="contain" />
+              <View style={styles.actionCardIconWrap}>
+                <Text style={styles.actionCardIconEmoji}>🔁</Text>
+              </View>
+              <View style={styles.actionCardTextWrap}>
+                <Text style={styles.actionCardPillTitle}>Đổi ca</Text>
+                <Text style={styles.actionCardPillSub}>Đổi với bạn</Text>
+              </View>
             </TouchableOpacity>
 
-            {/* 2. Vắng mặt */}
+            {/* 2. Xin vắng ca */}
             <TouchableOpacity
               style={styles.actionCardPill}
               onPress={() => setAbsentModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
-              <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
+              <View style={[styles.actionCardIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={styles.actionCardIconEmoji}>⚠️</Text>
+              </View>
+              <View style={styles.actionCardTextWrap}>
+                <Text style={styles.actionCardPillTitle}>Xin vắng</Text>
+                <Text style={styles.actionCardPillSub}>Vắng ca trực</Text>
+              </View>
             </TouchableOpacity>
 
             {/* 3. Xin nghỉ phép */}
@@ -378,39 +332,133 @@ export default function RequestScreen({ navigation, route }) {
               onPress={() => setLeaveModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
-              <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
+              <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0E7FF' }]}>
+                <Text style={styles.actionCardIconEmoji}>📅</Text>
+              </View>
+              <View style={styles.actionCardTextWrap}>
+                <Text style={styles.actionCardPillTitle}>Nghỉ phép</Text>
+                <Text style={styles.actionCardPillSub}>Nhiều ngày</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.headerDivider} />
+        {/* ── 3. Thanh Lọc Trạng Thái (Segmented Filter Bar) ── */}
+        <View style={styles.filterSegmentContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterSegmentBtn,
+              filterStatus === null && styles.filterSegmentBtnActive,
+            ]}
+            onPress={() => setFilterStatus(null)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.filterSegmentText,
+                filterStatus === null && styles.filterSegmentTextActive,
+              ]}
+            >
+              Tất cả ({requests.length})
+            </Text>
+          </TouchableOpacity>
 
-        {/* ── 4. Danh sách Yêu cầu (Ảnh 2 trong docx) ── */}
-        <Text style={styles.requestListHeading}>Lịch sử yêu cầu</Text>
+          <TouchableOpacity
+            style={[
+              styles.filterSegmentBtn,
+              filterStatus === 'PENDING' && styles.filterSegmentBtnActive,
+            ]}
+            onPress={() => handleFilterToggle('PENDING')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.filterSegmentText,
+                filterStatus === 'PENDING' && styles.filterSegmentTextActive,
+              ]}
+            >
+              Chờ duyệt
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.filterSegmentBtn,
+              filterStatus === 'APPROVED' && styles.filterSegmentBtnActive,
+            ]}
+            onPress={() => handleFilterToggle('APPROVED')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.filterSegmentText,
+                filterStatus === 'APPROVED' && styles.filterSegmentTextActive,
+              ]}
+            >
+              Đã duyệt
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.filterSegmentBtn,
+              filterStatus === 'REJECTED' && styles.filterSegmentBtnActive,
+            ]}
+            onPress={() => handleFilterToggle('REJECTED')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.filterSegmentText,
+                filterStatus === 'REJECTED' && styles.filterSegmentTextActive,
+              ]}
+            >
+              Từ chối
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 4. Danh sách Yêu cầu ── */}
+        <View style={styles.listHeaderRow}>
+          <Text style={styles.requestListHeading}>Lịch sử gửi yêu cầu</Text>
+          <Text style={styles.requestListCount}>{filteredRequests.length} yêu cầu</Text>
+        </View>
+
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color="#51A33D" />
-            <Text style={styles.loadingText}>Đang tải yêu cầu...</Text>
+            <Text style={styles.loadingText}>Đang tải danh sách yêu cầu...</Text>
           </View>
         ) : (
           <View style={styles.requestList}>
             {filteredRequests.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>Chưa có yêu cầu nào trong mục này</Text>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTitle}>Chưa có yêu cầu nào</Text>
+                <Text style={styles.emptyText}>
+                  {filterStatus
+                    ? 'Không có yêu cầu nào khớp với bộ lọc đang chọn.'
+                    : 'Nhấn vào các nút phía trên để tạo yêu cầu mới.'}
+                </Text>
               </View>
             ) : (
               filteredRequests.map((item) => {
                 const isApproved = item.status === 'APPROVED';
                 const isRejected = item.status === 'REJECTED';
-                const isPending = item.status === 'PENDING';
+                const isPending = item.status === 'PENDING' || !item.status;
+
+                const statusLabel = isApproved
+                  ? 'Đã duyệt'
+                  : isRejected
+                  ? 'Từ chối'
+                  : 'Chờ duyệt';
 
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[
                       styles.requestItemCard,
-                      isRejected && styles.requestItemCardRejected
+                      isRejected && styles.requestItemCardRejected,
                     ]}
                     onPress={() => {
                       setSelectedRequest(item);
@@ -419,14 +467,20 @@ export default function RequestScreen({ navigation, route }) {
                     activeOpacity={0.85}
                   >
                     <View style={styles.requestItemTopRow}>
-                      <Text style={styles.requestItemTitle}>{item.typeLabel || 'Xin nghỉ'}</Text>
-                      <Text style={styles.requestItemDate}>{item.date}</Text>
+                      <View style={styles.requestTypeBadge}>
+                        <Text style={styles.requestTypeBadgeText}>
+                          {item.typeLabel || (item.type === 'SWAP' ? 'Đổi ca' : item.type === 'ABSENT' ? 'Xin vắng' : 'Nghỉ phép')}
+                        </Text>
+                      </View>
+                      <Text style={styles.requestItemDate}>{item.date || item.startDate || ''}</Text>
                     </View>
 
+                    <Text style={styles.requestItemDesc} numberOfLines={2}>
+                      {item.description || item.reason || 'Không có mô tả chi tiết'}
+                    </Text>
+
                     <View style={styles.requestItemBottomRow}>
-                      <Text style={styles.requestItemDesc} numberOfLines={2}>
-                        {item.description}
-                      </Text>
+                      <Text style={styles.detailLinkText}>Xem chi tiết ›</Text>
 
                       {/* Status Badge */}
                       <View
@@ -445,7 +499,7 @@ export default function RequestScreen({ navigation, route }) {
                             isPending && styles.statusBadgeTextPending,
                           ]}
                         >
-                          {item.statusText || 'Chờ Duyệt'}
+                          {statusLabel}
                         </Text>
                       </View>
                     </View>
@@ -949,63 +1003,27 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '600',
-    color: '#000000',
+    fontWeight: '700',
+    color: '#1E1E1E',
   },
   headerDivider: {
-    height: 1.5,
-    backgroundColor: 'rgba(240, 236, 236, 0.8)',
-    marginVertical: 14,
-  },
-
-  // ── Top 3 Filter Cards ──
-  filterCardsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 6,
-  },
-  filterCard: {
-    flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    height: 64,
-  },
-  filterCardActive: {
-    borderColor: '#51A33D',
-    backgroundColor: '#DEF4D7',
-  },
-  filterCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: '100%',
-  },
-  filterCardText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E1E1E',
-    lineHeight: 16,
-  },
-  filterCardIcon: {
-    width: 30,
-    height: 30,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 12,
   },
 
   // ── 3 Action Buttons (Tạo yêu cầu mới) ──
   actionSectionContainer: {
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 4,
+    marginBottom: 14,
   },
   actionSectionHeading: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -1014,85 +1032,174 @@ const styles = StyleSheet.create({
   },
   actionCardPill: {
     flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 8,
-    height: 62,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'rgba(81, 163, 61, 0.2)',
+    borderColor: '#E5E7EB',
+    gap: 8,
   },
-  actionCardPillText: {
+  actionCardIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCardIconEmoji: {
+    fontSize: 16,
+  },
+  actionCardTextWrap: {
+    flex: 1,
+  },
+  actionCardPillTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#333333',
-    lineHeight: 16,
+    fontWeight: '700',
+    color: '#1F2937',
   },
-  actionCardPillIcon: {
-    width: 28,
-    height: 28,
+  actionCardPillSub: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+
+  // ── Segmented Filter Bar ──
+  filterSegmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 14,
+  },
+  filterSegmentBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  filterSegmentBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filterSegmentText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  filterSegmentTextActive: {
+    color: '#111827',
+    fontWeight: '700',
   },
 
   // ── Danh sách yêu cầu ──
-  requestListHeading: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666666',
+  listHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
+  },
+  requestListHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  requestListCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   requestList: {
     display: 'flex',
     flexDirection: 'column',
+    gap: 8,
   },
   emptyBox: {
-    paddingVertical: 30,
+    paddingVertical: 36,
     alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 4,
   },
   emptyText: {
-    fontSize: 13.5,
-    color: '#888888',
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   requestItemCard: {
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(240, 236, 236, 0.8)',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 12,
   },
   requestItemCardRejected: {
-    backgroundColor: 'rgba(242, 240, 240, 0.5)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
   },
   requestItemTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  requestItemTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E1E1E',
+  requestTypeBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  requestTypeBadgeText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1F2937',
   },
   requestItemDate: {
     fontSize: 12,
-    color: '#888888',
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  requestItemDesc: {
+    fontSize: 13,
+    color: '#4B5563',
+    lineHeight: 18,
+    marginBottom: 8,
   },
   requestItemBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 8,
   },
-  requestItemDesc: {
-    flex: 1,
+  detailLinkText: {
     fontSize: 12.5,
-    color: '#666666',
-    lineHeight: 16,
+    color: '#2563EB',
+    fontWeight: '600',
   },
   statusBadge: {
     paddingVertical: 4,

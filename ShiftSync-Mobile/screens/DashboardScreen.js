@@ -51,6 +51,15 @@ const localDateISO = () => {
   return new Date(d.getTime() - offset).toISOString().slice(0, 10);
 };
 
+const formatDateDMY = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = String(dateStr).split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const getVietnameseDateString = (date = new Date()) => {
   const dayOfWeek = date.getDay();
   const weekdayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -152,7 +161,8 @@ export default function DashboardScreen({ navigation }) {
             if (stores.length > 0) {
               const rate = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
               if (rate) {
-                setHourlyRate(Number(rate));
+                const numRate = Number(rate);
+                setHourlyRate(numRate < 1000 ? numRate * 1000 : numRate);
               }
             }
           }).catch(() => {});
@@ -211,8 +221,31 @@ export default function DashboardScreen({ navigation }) {
     (shift) => shift.shiftDate === todayIso && shift.status !== 'CANCELLED'
   );
 
-  // ✅ Tính toán số giờ làm việc thực tế từ các ca đã chấm công xong nhân với đơn giá giờ của vị trí
+  // ✅ Báo cáo thu nhập: Backend là Source of Truth. Ưu tiên phiếu lương chính thức từ kỳ gần nhất
   const calculatedStats = useMemo(() => {
+    const normHourlyRate = hourlyRate < 1000 ? hourlyRate * 1000 : hourlyRate;
+
+    // 1. Nếu đã có phiếu lương chính thức từ backend
+    if (latestPayslip && (Number(latestPayslip.totalAmount || 0) > 0 || Number(latestPayslip.totalHours || 0) > 0)) {
+      const totalHours = Number(latestPayslip.totalHours || 0);
+      const otHours = Number(latestPayslip.otHours || 0);
+      const baseHours = Math.max(0, totalHours - otHours);
+      const baseAmount = Number(latestPayslip.baseAmount || latestPayslip.totalAmount || 0);
+      const totalAmount = Number(latestPayslip.totalAmount || 0);
+
+      const effectiveRate = (baseHours > 0 && baseAmount > 0)
+        ? Math.round(baseAmount / baseHours)
+        : (totalHours > 0 && baseAmount > 0 ? Math.round(baseAmount / totalHours) : normHourlyRate);
+
+      return {
+        hours: totalHours,
+        otHours: otHours,
+        amount: totalAmount,
+        hourlyRate: effectiveRate,
+      };
+    }
+
+    // 2. Dự toán Realtime từ các ca đã chấm công nếu chưa có phiếu lương chính thức
     let totalWorkedHours = 0;
     let otHours = 0;
 
@@ -238,19 +271,14 @@ export default function DashboardScreen({ navigation }) {
 
     const roundedHours = Math.round(totalWorkedHours * 10) / 10;
     const roundedOt = Math.round(otHours * 10) / 10;
-
-    const liveAmount = Math.round(roundedHours * hourlyRate);
-    const displayHours = roundedHours > 0 ? roundedHours : (latestPayslip?.totalHours || 0);
-    const displayOt = roundedOt > 0 ? roundedOt : (latestPayslip?.otHours || 0);
-    const displayAmount = liveAmount > 0 
-      ? liveAmount 
-      : (latestPayslip ? Number(latestPayslip.totalAmount || 0) : 0);
+    const baseHours = Math.max(0, roundedHours - roundedOt);
+    const liveAmount = Math.round(baseHours * normHourlyRate + roundedOt * normHourlyRate * 1.5);
 
     return {
-      hours: displayHours,
-      otHours: displayOt,
-      amount: displayAmount,
-      hourlyRate,
+      hours: roundedHours,
+      otHours: roundedOt,
+      amount: liveAmount,
+      hourlyRate: normHourlyRate,
     };
   }, [attendanceRecords, latestPayslip, hourlyRate]);
 
@@ -360,8 +388,8 @@ export default function DashboardScreen({ navigation }) {
         <View style={s.income}>
           <View style={s.incomeTop}>
             <Text style={s.range}>
-              {latestPayslip
-                ? `${latestPayslip.periodStartDate} – ${latestPayslip.periodEndDate}`
+              {latestPayslip && latestPayslip.periodStartDate && latestPayslip.periodEndDate
+                ? `${formatDateDMY(latestPayslip.periodStartDate)} – ${formatDateDMY(latestPayslip.periodEndDate)}`
                 : `Tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}`}
             </Text>
             <Pressable onPress={() => nav(navigation, 'Payroll')}>
@@ -373,7 +401,7 @@ export default function DashboardScreen({ navigation }) {
             Lương thực nhận {calculatedStats.hourlyRate ? `(${calculatedStats.hourlyRate.toLocaleString('vi-VN')} đ/giờ)` : ''}
           </Text>
           <Text style={s.amount}>
-            {calculatedStats.amount > 0 ? `${calculatedStats.amount.toLocaleString('vi-VN')} VNĐ` : (latestPayslip ? `${Number(latestPayslip.totalAmount || 0).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ')}
+            {`${Number(calculatedStats.amount || 0).toLocaleString('vi-VN')} VNĐ`}
           </Text>
           <Text style={s.label}>Giờ đã làm việc</Text>
           <Text style={s.stat}>

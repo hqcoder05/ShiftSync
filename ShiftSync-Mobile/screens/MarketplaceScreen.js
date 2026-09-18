@@ -172,7 +172,7 @@ export default function MarketplaceScreen({ navigation }) {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Sàn Ca Mở</Text>
+          <Text style={styles.headerTitle}>Chợ ca làm việc</Text>
           <Text style={styles.headerSubtitle}>
             {currentStore?.storeName || currentStore?.name || 'Chi nhánh của bạn'}
           </Text>

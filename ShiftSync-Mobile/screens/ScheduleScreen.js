@@ -19,11 +19,7 @@ import { createStaffRequest } from '../services/requestService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 
-// ── Action Icons & Avatars ──────────────────────────────────────────────────
-const iconKinh = require('../assets/icon-kinh.png');
-const iconLoa = require('../assets/icon-loa.png');
-const iconDua = require('../assets/icon-dua.png');
-
+// ── Avatars ─────────────────────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
 const avatarMew = require('../assets/avatar-mew-ama.png');
 const avatarPaul = require('../assets/avatar-paul-lee.png');
@@ -532,7 +528,7 @@ export default function ScheduleScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── 2. Bộ chuyển Tab: My shifts | Schedule | Sàn ca (Rectangle 576/577) ── */}
+        {/* ── 2. Bộ chuyển Tab: Ca của tôi | Lịch chi nhánh | Chợ ca ── */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -548,7 +544,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeTab === 'my_shifts' ? styles.tabTextActive : styles.tabTextInactive
               ]}
             >
-              My shifts
+              Ca của tôi
             </Text>
           </TouchableOpacity>
 
@@ -566,7 +562,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeTab === 'schedule' ? styles.tabTextActive : styles.tabTextInactive
               ]}
             >
-              Schedule
+              Lịch chi nhánh
             </Text>
           </TouchableOpacity>
 
@@ -586,7 +582,7 @@ export default function ScheduleScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <Text style={styles.tabTextMarketplace}>
-              🛒 Sàn ca
+              🛒 Chợ ca
             </Text>
           </TouchableOpacity>
         </View>
@@ -805,26 +801,36 @@ export default function ScheduleScreen({ navigation }) {
             {/* Tiêu đề: Lựa chọn yêu cầu */}
             <Text style={styles.popupActionHeading}>Lựa chọn yêu cầu</Text>
 
-            {/* 3 Nút Hành Động Ngang (Rectangle 632, 635, 636) */}
+            {/* 3 Nút Hành Động Ngang */}
             <View style={styles.actionButtonsRow}>
-              {/* 1. Hỗ trợ đổi ca */}
+              {/* 1. Đổi ca */}
               <TouchableOpacity
                 style={styles.actionCardPill}
                 onPress={handleOpenSwapModal}
                 activeOpacity={0.8}
               >
-                <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
-                <Image source={iconKinh} style={styles.actionCardPillIcon} resizeMode="contain" />
+                <View style={styles.actionCardIconWrap}>
+                  <Text style={styles.actionCardIconEmoji}>🔁</Text>
+                </View>
+                <View style={styles.actionCardTextWrap}>
+                  <Text style={styles.actionCardPillTitle}>Đổi ca</Text>
+                  <Text style={styles.actionCardPillSub}>Đổi với bạn</Text>
+                </View>
               </TouchableOpacity>
 
-              {/* 2. Vắng mặt */}
+              {/* 2. Xin vắng ca */}
               <TouchableOpacity
                 style={styles.actionCardPill}
                 onPress={handleOpenAbsentModal}
                 activeOpacity={0.8}
               >
-                <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
-                <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
+                <View style={[styles.actionCardIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={styles.actionCardIconEmoji}>⚠️</Text>
+                </View>
+                <View style={styles.actionCardTextWrap}>
+                  <Text style={styles.actionCardPillTitle}>Xin vắng</Text>
+                  <Text style={styles.actionCardPillSub}>Vắng ca này</Text>
+                </View>
               </TouchableOpacity>
 
               {/* 3. Xin nghỉ phép */}
@@ -833,8 +839,13 @@ export default function ScheduleScreen({ navigation }) {
                 onPress={handleOpenLeaveModal}
                 activeOpacity={0.8}
               >
-                <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
-                <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
+                <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0E7FF' }]}>
+                  <Text style={styles.actionCardIconEmoji}>📅</Text>
+                </View>
+                <View style={styles.actionCardTextWrap}>
+                  <Text style={styles.actionCardPillTitle}>Nghỉ phép</Text>
+                  <Text style={styles.actionCardPillSub}>Nhiều ngày</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -1634,24 +1645,39 @@ const styles = StyleSheet.create({
   },
   actionCardPill: {
     flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    height: 62,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
   },
-  actionCardPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333333',
-    lineHeight: 16,
+  actionCardIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionCardPillIcon: {
-    width: 28,
-    height: 28,
+  actionCardIconEmoji: {
+    fontSize: 15,
+  },
+  actionCardTextWrap: {
+    flex: 1,
+  },
+  actionCardPillTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  actionCardPillSub: {
+    fontSize: 10.5,
+    color: '#6B7280',
+    marginTop: 1,
   },
 
   // ── Shift Selector in Modal ──
