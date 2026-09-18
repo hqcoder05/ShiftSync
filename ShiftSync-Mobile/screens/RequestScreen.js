@@ -13,6 +13,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getMyRequests, createStaffRequest } from '../services/requestService';
 import { getMyShifts } from '../services/shiftService';
 import { getMyProfile } from '../services/profileService';
@@ -302,8 +303,8 @@ export default function RequestScreen({ navigation, route }) {
               onPress={() => setSwapModalVisible(true)}
               activeOpacity={0.8}
             >
-              <View style={styles.actionCardIconWrap}>
-                <Text style={styles.actionCardIconEmoji}>🔁</Text>
+              <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0F2FE' }]}>
+                <Ionicons name="swap-horizontal" size={18} color="#0284C7" />
               </View>
               <View style={styles.actionCardTextWrap}>
                 <Text style={styles.actionCardPillTitle}>Đổi ca</Text>
@@ -318,7 +319,7 @@ export default function RequestScreen({ navigation, route }) {
               activeOpacity={0.8}
             >
               <View style={[styles.actionCardIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <Text style={styles.actionCardIconEmoji}>⚠️</Text>
+                <Ionicons name="alert-circle-outline" size={18} color="#D97706" />
               </View>
               <View style={styles.actionCardTextWrap}>
                 <Text style={styles.actionCardPillTitle}>Xin vắng</Text>
@@ -332,8 +333,8 @@ export default function RequestScreen({ navigation, route }) {
               onPress={() => setLeaveModalVisible(true)}
               activeOpacity={0.8}
             >
-              <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0E7FF' }]}>
-                <Text style={styles.actionCardIconEmoji}>📅</Text>
+              <View style={[styles.actionCardIconWrap, { backgroundColor: '#F3E8FF' }]}>
+                <Ionicons name="calendar-outline" size={18} color="#7C3AED" />
               </View>
               <View style={styles.actionCardTextWrap}>
                 <Text style={styles.actionCardPillTitle}>Nghỉ phép</Text>
@@ -433,7 +434,7 @@ export default function RequestScreen({ navigation, route }) {
           <View style={styles.requestList}>
             {filteredRequests.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>📋</Text>
+                <Ionicons name="document-text-outline" size={36} color="#9CA3AF" style={{ marginBottom: 8 }} />
                 <Text style={styles.emptyTitle}>Chưa có yêu cầu nào</Text>
                 <Text style={styles.emptyText}>
                   {filterStatus

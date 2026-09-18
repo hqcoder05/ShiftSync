@@ -9,12 +9,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-import avatar from '../assets/avatar-dilan-jon.png';
-import availabilityIcon from '../assets/dangky.png';
-import payrollIcon from '../assets/luong.png';
-import requestIcon from '../assets/yeucau.png';
-import scheduleIcon from '../assets/lichlam.png';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomNavbar from '../components/BottomNavbar';
 import Avatar3D from '../components/Avatar3D';
@@ -27,10 +22,10 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import { getStoredAvatar, onAvatarChange } from '../services/avatarSync';
 
 const actions = [
-  ['Đăng ký lịch làm', availabilityIcon, '#EAF8E6', 'Availability'],
-  ['Phiếu lương', payrollIcon, '#FFF6DE', 'Payroll'],
-  ['Yêu cầu', requestIcon, '#E7F7FA', 'Request'],
-  ['Lịch làm', scheduleIcon, '#F7E8F0', 'Schedule'],
+  { label: 'Đăng ký lịch rảnh', icon: 'calendar-outline', color: '#16A34A', bg: '#DCFCE7', screen: 'Availability' },
+  { label: 'Phiếu lương', icon: 'wallet-outline', color: '#D97706', bg: '#FEF3C7', screen: 'Payroll' },
+  { label: 'Quản lý yêu cầu', icon: 'document-text-outline', color: '#0284C7', bg: '#E0F2FE', screen: 'Request' },
+  { label: 'Lịch làm việc', icon: 'today-outline', color: '#7C3AED', bg: '#F3E8FF', screen: 'Schedule' },
 ];
 
 const nav = (navigation, destination) => {
@@ -356,14 +351,16 @@ export default function DashboardScreen({ navigation }) {
 
         {/* ═══ ACTION GRID ═══ */}
         <View style={s.actionGrid}>
-          {actions.map(([label, icon, color, screen]) => (
+          {actions.map((item) => (
             <Pressable
-              key={label}
-              onPress={() => nav(navigation, screen)}
-              style={[s.action, { backgroundColor: color }]}
+              key={item.screen}
+              onPress={() => nav(navigation, item.screen)}
+              style={({ pressed }) => [s.action, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
             >
-              <Image source={icon} resizeMode="contain" style={s.actionIcon} />
-              <Text style={s.actionText}>{label}</Text>
+              <View style={[s.actionIconWrap, { backgroundColor: item.bg }]}>
+                <Ionicons name={item.icon} size={22} color={item.color} />
+              </View>
+              <Text style={s.actionText}>{item.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -509,18 +506,45 @@ const s = StyleSheet.create({
     fontWeight: '800',
     color: '#273426',
   },
-  actionGrid: { padding: 11, paddingTop: 30, gap: 13, flexDirection: 'row', flexWrap: 'wrap' },
+  actionGrid: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    gap: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   action: {
     width: '48%',
-    height: 65,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     alignItems: 'center',
     flexDirection: 'row',
     gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  actionIcon: { width: 37, height: 37 },
-  actionText: { fontSize: 14, color: '#3F4144', fontWeight: '500', flexShrink: 1 },
+  actionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 17,
+  },
   sectionHeader: {
     marginHorizontal: 25,
     marginTop: 19,

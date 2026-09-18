@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getActiveShifts, claimShift } from '../services/marketplaceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getMyShifts } from '../services/shiftService';
@@ -182,7 +183,7 @@ export default function MarketplaceScreen({ navigation }) {
           style={styles.refreshBtn}
           activeOpacity={0.7}
         >
-          <Text style={styles.refreshBtnText}>🔄</Text>
+          <Ionicons name="refresh-outline" size={18} color="#334155" />
         </TouchableOpacity>
       </View>
 
@@ -198,7 +199,10 @@ export default function MarketplaceScreen({ navigation }) {
         {/* Banner giới thiệu */}
         <View style={styles.bannerCard}>
           <View style={styles.bannerTop}>
-            <Text style={styles.bannerBadge}>🛒 CHỢ CA LÀM</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="storefront-outline" size={13} color="#16a34a" />
+              <Text style={styles.bannerBadge}>CHỢ CA LÀM</Text>
+            </View>
             <Text style={styles.bannerCountText}>
               {openShifts.length} ca đang mở
             </Text>
@@ -256,7 +260,7 @@ export default function MarketplaceScreen({ navigation }) {
 
                 {/* Giờ làm việc */}
                 <View style={styles.timeRow}>
-                  <Text style={styles.timeIcon}>⏰</Text>
+                  <Ionicons name="time-outline" size={16} color="#16a34a" style={{ marginRight: 6 }} />
                   <Text style={styles.timeText}>
                     {shift.startTime?.slice(0, 5)} - {shift.endTime?.slice(0, 5)}
                   </Text>
@@ -266,14 +270,16 @@ export default function MarketplaceScreen({ navigation }) {
                 {/* Cảnh báo trạng thái cá nhân: Đã tham gia hoặc Trùng ca */}
                 {isAlreadyInShift ? (
                   <View style={styles.alertBoxSuccess}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color="#166534" style={{ marginRight: 6 }} />
                     <Text style={styles.alertTextSuccess}>
-                      ✓ Bạn đã có trong danh sách ca làm việc này
+                      Bạn đã có trong danh sách ca làm việc này
                     </Text>
                   </View>
                 ) : conflictingShift ? (
                   <View style={styles.alertBoxConflict}>
+                    <Ionicons name="alert-circle-outline" size={16} color="#9A3412" style={{ marginRight: 6 }} />
                     <Text style={styles.alertTextConflict}>
-                      ⚠️ Trùng giờ ca làm khác của bạn ({conflictingShift.startTime?.slice(0, 5)} - {conflictingShift.endTime?.slice(0, 5)})
+                      Trùng giờ ca làm khác của bạn ({conflictingShift.startTime?.slice(0, 5)} - {conflictingShift.endTime?.slice(0, 5)})
                     </Text>
                   </View>
                 ) : null}
@@ -366,7 +372,7 @@ export default function MarketplaceScreen({ navigation }) {
           })
         ) : (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>☕</Text>
+            <Ionicons name="cafe-outline" size={38} color="#94A3B8" style={{ marginBottom: 8 }} />
             <Text style={styles.emptyTitle}>Hiện không có ca mở nào</Text>
             <Text style={styles.emptySubtitle}>
               Tất cả các ca làm việc trong chi nhánh đã được bố trí đủ nhân sự. Hãy quay lại kiểm tra sau nhé!

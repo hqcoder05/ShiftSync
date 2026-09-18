@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Image } from 'react-native';
-import payrollIcon from '../assets/luong.png';
+import { View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 /**
  * Payroll3DCharacter.native.js
@@ -9,7 +9,7 @@ import payrollIcon from '../assets/luong.png';
 export default function Payroll3DCharacterNative({ width = 130, height = 130, style }) {
   return (
     <View style={[styles.container, { width, height }, style]}>
-      <Image source={payrollIcon} style={{ width, height, resizeMode: 'contain' }} />
+      <Ionicons name="wallet-outline" size={width * 0.5} color="#16A34A" />
     </View>
   );
 }

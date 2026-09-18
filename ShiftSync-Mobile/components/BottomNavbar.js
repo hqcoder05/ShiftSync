@@ -1,14 +1,11 @@
 import React from 'react';
-import { View, Pressable, Image, StyleSheet } from 'react-native';
-
-import dashboardIcon from '../assets/shync.png';
-import calendarIcon from '../assets/Calendar.png';
-import reportsIcon from '../assets/icon-reports.png';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 const navItems = [
-  { screen: 'Dashboard', icon: dashboardIcon, label: 'Trang chủ' },
-  { screen: 'Schedule', icon: calendarIcon, label: 'Lịch làm' },
-  { screen: 'Request', icon: reportsIcon, label: 'Yêu cầu' },
+  { screen: 'Dashboard', iconName: 'home', iconOutline: 'home-outline', label: 'Trang chủ' },
+  { screen: 'Schedule', iconName: 'calendar', iconOutline: 'calendar-outline', label: 'Lịch làm' },
+  { screen: 'Request', iconName: 'document-text', iconOutline: 'document-text-outline', label: 'Yêu cầu' },
 ];
 
 export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) {
@@ -53,7 +50,7 @@ export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) 
 
   return (
     <View style={styles.navbar}>
-      {navItems.map(({ screen, icon }) => {
+      {navItems.map(({ screen, iconName, iconOutline, label }) => {
         const isActive = activeRoute === screen;
         return (
           <Pressable
@@ -65,14 +62,14 @@ export default function BottomNavbar({ navigation, activeRoute = 'Dashboard' }) 
             onPress={() => handleNav(screen)}
             hitSlop={8}
           >
-            <Image
-              source={icon}
-              style={[
-                styles.navIcon,
-                screen === 'Request' && styles.navIconReports,
-                isActive ? styles.navIconActive : styles.navIconInactive,
-              ]}
+            <Ionicons
+              name={isActive ? iconName : iconOutline}
+              size={24}
+              color={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'}
             />
+            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+              {label}
+            </Text>
           </Pressable>
         );
       })}
@@ -87,8 +84,8 @@ const styles = StyleSheet.create({
     bottom: 18,
     left: 26,
     right: 26,
-    borderRadius: 21,
-    backgroundColor: '#383838',
+    borderRadius: 22,
+    backgroundColor: '#1E293B',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -100,34 +97,29 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   navButton: {
-    width: 58,
-    height: 48,
+    width: 68,
+    height: 50,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
   },
   navButtonActive: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#0F172A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
-  navIcon: {
-    width: 28,
-    height: 28,
-    resizeMode: 'contain',
+  navLabel: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.65)',
   },
-  navIconReports: {
-    width: 38,
-    height: 38,
-  },
-  navIconActive: {
-    tintColor: '#FFFFFF',
-    transform: [{ scale: 1.05 }],
-  },
-  navIconInactive: {
-    tintColor: 'rgba(255, 255, 255, 0.72)',
+  navLabelActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
+

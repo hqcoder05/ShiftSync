@@ -14,6 +14,7 @@ import {
   TextInput,
   Switch,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
 import { getMyProfile, getMyStores } from '../services/profileService';
@@ -582,7 +583,7 @@ export default function ScheduleScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <Text style={styles.tabTextMarketplace}>
-              🛒 Chợ ca
+              Chợ ca
             </Text>
           </TouchableOpacity>
         </View>
@@ -705,7 +706,7 @@ export default function ScheduleScreen({ navigation }) {
                             <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
                             {shift.hasFlag && (
                               <View style={styles.shiftFlagBadge}>
-                                <Text style={styles.shiftFlagIcon}>🚩</Text>
+                                <Ionicons name="flag" size={10} color="#B45309" />
                                 <Text style={styles.shiftFlagText} numberOfLines={1}>Cảnh báo</Text>
                               </View>
                             )}
@@ -731,7 +732,7 @@ export default function ScheduleScreen({ navigation }) {
         )}
       </ScrollView>
 
-      {/* ── 5. POPUP BOX "LỰA CHỌN YÊU CẦU" (Group 192 / Rectangle 631 chuẩn Đổi ca (2).png) ── */}
+      {/* ── 5. POPUP BOX "LỰA CHỌN YÊU CẦU" ── */}
       <Modal
         visible={actionBoxVisible}
         transparent={true}
@@ -740,7 +741,7 @@ export default function ScheduleScreen({ navigation }) {
       >
         <View style={styles.popupBackdrop}>
           <View style={styles.popupCard}>
-            {/* Nút đóng X (X Icon - top: 263px, left: 365px) */}
+            {/* Nút đóng X */}
             <TouchableOpacity
               style={styles.popupCloseBtn}
               onPress={() => setActionBoxVisible(false)}
@@ -749,7 +750,7 @@ export default function ScheduleScreen({ navigation }) {
               <Text style={styles.popupCloseBtnText}>✕</Text>
             </TouchableOpacity>
 
-            {/* Thông tin ca trực đang chọn (Avatar Dilan. Jon + Shift) */}
+            {/* Thông tin ca trực đang chọn (Avatar + Shift) */}
             <View style={styles.popupShiftHeader}>
               <View style={styles.popupAvatarCol}>
                 <Image
@@ -790,12 +791,15 @@ export default function ScheduleScreen({ navigation }) {
             {/* Ghi chú quản lý nếu có cờ cảnh báo */}
             {activeSelectedShift?.hasFlag && (
               <View style={styles.popupManagerNoteBox}>
-                <Text style={styles.popupManagerNoteTitle}>🚩 Ghi chú / Cảnh báo từ quản lý:</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                  <Ionicons name="alert-circle" size={13} color="#B45309" />
+                  <Text style={styles.popupManagerNoteTitle}>Ghi chú / Cảnh báo từ quản lý:</Text>
+                </View>
                 <Text style={styles.popupManagerNoteText}>{activeSelectedShift.note}</Text>
               </View>
             )}
 
-            {/* Đường kẻ ngang (Line 132) */}
+            {/* Đường kẻ ngang */}
             <View style={styles.popupDivider} />
 
             {/* Tiêu đề: Lựa chọn yêu cầu */}
@@ -809,8 +813,8 @@ export default function ScheduleScreen({ navigation }) {
                 onPress={handleOpenSwapModal}
                 activeOpacity={0.8}
               >
-                <View style={styles.actionCardIconWrap}>
-                  <Text style={styles.actionCardIconEmoji}>🔁</Text>
+                <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="swap-horizontal" size={16} color="#0284C7" />
                 </View>
                 <View style={styles.actionCardTextWrap}>
                   <Text style={styles.actionCardPillTitle}>Đổi ca</Text>
@@ -825,7 +829,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <View style={[styles.actionCardIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={styles.actionCardIconEmoji}>⚠️</Text>
+                  <Ionicons name="alert-circle-outline" size={16} color="#D97706" />
                 </View>
                 <View style={styles.actionCardTextWrap}>
                   <Text style={styles.actionCardPillTitle}>Xin vắng</Text>
@@ -839,8 +843,8 @@ export default function ScheduleScreen({ navigation }) {
                 onPress={handleOpenLeaveModal}
                 activeOpacity={0.8}
               >
-                <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0E7FF' }]}>
-                  <Text style={styles.actionCardIconEmoji}>📅</Text>
+                <View style={[styles.actionCardIconWrap, { backgroundColor: '#F3E8FF' }]}>
+                  <Ionicons name="calendar-outline" size={16} color="#7C3AED" />
                 </View>
                 <View style={styles.actionCardTextWrap}>
                   <Text style={styles.actionCardPillTitle}>Nghỉ phép</Text>

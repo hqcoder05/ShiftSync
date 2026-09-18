@@ -16,8 +16,6 @@ import { getMyShifts } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 
-import calendarIcon from '../assets/Calendar.png';
-import payrollIcon from '../assets/luong.png';
 import FlowerMascot3D from '../components/FlowerMascot3D';
 
 const formatVND = (num) => {
