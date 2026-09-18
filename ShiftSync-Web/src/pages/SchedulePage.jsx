@@ -675,7 +675,7 @@ export default function SchedulePage() {
           skillName: skillName,
           zoneId: assignedZoneId,
           zoneName: storeZones.find((z) => z.id === assignedZoneId)?.name || 'Khu vực',
-          avatar: getAvatar(assign.staffName || matchedEmp?.fullName),
+          avatarId: getAvatarForEmployee(assign.staffName || matchedEmp?.fullName),
         });
       });
     } else if (current3DShift.staffId) {
@@ -689,7 +689,7 @@ export default function SchedulePage() {
         skillName: skillName,
         zoneId: semanticZone?.id || storeZones[0]?.id,
         zoneName: semanticZone?.name || storeZones[0]?.name || 'Khu vực',
-        avatar: getAvatar(current3DShift.staffName || matchedEmp?.fullName),
+        avatarId: getAvatarForEmployee(current3DShift.staffName || matchedEmp?.fullName),
       });
     }
     return list;
@@ -2895,9 +2895,10 @@ export default function SchedulePage() {
             </div>
 
             <div className="sch-view-emp-header">
-              <img
-                src={getAvatar(viewingShift.staffName)}
-                alt={viewingShift.staffName}
+              <Avatar3DWeb
+                avatarId={getAvatarForEmployee(viewingShift.staffName)}
+                name={viewingShift.staffName}
+                size={44}
                 className="sch-view-avatar"
               />
               <div>
@@ -3007,9 +3008,10 @@ export default function SchedulePage() {
                   <div key={req.id} className="sch-cross-card">
                     <div className="sch-cross-card-header">
                       <div className="sch-cross-user-info">
-                        <img
-                          src={getAvatar(req.staffName)}
-                          alt={req.staffName}
+                        <Avatar3DWeb
+                          avatarId={getAvatarForEmployee(req.staffName)}
+                          name={req.staffName}
+                          size={38}
                           className="sch-cross-avatar"
                         />
                         <div>
@@ -3091,9 +3093,10 @@ export default function SchedulePage() {
           <div className="sch-modal sch-avail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sch-modal-header">
               <div className="sch-avail-modal-emp-info">
-                <img
-                  src={getAvatar(selectedStaffForAvail.name)}
-                  alt={selectedStaffForAvail.name}
+                <Avatar3DWeb
+                  avatarId={selectedStaffForAvail.avatarId || getAvatarForEmployee(selectedStaffForAvail.name)}
+                  name={selectedStaffForAvail.name}
+                  size={44}
                   className="sch-avail-modal-avatar"
                 />
                 <div>

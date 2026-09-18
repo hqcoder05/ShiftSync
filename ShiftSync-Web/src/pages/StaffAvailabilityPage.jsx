@@ -1129,7 +1129,7 @@ export default function StaffAvailabilityPage() {
                         return (
                           <div key={emp.id} className={`avail-ts-card ${assigned ? 'occupied' : 'free'}`}>
                             <div className="avail-ts-card-left">
-                              <img src={getAvatar(emp.fullName)} alt={emp.fullName} className="avail-ts-avatar" />
+                              <Avatar3DWeb avatarId={emp.avatarId || getAvatarForEmployee(emp.fullName)} name={emp.fullName} size={32} className="avail-ts-avatar" />
                               <div>
                                 <div className="avail-ts-emp-name">{emp.fullName}</div>
                                 <div className={`avail-ts-emp-pos ${getRoleBadgeClass(emp.position)}`}>{emp.position || 'Nhân viên'}</div>
@@ -1194,7 +1194,7 @@ export default function StaffAvailabilityPage() {
                         return (
                           <div key={emp.id} className={`avail-ts-card ${assigned ? 'occupied' : 'free'}`}>
                             <div className="avail-ts-card-left">
-                              <img src={getAvatar(emp.fullName)} alt={emp.fullName} className="avail-ts-avatar" />
+                              <Avatar3DWeb avatarId={emp.avatarId || getAvatarForEmployee(emp.fullName)} name={emp.fullName} size={32} className="avail-ts-avatar" />
                               <div>
                                 <div className="avail-ts-emp-name">{emp.fullName}</div>
                                 <div className={`avail-ts-emp-pos ${getRoleBadgeClass(emp.position)}`}>{emp.position || 'Nhân viên'}</div>
@@ -1243,9 +1243,10 @@ export default function StaffAvailabilityPage() {
           <div className="avail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="avail-modal-header">
               <div className="avail-modal-header-info">
-                <img
-                  src={getAvatar(quickAssignModal.emp.fullName)}
-                  alt={quickAssignModal.emp.fullName}
+                <Avatar3DWeb
+                  avatarId={quickAssignModal.emp.avatarId || getAvatarForEmployee(quickAssignModal.emp.fullName)}
+                  name={quickAssignModal.emp.fullName}
+                  size={44}
                   className="avail-modal-avatar"
                 />
                 <div>
@@ -1329,9 +1330,10 @@ export default function StaffAvailabilityPage() {
           <div className="avail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="avail-modal-header">
               <div className="avail-modal-header-info">
-                <img
-                  src={getAvatar(shiftDetailModal.emp.fullName)}
-                  alt={shiftDetailModal.emp.fullName}
+                <Avatar3DWeb
+                  avatarId={shiftDetailModal.emp.avatarId || getAvatarForEmployee(shiftDetailModal.emp.fullName)}
+                  name={shiftDetailModal.emp.fullName}
+                  size={44}
                   className="avail-modal-avatar"
                 />
                 <div>

@@ -373,7 +373,7 @@ export default function DashboardPage() {
           rows.push({
             id: `assign-${shift.id}-${aIdx}`,
             name: empName,
-            avatar: getAvatar(empName),
+            avatarId: assign.avatarId || getAvatarForEmployee(empName),
             role: assignSkillName,
             startHour: Math.max(6, Math.min(19, startH)),
             endHour: Math.max(6, Math.min(19, endH)),
@@ -389,7 +389,7 @@ export default function DashboardPage() {
           rows.push({
             id: `shift-${shift.id}`,
             name: empName,
-            avatar: getAvatar(empName),
+            avatarId: shift.avatarId || getAvatarForEmployee(empName),
             role: roleName,
             startHour: Math.max(6, Math.min(19, startH)),
             endHour: Math.max(6, Math.min(19, endH)),
@@ -892,7 +892,7 @@ export default function DashboardPage() {
                       <tr key={row.id} className="db-timeline-row">
                         <td className="db-timeline-name-cell">
                           <div className="db-timeline-name-flex">
-                            <img src={row.avatar} alt={row.name} className="db-timeline-avatar" />
+                            <Avatar3DWeb avatarId={row.avatarId} name={row.name} size={32} className="db-timeline-avatar" />
                             <div>
                               <span>{row.name}</span>
                               <span className="db-timeline-role-badge" style={{ backgroundColor: row.color + '22', color: row.color, borderColor: row.color + '44' }}>
