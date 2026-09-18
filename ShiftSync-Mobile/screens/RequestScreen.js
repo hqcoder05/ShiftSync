@@ -14,9 +14,13 @@ import {
   StatusBar,
 } from 'react-native';
 import { getMyRequests, createStaffRequest } from '../services/requestService';
-import { getMyShifts } from '../services/shiftService';
+import { getMyShifts, getShiftsForStore } from '../services/shiftService';
+import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 import PaperPlane3D from '../components/PaperPlane3D';
+
+import { getAvatarThumbnail } from '../components/avatarThumbnails';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 
 // ── Avatars & Action Icons ──────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
@@ -28,11 +32,18 @@ const iconKinh = require('../assets/icon-kinh.png');
 const iconLoa = require('../assets/icon-loa.png');
 const iconDua = require('../assets/icon-dua.png');
 
-const AVATAR_MAP = {
-  'Dilan. Jon': avatarDilan,
-  'Mew. Ama': avatarMew,
-  'Paul. Lee': avatarPaul,
-  'Thia. Ago': avatarThia,
+export const getStaffAvatarSource = (staffName, avatarId) => {
+  if (avatarId) {
+    const thumb = getAvatarThumbnail(avatarId);
+    if (thumb) return { uri: thumb };
+  }
+  const calculatedId = getAvatarForEmployee({ fullName: staffName });
+  const thumb = getAvatarThumbnail(calculatedId);
+  if (thumb) return { uri: thumb };
+  if (calculatedId === 'mew') return avatarMew;
+  if (calculatedId === 'paul') return avatarPaul;
+  if (calculatedId === 'thia') return avatarThia;
+  return avatarDilan;
 };
 
 const EMPTY_SHIFT = {
@@ -44,18 +55,12 @@ const EMPTY_SHIFT = {
   color: '#8DD9CC',
 };
 
-const SUGGESTED_SWAP_STAFF = [
-  { name: 'Mew. Ama', role: 'Barista', avatar: avatarMew },
-  { name: 'Thia. Ago', role: 'Cashier', avatar: avatarThia },
-  { name: 'Paul. Lee', role: 'Cashier', avatar: avatarPaul },
-  { name: 'Thia. Ago', role: 'Parking Staff', avatar: avatarThia },
-  { name: 'Mew. Ama', role: 'Server', avatar: avatarMew },
-];
-
 export default function RequestScreen({ navigation, route }) {
   const [requests, setRequests] = useState([]);
   const [availableShifts, setAvailableShifts] = useState([]);
   const [currentUserName, setCurrentUserName] = useState('');
+  const [currentUserAvatarId, setCurrentUserAvatarId] = useState(null);
+  const [storeColleagues, setStoreColleagues] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
@@ -79,7 +84,7 @@ export default function RequestScreen({ navigation, route }) {
   // ── Form States (Đổi ca - Image 3) ──
   const [selectedSwapShift, setSelectedSwapShift] = useState(EMPTY_SHIFT);
   const [showShiftPicker, setShowShiftPicker] = useState(false);
-  const [selectedSwapStaff, setSelectedSwapStaff] = useState('Mew. Ama');
+  const [selectedSwapStaff, setSelectedSwapStaff] = useState('');
 
   // ── Form States (Xin vắng - Image 4) ──
   const [selectedAbsentShift, setSelectedAbsentShift] = useState(EMPTY_SHIFT);
@@ -127,8 +132,13 @@ export default function RequestScreen({ navigation, route }) {
         setRequests(reqData.value || []);
       }
 
+      let activeUserId = null;
+      let userFullName = '';
       if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
-        setCurrentUserName(profileRes.value.data.fullName || 'Nhân viên');
+        userFullName = profileRes.value.data.fullName || 'Nhân viên';
+        setCurrentUserName(userFullName);
+        setCurrentUserAvatarId(profileRes.value.data.avatarId || null);
+        activeUserId = profileRes.value.data.id;
       }
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
@@ -151,6 +161,41 @@ export default function RequestScreen({ navigation, route }) {
           setAvailableShifts(mapped);
           setSelectedSwapShift(mapped[0]);
           setSelectedAbsentShift(mapped[0]);
+        }
+      }
+
+      // Fetch colleagues from store
+      if (activeUserId) {
+        try {
+          const storesRes = await getMyStores(activeUserId).catch(() => null);
+          const activeStore = storesRes?.data?.find((s) => s.status === 'ACTIVE') || storesRes?.data?.[0];
+          const storeId = activeStore?.storeId || activeStore?.id;
+          if (storeId) {
+            const storeShiftsRes = await getShiftsForStore(storeId).catch(() => null);
+            if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
+              const colleaguesMap = new Map();
+              storeShiftsRes.data.forEach((s) => {
+                const staffName = s.assignedStaffName || s.staffName || '';
+                const role = s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
+                if (staffName && staffName !== 'Chưa phân công' && staffName !== userFullName) {
+                  if (!colleaguesMap.has(staffName)) {
+                    colleaguesMap.set(staffName, {
+                      name: staffName,
+                      role,
+                      avatarId: s.avatarId,
+                    });
+                  }
+                }
+              });
+              const colleaguesList = Array.from(colleaguesMap.values());
+              setStoreColleagues(colleaguesList);
+              if (colleaguesList.length > 0) {
+                setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
+              }
+            }
+          }
+        } catch (e) {
+          // ignore store fetch errors
         }
       }
     } catch (e) {
@@ -625,7 +670,7 @@ export default function RequestScreen({ navigation, route }) {
             {/* Preview Thẻ Ca đã chọn */}
             <View style={styles.requesterShiftBox}>
               <View style={styles.avatarCol}>
-                <Image source={avatarDilan} style={styles.avatarImg} />
+                <Image source={getStaffAvatarSource(currentUserName, currentUserAvatarId)} style={styles.avatarImg} />
                 <Text style={styles.avatarName}>{currentUserName || 'Nhân viên'}</Text>
               </View>
 
@@ -647,25 +692,31 @@ export default function RequestScreen({ navigation, route }) {
             <Text style={styles.suggestTitle}>Gợi ý đồng nghiệp</Text>
 
             <View style={styles.suggestList}>
-              {SUGGESTED_SWAP_STAFF.map((staff, idx) => {
-                const isSelected = selectedSwapStaff === staff.name && idx === 0;
+              {storeColleagues.length === 0 ? (
+                <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#7B8490', fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
+                </View>
+              ) : (
+                storeColleagues.map((staff, idx) => {
+                  const isSelected = selectedSwapStaff === staff.name;
 
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
-                    onPress={() => setSelectedSwapStaff(staff.name)}
-                    activeOpacity={0.7}
-                  >
-                    <Image source={staff.avatar} style={styles.suggestAvatar} />
-                    <View style={styles.suggestInfo}>
-                      <Text style={styles.suggestName}>{staff.name}</Text>
-                      <Text style={styles.suggestRole}>{staff.role}</Text>
-                    </View>
-                    {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
+                      onPress={() => setSelectedSwapStaff(staff.name)}
+                      activeOpacity={0.7}
+                    >
+                      <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
+                      <View style={styles.suggestInfo}>
+                        <Text style={styles.suggestName}>{staff.name}</Text>
+                        <Text style={styles.suggestRole}>{staff.role}</Text>
+                      </View>
+                      {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
 
             <TouchableOpacity
@@ -749,7 +800,7 @@ export default function RequestScreen({ navigation, route }) {
             {/* Requester & Shift Preview */}
             <View style={styles.requesterShiftBox}>
               <View style={styles.avatarCol}>
-                <Image source={avatarDilan} style={styles.avatarImg} />
+                <Image source={getStaffAvatarSource(currentUserName, currentUserAvatarId)} style={styles.avatarImg} />
                 <Text style={styles.avatarName}>{currentUserName || 'Nhân viên'}</Text>
               </View>
 
@@ -817,7 +868,7 @@ export default function RequestScreen({ navigation, route }) {
 
             <View style={styles.detailHeaderCenter}>
               <Image
-                source={AVATAR_MAP[selectedRequest?.requesterName] || avatarDilan}
+                source={getStaffAvatarSource(selectedRequest?.requesterName, selectedRequest?.avatarId)}
                 style={styles.detailAvatar}
               />
               <Text style={styles.detailTitle}>{selectedRequest?.typeLabel || 'Xin nghỉ'}</Text>

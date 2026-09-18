@@ -20,6 +20,9 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import { getSkillsByStore } from '../services/skillService';
 import BottomNavbar from '../components/BottomNavbar';
 
+import { getAvatarThumbnail } from '../components/avatarThumbnails';
+import { getAvatarForEmployee, AVATAR_OPTIONS } from '../components/avatarConfigs';
+
 // ── Avatars & Action Icons ──────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
 const avatarMew = require('../assets/avatar-mew-ama.png');
@@ -30,14 +33,18 @@ const iconKinh = require('../assets/icon-kinh.png');
 const iconLoa = require('../assets/icon-loa.png');
 const iconDua = require('../assets/icon-dua.png');
 
-const AVATAR_MAP = {
-  'Dilan. Jon': avatarDilan,
-  'Dilan. Jon (Tôi)': avatarDilan,
-  'Paul. Lee': avatarPaul,
-  'Paul. Lee (Tôi)': avatarPaul,
-  'Thia. Ago': avatarThia,
-  'Mew. Ama': avatarMew,
-  'Vivi.an': avatarDilan,
+export const getStaffAvatarSource = (staffName, avatarId) => {
+  if (avatarId) {
+    const thumb = getAvatarThumbnail(avatarId);
+    if (thumb) return { uri: thumb };
+  }
+  const calculatedId = getAvatarForEmployee({ fullName: staffName });
+  const thumb = getAvatarThumbnail(calculatedId);
+  if (thumb) return { uri: thumb };
+  if (calculatedId === 'mew') return avatarMew;
+  if (calculatedId === 'paul') return avatarPaul;
+  if (calculatedId === 'thia') return avatarThia;
+  return avatarDilan;
 };
 
 // ── Color palette matching Web Schedule & SkillsPage (Figma Tokens) ─────────────
@@ -248,20 +255,14 @@ const EMPTY_SHIFT = {
   color: '#8DD9CC',
 };
 
-const SUGGESTED_SWAP_STAFF = [
-  { name: 'Mew. Ama', role: 'Barista', avatar: avatarMew },
-  { name: 'Thia. Ago', role: 'Cashier', avatar: avatarThia },
-  { name: 'Paul. Lee', role: 'Cashier', avatar: avatarPaul },
-  { name: 'Thia. Ago', role: 'Parking Staff', avatar: avatarThia },
-  { name: 'Mew. Ama', role: 'Server', avatar: avatarMew },
-];
-
 export default function ScheduleScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('my_shifts');
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [storeColleagues, setStoreColleagues] = useState([]);
 
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
@@ -278,7 +279,7 @@ export default function ScheduleScreen({ navigation }) {
   // ── Form inputs for Swap ──
   const [selectedSwapShift, setSelectedSwapShift] = useState(EMPTY_SHIFT);
   const [showShiftPicker, setShowShiftPicker] = useState(false);
-  const [selectedSwapStaff, setSelectedSwapStaff] = useState('Mew. Ama');
+  const [selectedSwapStaff, setSelectedSwapStaff] = useState('');
 
   // ── Form inputs for Absent ──
   const [selectedAbsentShift, setSelectedAbsentShift] = useState(EMPTY_SHIFT);
@@ -338,6 +339,7 @@ export default function ScheduleScreen({ navigation }) {
       try {
         const { data: user } = await getMyProfile();
         currentUser = user;
+        setCurrentUserProfile(user);
         if (user?.id) {
           const { data: stores } = await getMyStores(user.id);
           const activeStore = stores?.find((s) => s.status === 'ACTIVE') || stores?.[0];
@@ -389,6 +391,7 @@ export default function ScheduleScreen({ navigation }) {
             dayIndex: actualIdx,
             dayLabel: `${DAY_LABELS.find((d) => d.dowIndex === dow)?.fullLabel || 'Thứ 2'} (${d || shiftDateObj.getDate()}/${m || (shiftDateObj.getMonth() + 1)})`,
             staffName: currentUser?.fullName || s.staffName || 'Nhân viên',
+            avatarId: currentUser?.avatarId || s.avatarId,
             timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
             location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
             role,
@@ -410,6 +413,7 @@ export default function ScheduleScreen({ navigation }) {
       if (activeStoreId) {
         const storeRes = await getShiftsForStore(activeStoreId).catch(() => null);
         if (storeRes && storeRes.data && Array.isArray(storeRes.data) && storeRes.data.length > 0) {
+          const colleaguesMap = new Map();
           const mappedStore = storeRes.data.map((s, idx) => {
             const [y, m, d] = (s.shiftDate || '').split('-').map(Number);
             const shiftDateObj = y ? new Date(y, m - 1, d) : new Date();
@@ -422,12 +426,25 @@ export default function ScheduleScreen({ navigation }) {
             };
             const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
             const shiftColor = getShiftColor(s, role);
+            const staffName = s.assignedStaffName || s.staffName || 'Nhân viên';
+
+            if (staffName && staffName !== 'Chưa phân công' && (!currentUser?.fullName || staffName !== currentUser.fullName)) {
+              if (!colleaguesMap.has(staffName)) {
+                colleaguesMap.set(staffName, {
+                  name: staffName,
+                  role: role,
+                  avatarId: s.avatarId,
+                });
+              }
+            }
+
             return {
               id: s.id || `live-store-${idx}`,
               shiftDate: s.shiftDate,
               dayIndex: actualIdx,
               dayLabel: `${DAY_LABELS.find((d) => d.dowIndex === dow)?.fullLabel || 'Thứ 2'} (${d || shiftDateObj.getDate()}/${m || (shiftDateObj.getMonth() + 1)})`,
-              staffName: s.assignedStaffName || s.staffName || 'Nhân viên',
+              staffName,
+              avatarId: s.avatarId,
               timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
               location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
               role,
@@ -437,8 +454,14 @@ export default function ScheduleScreen({ navigation }) {
             };
           });
           setLiveStoreShifts(mappedStore);
+          const colleaguesList = Array.from(colleaguesMap.values());
+          setStoreColleagues(colleaguesList);
+          if (colleaguesList.length > 0) {
+            setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
+          }
         } else {
           setLiveStoreShifts([]);
+          setStoreColleagues([]);
         }
       }
     } catch (e) {
@@ -498,7 +521,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'SWAP',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserProfile?.fullName || 'Nhân viên',
         targetStaffName: selectedSwapStaff,
         shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
         reason: `Yêu cầu đổi ca trực với bạn ${selectedSwapStaff}`,
@@ -526,7 +549,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'ABSENT',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserProfile?.fullName || 'Nhân viên',
         shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
         reason: absentReason.trim(),
       });
@@ -550,7 +573,7 @@ export default function ScheduleScreen({ navigation }) {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        requesterName: 'Dilan. Jon',
+        requesterName: currentUserProfile?.fullName || 'Nhân viên',
         startDate,
         endDate,
         reason: leaveReason.trim(),
@@ -810,7 +833,7 @@ export default function ScheduleScreen({ navigation }) {
                         {/* Cột trái: Avatar + Tên nhân viên */}
                         <View style={styles.staffAvatarCol}>
                           <Image
-                            source={AVATAR_MAP[shift.staffName] || avatarDilan}
+                            source={getStaffAvatarSource(shift.staffName, shift.avatarId)}
                             style={styles.staffAvatarImg}
                           />
                           <Text style={styles.staffNameText} numberOfLines={1}>
@@ -827,7 +850,7 @@ export default function ScheduleScreen({ navigation }) {
                             <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
                             {shift.hasFlag && (
                               <View style={styles.shiftFlagBadge}>
-                                <Text style={styles.shiftFlagText} numberOfLines={1}>🚩 Cảnh báo</Text>
+                                <Text style={styles.shiftFlagText} numberOfLines={1}>Cảnh báo</Text>
                               </View>
                             )}
                           </View>
@@ -874,11 +897,11 @@ export default function ScheduleScreen({ navigation }) {
             <View style={styles.popupShiftHeader}>
               <View style={styles.popupAvatarCol}>
                 <Image
-                  source={AVATAR_MAP[activeSelectedShift?.staffName] || avatarDilan}
+                  source={getStaffAvatarSource(activeSelectedShift?.staffName, activeSelectedShift?.avatarId)}
                   style={styles.popupAvatarImg}
                 />
                 <Text style={styles.popupAvatarName}>
-                  {activeSelectedShift?.staffName || 'Dilan. Jon'}
+                  {activeSelectedShift?.staffName || currentUserProfile?.fullName || 'Nhân viên'}
                 </Text>
               </View>
 
@@ -911,7 +934,7 @@ export default function ScheduleScreen({ navigation }) {
             {/* Ghi chú quản lý nếu có cờ cảnh báo */}
             {activeSelectedShift?.hasFlag && (
               <View style={styles.popupManagerNoteBox}>
-                <Text style={styles.popupManagerNoteTitle}>🚩 Ghi chú / Cảnh báo từ quản lý:</Text>
+                <Text style={styles.popupManagerNoteTitle}>Ghi chú / Cảnh báo từ quản lý:</Text>
                 <Text style={styles.popupManagerNoteText}>{activeSelectedShift.note}</Text>
               </View>
             )}
@@ -1027,8 +1050,8 @@ export default function ScheduleScreen({ navigation }) {
 
             <View style={styles.formShiftSummaryBox}>
               <View style={styles.popupAvatarCol}>
-                <Image source={avatarDilan} style={styles.popupAvatarImg} />
-                <Text style={styles.popupAvatarName}>Dilan. Jon</Text>
+                <Image source={getStaffAvatarSource(currentUserProfile?.fullName, currentUserProfile?.avatarId)} style={styles.popupAvatarImg} />
+                <Text style={styles.popupAvatarName}>{currentUserProfile?.fullName || 'Nhân viên'}</Text>
               </View>
 
               <View style={[styles.popupVerticalBar, { backgroundColor: selectedSwapShift?.color || '#5BC8B8' }]} />
@@ -1050,25 +1073,31 @@ export default function ScheduleScreen({ navigation }) {
             <Text style={styles.suggestSectionTitle}>Gợi ý đồng nghiệp</Text>
 
             <View style={styles.suggestList}>
-              {SUGGESTED_SWAP_STAFF.map((staff, idx) => {
-                const isSelected = selectedSwapStaff === staff.name && idx === 0;
+              {storeColleagues.length === 0 ? (
+                <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#71717A', fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
+                </View>
+              ) : (
+                storeColleagues.map((staff, idx) => {
+                  const isSelected = selectedSwapStaff === staff.name;
 
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
-                    onPress={() => setSelectedSwapStaff(staff.name)}
-                    activeOpacity={0.7}
-                  >
-                    <Image source={staff.avatar} style={styles.suggestAvatar} />
-                    <View style={styles.suggestInfo}>
-                      <Text style={styles.suggestName}>{staff.name}</Text>
-                      <Text style={styles.suggestRole}>{staff.role}</Text>
-                    </View>
-                    {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
+                      onPress={() => setSelectedSwapStaff(staff.name)}
+                      activeOpacity={0.7}
+                    >
+                      <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
+                      <View style={styles.suggestInfo}>
+                        <Text style={styles.suggestName}>{staff.name}</Text>
+                        <Text style={styles.suggestRole}>{staff.role}</Text>
+                      </View>
+                      {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
 
             <TouchableOpacity
@@ -1151,8 +1180,8 @@ export default function ScheduleScreen({ navigation }) {
 
             <View style={styles.formShiftSummaryBox}>
               <View style={styles.popupAvatarCol}>
-                <Image source={avatarDilan} style={styles.popupAvatarImg} />
-                <Text style={styles.popupAvatarName}>Dilan. Jon</Text>
+                <Image source={getStaffAvatarSource(currentUserProfile?.fullName, currentUserProfile?.avatarId)} style={styles.popupAvatarImg} />
+                <Text style={styles.popupAvatarName}>{currentUserProfile?.fullName || 'Nhân viên'}</Text>
               </View>
 
               <View style={[styles.popupVerticalBar, { backgroundColor: selectedAbsentShift?.color || '#5BC8B8' }]} />
