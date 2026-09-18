@@ -71,14 +71,14 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           setSkillsList(list);
         })
         .catch((err) => {
-          console.warn('Loi tai ky nang:', err);
+          console.warn('Lỗi tải kỹ năng:', err);
           setSkillsList([]);
         })
         .finally(() => {
           setLoadingSkills(false);
         });
     }
-  }, [isOpen, storeId]);
+  }, [isOpen, storeId, isAdmin, isManager]);
 
   // Click outside to close skill picker
   useEffect(() => {
@@ -128,27 +128,27 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
   const validate = () => {
     const errors = {};
     if (!form.fullName.trim()) {
-      errors.fullName = 'Vui long nhap ho va ten.';
+      errors.fullName = 'Vui lòng nhập họ và tên.';
     }
 
     if (!form.email.trim()) {
-      errors.email = 'Vui long nhap email lien he.';
+      errors.email = 'Vui lòng nhập email liên hệ.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      errors.email = 'Email khong hop le (VD: name@example.com).';
+      errors.email = 'Email không hợp lệ (VD: name@example.com).';
     }
 
     if (!form.phone.trim()) {
-      errors.phone = 'Vui long nhap so dien thoai.';
+      errors.phone = 'Vui lòng nhập số điện thoại.';
     } else if (!/^[0-9+]{9,15}$/.test(form.phone.trim())) {
-      errors.phone = 'So dien thoai khong hop le (it nhat 10 chu so).';
+      errors.phone = 'Số điện thoại không hợp lệ (ít nhất 10 chữ số).';
     }
 
     if (!form.password) {
-      errors.password = 'Vui long nhap mat khau ban dau.';
+      errors.password = 'Vui lòng nhập mật khẩu ban đầu.';
     } else if (form.password.length < 8) {
-      errors.password = 'Mat khau phai dai it nhat 8 ky tu.';
+      errors.password = 'Mật khẩu phải dài ít nhất 8 ký tự.';
     } else if (!/^(?=.*[A-Za-z])(?=.*\d)/.test(form.password)) {
-      errors.password = 'Mat khau phai chua it nhat mot chu cai va mot chu so.';
+      errors.password = 'Mật khẩu phải chứa ít nhất một chữ cái và một chữ số.';
     }
 
     setFieldErrors(errors);
@@ -195,16 +195,16 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
         if (data?.errors && typeof data.errors === 'object') {
           setFieldErrors(data.errors);
         } else {
-          setBackendError(msg || 'Thong tin khong hop le. Vui long kiem tra lai cac truong.');
+          setBackendError(msg || 'Thông tin không hợp lệ. Vui lòng kiểm tra lại các trường.');
         }
       } else if (status === 401) {
-        setBackendError('Phien dang nhap da het han. Vui long dang nhap lai.');
+        setBackendError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
       } else if (status === 403) {
-        setBackendError('Ban khong co quyen thuc hien thao tac nay.');
+        setBackendError('Bạn không có quyền thực hiện thao tác này.');
       } else if (status === 409) {
-        setBackendError('Email hoac so dien thoai da duoc su dung trong he thong.');
+        setBackendError('Email hoặc số điện thoại đã được sử dụng trong hệ thống.');
       } else {
-        setBackendError('Khong the tao nhan su luc nay. Vui long thu lai sau.');
+        setBackendError('Không thể tạo nhân sự lúc này. Vui lòng thử lại sau.');
       }
     } finally {
       setSubmitting(false);
@@ -227,28 +227,28 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           type="button"
           className="aum-close-btn"
           onClick={onClose}
-          aria-label="Dong cua so"
+          aria-label="Đóng cửa sổ"
         >
           <X size={18} />
         </button>
 
         {/* Header */}
         <header className="aum-header">
-          <div className="aum-badge">ShiftSync HR &bull; Thanh vien</div>
+          <div className="aum-badge">ShiftSync HR &bull; Thành viên</div>
           <h2 id="aum-modal-title" className="aum-title">
-            Them nhan su
+            Thêm nhân sự
           </h2>
           <p className="aum-subtitle">
             {isAdmin
-              ? 'Ban co the tao tai khoan Manager hoac Staff cho he thong.'
-              : 'Ban co the tao tai khoan Staff cho doi ngu trong pham vi quan ly cua minh.'}
+              ? 'Bạn có thể tạo tài khoản Manager hoặc Staff cho hệ thống.'
+              : 'Bạn có thể tạo tài khoản Staff cho đội ngũ trong phạm vi quản lý của mình.'}
           </p>
         </header>
 
         {/* Backend Alert Banner */}
         {backendError && (
           <div className="aum-error-banner" role="alert">
-            <AlertCircle size={16} />
+            <AlertCircle size={16} className="shrink-0" />
             <span>{backendError}</span>
           </div>
         )}
@@ -257,10 +257,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
         <form id="add-user-form" className="aum-body" onSubmit={handleSubmit}>
           {/* Row 1: Full Name | Email */}
           <div className="aum-grid-2">
-            {/* Ho va ten */}
+            {/* Họ và tên */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-fullname">
-                Ho va ten <span className="aum-req">*</span>
+                Họ và tên <span className="aum-req">*</span>
               </label>
               <div className="aum-input-wrap">
                 <div className="aum-input-icon">
@@ -270,7 +270,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                   id="aum-fullname"
                   type="text"
                   className={`aum-input ${fieldErrors.fullName ? 'error' : ''}`}
-                  placeholder="VD: Nguyen Van A"
+                  placeholder="VD: Nguyễn Văn A"
                   value={form.fullName}
                   onChange={(e) => {
                     setForm({ ...form, fullName: e.target.value });
@@ -287,7 +287,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
             {/* Email */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-email">
-                Email lien he <span className="aum-req">*</span>
+                Email liên hệ <span className="aum-req">*</span>
               </label>
               <div className="aum-input-wrap">
                 <div className="aum-input-icon">
@@ -317,7 +317,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
             {/* Phone */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-phone">
-                So dien thoai <span className="aum-req">*</span>
+                Số điện thoại <span className="aum-req">*</span>
               </label>
               <div className="aum-input-wrap">
                 <div className="aum-input-icon">
@@ -344,7 +344,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
             {/* Role Assignment */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-role">
-                Vai tro <span className="aum-req">*</span>
+                Vai trò <span className="aum-req">*</span>
               </label>
 
               {isAdmin ? (
@@ -359,8 +359,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                     value={form.role}
                     onChange={(e) => setForm({ ...form, role: e.target.value })}
                   >
-                    <option value="STAFF">STAFF &mdash; Nhan vien</option>
-                    <option value="MANAGER">MANAGER &mdash; Quan ly</option>
+                    <option value="STAFF">STAFF &mdash; Nhân viên</option>
+                    <option value="MANAGER">MANAGER &mdash; Quản lý</option>
                   </select>
                   <div className="aum-select-arrow">
                     <ChevronDown size={15} />
@@ -371,10 +371,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                 <div className="aum-manager-role-card">
                   <div className="aum-role-pill">
                     <span className="aum-role-pill-dot" />
-                    STAFF &bull; Nhan vien
+                    STAFF &bull; Nhân viên
                   </div>
                   <p className="aum-role-desc">
-                    Nhan vien se duoc tao trong pham vi quan ly cua ban.
+                    Nhân viên sẽ được tạo trong phạm vi quản lý của bạn.
                   </p>
                 </div>
               )}
@@ -384,9 +384,9 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           {/* Role Info Box for MANAGER role */}
           {isAdmin && form.role === 'MANAGER' && (
             <div className="aum-role-info">
-              <Info size={16} />
+              <Info size={16} className="shrink-0 mt-0.5" />
               <span>
-                Manager co quyen quan ly nhan vien va cac nghiep vu van hanh thuoc pham vi duoc phan quyen.
+                Manager có quyền quản lý nhân viên và các nghiệp vụ vận hành thuộc phạm vi được phân quyền.
               </span>
             </div>
           )}
@@ -395,10 +395,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           <div className="aum-form-group">
             <label className="aum-label" htmlFor="aum-password">
               <span>
-                Mat khau ban dau <span className="aum-req">*</span>
+                Mật khẩu ban đầu <span className="aum-req">*</span>
               </span>
               <span style={{ fontSize: 11, color: '#94a3b8', textTransform: 'none' }}>
-                Toi thieu 8 ky tu, gom ca chu va so
+                Tối thiểu 8 ký tự, gồm cả chữ và số
               </span>
             </label>
             <div className="aum-input-wrap">
@@ -409,7 +409,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                 id="aum-password"
                 type={showPassword ? 'text' : 'password'}
                 className={`aum-input ${fieldErrors.password ? 'error' : ''}`}
-                placeholder="Toi thieu 8 ky tu (chu & so)"
+                placeholder="Tối thiểu 8 ký tự (chữ & số)"
                 value={form.password}
                 onChange={(e) => {
                   setForm({ ...form, password: e.target.value });
@@ -421,7 +421,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                 type="button"
                 className="aum-pwd-toggle"
                 onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? 'An mat khau' : 'Hien mat khau'}
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -435,9 +435,9 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           {isStaffRole && (
             <div className="aum-skill-section">
               <div className="aum-section-header">
-                <h4 className="aum-section-title">Ky nang</h4>
+                <h4 className="aum-section-title">Kỹ năng</h4>
                 <p className="aum-section-subtitle">
-                  Gan cac ky nang ma nhan vien co the thuc hien trong ca lam viec.
+                  Gán các kỹ năng mà nhân viên có thể thực hiện trong ca làm việc.
                 </p>
               </div>
 
@@ -449,7 +449,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                       type="button"
                       className="aum-chip-remove"
                       onClick={() => removeSkill(skill.id)}
-                      title={`Bo ky nang ${skill.name}`}
+                      title={`Bỏ kỹ năng ${skill.name}`}
                     >
                       &times;
                     </button>
@@ -462,7 +462,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                   onClick={() => setShowSkillPicker(!showSkillPicker)}
                 >
                   <Plus size={14} />
-                  <span>Them ky nang</span>
+                  <span>Thêm kỹ năng</span>
                 </button>
               </div>
 
@@ -474,7 +474,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                     <input
                       type="text"
                       className="aum-combobox-input"
-                      placeholder="Tim kiem ky nang..."
+                      placeholder="Tìm kiếm kỹ năng..."
                       value={skillSearch}
                       onChange={(e) => setSkillSearch(e.target.value)}
                       autoFocus
@@ -483,10 +483,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
 
                   <ul className="aum-skill-list">
                     {loadingSkills && (
-                      <li className="aum-empty-skills">Dang tai danh sach ky nang...</li>
+                      <li className="aum-empty-skills">Đang tải danh sách kỹ năng...</li>
                     )}
                     {!loadingSkills && filteredSkills.length === 0 && (
-                      <li className="aum-empty-skills">Khong tim thay ky nang phu hop</li>
+                      <li className="aum-empty-skills">Không tìm thấy kỹ năng phù hợp</li>
                     )}
                     {!loadingSkills &&
                       filteredSkills.map((skill) => {
@@ -522,7 +522,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
             onClick={onClose}
             disabled={submitting}
           >
-            Huy
+            Hủy
           </button>
           <button
             type="submit"
@@ -533,10 +533,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
             {submitting ? (
               <>
                 <span className="aum-spinner" />
-                <span>Dang tao...</span>
+                <span>Đang tạo...</span>
               </>
             ) : (
-              <span>Tao nhan su</span>
+              <span>Tạo nhân sự</span>
             )}
           </button>
         </footer>
