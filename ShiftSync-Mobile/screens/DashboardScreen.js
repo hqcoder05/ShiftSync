@@ -336,7 +336,7 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               <Text style={s.todayAddress}>
-                {todayShift.storeAddress || todayShift.storeName || 'Highlands D9/71 Tây Thạnh Tân Phú'}
+                {todayShift.storeAddress || todayShift.storeName || 'Chi nhánh phân công'}
               </Text>
 
               <View style={s.checkIn}>

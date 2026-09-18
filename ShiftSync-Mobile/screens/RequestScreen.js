@@ -137,7 +137,7 @@ export default function RequestScreen({ navigation, route }) {
             id: s.id || `shift-${idx}`,
             dayLabel: `${dow} (${dayStr}/${monthStr})`,
             timeRange: `${String(s.startTime).slice(0, 5)} - ${String(s.endTime).slice(0, 5)}`,
-            location: s.storeAddress || s.storeName || 'Highlands Tây Thạnh Tân Phú',
+            location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
             role: s.skillName || s.requiredSkillName || 'Barista',
             color: '#8DD9CC',
           };
@@ -815,18 +815,18 @@ export default function RequestScreen({ navigation, route }) {
             </View>
 
             <View style={[
-              styles.detailStatusButton,
-              selectedRequest?.status === 'APPROVED' && styles.detailStatusButtonApproved,
-              selectedRequest?.status === 'REJECTED' && styles.detailStatusButtonRejected,
-              selectedRequest?.status === 'PENDING' && styles.detailStatusButtonPending,
+              styles.detailStatusBadge,
+              selectedRequest?.status === 'APPROVED' && styles.detailStatusBadgeApproved,
+              selectedRequest?.status === 'REJECTED' && styles.detailStatusBadgeRejected,
+              (selectedRequest?.status === 'PENDING' || !selectedRequest?.status) && styles.detailStatusBadgePending,
             ]}>
               <Text style={[
-                styles.detailStatusButtonText,
-                selectedRequest?.status === 'APPROVED' && styles.detailStatusButtonTextApproved,
-                selectedRequest?.status === 'REJECTED' && styles.detailStatusButtonTextRejected,
-                selectedRequest?.status === 'PENDING' && styles.detailStatusButtonTextPending,
+                styles.detailStatusBadgeText,
+                selectedRequest?.status === 'APPROVED' && styles.detailStatusBadgeTextApproved,
+                selectedRequest?.status === 'REJECTED' && styles.detailStatusBadgeTextRejected,
+                (selectedRequest?.status === 'PENDING' || !selectedRequest?.status) && styles.detailStatusBadgeTextPending,
               ]}>
-                {selectedRequest?.statusText || 'Chờ Duyệt'}
+                {selectedRequest?.status === 'APPROVED' ? 'Trạng thái: Đã duyệt' : selectedRequest?.status === 'REJECTED' ? 'Trạng thái: Từ chối' : 'Trạng thái: Đang chờ duyệt'}
               </Text>
             </View>
           </View>
@@ -1479,35 +1479,42 @@ const styles = StyleSheet.create({
     color: '#333333',
     lineHeight: 18,
   },
-  detailStatusButton: {
+  detailStatusBadge: {
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E0E0E0',
   },
-  detailStatusButtonApproved: {
+  detailStatusBadgeApproved: {
     backgroundColor: '#ECF9E8',
+    borderWidth: 1,
+    borderColor: '#51A33D',
   },
-  detailStatusButtonRejected: {
-    backgroundColor: '#F5E8D7',
+  detailStatusBadgeRejected: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
   },
-  detailStatusButtonPending: {
-    backgroundColor: '#E5E5E5',
+  detailStatusBadgePending: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
   },
-  detailStatusButtonText: {
-    fontSize: 15,
+  detailStatusBadgeText: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#333333',
   },
-  detailStatusButtonTextApproved: {
+  detailStatusBadgeTextApproved: {
     color: '#2E7D32',
   },
-  detailStatusButtonTextRejected: {
-    color: '#B45309',
+  detailStatusBadgeTextRejected: {
+    color: '#991B1B',
   },
-  detailStatusButtonTextPending: {
-    color: '#555555',
+  detailStatusBadgeTextPending: {
+    color: '#92400E',
   },
 
   // ── Loading ──

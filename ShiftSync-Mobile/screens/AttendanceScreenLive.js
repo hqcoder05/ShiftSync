@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { getMyAttendance, submitSelfieAttendance } from '../services/attendanceService';
 import { getMyShifts } from '../services/shiftService';
+import BottomNavbar from '../components/BottomNavbar';
 
 const localDateISO = () => {
   const d = new Date();
@@ -238,37 +239,26 @@ export default function AttendanceScreenLive({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
+
+      {/* ── Top Header with Back Button ── */}
+      <View style={styles.topHeaderRow}>
+        <Pressable
+          onPress={() => navigation?.goBack?.()}
+          hitSlop={15}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backArrow}>←</Text>
+        </Pressable>
+        <Text style={styles.headerTitle}>Chấm công ca làm</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} />}
       >
-        <Text style={styles.headerTitle}>Chấm công ca làm</Text>
-
-        {/* ══ TUỲ CHỌN CHẾ ĐỘ CHẤM CÔNG KHI TEST ══ */}
-        <View style={styles.modeContainer}>
-          <Text style={styles.modeLabel}>Chế độ ghi nhận:</Text>
-          <View style={styles.modeToggleRow}>
-            <TouchableOpacity
-              onPress={() => setTestMode('ON_TIME')}
-              style={[styles.modeTab, testMode === 'ON_TIME' && styles.modeTabActive]}
-            >
-              <Text style={[styles.modeTabText, testMode === 'ON_TIME' && styles.modeTabTextActive]}>
-                Đúng giờ (Chuẩn)
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setTestMode('REAL_TIME')}
-              style={[styles.modeTab, testMode === 'REAL_TIME' && styles.modeTabActive]}
-            >
-              <Text style={[styles.modeTabText, testMode === 'REAL_TIME' && styles.modeTabTextActive]}>
-                Theo giờ thực tế
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {loading ? (
           <ActivityIndicator size="large" color="#18181B" style={styles.loader} />
         ) : (
@@ -287,7 +277,7 @@ export default function AttendanceScreenLive({ navigation }) {
               </View>
 
               <Text style={styles.shiftTime}>{shift ? timeRange(shift) : 'Không có ca hôm nay'}</Text>
-              <Text style={styles.storeName}>{shift?.storeName || 'Highlands Coffee'}</Text>
+              <Text style={styles.storeName}>{shift?.storeName || 'Chi nhánh phân công'}</Text>
               <Text style={styles.storeAddress}>{shift?.storeAddress || 'Chi nhánh làm việc'}</Text>
 
               {/* 2 LẦN CHECK CỦA CA NÀY (BẤM ĐỂ XEM ẢNH HOẶC CHẤM CÔNG) */}
@@ -427,7 +417,7 @@ export default function AttendanceScreenLive({ navigation }) {
                       <View>
                         <Text style={styles.historyItemDate}>{formatDate(item.shiftDate)}</Text>
                         <Text style={styles.historyItemStore}>
-                          {item.storeName || 'Highlands Coffee'}
+                          {item.storeName || 'Chi nhánh phân công'}
                           {item.lateMinutes > 0 ? ` · Trễ ${item.lateMinutes} phút` : ''}
                         </Text>
                       </View>
@@ -507,6 +497,7 @@ export default function AttendanceScreenLive({ navigation }) {
             )}
           </>
         )}
+        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* ══ MODAL XEM ẢNH PHÓNG TO ══ */}
@@ -526,37 +517,41 @@ export default function AttendanceScreenLive({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* ── Bottom Navbar ── */}
+      <BottomNavbar navigation={navigation} activeRoute="Attendance" />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 40 },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: '#0F172A', marginBottom: 14, textAlign: 'center' },
-  loader: { marginTop: 60 },
-
-  // Mode switcher
-  modeContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  modeLabel: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8 },
-  modeToggleRow: { flexDirection: 'row', gap: 8 },
-  modeTab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
+  topHeaderRow: {
+    height: 56,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  modeTabActive: { backgroundColor: '#0F172A' },
-  modeTabText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  modeTabTextActive: { color: '#FFFFFF' },
+  backBtn: {
+    padding: 6,
+  },
+  backArrow: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  content: { padding: 16, paddingBottom: 100 },
+  loader: { marginTop: 60 },
 
   // Shift card
   shiftCard: {

@@ -15,8 +15,9 @@ import { getMyPayslips } from '../services/payrollService';
 import { getMyShifts } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
-
 import FlowerMascot3D from '../components/FlowerMascot3D';
+
+const calendarIcon = require('../assets/Calendar.png');
 
 const formatVND = (num) => {
   if (num === null || num === undefined) return '0 VNĐ';
@@ -41,7 +42,7 @@ export default function PayrollScreen({ navigation }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch API payslips
+      // 1. Fetch API payslips from Backend (SOURCE OF TRUTH)
       let apiPayslips = [];
       try {
         const { data } = await getMyPayslips();
@@ -106,6 +107,8 @@ export default function PayrollScreen({ navigation }) {
           const baseH = Math.max(0, workedH - otH);
           const totalAmt = Number(p.totalAmount || 0);
           const baseAmt = Number(p.baseAmount || totalAmt);
+          const otAmt = Number(p.otAmount || 0);
+          const holAmt = Number(p.holidayAmount || 0);
           const rate = (baseH > 0 && baseAmt > 0)
             ? Math.round(baseAmt / baseH)
             : (workedH > 0 && baseAmt > 0 ? Math.round(baseAmt / workedH) : userHourlyRate);
@@ -118,19 +121,24 @@ export default function PayrollScreen({ navigation }) {
             id: p.id || `api-${idx}`,
             month,
             year,
-            title: `Phiếu lương tháng ${month}`,
+            title: `Phiếu lương tháng ${month}/${year}`,
             periodRange: rangeStr,
+            periodStatus: p.periodStatus || 'CLOSED',
             role: userRole,
             hourlyRate: rate,
             totalShifts: Math.round(workedH / 8) || completedDays || 1,
             completedShifts: Math.round(workedH / 8) || completedDays || 1,
             scheduledHours: workedH || Math.round(completedHours) || 8,
             workedHours: workedH || Math.round(completedHours) || 8,
+            otHours: otH,
             workedDays: Math.round(workedH / 8) || completedDays || 1,
             baseAmount: baseAmt,
+            otAmount: otAmt,
+            holidayAmount: holAmt,
             deduction: 0,
-            allowance: Number(p.otAmount || 0) + Number(p.holidayAmount || 0),
+            allowance: otAmt + holAmt,
             totalAmount: totalAmt,
+            isEstimate: false,
           };
         });
         setPayslips(mapped);
@@ -139,13 +147,13 @@ export default function PayrollScreen({ navigation }) {
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();
-        const startStr = `01/${String(currentMonth).padStart(2, '0')}/${String(currentYear).slice(2)}`;
+        const startStr = `01/${String(currentMonth).padStart(2, '0')}/${currentYear}`;
         const lastDay = new Date(currentYear, currentMonth, 0).getDate();
-        const endStr = `${lastDay}/${String(currentMonth).padStart(2, '0')}/${String(currentYear).slice(2)}`;
-        const worked = Math.round(completedHours);
+        const endStr = `${lastDay}/${String(currentMonth).padStart(2, '0')}/${currentYear}`;
+        const worked = Math.round(completedHours * 10) / 10;
         const hourlyRate = userHourlyRate;
-        const baseAmt = worked * hourlyRate;
-        const allowance = 120000;
+        const baseAmt = Math.round(worked * hourlyRate);
+        const allowance = 0;
         const deduction = 0;
         const totalAmt = baseAmt + allowance - deduction;
 
@@ -154,19 +162,24 @@ export default function PayrollScreen({ navigation }) {
             id: `live-current-${currentMonth}-${currentYear}`,
             month: currentMonth,
             year: currentYear,
-            title: `Phiếu lương tháng ${currentMonth} (Ước tính)`,
+            title: `Phiếu lương tháng ${currentMonth}/${currentYear} (Ước tính)`,
             periodRange: `${startStr} – ${endStr}`,
+            periodStatus: 'OPEN',
             role: userRole,
             hourlyRate,
             totalShifts: completedDays,
             completedShifts: completedDays,
             scheduledHours: worked,
             workedHours: worked,
+            otHours: 0,
             workedDays: completedDays,
             baseAmount: baseAmt,
-            deduction,
-            allowance,
+            otAmount: 0,
+            holidayAmount: 0,
+            deduction: 0,
+            allowance: 0,
             totalAmount: totalAmt,
+            isEstimate: true,
           }
         ]);
       } else {
@@ -248,28 +261,28 @@ export default function PayrollScreen({ navigation }) {
 
             {/* 3 Mini White Cards Row */}
             <View style={styles.miniCardsRow}>
-              {/* Card 1: Tổng tiền */}
+              {/* Card 1: Lương cơ bản */}
               <View style={styles.miniCard}>
                 <Text style={[styles.miniCardValue, { color: '#51A33D' }]}>
                   {formatVND(item.baseAmount)}
                 </Text>
-                <Text style={styles.miniCardLabel}>Tổng tiền</Text>
+                <Text style={styles.miniCardLabel}>Lương cơ bản</Text>
               </View>
 
-              {/* Card 2: Phụ phí */}
+              {/* Card 2: Tăng ca OT */}
               <View style={styles.miniCard}>
-                <Text style={[styles.miniCardValue, { color: '#C60D1C' }]}>
-                  -{formatVND(item.deduction)}
+                <Text style={[styles.miniCardValue, { color: '#0284C7' }]}>
+                  +{formatVND(item.otAmount)}
                 </Text>
-                <Text style={styles.miniCardLabel}>Phụ phí</Text>
+                <Text style={styles.miniCardLabel}>Tăng ca (OT)</Text>
               </View>
 
-              {/* Card 3: Trợ phí */}
+              {/* Card 3: Trợ cấp / Lễ */}
               <View style={styles.miniCard}>
                 <Text style={[styles.miniCardValue, { color: '#FFCC33' }]}>
-                  +{formatVND(item.allowance)}
+                  +{formatVND(item.holidayAmount)}
                 </Text>
-                <Text style={styles.miniCardLabel}>Trợ phí</Text>
+                <Text style={styles.miniCardLabel}>Ngày lễ</Text>
               </View>
             </View>
           </View>
@@ -279,35 +292,51 @@ export default function PayrollScreen({ navigation }) {
           <View style={styles.sectionDivider} />
           <View style={styles.sectionRows}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Mức lương hiện tại</Text>
-              <Text style={styles.infoValue}>{formatVND(item.hourlyRate)}</Text>
+              <Text style={styles.infoLabel}>Mức lương cơ bản</Text>
+              <Text style={styles.infoValue}>{formatVND(item.hourlyRate)}/giờ</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Giờ đã làm việc</Text>
+              <Text style={styles.infoLabel}>Tổng giờ làm việc</Text>
               <Text style={styles.infoValue}>{item.workedHours} Giờ</Text>
             </View>
+            {item.otHours > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Giờ tăng ca (OT)</Text>
+                <Text style={styles.infoValue}>{item.otHours} Giờ</Text>
+              </View>
+            )}
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Ngày đã làm việc</Text>
-              <Text style={styles.infoValue}>{item.workedDays} Ngày</Text>
+              <Text style={styles.infoLabel}>Số ca đã hoàn thành</Text>
+              <Text style={styles.infoValue}>{item.completedShifts} Ca</Text>
             </View>
           </View>
 
-          {/* ── Section 2: Tổng thu nhập ── */}
-          <Text style={styles.sectionHeading}>Tổng thu nhập</Text>
+          {/* ── Section 2: Chi tiết thu nhập ── */}
+          <Text style={styles.sectionHeading}>Chi tiết thu nhập</Text>
           <View style={styles.sectionDivider} />
           <View style={styles.sectionRows}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Lương trong tháng</Text>
+              <Text style={styles.infoLabel}>Lương cơ bản</Text>
               <Text style={styles.infoValue}>{formatVND(item.baseAmount)}</Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Trợ cấp</Text>
-              <Text style={styles.infoValue}>+{formatVND(item.allowance)}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Phụ phí trang phục</Text>
-              <Text style={styles.infoValue}>-{formatVND(item.deduction)}</Text>
-            </View>
+            {item.otAmount > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Tiền tăng ca (OT)</Text>
+                <Text style={styles.infoValue}>+{formatVND(item.otAmount)}</Text>
+              </View>
+            )}
+            {item.holidayAmount > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Tiền ngày lễ</Text>
+                <Text style={styles.infoValue}>+{formatVND(item.holidayAmount)}</Text>
+              </View>
+            )}
+            {item.deduction > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Khấu trừ</Text>
+                <Text style={styles.infoValue}>-{formatVND(item.deduction)}</Text>
+              </View>
+            )}
           </View>
 
           {/* ── Section 3: Lương thực nhận ── */}
@@ -317,6 +346,12 @@ export default function PayrollScreen({ navigation }) {
             <View style={[styles.infoRow, { paddingVertical: 14 }]}>
               <Text style={[styles.infoLabel, { fontSize: 16 }]}>Lương thực nhận</Text>
               <Text style={styles.finalSalaryValue}>{formatVND(item.totalAmount)}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Trạng thái</Text>
+              <Text style={[styles.infoValue, { fontWeight: '700', color: item.isEstimate ? '#D97706' : '#166534' }]}>
+                {item.isEstimate ? 'Ước tính (Chờ chốt kỳ)' : 'Đã xác nhận thanh toán'}
+              </Text>
             </View>
           </View>
         </ScrollView>
