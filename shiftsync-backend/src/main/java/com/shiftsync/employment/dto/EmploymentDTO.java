@@ -24,5 +24,7 @@ public class EmploymentDTO {
     private LocalDate joinedDate;
     private LocalDate leftDate;
     private String systemRole;
+    private String avatarId;
+    private String avatarUrl;
 }
 

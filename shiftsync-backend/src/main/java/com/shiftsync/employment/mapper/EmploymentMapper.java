@@ -24,6 +24,8 @@ public class EmploymentMapper {
                 .joinedDate(employment.getJoinedDate())
                 .leftDate(employment.getLeftDate())
                 .systemRole(employment.getUser() != null && employment.getUser().getSystemRole() != null ? employment.getUser().getSystemRole().name() : "STAFF")
+                .avatarId(employment.getUser() != null ? employment.getUser().getAvatarId() : null)
+                .avatarUrl(employment.getUser() != null ? employment.getUser().getAvatarUrl() : null)
                 .build();
     }
 }

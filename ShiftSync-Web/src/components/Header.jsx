@@ -79,7 +79,10 @@ export default function Header() {
         setNotifications(Array.isArray(data) ? data : []);
       }
       if (unreadRes.status === 'fulfilled') {
-        setUnreadNotifCount(Number(unreadRes.value.data) || 0);
+        const count = typeof unreadRes.value.data === 'object'
+          ? (unreadRes.value.data?.unreadCount ?? 0)
+          : Number(unreadRes.value.data) || 0;
+        setUnreadNotifCount(count);
       }
     } catch {
       // ignore
@@ -206,7 +209,7 @@ export default function Header() {
   const handleMarkAllAsRead = async () => {
     try {
       await markAllNotificationsAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true, read: true })));
       setUnreadNotifCount(0);
     } catch (err) {
       console.error('Failed to mark all as read', err);
@@ -214,11 +217,12 @@ export default function Header() {
   };
 
   const handleNotificationClick = async (notif) => {
-    if (!notif.read) {
+    const isUnread = !(notif.isRead ?? notif.read ?? false);
+    if (isUnread) {
       try {
         await markNotificationAsRead(notif.id);
         setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true, read: true } : n))
         );
         setUnreadNotifCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
@@ -247,7 +251,7 @@ export default function Header() {
 
   const filteredNotifications = useMemo(() => {
     if (notifTab === 'UNREAD') {
-      return notifications.filter((n) => !n.read);
+      return notifications.filter((n) => !(n.isRead ?? n.read ?? false));
     }
     return notifications;
   }, [notifications, notifTab]);
@@ -619,23 +623,26 @@ export default function Header() {
                       <span>{notifTab === 'UNREAD' ? 'Bạn đã đọc hết mọi thông báo' : 'Không có thông báo nào'}</span>
                     </div>
                   ) : (
-                    filteredNotifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`ss-notif-modern-row ${!notif.read ? 'is-unread' : ''}`}
-                        onClick={() => handleNotificationClick(notif)}
-                      >
-                        {renderNotifIcon(notif.type)}
-                        <div className="ss-notif-info">
-                          <div className="ss-notif-top-row">
-                            <span className="ss-notif-title">{notif.title}</span>
-                            <span className="ss-notif-time">{formatRelativeTime(notif.createdAt)}</span>
+                    filteredNotifications.map((notif) => {
+                      const isUnread = !(notif.isRead ?? notif.read ?? false);
+                      return (
+                        <div
+                          key={notif.id}
+                          className={`ss-notif-modern-row ${isUnread ? 'is-unread' : ''}`}
+                          onClick={() => handleNotificationClick(notif)}
+                        >
+                          {renderNotifIcon(notif.type)}
+                          <div className="ss-notif-info">
+                            <div className="ss-notif-top-row">
+                              <span className="ss-notif-title">{notif.title}</span>
+                              <span className="ss-notif-time">{formatRelativeTime(notif.createdAt)}</span>
+                            </div>
+                            <p className="ss-notif-msg">{notif.message}</p>
                           </div>
-                          <p className="ss-notif-msg">{notif.message}</p>
+                          {isUnread && <span className="ss-notif-unread-dot" />}
                         </div>
-                        {!notif.read && <span className="ss-notif-unread-dot" />}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               )}

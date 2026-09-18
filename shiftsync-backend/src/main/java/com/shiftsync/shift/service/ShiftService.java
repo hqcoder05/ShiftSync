@@ -589,6 +589,7 @@ public class ShiftService {
                             .staffId(a.getStaff() != null ? a.getStaff().getId() : null)
                             .staffName(a.getStaff() != null ? a.getStaff().getFullName() : null)
                             .avatarUrl(a.getStaff() != null ? a.getStaff().getAvatarUrl() : null)
+                            .avatarId(a.getStaff() != null ? a.getStaff().getAvatarId() : null)
                             .requiredSkillId(a.getRequiredSkillId())
                             .skillName(skillName)
                             .zoneId(a.getZone() != null ? a.getZone().getId() : null)

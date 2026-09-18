@@ -71,6 +71,6 @@ public class User {
 
     @Transient
     public String getAvatarUrl() {
-        return null;
+        return this.avatarId;
     }
 }
