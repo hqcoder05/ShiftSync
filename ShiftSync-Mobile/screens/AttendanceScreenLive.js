@@ -109,10 +109,8 @@ export default function AttendanceScreenLive({ navigation }) {
   useEffect(() => {
     loadData(true);
     const unsubscribe = navigation?.addListener?.('focus', () => loadData(false));
-    const interval = setInterval(() => loadData(false), 5000); // Tự động cập nhật mượt mà mỗi 5s khi quản lý đổi giờ trên Web
     return () => {
       unsubscribe?.();
-      clearInterval(interval);
     };
   }, [navigation, loadData]);
 

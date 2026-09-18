@@ -164,6 +164,7 @@ export default function ScheduleScreen({ navigation }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
@@ -210,15 +211,11 @@ export default function ScheduleScreen({ navigation }) {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   useEffect(() => {
-    fetchScheduleData();
+    fetchScheduleData(true);
     const unsubscribe = navigation.addListener('focus', () => {
-      fetchScheduleData();
+      fetchScheduleData(false);
     });
-    const interval = setInterval(fetchScheduleData, 5000); // Tự động cập nhật tức thì (5s) khi quản lý sửa/duyệt lịch trên Web
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
+    return unsubscribe;
   }, [navigation, weekOffset]);
 
   const showToast = (title, message, type = 'success') => {
@@ -228,9 +225,15 @@ export default function ScheduleScreen({ navigation }) {
     }, 3500);
   };
 
-  const fetchScheduleData = async () => {
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchScheduleData(false);
+    setRefreshing(false);
+  };
+
+  const fetchScheduleData = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       // 1. Fetch current user & stores
       let activeStoreId = null;
       let currentUser = null;
@@ -277,8 +280,8 @@ export default function ScheduleScreen({ navigation }) {
         });
         setLiveMyShifts(mapped);
         if (mapped.length > 0) {
-          setSelectedSwapShift(mapped[0]);
-          setSelectedAbsentShift(mapped[0]);
+          setSelectedSwapShift((prev) => (prev && prev.id !== 'no-shift' ? prev : mapped[0]));
+          setSelectedAbsentShift((prev) => (prev && prev.id !== 'no-shift' ? prev : mapped[0]));
         }
       } else {
         setLiveMyShifts([]);
@@ -482,8 +485,8 @@ export default function ScheduleScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={loading}
-            onRefresh={fetchScheduleData}
+            refreshing={refreshing}
+            onRefresh={handleManualRefresh}
             colors={['#27272a']}
             tintColor="#27272a"
           />

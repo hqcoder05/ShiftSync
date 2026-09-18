@@ -17,21 +17,9 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 import FlowerMascot3D from '../components/FlowerMascot3D';
 
+import { formatVND, formatHourlyRate, formatDateDMY } from '../utils/currency';
+
 const calendarIcon = require('../assets/Calendar.png');
-
-const formatVND = (num) => {
-  if (num === null || num === undefined) return '0 VNĐ';
-  return Number(num).toLocaleString('vi-VN') + ' VNĐ';
-};
-
-const formatDateDMY = (dateStr) => {
-  if (!dateStr) return '';
-  const parts = String(dateStr).split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
-};
 
 export default function PayrollScreen({ navigation }) {
   const [payslips, setPayslips] = useState([]);
@@ -65,9 +53,8 @@ export default function PayrollScreen({ navigation }) {
           const stores = storeRes?.data || [];
           if (stores.length > 0) {
             const r = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
-            if (r) {
-              const numR = Number(r);
-              userHourlyRate = numR < 1000 ? numR * 1000 : numR;
+            if (r && !isNaN(Number(r)) && Number(r) > 0) {
+              userHourlyRate = Number(r);
             }
           }
         }
@@ -234,7 +221,7 @@ export default function PayrollScreen({ navigation }) {
                 <Text style={styles.greenCardSubLabel}>Mức lương ước tính</Text>
                 <Text style={styles.greenCardAmount}>{formatVND(item.totalAmount)}</Text>
                 <Text style={styles.greenCardRate}>
-                  {Number(item.hourlyRate).toLocaleString('vi-VN')} vnđ/giờ
+                  {formatHourlyRate(item.hourlyRate)}
                 </Text>
 
                 <View style={styles.metricRow}>
@@ -293,7 +280,7 @@ export default function PayrollScreen({ navigation }) {
           <View style={styles.sectionRows}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Mức lương cơ bản</Text>
-              <Text style={styles.infoValue}>{formatVND(item.hourlyRate)}/giờ</Text>
+              <Text style={styles.infoValue}>{formatHourlyRate(item.hourlyRate)}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Tổng giờ làm việc</Text>

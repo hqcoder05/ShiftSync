@@ -19,6 +19,7 @@ import { getMyPayslips } from '../services/payrollService';
 import { getMyAttendance } from '../services/attendanceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getStoredAvatar, onAvatarChange } from '../services/avatarSync';
+import { formatVND, formatHourlyRate, formatDateDMY } from '../utils/currency';
 
 const actions = [
   ['Đăng ký lịch làm', '#EAF8E6', 'Availability'],
@@ -43,15 +44,6 @@ const localDateISO = () => {
   const d = new Date();
   const offset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offset).toISOString().slice(0, 10);
-};
-
-const formatDateDMY = (dateStr) => {
-  if (!dateStr) return '';
-  const parts = String(dateStr).split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
 };
 
 const getVietnameseDateString = (date = new Date()) => {
@@ -154,9 +146,8 @@ export default function DashboardScreen({ navigation }) {
             const stores = storeRes.data || [];
             if (stores.length > 0) {
               const rate = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
-              if (rate) {
-                const numRate = Number(rate);
-                setHourlyRate(numRate < 1000 ? numRate * 1000 : numRate);
+              if (rate && !isNaN(Number(rate)) && Number(rate) > 0) {
+                setHourlyRate(Number(rate));
               }
             }
           }).catch(() => {});
@@ -194,11 +185,9 @@ export default function DashboardScreen({ navigation }) {
       loadData();
     });
 
-    const interval = setInterval(loadData, 15000); // 15s định kỳ cập nhật chấm công/lịch làm
     return () => {
       unsubAvatar();
       unsubscribeFocus();
-      clearInterval(interval);
     };
   }, [navigation]);
 
@@ -217,7 +206,7 @@ export default function DashboardScreen({ navigation }) {
 
   // ✅ Báo cáo thu nhập: Backend là Source of Truth. Ưu tiên phiếu lương chính thức từ kỳ gần nhất
   const calculatedStats = useMemo(() => {
-    const normHourlyRate = hourlyRate < 1000 ? hourlyRate * 1000 : hourlyRate;
+    const normHourlyRate = Number(hourlyRate) || 25000;
 
     // 1. Nếu đã có phiếu lương chính thức từ backend
     if (latestPayslip && (Number(latestPayslip.totalAmount || 0) > 0 || Number(latestPayslip.totalHours || 0) > 0)) {
@@ -391,10 +380,10 @@ export default function DashboardScreen({ navigation }) {
           </View>
           <Text style={s.incomeTitle}>Báo cáo thu nhập{'\n'}của bạn</Text>
           <Text style={s.label}>
-            Lương thực nhận {calculatedStats.hourlyRate ? `(${calculatedStats.hourlyRate.toLocaleString('vi-VN')} đ/giờ)` : ''}
+            Lương thực nhận {calculatedStats.hourlyRate ? `(${formatHourlyRate(calculatedStats.hourlyRate)})` : ''}
           </Text>
           <Text style={s.amount}>
-            {`${Number(calculatedStats.amount || 0).toLocaleString('vi-VN')} VNĐ`}
+            {formatVND(calculatedStats.amount || 0)}
           </Text>
           <Text style={s.label}>Giờ đã làm việc</Text>
           <Text style={s.stat}>
