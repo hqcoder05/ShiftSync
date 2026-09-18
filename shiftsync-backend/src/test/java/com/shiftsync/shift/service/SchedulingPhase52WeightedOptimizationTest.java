@@ -1152,7 +1152,7 @@ class SchedulingPhase52WeightedOptimizationTest {
 
             when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.singletonList(aBarista));
 
-            StaffSkill ss = StaffSkill.builder().staffId(baristaUser.getId()).skillId(baristaSkill.getId()).level("EXPERT").build();
+            StaffSkill ss = StaffSkill.builder().staffId(baristaUser.getId()).skillId(baristaSkill.getId()).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
             staffSkillsMap.computeIfAbsent(baristaUser.getId(), k -> new ArrayList<>()).add(ss);
             when(skillRepository.findById(baristaSkill.getId())).thenReturn(Optional.of(baristaSkill));
 

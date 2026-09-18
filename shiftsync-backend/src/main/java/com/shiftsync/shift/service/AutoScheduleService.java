@@ -1224,17 +1224,18 @@ public class AutoScheduleService {
 
     private double getSkillScore(StaffData empData, UUID skillId) {
         if (skillId == null) return 0.5;
-        String level = empData.getSkills().stream()
+        com.shiftsync.skill.entity.SkillLevel level = empData.getSkills().stream()
                 .filter(s -> s.getSkillId().equals(skillId))
-                .map(s -> s.getLevel().trim().toUpperCase())
+                .map(s -> s.getLevel())
                 .findFirst()
-                .orElse("BEGINNER");
+                .orElse(com.shiftsync.skill.entity.SkillLevel.BEGINNER);
 
+        if (level == null) return 0.5;
         switch (level) {
-            case "EXPERT": return 1.0;
-            case "ADVANCED": return 0.75;
-            case "INTERMEDIATE": return 0.5;
-            case "BEGINNER": return 0.25;
+            case EXPERT: return 1.0;
+            case ADVANCED: return 0.75;
+            case INTERMEDIATE: return 0.5;
+            case BEGINNER: return 0.25;
             default:
                 log.warn("Invalid skill level found: '{}' for staff: {}", level, empData.getEmployment().getUser().getId());
                 throw new IllegalStateException("Unknown skill level: " + level);

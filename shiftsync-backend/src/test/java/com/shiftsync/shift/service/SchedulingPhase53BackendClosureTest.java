@@ -783,7 +783,7 @@ class SchedulingPhase53BackendClosureTest {
 
             // Manual assignment with cashierSkill (or staff having cashierSkill)
             User manualCashier = User.builder().id(UUID.randomUUID()).build();
-            StaffSkill ss = StaffSkill.builder().staffId(manualCashier.getId()).skillId(cashierSkill.getId()).level("INTERMEDIATE").build();
+            StaffSkill ss = StaffSkill.builder().staffId(manualCashier.getId()).skillId(cashierSkill.getId()).level(com.shiftsync.skill.entity.SkillLevel.INTERMEDIATE).build();
             staffSkillsMap.put(manualCashier.getId(), Collections.singletonList(ss));
 
             ShiftAssignment manualAssignment = ShiftAssignment.builder()
@@ -1304,7 +1304,7 @@ class SchedulingPhase53BackendClosureTest {
                 executor.submit(() -> {
                     try {
                         UUID uId = UUID.randomUUID();
-                        StaffSkill ss = StaffSkill.builder().staffId(uId).skillId(baristaSkill.getId()).level("INTERMEDIATE").build();
+                        StaffSkill ss = StaffSkill.builder().staffId(uId).skillId(baristaSkill.getId()).level(com.shiftsync.skill.entity.SkillLevel.INTERMEDIATE).build();
                         staffSkillsMap.put(uId, Collections.singletonList(ss));
                         List<StaffSkill> found = staffSkillsMap.get(uId);
                         if (found != null && !found.isEmpty()) {

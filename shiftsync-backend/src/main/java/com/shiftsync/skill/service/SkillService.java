@@ -4,6 +4,7 @@ import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.skill.dto.SkillDTO;
 import com.shiftsync.skill.dto.SkillRequest;
 import com.shiftsync.skill.entity.Skill;
+import com.shiftsync.skill.entity.StaffSkill;
 import com.shiftsync.skill.repository.SkillRepository;
 import com.shiftsync.skill.repository.StaffSkillRepository;
 import com.shiftsync.store.entity.Store;
@@ -54,6 +55,7 @@ public class SkillService {
         // Delete existing skills for this staff member
         List<StaffSkill> existing = staffSkillRepository.findByStaffId(staffId);
         staffSkillRepository.deleteAll(existing);
+        staffSkillRepository.flush();
 
         // Add new skills
         if (newSkillIds != null && !newSkillIds.isEmpty()) {

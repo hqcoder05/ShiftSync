@@ -109,7 +109,7 @@ public class UserService {
                     StaffSkill staffSkill = StaffSkill.builder()
                             .staffId(savedUser.getId())
                             .skillId(skillId)
-                            .level("BEGINNER")
+                            .level(com.shiftsync.skill.entity.SkillLevel.BEGINNER)
                             .build();
                     staffSkillRepository.save(staffSkill);
                 }

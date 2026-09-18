@@ -195,7 +195,7 @@ class UserCreationRbacTest {
 
         List<StaffSkill> savedSkills = captor.getAllValues();
         assertEquals(2, savedSkills.size());
-        assertEquals("BEGINNER", savedSkills.get(0).getLevel());
+        assertEquals(com.shiftsync.skill.entity.SkillLevel.BEGINNER, savedSkills.get(0).getLevel());
         assertEquals(newUserId, savedSkills.get(0).getStaffId());
     }
 

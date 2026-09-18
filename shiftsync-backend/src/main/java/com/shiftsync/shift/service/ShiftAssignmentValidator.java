@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class ShiftAssignmentValidator {
 
     private final AvailabilityRepository availabilityRepository;
@@ -30,6 +29,24 @@ public class ShiftAssignmentValidator {
     private final ShiftValidationService shiftValidationService;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public ShiftAssignmentValidator(
+            AvailabilityRepository availabilityRepository,
+            BlackoutDateRepository blackoutDateRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            StaffSkillRepository staffSkillRepository,
+            SkillRepository skillRepository,
+            ShiftValidationService shiftValidationService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository) {
+        this.availabilityRepository = availabilityRepository;
+        this.blackoutDateRepository = blackoutDateRepository;
+        this.shiftAssignmentRepository = shiftAssignmentRepository;
+        this.staffSkillRepository = staffSkillRepository;
+        this.skillRepository = skillRepository;
+        this.shiftValidationService = shiftValidationService;
+        this.leaveRequestRepository = leaveRequestRepository;
+    }
+
     public ShiftAssignmentValidator(
             AvailabilityRepository availabilityRepository,
             BlackoutDateRepository blackoutDateRepository,
@@ -37,13 +54,8 @@ public class ShiftAssignmentValidator {
             StaffSkillRepository staffSkillRepository,
             SkillRepository skillRepository,
             ShiftValidationService shiftValidationService) {
-        this.availabilityRepository = availabilityRepository;
-        this.blackoutDateRepository = blackoutDateRepository;
-        this.shiftAssignmentRepository = shiftAssignmentRepository;
-        this.staffSkillRepository = staffSkillRepository;
-        this.skillRepository = skillRepository;
-        this.shiftValidationService = shiftValidationService;
-        this.leaveRequestRepository = null;
+        this(availabilityRepository, blackoutDateRepository, shiftAssignmentRepository,
+             staffSkillRepository, skillRepository, shiftValidationService, null);
     }
 
     @Transactional(readOnly = true)

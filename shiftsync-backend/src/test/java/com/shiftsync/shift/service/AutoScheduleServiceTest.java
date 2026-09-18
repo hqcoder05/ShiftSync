@@ -137,9 +137,9 @@ class AutoScheduleServiceTest {
                 .thenReturn(List.of(empA, empB, empC, empD));
                 
         // Mock Skills
-        StaffSkill sSkillA = StaffSkill.builder().staffId(userA.getId()).skillId(skillId).level("EXPERT").build();
-        StaffSkill sSkillB = StaffSkill.builder().staffId(userB.getId()).skillId(skillId).level("ADVANCED").build();
-        StaffSkill sSkillC = StaffSkill.builder().staffId(userC.getId()).skillId(skillId).level("BEGINNER").build();
+        StaffSkill sSkillA = StaffSkill.builder().staffId(userA.getId()).skillId(skillId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
+        StaffSkill sSkillB = StaffSkill.builder().staffId(userB.getId()).skillId(skillId).level(com.shiftsync.skill.entity.SkillLevel.ADVANCED).build();
+        StaffSkill sSkillC = StaffSkill.builder().staffId(userC.getId()).skillId(skillId).level(com.shiftsync.skill.entity.SkillLevel.BEGINNER).build();
         // User D has NO skill
         when(staffSkillRepository.findByStaffIdIn(anyList()))
                 .thenReturn(List.of(sSkillA, sSkillB, sSkillC));
@@ -489,7 +489,7 @@ class AutoScheduleServiceTest {
         when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(empSpecial, empGeneral));
 
         // Chỉ userSpecial có skill
-        StaffSkill sSkill = StaffSkill.builder().staffId(userSpecial.getId()).skillId(skillId).level("EXPERT").build();
+        StaffSkill sSkill = StaffSkill.builder().staffId(userSpecial.getId()).skillId(skillId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
         when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(sSkill));
 
         Availability avS = Availability.builder().user(userSpecial).dayOfWeek((short) 2).startTime(LocalTime.of(0, 0)).endTime(LocalTime.of(23, 59)).build();
@@ -588,7 +588,7 @@ class AutoScheduleServiceTest {
         UUID skillBId = UUID.randomUUID(); // Ca B yêu cầu skillB (ví dụ Barista)
 
         // staffX có skillB
-        StaffSkill skillForX = StaffSkill.builder().staffId(userX.getId()).skillId(skillBId).level("INTERMEDIATE").build();
+        StaffSkill skillForX = StaffSkill.builder().staffId(userX.getId()).skillId(skillBId).level(com.shiftsync.skill.entity.SkillLevel.INTERMEDIATE).build();
         staffXData.setSkills(List.of(skillForX));
         staffXData.setAvailabilities(List.of(
                 Availability.builder().user(userX).dayOfWeek((short) 2) // Tuesday (2026-09-08 is Tuesday)
@@ -603,7 +603,7 @@ class AutoScheduleServiceTest {
         // staffY có skillA
         AutoScheduleService.StaffData staffYData = new AutoScheduleService.StaffData();
         staffYData.setEmployment(empY);
-        StaffSkill skillForY = StaffSkill.builder().staffId(userY.getId()).skillId(skillAId).level("EXPERT").build();
+        StaffSkill skillForY = StaffSkill.builder().staffId(userY.getId()).skillId(skillAId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
         staffYData.setSkills(List.of(skillForY));
         staffYData.setAvailabilities(List.of(
                 Availability.builder().user(userY).dayOfWeek((short) 2) // Tuesday (2026-09-08 is Tuesday)
@@ -745,7 +745,7 @@ class AutoScheduleServiceTest {
         AutoScheduleService.StaffData staffYData = new AutoScheduleService.StaffData();
         staffYData.setEmployment(empY);
         // staffY có skillAId (HC1 thỏa mãn), nhưng bị vi phạm HC5 vì nghỉ 0h
-        StaffSkill skillForY = StaffSkill.builder().staffId(userY.getId()).skillId(skillAId).level("EXPERT").build();
+        StaffSkill skillForY = StaffSkill.builder().staffId(userY.getId()).skillId(skillAId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
         staffYData.setSkills(List.of(skillForY));
         staffYData.setAvailabilities(List.of(
                 Availability.builder().user(userY).dayOfWeek((short) 1).startTime(LocalTime.of(0, 0)).endTime(LocalTime.of(23, 59)).build()
@@ -851,7 +851,7 @@ class AutoScheduleServiceTest {
 
         // staffY KHÔNG CÓ bartenderSkillId (chỉ có kỹ năng Cashier)
         UUID cashierSkillId = UUID.randomUUID();
-        StaffSkill cashierSkill = StaffSkill.builder().staffId(userY.getId()).skillId(cashierSkillId).level("EXPERT").build();
+        StaffSkill cashierSkill = StaffSkill.builder().staffId(userY.getId()).skillId(cashierSkillId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build();
 
         AutoScheduleService.StaffData staffYData = new AutoScheduleService.StaffData();
         staffYData.setEmployment(empY);
@@ -939,7 +939,7 @@ class AutoScheduleServiceTest {
         StaffSkill bartenderSkill = StaffSkill.builder()
                 .staffId(userY.getId())
                 .skillId(bartenderSkillId)
-                .level("ADVANCED")
+                .level(com.shiftsync.skill.entity.SkillLevel.ADVANCED)
                 .expirationDate(date.plusMonths(6))
                 .build();
 
@@ -1020,7 +1020,7 @@ class AutoScheduleServiceTest {
         staffA.setAssignedHours(0.0);
         staffA.setCurrentSchedule(new ArrayList<>());
         staffA.setBlackoutDates(new ArrayList<>());
-        staffA.setSkills(List.of(StaffSkill.builder().staffId(userA.getId()).skillId(sId).level("EXPERT").build()));
+        staffA.setSkills(List.of(StaffSkill.builder().staffId(userA.getId()).skillId(sId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build()));
         staffA.setAvailabilities(List.of(Availability.builder().user(userA).dayOfWeek(shiftDay)
                 .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
 
@@ -1036,7 +1036,7 @@ class AutoScheduleServiceTest {
         staffB.setAssignedHours(0.0);
         staffB.setCurrentSchedule(new ArrayList<>());
         staffB.setBlackoutDates(new ArrayList<>());
-        staffB.setSkills(List.of(StaffSkill.builder().staffId(userB.getId()).skillId(sId).level("EXPERT").build()));
+        staffB.setSkills(List.of(StaffSkill.builder().staffId(userB.getId()).skillId(sId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build()));
         staffB.setAvailabilities(List.of(Availability.builder().user(userB).dayOfWeek(shiftDay)
                 .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
 
@@ -1052,7 +1052,7 @@ class AutoScheduleServiceTest {
         staffC.setAssignedHours(0.0);
         staffC.setCurrentSchedule(new ArrayList<>());
         staffC.setBlackoutDates(new ArrayList<>());
-        staffC.setSkills(List.of(StaffSkill.builder().staffId(userC.getId()).skillId(sId).level("EXPERT").build()));
+        staffC.setSkills(List.of(StaffSkill.builder().staffId(userC.getId()).skillId(sId).level(com.shiftsync.skill.entity.SkillLevel.EXPERT).build()));
         staffC.setAvailabilities(List.of(Availability.builder().user(userC).dayOfWeek(shiftDay)
                 .startTime(LocalTime.of(6, 0)).endTime(LocalTime.of(22, 0)).build()));
 
@@ -1126,7 +1126,7 @@ class AutoScheduleServiceTest {
             StaffSkill ss = StaffSkill.builder()
                     .staffId(u.getId())
                     .skillId(commonSkillId)
-                    .level("INTERMEDIATE")
+                    .level(com.shiftsync.skill.entity.SkillLevel.INTERMEDIATE)
                     .build();
             allSkills.add(ss);
 
