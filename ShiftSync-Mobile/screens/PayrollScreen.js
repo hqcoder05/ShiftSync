@@ -17,7 +17,7 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 import FlowerMascot3D from '../components/FlowerMascot3D';
 
-import { formatVND, formatHourlyRate, formatDateDMY } from '../utils/currency';
+import { formatVND, formatHourlyRate, formatDateDMY, getPayrollStatusInfo } from '../utils/currency';
 
 const calendarIcon = require('../assets/Calendar.png');
 
@@ -336,8 +336,8 @@ export default function PayrollScreen({ navigation }) {
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Trạng thái</Text>
-              <Text style={[styles.infoValue, { fontWeight: '700', color: item.isEstimate ? '#D97706' : '#166534' }]}>
-                {item.isEstimate ? 'Ước tính (Chờ chốt kỳ)' : 'Đã xác nhận thanh toán'}
+              <Text style={[styles.infoValue, { fontWeight: '700', color: getPayrollStatusInfo(item.periodStatus, item.isEstimate).color }]}>
+                {getPayrollStatusInfo(item.periodStatus, item.isEstimate).text}
               </Text>
             </View>
           </View>

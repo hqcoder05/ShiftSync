@@ -33,3 +33,22 @@ export const formatDateDMY = (dateStr) => {
   }
   return dateStr;
 };
+
+export const getPayrollStatusInfo = (status, isEstimate = false) => {
+  if (isEstimate) {
+    return { text: 'Ước tính (Kỳ đang mở)', color: '#D97706' };
+  }
+  const s = String(status || '').toUpperCase();
+  switch (s) {
+    case 'PAID':
+      return { text: 'Đã thanh toán', color: '#166534' };
+    case 'CONFIRMED':
+      return { text: 'Đã chốt (Chờ thanh toán)', color: '#2563EB' };
+    case 'DRAFT':
+      return { text: 'Bản nháp (Đang tính toán)', color: '#D97706' };
+    case 'OPEN':
+      return { text: 'Ước tính (Kỳ đang mở)', color: '#D97706' };
+    default:
+      return { text: 'Đã xác nhận thanh toán', color: '#166534' };
+  }
+};
