@@ -293,10 +293,18 @@ export default function ScheduleScreen({ navigation }) {
   const [absentReason, setAbsentReason] = useState('');
 
   // ── Form inputs for Leave ──
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const dayAfter = new Date(today);
+  dayAfter.setDate(today.getDate() + 2);
+  const fmtD = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+
+  const [activeStoreId, setActiveStoreId] = useState(null);
   const [leaveReason, setLeaveReason] = useState('');
   const [isAllDay, setIsAllDay] = useState(true);
-  const [startDate, setStartDate] = useState('30-10-2026');
-  const [endDate, setEndDate] = useState('05-11-2026');
+  const [startDate, setStartDate] = useState(fmtD(tomorrow));
+  const [endDate, setEndDate] = useState(fmtD(dayAfter));
 
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
@@ -304,14 +312,11 @@ export default function ScheduleScreen({ navigation }) {
 
   const weekDays = getWeekDates(weekOffset);
   const startDay = weekDays[0];
-  const endDay = weekDays[6];
   const monthTitle = startDay.dateObj.getMonth() === endDay.dateObj.getMonth()
     ? `${MONTH_NAMES[startDay.dateObj.getMonth()]}, ${startDay.dateObj.getFullYear()}`
     : `${MONTH_NAMES[startDay.dateObj.getMonth()]} - ${MONTH_NAMES[endDay.dateObj.getMonth()]}, ${endDay.dateObj.getFullYear()}`;
   const weekSubtitle = `${startDay.dateStr}/${startDay.monthStr} - ${endDay.dateStr}/${endDay.monthStr}` +
     (weekOffset === 0 ? ' (Tuần này)' : weekOffset === 1 ? ' (Tuần tới)' : weekOffset === -1 ? ' (Tuần trước)' : weekOffset > 0 ? ` (+${weekOffset} tuần)` : ` (${weekOffset} tuần)`);
-
-  const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   useEffect(() => {
@@ -350,6 +355,7 @@ export default function ScheduleScreen({ navigation }) {
           const { data: stores } = await getMyStores(user.id);
           const activeStore = stores?.find((s) => s.status === 'ACTIVE') || stores?.[0];
           activeStoreId = activeStore?.storeId || activeStore?.id;
+          setActiveStoreId(activeStoreId);
           if (activeStoreId) {
             const skillRes = await getSkillsByStore(activeStoreId).catch(() => null);
             if (skillRes?.data) {
@@ -579,20 +585,27 @@ export default function ScheduleScreen({ navigation }) {
       showToast('Lưu ý', 'Vui lòng nhập lý do xin nghỉ phép', 'warning');
       return;
     }
+
+    if (!activeStoreId) {
+      showToast('Lỗi', 'Không tìm thấy thông tin cửa hàng của bạn', 'error');
+      return;
+    }
+
     try {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        requesterName: currentUserProfile?.fullName || 'Nhân viên',
+        leaveType: 'ANNUAL',
         startDate,
         endDate,
         reason: leaveReason.trim(),
-      });
+      }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
     } catch (e) {
-      showToast('Thất bại', 'Không thể gửi yêu cầu xin nghỉ', 'error');
+      const errMsg = e.response?.data?.message || e.message || 'Không thể gửi yêu cầu xin nghỉ';
+      showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
     }

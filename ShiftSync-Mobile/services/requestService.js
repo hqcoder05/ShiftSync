@@ -1,74 +1,110 @@
 import api from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createLeaveRequest, getMyLeaveRequests } from './leaveService';
 
-const STORAGE_KEY = 'shiftsync_mobile_requests';
+export const toIsoDate = (dateStr) => {
+  if (!dateStr) return new Date().toISOString().slice(0, 10);
+  const trimmed = String(dateStr).trim();
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(trimmed)) {
+    const parts = trimmed.split(/[-/]/);
+    const day = parts[0].padStart(2, '0');
+    const month = parts[1].padStart(2, '0');
+    const year = parts[2];
+    return `${year}-${month}-${day}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed;
+};
 
-// Lấy danh sách yêu cầu thực tế từ Backend API (/requests)
-export const getMyRequests = async () => {
+// Lấy danh sách yêu cầu thực tế từ Backend (Leave requests, Swaps, Adjustments)
+export const getMyRequests = async (storeId) => {
+  const allRequests = [];
+
+  // 1. Fetch Real Leave Requests
+  if (storeId) {
+    try {
+      const leaveRes = await getMyLeaveRequests(storeId);
+      const leaveList = Array.isArray(leaveRes.data)
+        ? leaveRes.data
+        : (leaveRes.data?.content || []);
+      
+      leaveList.forEach((l) => {
+        allRequests.push({
+          id: l.id,
+          rawId: l.id,
+          type: 'LEAVE',
+          typeLabel: l.leaveType === 'SICK' ? 'Nghỉ ốm' : (l.leaveType === 'EMERGENCY' ? 'Nghỉ khẩn cấp' : 'Xin nghỉ phép'),
+          status: l.status,
+          statusLabel: l.status === 'APPROVED' ? 'Đã duyệt' : (l.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'),
+          startDate: l.startDate,
+          endDate: l.endDate,
+          date: l.startDate && l.endDate ? `${l.startDate} → ${l.endDate}` : (l.startDate || ''),
+          reason: l.reason || '',
+          rejectionReason: l.rejectionReason,
+          description: l.status === 'APPROVED'
+            ? 'Đơn xin nghỉ đã được Quản lý phê duyệt.'
+            : (l.status === 'REJECTED'
+              ? `Đơn đã bị từ chối: ${l.rejectionReason || 'Không có lý do'}`
+              : 'Đơn của bạn đang chờ Quản lý xem xét và phê duyệt.'),
+          createdAt: l.createdAt,
+        });
+      });
+    } catch (err) {
+      console.log('Error fetching leave requests from backend:', err.message);
+    }
+  }
+
+  // 2. Fetch Generic Staff Requests (if any)
   try {
     const res = await api.get('/requests');
     if (res.data && Array.isArray(res.data)) {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(res.data));
-      return res.data;
+      res.data.forEach((r) => {
+        allRequests.push({
+          id: r.id,
+          rawId: r.id,
+          type: r.type || 'OTHER',
+          typeLabel: r.type === 'SWAP' ? 'Hỗ trợ đổi ca' : (r.type === 'ABSENT' ? 'Yêu cầu xin vắng' : 'Yêu cầu khác'),
+          status: r.status || 'PENDING',
+          statusLabel: r.status === 'APPROVED' ? 'Đã duyệt' : (r.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'),
+          date: r.date || r.startDate || '',
+          startDate: r.startDate,
+          endDate: r.endDate,
+          requesterName: r.requesterName || 'Nhân viên',
+          targetStaffName: r.targetStaffName || '',
+          shiftInfo: r.shiftInfo || '',
+          description: r.description || r.reason || '',
+          reason: r.reason || '',
+          createdAt: r.createdAt,
+        });
+      });
     }
   } catch (err) {
-    console.log('Mobile getMyRequests API offline, reading local cache:', err.message);
+    // ignore
   }
 
-  // Fallback reading cached requests
-  try {
-    const local = await AsyncStorage.getItem(STORAGE_KEY);
-    if (local) {
-      return JSON.parse(local);
-    }
-  } catch (e) {
-    console.log('Error reading cached requests:', e);
-  }
-
-  return [];
+  return allRequests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 };
 
 // Tạo yêu cầu mới (Xin nghỉ, Đổi ca, Xin vắng)
-export const createStaffRequest = async (requestData) => {
-  try {
-    const res = await api.post('/requests', requestData);
-    if (res.data) {
-      await saveRequestToLocal(res.data);
-      return res.data;
+export const createStaffRequest = async (requestData, storeId) => {
+  // If request is a Leave Request, route directly to real Leave Request backend API
+  if (requestData.type === 'LEAVE') {
+    if (!storeId) {
+      throw new Error('Không tìm thấy thông tin cửa hàng để gửi đơn xin nghỉ');
     }
-  } catch (err) {
-    console.log('Mobile createStaffRequest API offline, saving to local:', err.message);
+    const isoStart = toIsoDate(requestData.startDate);
+    const isoEnd = toIsoDate(requestData.endDate);
+    const res = await createLeaveRequest(storeId, {
+      leaveType: requestData.leaveType || 'ANNUAL',
+      startDate: isoStart,
+      endDate: isoEnd,
+      reason: requestData.reason || '',
+    });
+    return res.data;
   }
 
-  // Tạo local request object khi offline
-  const newReq = {
-    id: `req-${Date.now()}`,
-    type: requestData.type || 'LEAVE',
-    typeLabel: requestData.type === 'SWAP' ? 'Hỗ trợ đổi ca' : (requestData.type === 'ABSENT' ? 'Yêu cầu xin vắng' : 'Xin nghỉ'),
-    status: 'PENDING',
-    statusLabel: 'Chờ Duyệt',
-    date: new Date().toLocaleDateString('vi-VN').replace(/\//g, '-'),
-    startDate: requestData.startDate || new Date().toLocaleDateString('vi-VN').replace(/\//g, '-'),
-    endDate: requestData.endDate || new Date().toLocaleDateString('vi-VN').replace(/\//g, '-'),
-    requesterName: requestData.requesterName || 'Nhân viên',
-    targetStaffName: requestData.targetStaffName || '',
-    shiftInfo: requestData.shiftInfo || '',
-    description: 'Đơn của bạn đang chờ Quản lý xem xét và phê duyệt.',
-    reason: requestData.reason || '',
-  };
-
-  await saveRequestToLocal(newReq);
-  return newReq;
+  // Fallback for other request types
+  const res = await api.post('/requests', requestData);
+  return res.data;
 };
-
-// Helper lưu vào AsyncStorage
-async function saveRequestToLocal(newReq) {
-  try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    const updated = [newReq, ...list.filter(item => item.id !== newReq.id)];
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.log('Error saving to AsyncStorage:', e);
-  }
-}

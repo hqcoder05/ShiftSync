@@ -81,10 +81,17 @@ export default function RequestScreen({ navigation, route }) {
   const [swapModalVisible, setSwapModalVisible] = useState(false);
   const [absentModalVisible, setAbsentModalVisible] = useState(false);
 
-  // ── Form States (Xin nghỉ - Image 1) ──
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const dayAfter = new Date(today);
+  dayAfter.setDate(today.getDate() + 2);
+  const fmtD = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+
+  const [activeStoreId, setActiveStoreId] = useState(null);
   const [isAllDay, setIsAllDay] = useState(true);
-  const [startDate, setStartDate] = useState('30-10-2026');
-  const [endDate, setEndDate] = useState('05-11-2026');
+  const [startDate, setStartDate] = useState(fmtD(tomorrow));
+  const [endDate, setEndDate] = useState(fmtD(dayAfter));
   const [leaveReason, setLeaveReason] = useState('');
 
   // ── Form States (Đổi ca - Image 3) ──
@@ -128,24 +135,34 @@ export default function RequestScreen({ navigation, route }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reqData, profileRes, shiftsRes] = await Promise.allSettled([
-        getMyRequests(),
+      let activeUserId = null;
+      let userFullName = '';
+      let storeId = null;
+
+      const [profileRes, shiftsRes] = await Promise.allSettled([
         getMyProfile(),
         getMyShifts(),
       ]);
 
-      if (reqData.status === 'fulfilled') {
-        setRequests(reqData.value || []);
-      }
-
-      let activeUserId = null;
-      let userFullName = '';
       if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
         userFullName = profileRes.value.data.fullName || 'Nhân viên';
         setCurrentUserName(userFullName);
         setCurrentUserAvatarId(profileRes.value.data.avatarId || null);
         activeUserId = profileRes.value.data.id;
+
+        try {
+          const storesRes = await getMyStores(activeUserId).catch(() => null);
+          const activeStore = storesRes?.data?.find((s) => s.status === 'ACTIVE') || storesRes?.data?.[0];
+          storeId = activeStore?.storeId || activeStore?.id || null;
+          setActiveStoreId(storeId);
+        } catch (e) {
+          // ignore
+        }
       }
+
+      // Load real requests from Backend (LeaveRequests, Swaps, Adjustments)
+      const reqList = await getMyRequests(storeId);
+      setRequests(reqList || []);
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
         const mapped = shiftsRes.value.data.map((s, idx) => {
@@ -171,33 +188,28 @@ export default function RequestScreen({ navigation, route }) {
       }
 
       // Fetch colleagues from store
-      if (activeUserId) {
+      if (storeId) {
         try {
-          const storesRes = await getMyStores(activeUserId).catch(() => null);
-          const activeStore = storesRes?.data?.find((s) => s.status === 'ACTIVE') || storesRes?.data?.[0];
-          const storeId = activeStore?.storeId || activeStore?.id;
-          if (storeId) {
-            const storeShiftsRes = await getShiftsForStore(storeId).catch(() => null);
-            if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
-              const colleaguesMap = new Map();
-              storeShiftsRes.data.forEach((s) => {
-                const staffName = s.assignedStaffName || s.staffName || '';
-                const role = s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
-                if (staffName && staffName !== 'Chưa phân công' && staffName !== userFullName) {
-                  if (!colleaguesMap.has(staffName)) {
-                    colleaguesMap.set(staffName, {
-                      name: staffName,
-                      role,
-                      avatarId: s.avatarId,
-                    });
-                  }
+          const storeShiftsRes = await getShiftsForStore(storeId).catch(() => null);
+          if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
+            const colleaguesMap = new Map();
+            storeShiftsRes.data.forEach((s) => {
+              const staffName = s.assignedStaffName || s.staffName || '';
+              const role = s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
+              if (staffName && staffName !== 'Chưa phân công' && staffName !== userFullName) {
+                if (!colleaguesMap.has(staffName)) {
+                  colleaguesMap.set(staffName, {
+                    name: staffName,
+                    role,
+                    avatarId: s.avatarId,
+                  });
                 }
-              });
-              const colleaguesList = Array.from(colleaguesMap.values());
-              setStoreColleagues(colleaguesList);
-              if (colleaguesList.length > 0) {
-                setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
               }
+            });
+            const colleaguesList = Array.from(colleaguesMap.values());
+            setStoreColleagues(colleaguesList);
+            if (colleaguesList.length > 0) {
+              setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
             }
           }
         } catch (e) {
@@ -228,21 +240,27 @@ export default function RequestScreen({ navigation, route }) {
       return;
     }
 
+    if (!activeStoreId) {
+      showToast('Lỗi', 'Không tìm thấy thông tin cửa hàng của bạn', 'error');
+      return;
+    }
+
     try {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        requesterName: currentUserName || 'Nhân viên',
+        leaveType: 'ANNUAL',
         startDate: startDate,
         endDate: endDate,
         reason: leaveReason.trim(),
-      });
+      }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
       loadRequests();
     } catch (err) {
-      showToast('Thất bại', 'Không thể gửi yêu cầu xin nghỉ', 'error');
+      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu xin nghỉ';
+      showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
     }
