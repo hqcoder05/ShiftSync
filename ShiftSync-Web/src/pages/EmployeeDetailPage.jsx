@@ -13,6 +13,21 @@ import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
+import {
+  User,
+  Mail,
+  Phone,
+  CreditCard,
+  Building2,
+  CheckCircle2,
+  MapPin,
+  Lock,
+  Eye,
+  EyeOff,
+  X,
+  ChevronDown,
+  UserCheck
+} from 'lucide-react';
 import './EmployeeDetailPage.css';
 
 const getEmployeeAvatarId = (emp) => {
@@ -1420,134 +1435,215 @@ export default function EmployeeDetailPage() {
           className="ed-modal-backdrop"
           id="modal-edit-profile"
           onClick={() => setShowEditModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ed-edit-modal-title"
         >
           <div
             className="ed-modal-box"
             onClick={e => e.stopPropagation()}
           >
+            {/* === Header === */}
             <div className="ed-modal-header">
-              <div className="ed-modal-header-left">
-                <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--emp-primary)' }}>manage_accounts</span>
-                <h3 className="ed-modal-title">Chỉnh sửa thông tin nhân sự</h3>
+              <div>
+                <div className="ed-modal-badge">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>manage_accounts</span>
+                  ShiftSync HR &bull; Hồ sơ nhân sự
+                </div>
+                <h3 id="ed-edit-modal-title" className="ed-modal-title">
+                  Chỉnh sửa thông tin nhân sự
+                </h3>
+                <p className="ed-modal-subtitle">
+                  Cập nhật thông tin định danh, liên hệ, chi nhánh và trạng thái công tác.
+                </p>
               </div>
               <button
                 type="button"
                 className="ed-modal-close-btn"
                 id="btn-close-modal"
                 onClick={() => setShowEditModal(false)}
+                aria-label="Đóng cửa sổ"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit}>
+            {/* === Form Body === */}
+            <form className="ed-modal-body-form" onSubmit={handleSaveEdit}>
+              {/* Row 1: Họ và tên */}
               <div className="ed-form-field">
-                <label>Họ và tên nhân viên</label>
-                <input
-                  type="text"
-                  required
-                  className="ed-form-input"
-                  value={editForm.fullName}
-                  onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
-                />
-              </div>
-
-              <div className="ed-form-row">
-                <div className="ed-form-field">
-                  <label>Số điện thoại</label>
+                <label htmlFor="ed-fullname">
+                  Họ và tên nhân viên <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>person</span>
+                  </div>
                   <input
-                    type="tel"
+                    id="ed-fullname"
+                    type="text"
+                    required
                     className="ed-form-input"
-                    placeholder="0912345678"
-                    value={editForm.phone}
-                    onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                    placeholder="VD: Nguyễn Văn A"
+                    value={editForm.fullName}
+                    onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
                   />
                 </div>
-                <div className="ed-form-field">
-                  <label>CCCD / Mã định danh</label>
+              </div>
+
+              {/* Row 2: Email */}
+              <div className="ed-form-field">
+                <label htmlFor="ed-email">
+                  Email liên hệ <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>mail</span>
+                  </div>
                   <input
+                    id="ed-email"
+                    type="email"
+                    required
+                    className="ed-form-input"
+                    placeholder="name@example.com"
+                    value={editForm.email || (employee?.email || '')}
+                    onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Số điện thoại | CCCD */}
+              <div className="ed-form-grid-2">
+                <div className="ed-form-field">
+                  <label htmlFor="ed-phone">Số điện thoại</label>
+                  <div className="ed-input-wrap">
+                    <div className="ed-input-icon">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>phone</span>
+                    </div>
+                    <input
+                      id="ed-phone"
+                      type="tel"
+                      className="ed-form-input"
+                      placeholder="VD: 0912345678"
+                      value={editForm.phone}
+                      onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="ed-form-field">
+                  <label htmlFor="ed-cccd">CCCD / Mã định danh</label>
+                  <div className="ed-input-wrap">
+                    <div className="ed-input-icon">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>badge</span>
+                    </div>
+                    <input
+                      id="ed-cccd"
+                      type="text"
+                      className="ed-form-input"
+                      placeholder="Số CCCD / CMND 12 chữ số"
+                      value={editForm.cccd}
+                      onChange={e => setEditForm({ ...editForm, cccd: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 4: Chi nhánh | Trạng thái */}
+              <div className="ed-form-grid-2">
+                <div className="ed-form-field">
+                  <label htmlFor="ed-store">Chi nhánh chính</label>
+                  <div className="ed-input-wrap">
+                    <div className="ed-input-icon">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>store</span>
+                    </div>
+                    <select
+                      id="ed-store"
+                      className="ed-form-select"
+                      value={editForm.storeId}
+                      onChange={e => setEditForm({ ...editForm, storeId: e.target.value })}
+                    >
+                      {stores.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name || s.storeName || 'Chi nhánh'}
+                        </option>
+                      ))}
+                      {stores.length === 0 && (
+                        <option value="">Flagship Quận 1 (TP.HCM)</option>
+                      )}
+                    </select>
+                    <div className="ed-select-arrow">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>expand_more</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ed-form-field">
+                  <label htmlFor="ed-status">Trạng thái công tác</label>
+                  <div className="ed-input-wrap">
+                    <div className="ed-input-icon">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>work</span>
+                    </div>
+                    <select
+                      id="ed-status"
+                      className="ed-form-select"
+                      value={editForm.status}
+                      onChange={e => setEditForm({ ...editForm, status: e.target.value })}
+                    >
+                      <option value="ACTIVE">Đang làm việc (Active)</option>
+                      <option value="LEAVE">Nghỉ phép tạm thời (Leave)</option>
+                      <option value="INACTIVE">Đã nghỉ việc (Inactive)</option>
+                    </select>
+                    <div className="ed-select-arrow">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>expand_more</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 5: Địa chỉ thường trú */}
+              <div className="ed-form-field">
+                <label htmlFor="ed-address">Địa chỉ thường trú</label>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>location_on</span>
+                  </div>
+                  <input
+                    id="ed-address"
                     type="text"
                     className="ed-form-input"
-                    value={editForm.cccd}
-                    onChange={e => setEditForm({ ...editForm, cccd: e.target.value })}
+                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành..."
+                    value={editForm.address}
+                    onChange={e => setEditForm({ ...editForm, address: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="ed-form-row">
-                <div className="ed-form-field">
-                  <label>Chi nhánh chính</label>
-                  <select
-                    className="ed-form-input"
-                    value={editForm.storeId}
-                    onChange={e => setEditForm({ ...editForm, storeId: e.target.value })}
-                  >
-                    {stores.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name || s.storeName || 'Chi nhánh'}
-                      </option>
-                    ))}
-                    {stores.length === 0 && (
-                      <option value="">Flagship Quận 1 (TP.HCM)</option>
-                    )}
-                  </select>
-                </div>
-                <div className="ed-form-field">
-                  <label>Trạng thái công tác</label>
-                  <select
-                    className="ed-form-input"
-                    value={editForm.status}
-                    onChange={e => setEditForm({ ...editForm, status: e.target.value })}
-                  >
-                    <option value="ACTIVE">Đang làm việc (Active)</option>
-                    <option value="LEAVE">Nghỉ phép tạm thời</option>
-                    <option value="INACTIVE">Đã nghỉ việc</option>
-                  </select>
-                </div>
-              </div>
-
+              {/* Row 6: Mật khẩu mới (Tùy chọn) */}
               <div className="ed-form-field">
-                <label>Địa chỉ thường trú</label>
-                <input
-                  type="text"
-                  className="ed-form-input"
-                  value={editForm.address}
-                  onChange={e => setEditForm({ ...editForm, address: e.target.value })}
-                />
-              </div>
-
-              {/* Mật khẩu mới trong modal chỉnh sửa */}
-              <div className="ed-form-field" style={{ marginTop: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>Mật khẩu mới (Tùy chọn)</label>
-                  <span style={{ fontSize: '11px', color: 'var(--emp-outline)' }}>Bỏ trống nếu giữ nguyên</span>
-                </div>
-                <div style={{ position: 'relative' }}>
+                <label htmlFor="ed-password">
+                  <span>Mật khẩu mới (Tùy chọn)</span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>
+                    Bỏ trống nếu giữ nguyên
+                  </span>
+                </label>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>lock</span>
+                  </div>
                   <input
+                    id="ed-password"
                     type={showEditPassword ? 'text' : 'password'}
                     className="ed-form-input"
-                    style={{ paddingRight: '40px' }}
                     placeholder="Tối thiểu 8 ký tự, gồm cả chữ cái và chữ số"
                     value={editForm.password}
                     onChange={e => setEditForm({ ...editForm, password: e.target.value })}
                   />
                   <button
                     type="button"
-                    style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--emp-outline)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
+                    className="ed-pwd-toggle"
                     onClick={() => setShowEditPassword(prev => !prev)}
-                    title={showEditPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-label={showEditPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                       {showEditPassword ? 'visibility_off' : 'visibility'}
@@ -1556,6 +1652,7 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
 
+              {/* Footer */}
               <div className="ed-modal-footer">
                 <button
                   type="button"
@@ -1570,7 +1667,14 @@ export default function EmployeeDetailPage() {
                   className="ed-btn-primary"
                   disabled={isSaving}
                 >
-                  {isSaving ? 'Đang cập nhật...' : 'Cập nhật hồ sơ'}
+                  {isSaving ? (
+                    <>
+                      <span className="ed-spinner" />
+                      <span>Đang cập nhật...</span>
+                    </>
+                  ) : (
+                    <span>Cập nhật hồ sơ</span>
+                  )}
                 </button>
               </div>
             </form>
