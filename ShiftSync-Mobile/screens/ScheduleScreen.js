@@ -37,8 +37,14 @@ export const getStaffAvatarSource = (staffName, avatarId) => {
   if (avatarId) {
     const thumb = getAvatarThumbnail(avatarId);
     if (thumb) return { uri: thumb };
+    if (avatarId === 'mew') return avatarMew;
+    if (avatarId === 'paul') return avatarPaul;
+    if (avatarId === 'thia') return avatarThia;
+    if (avatarId === 'dilan') return avatarDilan;
   }
-  const calculatedId = getAvatarForEmployee({ fullName: staffName });
+  const calculatedId = typeof getAvatarForEmployee === 'function'
+    ? getAvatarForEmployee({ fullName: staffName })
+    : 'dilan';
   const thumb = getAvatarThumbnail(calculatedId);
   if (thumb) return { uri: thumb };
   if (calculatedId === 'mew') return avatarMew;
@@ -356,18 +362,22 @@ export default function ScheduleScreen({ navigation }) {
       }
 
       const getShiftColor = (s, roleName) => {
-        if (s.color && s.color.startsWith('#')) return s.color;
-        if (s.skillColor && s.skillColor.startsWith('#')) return s.skillColor;
+        if (!s) return '#5BC8B8';
+        if (s.color && typeof s.color === 'string' && s.color.startsWith('#')) return s.color;
+        if (s.skillColor && typeof s.skillColor === 'string' && s.skillColor.startsWith('#')) return s.skillColor;
         const sSkillId = s.skillId || s.location;
-        const matched = storeSkills.find(
-          (sk) => (sSkillId && (sk.id === sSkillId || sk.name.toLowerCase() === String(sSkillId).toLowerCase())) ||
-                  (s.skillName && sk.name.toLowerCase() === s.skillName.toLowerCase()) ||
-                  (roleName && sk.name.toLowerCase() === roleName.toLowerCase())
+        const skillsList = Array.isArray(storeSkills) ? storeSkills : [];
+        const matched = skillsList.find(
+          (sk) => sk && (
+            (sSkillId && (sk.id === sSkillId || (sk.name && String(sk.name).toLowerCase() === String(sSkillId).toLowerCase()))) ||
+            (s.skillName && sk.name && String(sk.name).toLowerCase() === String(s.skillName).toLowerCase()) ||
+            (roleName && sk.name && String(sk.name).toLowerCase() === String(roleName).toLowerCase())
+          )
         );
-        if (matched && matched.description && matched.description.startsWith('#')) {
+        if (matched && matched.description && typeof matched.description === 'string' && matched.description.startsWith('#')) {
           return matched.description;
         }
-        return resolveRoleColor(matched ? matched.name : roleName);
+        return resolveRoleColor(matched?.name || roleName);
       };
 
       // 2. Fetch real my shifts from API

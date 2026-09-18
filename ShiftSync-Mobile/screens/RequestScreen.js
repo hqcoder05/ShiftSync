@@ -36,8 +36,14 @@ export const getStaffAvatarSource = (staffName, avatarId) => {
   if (avatarId) {
     const thumb = getAvatarThumbnail(avatarId);
     if (thumb) return { uri: thumb };
+    if (avatarId === 'mew') return avatarMew;
+    if (avatarId === 'paul') return avatarPaul;
+    if (avatarId === 'thia') return avatarThia;
+    if (avatarId === 'dilan') return avatarDilan;
   }
-  const calculatedId = getAvatarForEmployee({ fullName: staffName });
+  const calculatedId = typeof getAvatarForEmployee === 'function'
+    ? getAvatarForEmployee({ fullName: staffName })
+    : 'dilan';
   const thumb = getAvatarThumbnail(calculatedId);
   if (thumb) return { uri: thumb };
   if (calculatedId === 'mew') return avatarMew;

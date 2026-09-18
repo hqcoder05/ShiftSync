@@ -300,3 +300,26 @@ export function getAvatar3DProps(id) {
   }
   return AVATAR_OPTIONS[0].props;
 }
+
+export function getAvatarById(id) {
+  const found = AVATAR_OPTIONS.find(a => a.id === id);
+  if (found) return found;
+  if (id && typeof id === 'string') {
+    const lower = id.toLowerCase();
+    const matched = AVATAR_OPTIONS.find(a => lower.includes(a.id) || a.id.includes(lower));
+    if (matched) return matched;
+  }
+  return AVATAR_OPTIONS[0];
+}
+
+export function getAvatarForEmployee(emp) {
+  if (!emp) return 'dilan';
+  if (typeof emp === 'string') return emp;
+  if (emp.avatarId) return emp.avatarId;
+  const name = emp.fullName || emp.name || emp.email || '';
+  if (!name) return 'dilan';
+  const charCode = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const index = charCode % AVATAR_OPTIONS.length;
+  return AVATAR_OPTIONS[index].id;
+}
+
