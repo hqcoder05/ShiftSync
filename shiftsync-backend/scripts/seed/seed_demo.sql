@@ -117,3 +117,12 @@ INSERT INTO staff_skill (id, staff_id, skill_id, level) VALUES
 (gen_random_uuid(), 'd1111111-1111-1111-1111-111111111111', 'a2222222-0000-0000-0000-000000000002', 'EXPERT'),
 (gen_random_uuid(), 'd1111111-1111-1111-1111-111111111111', 'a2222222-0000-0000-0000-000000000003', 'ADVANCED')
 ON CONFLICT (staff_id, skill_id) DO NOTHING;
+
+-- 12. Insert Leave Balances (FR-Leave Balance & Entitlement)
+INSERT INTO leave_balance (id, staff_id, store_id, year, annual_entitlement, carry_over_days, used_days, pending_days, updated_at, version) VALUES
+(gen_random_uuid(), '55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 2026, 12, 0, 2, 0, NOW(), 0),
+(gen_random_uuid(), '66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 2026, 12, 0, 0, 0, NOW(), 0),
+(gen_random_uuid(), '44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 2026, 12, 0, 1, 0, NOW(), 0),
+(gen_random_uuid(), 'd1111111-1111-1111-1111-111111111111', '77777777-7777-7777-7777-777777777777', 2026, 12, 0, 0, 0, NOW(), 0)
+ON CONFLICT (staff_id, store_id, year) DO NOTHING;
+

@@ -40,6 +40,8 @@ public class LeaveRequestService {
     private final com.shiftsync.shift.repository.ShiftRepository shiftRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
+    private final LeaveBalanceService leaveBalanceService;
+
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
         User staff = userRepository.findById(staffId)
@@ -59,6 +61,17 @@ public class LeaveRequestService {
         List<LeaveRequest> overlapping = leaveRequestRepository.findOverlappingRequests(staffId, request.getStartDate(), request.getEndDate());
         if (!overlapping.isEmpty()) {
             throw new BusinessException("Leave request overlaps with an existing pending or approved request", HttpStatus.CONFLICT);
+        }
+
+        long requestedDays = java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) + 1;
+        if (request.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
+            com.shiftsync.leave.entity.LeaveBalance balance = leaveBalanceService.getOrCreateBalance(storeId, staffId, request.getStartDate().getYear());
+            if (balance.getRemainingDays() < requestedDays) {
+                throw new BusinessException(
+                        String.format("Số dư phép năm không đủ. Bạn chỉ còn %d ngày phép, nhưng yêu cầu xin nghỉ %d ngày.", balance.getRemainingDays(), requestedDays),
+                        HttpStatus.CONFLICT
+                );
+            }
         }
 
         LeaveRequest leaveRequest = LeaveRequest.builder()
@@ -107,8 +120,16 @@ public class LeaveRequestService {
             throw new BusinessException("You can only cancel your own leave requests", HttpStatus.FORBIDDEN);
         }
 
-        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
-            throw new BusinessException("Only pending leave requests can be cancelled", HttpStatus.BAD_REQUEST);
+        if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
+            int requestedDays = (int) java.time.temporal.ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
+            if (leaveRequest.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
+                leaveBalanceService.reverseAnnualLeave(storeId, leaveRequest.getStaff().getId(), leaveRequest.getStartDate().getYear(), requestedDays);
+            }
+            try {
+                blackoutDateRepository.deleteByLeaveRequestId(leaveId);
+            } catch (Exception ignored) {}
+        } else if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+            throw new BusinessException("Only pending or approved leave requests can be cancelled", HttpStatus.BAD_REQUEST);
         }
 
         leaveRequestRepository.delete(leaveRequest);
@@ -132,6 +153,12 @@ public class LeaveRequestService {
 
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
+
+        // Deduct annual leave balance atomically
+        int requestedDays = (int) java.time.temporal.ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
+        if (leaveRequest.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
+            leaveBalanceService.deductAnnualLeave(storeId, leaveRequest.getStaff().getId(), leaveRequest.getStartDate().getYear(), requestedDays);
+        }
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
         leaveRequest.setApprovedBy(manager);
@@ -317,6 +344,10 @@ public class LeaveRequestService {
     }
 
     private LeaveRequestDTO mapToDTO(LeaveRequest request) {
+        long requestedDays = (request.getStartDate() != null && request.getEndDate() != null)
+                ? java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) + 1
+                : 1;
+
         return LeaveRequestDTO.builder()
                 .id(request.getId())
                 .staffId(request.getStaff().getId())
@@ -326,6 +357,7 @@ public class LeaveRequestService {
                 .status(request.getStatus())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
+                .requestedDays(requestedDays)
                 .reason(request.getReason())
                 .rejectionReason(request.getRejectionReason())
                 .approvedBy(request.getApprovedBy() != null ? request.getApprovedBy().getId() : null)

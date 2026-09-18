@@ -22,6 +22,7 @@ public class LeaveRequestDTO {
     private LocalDate endDate;
     private String reason;
     private String rejectionReason;
+    private long requestedDays;
     private UUID approvedBy;
     private OffsetDateTime approvedAt;
     private OffsetDateTime createdAt;

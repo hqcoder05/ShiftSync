@@ -8,3 +8,12 @@ export const getMyLeaveRequests = (storeId) =>
 
 export const cancelLeaveRequest = (storeId, id) =>
   api.delete(`/stores/${storeId}/leave-requests/${id}`);
+
+export const getLeaveTypes = (storeId) =>
+  api.get(`/stores/${storeId}/leave-requests/types`);
+
+export const getMyLeaveBalance = (storeId, year) => {
+  const q = year ? `?year=${year}` : '';
+  return api.get(`/stores/${storeId}/leave-requests/balances/my${q}`);
+};
+

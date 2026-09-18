@@ -25,3 +25,17 @@ export const updateLeaveReason = (storeId, id, reason) =>
 
 export const getLeaveImpact = (storeId, id) =>
   api.get(`/stores/${storeId}/leave-requests/${id}/impact`);
+
+export const getLeaveTypes = (storeId) =>
+  api.get(`/stores/${storeId}/leave-requests/types`);
+
+export const getMyLeaveBalance = (storeId, year) => {
+  const q = year ? `?year=${year}` : '';
+  return api.get(`/stores/${storeId}/leave-requests/balances/my${q}`);
+};
+
+export const getStoreLeaveBalances = (storeId, year) => {
+  const q = year ? `?year=${year}` : '';
+  return api.get(`/stores/${storeId}/leave-requests/balances${q}`);
+};
+

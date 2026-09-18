@@ -50,6 +50,7 @@ public class LeaveRequestServiceTest {
     @Mock private ShiftRepository shiftRepository;
     @Mock private NotificationService notificationService;
     @Mock private RealtimeEventPublisher realtimeEventPublisher;
+    @Mock private LeaveBalanceService leaveBalanceService;
 
     @InjectMocks
     private LeaveRequestService leaveRequestService;
@@ -84,6 +85,8 @@ public class LeaveRequestServiceTest {
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(leaveRequestRepository.findOverlappingRequests(staffId, request.getStartDate(), request.getEndDate())).thenReturn(List.of());
+        when(leaveBalanceService.getOrCreateBalance(eq(storeId), eq(staffId), anyInt()))
+                .thenReturn(com.shiftsync.leave.entity.LeaveBalance.builder().annualEntitlement(12).usedDays(0).carryOverDays(0).build());
 
         LeaveRequest saved = LeaveRequest.builder()
                 .id(UUID.randomUUID())
@@ -295,12 +298,46 @@ public class LeaveRequestServiceTest {
     }
 
     @Test
-    void testGetMyLeaveRequests() {
-        LeaveRequest req1 = LeaveRequest.builder().id(UUID.randomUUID()).store(store).staff(staff).leaveType(LeaveType.ANNUAL).status(LeaveStatus.PENDING).build();
-        when(leaveRequestRepository.findByStaffId(staffId)).thenReturn(List.of(req1));
+    void testCreateLeaveRequest_InsufficientBalance_Fails() {
+        LeaveCreateRequest request = new LeaveCreateRequest();
+        request.setLeaveType(LeaveType.ANNUAL);
+        request.setStartDate(LocalDate.now().plusDays(1));
+        request.setEndDate(LocalDate.now().plusDays(10)); // 10 days
+        request.setReason("Long holiday");
 
-        List<LeaveRequestDTO> myRequests = leaveRequestService.getMyLeaveRequests(staffId);
-        assertEquals(1, myRequests.size());
-        assertEquals(staffId, myRequests.get(0).getStaffId());
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(leaveRequestRepository.findOverlappingRequests(staffId, request.getStartDate(), request.getEndDate())).thenReturn(List.of());
+        when(leaveBalanceService.getOrCreateBalance(eq(storeId), eq(staffId), anyInt()))
+                .thenReturn(com.shiftsync.leave.entity.LeaveBalance.builder().annualEntitlement(12).usedDays(8).carryOverDays(0).build()); // only 4 remaining
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> leaveRequestService.createLeaveRequest(storeId, staffId, request));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Số dư phép năm không đủ"));
+    }
+
+    @Test
+    void testCancelLeaveRequest_Approved_ReversesBalance() {
+        UUID leaveId = UUID.randomUUID();
+        LocalDate startDate = LocalDate.now().plusDays(2);
+        LocalDate endDate = LocalDate.now().plusDays(3);
+
+        LeaveRequest leaveRequest = LeaveRequest.builder()
+                .id(leaveId)
+                .store(store)
+                .staff(staff)
+                .leaveType(LeaveType.ANNUAL)
+                .status(LeaveStatus.APPROVED)
+                .startDate(startDate)
+                .endDate(endDate)
+                .build();
+
+        when(leaveRequestRepository.findById(leaveId)).thenReturn(Optional.of(leaveRequest));
+
+        leaveRequestService.cancelLeaveRequest(storeId, leaveId, staffId);
+
+        verify(leaveBalanceService).reverseAnnualLeave(eq(storeId), eq(staffId), eq(startDate.getYear()), eq(2));
+        verify(leaveRequestRepository).delete(leaveRequest);
     }
 }

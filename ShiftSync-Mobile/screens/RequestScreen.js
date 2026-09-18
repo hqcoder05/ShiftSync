@@ -13,7 +13,8 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { getMyRequests, createStaffRequest } from '../services/requestService';
+import { getMyRequests, createStaffRequest, toIsoDate } from '../services/requestService';
+import { getLeaveTypes, getMyLeaveBalance } from '../services/leaveService';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
@@ -70,6 +71,16 @@ export default function RequestScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
+  // ── Leave Types & Leave Balance (Backend Source of Truth) ──
+  const [leaveTypes, setLeaveTypes] = useState([
+    { code: 'ANNUAL', name: 'Phép năm', deductsAnnualBalance: true },
+    { code: 'SICK', name: 'Nghỉ ốm', deductsAnnualBalance: false },
+    { code: 'EMERGENCY', name: 'Khẩn cấp', deductsAnnualBalance: false },
+    { code: 'UNPAID', name: 'Không lương', deductsAnnualBalance: false },
+  ]);
+  const [selectedLeaveType, setSelectedLeaveType] = useState('ANNUAL');
+  const [leaveBalance, setLeaveBalance] = useState(null);
+
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -106,7 +117,11 @@ export default function RequestScreen({ navigation, route }) {
 
   useEffect(() => {
     loadData();
-  }, []);
+    const unsub = navigation?.addListener?.('focus', () => {
+      loadData();
+    });
+    return unsub;
+  }, [navigation]);
 
   useEffect(() => {
     // Check if opened with an action from ScheduleScreen
@@ -130,6 +145,21 @@ export default function RequestScreen({ navigation, route }) {
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  const calcLeaveDuration = (startStr, endStr) => {
+    try {
+      const isoS = toIsoDate(startStr);
+      const isoE = toIsoDate(endStr);
+      const d1 = new Date(isoS);
+      const d2 = new Date(isoE);
+      if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 1;
+      const diffTime = d2.getTime() - d1.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 3600 * 24)) + 1;
+      return diffDays > 0 ? diffDays : 1;
+    } catch (e) {
+      return 1;
+    }
   };
 
   const loadData = async () => {
@@ -163,6 +193,24 @@ export default function RequestScreen({ navigation, route }) {
       // Load real requests from Backend (LeaveRequests, Swaps, Adjustments)
       const reqList = await getMyRequests(storeId);
       setRequests(reqList || []);
+
+      // Load leave types and user balance
+      if (storeId) {
+        try {
+          const [typesRes, balRes] = await Promise.allSettled([
+            getLeaveTypes(storeId),
+            getMyLeaveBalance(storeId),
+          ]);
+          if (typesRes.status === 'fulfilled' && typesRes.value?.data) {
+            setLeaveTypes(typesRes.value.data);
+          }
+          if (balRes.status === 'fulfilled' && balRes.value?.data) {
+            setLeaveBalance(balRes.value.data);
+          }
+        } catch (err) {
+          console.log('Error fetching leave balance/types:', err.message);
+        }
+      }
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
         const mapped = shiftsRes.value.data.map((s, idx) => {
@@ -245,11 +293,20 @@ export default function RequestScreen({ navigation, route }) {
       return;
     }
 
+    const duration = calcLeaveDuration(startDate, endDate);
+    const currentType = leaveTypes.find(t => t.code === selectedLeaveType);
+    if (currentType?.deductsAnnualBalance && leaveBalance) {
+      if (duration > leaveBalance.remainingDays) {
+        showToast('Không đủ ngày phép', `Bạn chỉ còn ${leaveBalance.remainingDays} ngày phép năm (cần ${duration} ngày). Hãy rút ngắn hoặc chọn loại nghỉ khác.`, 'warning');
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
-        leaveType: 'ANNUAL',
+        leaveType: selectedLeaveType,
         startDate: startDate,
         endDate: endDate,
         reason: leaveReason.trim(),
@@ -425,6 +482,44 @@ export default function RequestScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
+        {/* ── 🌟 Quỹ phép năm (Leave Balance Card) ── */}
+        {leaveBalance && (
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceHeaderRow}>
+              <View style={styles.balanceTitleWrap}>
+                <Text style={styles.balanceCardTitle}>Quỹ phép năm ({leaveBalance.year})</Text>
+                <Text style={styles.balanceCardSub}>Hợp đồng: {leaveBalance.annualEntitlement} ngày/năm</Text>
+              </View>
+              <View style={styles.balanceRemainingPill}>
+                <Text style={styles.balanceRemainingNumber}>{leaveBalance.remainingDays}</Text>
+                <Text style={styles.balanceRemainingLabel}>còn lại</Text>
+              </View>
+            </View>
+
+            <View style={styles.balanceMetricsRow}>
+              <View style={styles.balanceMetricItem}>
+                <Text style={styles.balanceMetricValue}>{leaveBalance.totalEntitlement}</Text>
+                <Text style={styles.balanceMetricLabel}>Tổng cấp</Text>
+              </View>
+              <View style={styles.balanceMetricDivider} />
+              <View style={styles.balanceMetricItem}>
+                <Text style={[styles.balanceMetricValue, { color: '#2563EB' }]}>{leaveBalance.usedDays}</Text>
+                <Text style={styles.balanceMetricLabel}>Đã dùng</Text>
+              </View>
+              <View style={styles.balanceMetricDivider} />
+              <View style={styles.balanceMetricItem}>
+                <Text style={[styles.balanceMetricValue, { color: '#D97706' }]}>{leaveBalance.pendingDays}</Text>
+                <Text style={styles.balanceMetricLabel}>Đang chờ</Text>
+              </View>
+              <View style={styles.balanceMetricDivider} />
+              <View style={styles.balanceMetricItem}>
+                <Text style={[styles.balanceMetricValue, { color: '#16A34A' }]}>{leaveBalance.remainingDays}</Text>
+                <Text style={styles.balanceMetricLabel}>Khả dụng</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* ── 3. 3 Action Buttons: Hỗ trợ đổi ca / Vắng mặt / Xin nghỉ phép ── */}
         <View style={styles.actionSectionContainer}>
           <View style={styles.actionButtonsRow}>
@@ -507,7 +602,14 @@ export default function RequestScreen({ navigation, route }) {
                     activeOpacity={0.85}
                   >
                     <View style={styles.requestItemTopRow}>
-                      <Text style={styles.requestItemTitle}>{typeTitle}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.requestItemTitle}>{typeTitle}</Text>
+                        {item.requestedDays ? (
+                          <View style={styles.durationBadge}>
+                            <Text style={styles.durationBadgeText}>{item.requestedDays} ngày</Text>
+                          </View>
+                        ) : null}
+                      </View>
                       <Text style={styles.requestItemDate}>{item.date || item.startDate || ''}</Text>
                     </View>
 
@@ -537,6 +639,14 @@ export default function RequestScreen({ navigation, route }) {
                         </Text>
                       </View>
                     </View>
+
+                    {isRejected && item.rejectionReason ? (
+                      <View style={styles.rejectedReasonBox}>
+                        <Text style={styles.rejectedReasonText}>
+                          ⚠️ Lý do từ chối: {item.rejectionReason}
+                        </Text>
+                      </View>
+                    ) : null}
                   </TouchableOpacity>
                 );
               })
@@ -566,9 +676,24 @@ export default function RequestScreen({ navigation, route }) {
 
             <View style={styles.headerDivider} />
 
-            <View style={styles.formRow}>
-              <Text style={styles.formLabel}>Phân loại yêu cầu</Text>
-              <Text style={styles.formValue}>Xin nghỉ</Text>
+            {/* Loại nghỉ phép */}
+            <Text style={styles.sectionHeader}>Loại nghỉ phép</Text>
+            <View style={styles.leaveTypeRow}>
+              {leaveTypes.map((t) => {
+                const isSel = selectedLeaveType === t.code;
+                return (
+                  <TouchableOpacity
+                    key={t.code}
+                    style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                    onPress={() => setSelectedLeaveType(t.code)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
+                      {t.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={styles.sectionHeader}>Thời gian</Text>
@@ -601,6 +726,23 @@ export default function RequestScreen({ navigation, route }) {
                 onChangeText={setEndDate}
                 placeholder="DD-MM-YYYY"
               />
+            </View>
+
+            {/* Duration and balance feedback */}
+            <View style={styles.leaveDurationNotice}>
+              <Text style={styles.leaveDurationNoticeText}>
+                ⏱ Số ngày xin nghỉ: <Text style={{ fontWeight: '800', color: '#15803D' }}>{calcLeaveDuration(startDate, endDate)} ngày</Text>
+              </Text>
+              {selectedLeaveType === 'ANNUAL' && leaveBalance && (
+                <Text style={styles.leaveBalanceNoticeSub}>
+                  Quỹ phép năm còn: <Text style={{ fontWeight: '700' }}>{leaveBalance.remainingDays} ngày</Text>
+                  {calcLeaveDuration(startDate, endDate) <= leaveBalance.remainingDays ? (
+                    <Text style={{ color: '#16A34A' }}> (Hợp lệ)</Text>
+                  ) : (
+                    <Text style={{ color: '#DC2626' }}> (Vượt quá số ngày còn lại!)</Text>
+                  )}
+                </Text>
+              )}
             </View>
 
             <Text style={styles.sectionHeader}>Lý do:</Text>
@@ -899,6 +1041,20 @@ export default function RequestScreen({ navigation, route }) {
             </View>
 
             <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Loại yêu cầu:</Text>
+              <Text style={styles.detailValue}>{selectedRequest?.typeLabel || 'Xin nghỉ'}</Text>
+            </View>
+
+            {selectedRequest?.requestedDays ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Số ngày nghỉ:</Text>
+                <Text style={[styles.detailValue, { color: '#15803D', fontWeight: '800' }]}>
+                  {selectedRequest.requestedDays} ngày
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Ngày bắt đầu:</Text>
               <Text style={styles.detailValue}>{selectedRequest?.startDate || selectedRequest?.date}</Text>
             </View>
@@ -910,8 +1066,15 @@ export default function RequestScreen({ navigation, route }) {
 
             <Text style={styles.detailSectionHeading}>Lý do:</Text>
             <View style={styles.detailReasonBox}>
-              <Text style={styles.detailReasonText}>{selectedRequest?.description}</Text>
+              <Text style={styles.detailReasonText}>{selectedRequest?.reason || selectedRequest?.description || 'Không có lý do'}</Text>
             </View>
+
+            {selectedRequest?.status === 'REJECTED' && selectedRequest?.rejectionReason ? (
+              <View style={styles.detailRejectionBox}>
+                <Text style={styles.detailRejectionTitle}>Lý do từ chối:</Text>
+                <Text style={styles.detailRejectionText}>{selectedRequest.rejectionReason}</Text>
+              </View>
+            ) : null}
 
             <View style={[
               styles.detailStatusBadge,
@@ -1679,5 +1842,182 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13.5,
     color: '#888888',
+  },
+
+  // ── Leave Balance Card ──
+  balanceCard: {
+    backgroundColor: '#F0FDF4',
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    shadowColor: '#22c55e',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  balanceHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  balanceTitleWrap: {
+    flex: 1,
+  },
+  balanceCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  balanceCardSub: {
+    fontSize: 12,
+    color: '#4B5563',
+    marginTop: 2,
+  },
+  balanceRemainingPill: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  balanceRemainingNumber: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15803D',
+  },
+  balanceRemainingLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#166534',
+    marginTop: -2,
+  },
+  balanceMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  balanceMetricItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  balanceMetricValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  balanceMetricLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  balanceMetricDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: '#E2E8F0',
+  },
+
+  // ── Leave Type Selector Pills ──
+  leaveTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  leaveTypePill: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  leaveTypePillActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
+  },
+  leaveTypePillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  leaveTypePillTextActive: {
+    color: '#15803D',
+    fontWeight: '700',
+  },
+
+  // ── Duration Notice ──
+  leaveDurationNotice: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 10,
+  },
+  leaveDurationNoticeText: {
+    fontSize: 13.5,
+    color: '#334155',
+  },
+  leaveBalanceNoticeSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+  },
+
+  // ── Duration badge in list ──
+  durationBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  durationBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+
+  // ── Rejected reason boxes ──
+  rejectedReasonBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 6,
+    marginTop: 6,
+  },
+  rejectedReasonText: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '500',
+  },
+  detailRejectionBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+  },
+  detailRejectionTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  detailRejectionText: {
+    fontSize: 13,
+    color: '#B91C1C',
   },
 });

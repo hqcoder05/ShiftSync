@@ -22,6 +22,31 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LeaveRequestController {
     private final LeaveRequestService leaveRequestService;
+    private final com.shiftsync.leave.service.LeaveBalanceService leaveBalanceService;
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping({"/types", "/leave-types"})
+    public ResponseEntity<List<com.shiftsync.leave.dto.LeaveTypeDTO>> getLeaveTypes(
+            @PathVariable UUID storeId) {
+        return ResponseEntity.ok(leaveBalanceService.getLeaveTypes());
+    }
+
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')")
+    @GetMapping({"/balances/my", "/leave-balances/my"})
+    public ResponseEntity<com.shiftsync.leave.dto.LeaveBalanceDTO> getMyLeaveBalance(
+            @PathVariable UUID storeId,
+            @RequestParam(required = false) Integer year,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(leaveBalanceService.getMyBalance(storeId, userDetails.getId(), year));
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @GetMapping({"/balances", "/leave-balances"})
+    public ResponseEntity<List<com.shiftsync.leave.dto.LeaveBalanceDTO>> getStoreLeaveBalances(
+            @PathVariable UUID storeId,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(leaveBalanceService.getStoreBalances(storeId, year));
+    }
 
     @PreAuthorize("hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping

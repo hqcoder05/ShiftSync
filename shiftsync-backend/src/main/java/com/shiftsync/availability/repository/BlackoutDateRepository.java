@@ -15,4 +15,6 @@ public interface BlackoutDateRepository extends JpaRepository<BlackoutDate, UUID
     List<BlackoutDate> findByStaffIdInAndDateBetween(List<UUID> staffIds, LocalDate startDate, LocalDate endDate);
 
     boolean existsByStaffIdAndDate(UUID staffId, LocalDate date);
+
+    void deleteByLeaveRequestId(UUID leaveRequestId);
 }

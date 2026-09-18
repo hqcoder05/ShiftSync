@@ -30,11 +30,20 @@ export const getMyRequests = async (storeId) => {
         : (leaveRes.data?.content || []);
       
       leaveList.forEach((l) => {
+        let typeLabel = 'Xin nghỉ phép';
+        if (l.leaveType === 'SICK') typeLabel = 'Nghỉ ốm';
+        else if (l.leaveType === 'EMERGENCY') typeLabel = 'Nghỉ khẩn cấp';
+        else if (l.leaveType === 'UNPAID') typeLabel = 'Nghỉ không lương';
+        else if (l.leaveType === 'ANNUAL') typeLabel = 'Nghỉ phép năm';
+
         allRequests.push({
           id: l.id,
           rawId: l.id,
           type: 'LEAVE',
-          typeLabel: l.leaveType === 'SICK' ? 'Nghỉ ốm' : (l.leaveType === 'EMERGENCY' ? 'Nghỉ khẩn cấp' : 'Xin nghỉ phép'),
+          leaveType: l.leaveType,
+          requestedDays: l.requestedDays,
+          storeId: l.storeId,
+          typeLabel,
           status: l.status,
           statusLabel: l.status === 'APPROVED' ? 'Đã duyệt' : (l.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'),
           startDate: l.startDate,
@@ -43,10 +52,10 @@ export const getMyRequests = async (storeId) => {
           reason: l.reason || '',
           rejectionReason: l.rejectionReason,
           description: l.status === 'APPROVED'
-            ? 'Đơn xin nghỉ đã được Quản lý phê duyệt.'
+            ? `Đơn xin nghỉ (${l.requestedDays || 1} ngày) đã được Quản lý phê duyệt.`
             : (l.status === 'REJECTED'
-              ? `Đơn đã bị từ chối: ${l.rejectionReason || 'Không có lý do'}`
-              : 'Đơn của bạn đang chờ Quản lý xem xét và phê duyệt.'),
+              ? `Đơn đã bị từ chối: ${l.rejectionReason || 'Không có lý do cụ thể'}`
+              : `Đơn xin nghỉ (${l.requestedDays || 1} ngày) đang chờ Quản lý phê duyệt.`),
           createdAt: l.createdAt,
         });
       });

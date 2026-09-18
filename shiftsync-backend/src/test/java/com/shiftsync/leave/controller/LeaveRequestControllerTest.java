@@ -30,6 +30,9 @@ public class LeaveRequestControllerTest {
     @Mock
     private LeaveRequestService leaveRequestService;
 
+    @Mock
+    private com.shiftsync.leave.service.LeaveBalanceService leaveBalanceService;
+
     @InjectMocks
     private LeaveRequestController leaveRequestController;
 
@@ -159,5 +162,42 @@ public class LeaveRequestControllerTest {
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(leaveRequestService, times(1)).cancelLeaveRequest(storeId, leaveId, staffUser.getId());
+    }
+
+    @Test
+    public void testGetLeaveTypes() {
+        LeaveTypeDTO type = LeaveTypeDTO.builder().code(LeaveType.ANNUAL).name("Nghỉ phép năm").build();
+        when(leaveBalanceService.getLeaveTypes()).thenReturn(List.of(type));
+
+        ResponseEntity<List<LeaveTypeDTO>> response = leaveRequestController.getLeaveTypes(storeId);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("Nghỉ phép năm", response.getBody().get(0).getName());
+    }
+
+    @Test
+    public void testGetMyLeaveBalance() {
+        LeaveBalanceDTO balance = LeaveBalanceDTO.builder()
+                .staffId(staffUser.getId())
+                .annualEntitlement(12)
+                .usedDays(2)
+                .remainingDays(10)
+                .build();
+        when(leaveBalanceService.getMyBalance(storeId, staffUser.getId(), 2026)).thenReturn(balance);
+
+        ResponseEntity<LeaveBalanceDTO> response = leaveRequestController.getMyLeaveBalance(storeId, 2026, staffUser);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(10, response.getBody().getRemainingDays());
+    }
+
+    @Test
+    public void testGetStoreLeaveBalances() {
+        LeaveBalanceDTO balance = LeaveBalanceDTO.builder().storeId(storeId).annualEntitlement(12).build();
+        when(leaveBalanceService.getStoreBalances(storeId, 2026)).thenReturn(List.of(balance));
+
+        ResponseEntity<List<LeaveBalanceDTO>> response = leaveRequestController.getStoreLeaveBalances(storeId, 2026);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
     }
 }

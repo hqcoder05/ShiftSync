@@ -1513,7 +1513,7 @@ export default function AttendancePageLive() {
                   <tr>
                     <th>{isManager ? 'Nhân viên' : 'Người nộp'}</th>
                     <th>Loại nghỉ</th>
-                    <th>Thời gian nghỉ</th>
+                    <th>Thời gian & Số ngày</th>
                     <th>Lý do</th>
                     <th>Trạng thái</th>
                     <th style={{ textAlign: 'right' }}>Thao tác</th>
@@ -1540,14 +1540,17 @@ export default function AttendancePageLive() {
                               borderRadius: '6px',
                               fontSize: '12px',
                               fontWeight: 600,
-                              background: r.leaveType === 'SICK' ? '#fee2e2' : r.leaveType === 'EMERGENCY' ? '#fef3c7' : '#e0e7ff',
-                              color: r.leaveType === 'SICK' ? '#991b1b' : r.leaveType === 'EMERGENCY' ? '#92400e' : '#3730a3',
+                              background: r.leaveType === 'SICK' ? '#fee2e2' : r.leaveType === 'EMERGENCY' ? '#fef3c7' : r.leaveType === 'UNPAID' ? '#f1f5f9' : '#e0e7ff',
+                              color: r.leaveType === 'SICK' ? '#991b1b' : r.leaveType === 'EMERGENCY' ? '#92400e' : r.leaveType === 'UNPAID' ? '#475569' : '#3730a3',
                             }}>
-                              {r.leaveType === 'SICK' ? 'Nghỉ ốm' : r.leaveType === 'EMERGENCY' ? 'Khẩn cấp' : 'Phép năm'}
+                              {r.leaveType === 'SICK' ? 'Nghỉ ốm' : r.leaveType === 'EMERGENCY' ? 'Khẩn cấp' : r.leaveType === 'UNPAID' ? 'Không lương' : 'Phép năm'}
                             </span>
                           </td>
                           <td>
-                            {fmtShortDate(r.startDate)} → {fmtShortDate(r.endDate)}
+                            <div>{fmtShortDate(r.startDate)} → {fmtShortDate(r.endDate)}</div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
+                              {r.requestedDays ? `${r.requestedDays} ngày` : '1 ngày'}
+                            </div>
                           </td>
                           <td style={{ maxWidth: '280px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
