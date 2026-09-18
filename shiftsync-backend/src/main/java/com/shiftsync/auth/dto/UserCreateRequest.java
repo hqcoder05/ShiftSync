@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,4 +41,7 @@ public class UserCreateRequest {
     @NotNull(message = "System role is required")
     @Schema(description = "User system authorization role", example = "STAFF")
     private SystemRole systemRole;
+
+    @Schema(description = "Optional list of skill IDs to assign to staff member upon creation")
+    private List<UUID> skillIds;
 }

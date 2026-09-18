@@ -35,6 +35,13 @@ public class SkillService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<SkillDTO> getAllSkills() {
+        return skillRepository.findAll().stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public SkillDTO createSkill(UUID storeId, SkillRequest request) {
         Store store = storeRepository.findById(storeId)

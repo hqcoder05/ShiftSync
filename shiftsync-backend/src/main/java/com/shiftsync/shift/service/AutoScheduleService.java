@@ -115,6 +115,22 @@ public class AutoScheduleService {
              availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, storeRepository, headcountQuotaService, null, null);
     }
 
+    public AutoScheduleService(
+            ShiftRepository shiftRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            EmploymentRepository employmentRepository,
+            StaffSkillRepository staffSkillRepository,
+            AvailabilityRepository availabilityRepository,
+            BlackoutDateRepository blackoutDateRepository,
+            StoreConfigurationRepository storeConfigRepo,
+            SchedulerConfigurationRepository schedulerConfigRepo,
+            StoreRepository storeRepository,
+            HeadcountQuotaService headcountQuotaService,
+            SpatialAllocationService spatialAllocationService) {
+        this(shiftRepository, shiftAssignmentRepository, employmentRepository, staffSkillRepository,
+             availabilityRepository, blackoutDateRepository, storeConfigRepo, schedulerConfigRepo, storeRepository, headcountQuotaService, spatialAllocationService, null);
+    }
+
     // Overload for benchmark tests
     public AutoScheduleService(
             ShiftRepository shiftRepository,

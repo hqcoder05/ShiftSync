@@ -22,6 +22,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.shiftsync.skill.entity.StaffSkill;
+import com.shiftsync.skill.repository.SkillRepository;
+import com.shiftsync.skill.repository.StaffSkillRepository;
+import com.shiftsync.shared.security.CustomUserDetails;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -32,23 +37,56 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmploymentRepository employmentRepository;
+    private final SkillRepository skillRepository;
+    private final StaffSkillRepository staffSkillRepository;
 
     @Autowired
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService, @Autowired(required = false) EmploymentRepository employmentRepository) {
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            AuditLogService auditLogService,
+            @Autowired(required = false) EmploymentRepository employmentRepository,
+            @Autowired(required = false) SkillRepository skillRepository,
+            @Autowired(required = false) StaffSkillRepository staffSkillRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
         this.employmentRepository = employmentRepository;
+        this.skillRepository = skillRepository;
+        this.staffSkillRepository = staffSkillRepository;
     }
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService) {
-        this(userRepository, passwordEncoder, auditLogService, null);
+        this(userRepository, passwordEncoder, auditLogService, null, null, null);
     }
 
     @Transactional
     public UserDTO createUser(UserCreateRequest request) {
+        return createUser(request, null);
+    }
+
+    @Transactional
+    public UserDTO createUser(UserCreateRequest request, CustomUserDetails actorDetails) {
+        // Enforce RBAC rules per Section 19.1:
+        if (actorDetails != null && actorDetails.getUser() != null) {
+            SystemRole actorRole = actorDetails.getUser().getSystemRole();
+            if (actorRole == SystemRole.STAFF) {
+                throw new BusinessException("Nhân viên không có quyền tạo tài khoản", HttpStatus.FORBIDDEN);
+            }
+            if (request.getSystemRole() == SystemRole.ADMIN) {
+                throw new BusinessException("Không được phép tạo tài khoản Quản trị viên (ADMIN)", HttpStatus.FORBIDDEN);
+            }
+            if (actorRole == SystemRole.MANAGER && request.getSystemRole() != SystemRole.STAFF) {
+                throw new BusinessException("Quản lý chỉ có quyền tạo tài khoản Nhân viên (STAFF)", HttpStatus.FORBIDDEN);
+            }
+        } else {
+            if (request.getSystemRole() == SystemRole.ADMIN) {
+                throw new BusinessException("Không được phép tạo tài khoản Quản trị viên (ADMIN)", HttpStatus.FORBIDDEN);
+            }
+        }
+
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new BusinessException("User already exists with email: " + request.getEmail(), HttpStatus.CONFLICT);
+            throw new BusinessException("Email đã tồn tại trong hệ thống: " + request.getEmail(), HttpStatus.CONFLICT);
         }
 
         User user = User.builder()
@@ -60,6 +98,24 @@ public class UserService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        // Atomic Skill Assignment if role is STAFF and skillIds provided
+        if (request.getSystemRole() == SystemRole.STAFF && request.getSkillIds() != null && !request.getSkillIds().isEmpty()) {
+            if (skillRepository != null && staffSkillRepository != null) {
+                for (UUID skillId : request.getSkillIds()) {
+                    if (!skillRepository.existsById(skillId)) {
+                        throw new BusinessException("Kỹ năng không tồn tại trong hệ thống: " + skillId, HttpStatus.BAD_REQUEST);
+                    }
+                    StaffSkill staffSkill = StaffSkill.builder()
+                            .staffId(savedUser.getId())
+                            .skillId(skillId)
+                            .level("BEGINNER")
+                            .build();
+                    staffSkillRepository.save(staffSkill);
+                }
+            }
+        }
+
         return UserMapper.toDTO(savedUser);
     }
 

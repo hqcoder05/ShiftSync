@@ -30,6 +30,22 @@ public class ShiftAssignmentValidator {
     private final ShiftValidationService shiftValidationService;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
+    public ShiftAssignmentValidator(
+            AvailabilityRepository availabilityRepository,
+            BlackoutDateRepository blackoutDateRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            StaffSkillRepository staffSkillRepository,
+            SkillRepository skillRepository,
+            ShiftValidationService shiftValidationService) {
+        this.availabilityRepository = availabilityRepository;
+        this.blackoutDateRepository = blackoutDateRepository;
+        this.shiftAssignmentRepository = shiftAssignmentRepository;
+        this.staffSkillRepository = staffSkillRepository;
+        this.skillRepository = skillRepository;
+        this.shiftValidationService = shiftValidationService;
+        this.leaveRequestRepository = null;
+    }
+
     @Transactional(readOnly = true)
     public boolean isEligible(Shift shift, UUID staffId) {
         if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {

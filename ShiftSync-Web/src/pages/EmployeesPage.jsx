@@ -13,6 +13,7 @@ import avatarDilan from '../assets/avatars/avatar-dilan-jon.png';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
+import AddUserModal from '../components/AddUserModal';
 import townIllustration from '../assets/illustrations/town-illustration.png';
 import './EmployeesPage.css';
 
@@ -56,6 +57,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [activeTab, setActiveTab] = useState('hoso');
   const [savedUserId, setSavedUserId] = useState(null);
@@ -64,6 +66,10 @@ export default function EmployeesPage() {
     const myId = localStorage.getItem('userId');
     return (myId && localStorage.getItem(`user_profile_avatar_${myId}`)) || 'dilan';
   });
+
+  // RBAC: determine if current user is allowed to create new staff
+  const currentRole = (localStorage.getItem('userRole') || '').toUpperCase();
+  const canCreateUser = currentRole === 'ADMIN' || currentRole === 'MANAGER';
 
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'STAFF' });
   const [assignForm, setAssignForm] = useState({ storeId: '', employmentType: 'FULL_TIME', hourlyRate: '', joinedDate: '', skillId: '' });
@@ -363,7 +369,7 @@ export default function EmployeesPage() {
             <h1>Quản lý người dùng</h1>
             <p className="emp-subtitle">Danh sách tất cả tài khoản nhân viên, quản lý và phân quyền hệ thống</p>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button
               type="button"
               className="ss-btn ss-btn-outline"
@@ -371,16 +377,22 @@ export default function EmployeesPage() {
               style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
               title="Khám phá và chọn trong 17 Avatar 3D Digital Twin"
             >
-              
               <span>Bộ sưu tập Avatar 3D</span>
             </button>
-            <button type="button" className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated" onClick={openCreate}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span>Thêm nhân viên</span>
-            </button>
+            {canCreateUser && (
+              <button
+                type="button"
+                className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated"
+                onClick={() => setShowAddUserModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Thêm nhân viên</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -776,6 +788,17 @@ export default function EmployeesPage() {
           showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).label || newId}`);
         }}
         onClose={() => setShowAvatarModal(false)}
+      />
+
+      {/* Add User Modal — Enterprise RBAC-aware single-step modal */}
+      <AddUserModal
+        isOpen={showAddUserModal}
+        onClose={() => setShowAddUserModal(false)}
+        storeId={localStorage.getItem('selectedStoreId') || ''}
+        onSuccess={(newUser) => {
+          showToast(`Đã tạo nhân sự mới: ${newUser?.fullName || 'Nhân viên'}`);
+          fetchEmployees();
+        }}
       />
         </div>
       )}

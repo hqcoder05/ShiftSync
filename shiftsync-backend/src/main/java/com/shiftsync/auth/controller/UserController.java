@@ -48,8 +48,10 @@ public class UserController {
         @ApiResponse(responseCode = "400", description = "Invalid request payload or validation failed"),
         @ApiResponse(responseCode = "409", description = "Email already exists in the system")
     })
-    public ResponseEntity<UserDTO> createUser(@Valid @RequestBody UserCreateRequest request) {
-        UserDTO userDTO = userService.createUser(request);
+    public ResponseEntity<UserDTO> createUser(
+            @Valid @RequestBody UserCreateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UserDTO userDTO = userService.createUser(request, userDetails);
         return new ResponseEntity<>(userDTO, HttpStatus.CREATED);
     }
 

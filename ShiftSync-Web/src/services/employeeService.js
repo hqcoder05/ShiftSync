@@ -9,15 +9,19 @@ export const getEmployees = (page = 0, size = 20, search = '') => {
   return api.get(url);
 };
 
-// POST /api/users — payload phải khớp UserCreateRequest: fullName, email, password, phone, systemRole
+// POST /api/users — payload phải khớp UserCreateRequest: fullName, email, password, phone, systemRole, skillIds
 export const createEmployee = (data) => {
-  return api.post('/users', {
+  const payload = {
     fullName: data.fullName,
     email: data.email,
     password: data.password,
     phone: data.phone,
-    systemRole: data.systemRole, // đúng tên field backend yêu cầu (SystemRole enum: ADMIN/MANAGER/STAFF)
-  });
+    systemRole: data.systemRole || data.role, // đúng tên field backend yêu cầu (SystemRole enum: ADMIN/MANAGER/STAFF)
+  };
+  if (Array.isArray(data.skillIds) && data.skillIds.length > 0) {
+    payload.skillIds = data.skillIds;
+  }
+  return api.post('/users', payload);
 };
 
 // PUT /api/users/{id} — UserUpdateRequest KHÔNG có systemRole, chỉ nhận fullName/email/phone/password(optional)
