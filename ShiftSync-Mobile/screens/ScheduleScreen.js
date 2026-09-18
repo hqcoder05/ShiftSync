@@ -14,7 +14,6 @@ import {
   TextInput,
   Switch,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
 import { getMyProfile, getMyStores } from '../services/profileService';
@@ -706,8 +705,7 @@ export default function ScheduleScreen({ navigation }) {
                             <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
                             {shift.hasFlag && (
                               <View style={styles.shiftFlagBadge}>
-                                <Ionicons name="flag" size={10} color="#B45309" />
-                                <Text style={styles.shiftFlagText} numberOfLines={1}>Cảnh báo</Text>
+                                <Text style={styles.shiftFlagText} numberOfLines={1}>🚩 Cảnh báo</Text>
                               </View>
                             )}
                           </View>
@@ -791,10 +789,7 @@ export default function ScheduleScreen({ navigation }) {
             {/* Ghi chú quản lý nếu có cờ cảnh báo */}
             {activeSelectedShift?.hasFlag && (
               <View style={styles.popupManagerNoteBox}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                  <Ionicons name="alert-circle" size={13} color="#B45309" />
-                  <Text style={styles.popupManagerNoteTitle}>Ghi chú / Cảnh báo từ quản lý:</Text>
-                </View>
+                <Text style={styles.popupManagerNoteTitle}>🚩 Ghi chú / Cảnh báo từ quản lý:</Text>
                 <Text style={styles.popupManagerNoteText}>{activeSelectedShift.note}</Text>
               </View>
             )}
@@ -807,34 +802,22 @@ export default function ScheduleScreen({ navigation }) {
 
             {/* 3 Nút Hành Động Ngang */}
             <View style={styles.actionButtonsRow}>
-              {/* 1. Đổi ca */}
+              {/* 1. Hỗ trợ đổi ca */}
               <TouchableOpacity
                 style={styles.actionCardPill}
                 onPress={handleOpenSwapModal}
                 activeOpacity={0.8}
               >
-                <View style={[styles.actionCardIconWrap, { backgroundColor: '#E0F2FE' }]}>
-                  <Ionicons name="swap-horizontal" size={16} color="#0284C7" />
-                </View>
-                <View style={styles.actionCardTextWrap}>
-                  <Text style={styles.actionCardPillTitle}>Đổi ca</Text>
-                  <Text style={styles.actionCardPillSub}>Đổi với bạn</Text>
-                </View>
+                <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
               </TouchableOpacity>
 
-              {/* 2. Xin vắng ca */}
+              {/* 2. Vắng mặt */}
               <TouchableOpacity
                 style={styles.actionCardPill}
                 onPress={handleOpenAbsentModal}
                 activeOpacity={0.8}
               >
-                <View style={[styles.actionCardIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#D97706" />
-                </View>
-                <View style={styles.actionCardTextWrap}>
-                  <Text style={styles.actionCardPillTitle}>Xin vắng</Text>
-                  <Text style={styles.actionCardPillSub}>Vắng ca này</Text>
-                </View>
+                <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
               </TouchableOpacity>
 
               {/* 3. Xin nghỉ phép */}
@@ -843,13 +826,7 @@ export default function ScheduleScreen({ navigation }) {
                 onPress={handleOpenLeaveModal}
                 activeOpacity={0.8}
               >
-                <View style={[styles.actionCardIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                  <Ionicons name="calendar-outline" size={16} color="#7C3AED" />
-                </View>
-                <View style={styles.actionCardTextWrap}>
-                  <Text style={styles.actionCardPillTitle}>Nghỉ phép</Text>
-                  <Text style={styles.actionCardPillSub}>Nhiều ngày</Text>
-                </View>
+                <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1646,42 +1623,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
+    marginTop: 12,
   },
   actionCardPill: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 8,
-  },
-  actionCardIconWrap: {
-    width: 30,
-    height: 30,
+    backgroundColor: '#ECF9E8',
     borderRadius: 8,
-    backgroundColor: '#DCFCE7',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionCardIconEmoji: {
-    fontSize: 15,
-  },
-  actionCardTextWrap: {
-    flex: 1,
-  },
-  actionCardPillTitle: {
-    fontSize: 12.5,
+  actionCardPillText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#1F2937',
-  },
-  actionCardPillSub: {
-    fontSize: 10.5,
-    color: '#6B7280',
-    marginTop: 1,
+    color: '#273426',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 
   // ── Shift Selector in Modal ──

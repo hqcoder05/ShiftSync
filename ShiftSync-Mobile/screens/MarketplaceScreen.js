@@ -11,7 +11,6 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { getActiveShifts, claimShift } from '../services/marketplaceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getMyShifts } from '../services/shiftService';
