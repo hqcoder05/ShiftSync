@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
+import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
 import './LoginPage.css';
 
 const LogoIcon = ({ size = 36, color = '#16A34A' }) => (
@@ -51,7 +52,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mascotStatus, setMascotStatus] = useState('idle');
   const navigate = useNavigate();
+
+  const handleEmailFocus = () => {
+    setMascotStatus('email');
+  };
+
+  const handleBlur = () => {
+    setMascotStatus('idle');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -61,6 +71,8 @@ export default function LoginPage() {
     const errMsg = validateLoginForm(cleanEmail, password);
     if (errMsg) {
       setError(errMsg);
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
       return;
     }
 
@@ -74,9 +86,14 @@ export default function LoginPage() {
       if (res.email) localStorage.setItem('userEmail', res.email);
       localStorage.removeItem('selectedStoreId');
 
-      navigate('/');
+      setMascotStatus('success');
+      setTimeout(() => {
+        navigate('/');
+      }, 1000);
     } catch (err) {
       setError(err.response?.data?.message || 'Sai email hoặc mật khẩu. Vui lòng thử lại!');
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
     } finally {
       setLoading(false);
     }
@@ -86,6 +103,7 @@ export default function LoginPage() {
     setEmail(demoEmail);
     setPassword('password123');
     setError('');
+    setMascotStatus('idle');
   };
 
   return (
@@ -98,6 +116,16 @@ export default function LoginPage() {
           </div>
           <h1 className="login-brand-title">ShiftSync</h1>
           <p className="login-brand-subtitle">Nền tảng Quản lý Ca làm & Lập lịch Thông minh</p>
+        </div>
+
+        {/* 🌟 3D Mascot tương tác */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: -15, overflow: 'visible' }}>
+          <LoginMascot3DWeb
+            status={mascotStatus}
+            emailLength={email.length}
+            width={260}
+            height={160}
+          />
         </div>
 
         {/* Login Form Card */}
@@ -123,6 +151,8 @@ export default function LoginPage() {
                   placeholder="name@shiftsync.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onFocus={handleEmailFocus}
+                  onBlur={handleBlur}
                   disabled={loading}
                   className="login-input"
                   autoComplete="username"
@@ -148,6 +178,8 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setMascotStatus('password')}
+                  onBlur={handleBlur}
                   disabled={loading}
                   className="login-input login-input-password"
                   autoComplete="current-password"

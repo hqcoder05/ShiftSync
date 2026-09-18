@@ -301,19 +301,23 @@ export function getAvatar3DProps(id) {
 }
 
 export function getAvatarById(id) {
-  if (!id) return AVATAR_OPTIONS[0];
-  const found = AVATAR_OPTIONS.find(a => a.id.toLowerCase() === String(id).toLowerCase());
-  return found || AVATAR_OPTIONS[0];
-}
-
-export function getAvatarForEmployee(employee) {
-  if (!employee) return AVATAR_OPTIONS[0];
-  const name = (employee.fullName || employee.name || '').toLowerCase();
-  for (const opt of AVATAR_OPTIONS) {
-    if (name.includes(opt.id)) return opt;
+  const found = AVATAR_OPTIONS.find(a => a.id === id);
+  if (found) return found;
+  if (id && typeof id === 'string') {
+    const lower = id.toLowerCase();
+    const matched = AVATAR_OPTIONS.find(a => lower.includes(a.id) || a.id.includes(lower));
+    if (matched) return matched;
   }
   return AVATAR_OPTIONS[0];
 }
 
-export const AVATAR_ROSTER = AVATAR_OPTIONS;
+export function getAvatarForEmployee(emp) {
+  if (!emp) return 'dilan';
+  if (emp.avatarId) return emp.avatarId;
+  const name = emp.fullName || emp.name || emp.email || '';
+  if (!name) return 'dilan';
+  const charCode = name.charCodeAt(0) + (name.charCodeAt(name.length - 1) || 0);
+  const index = charCode % AVATAR_OPTIONS.length;
+  return AVATAR_OPTIONS[index].id;
+}
 

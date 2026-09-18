@@ -15,14 +15,18 @@ import {
 } from 'react-native';
 import { getMyRequests, createStaffRequest } from '../services/requestService';
 import { getMyShifts } from '../services/shiftService';
-import { getMyProfile } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
+import PaperPlane3D from '../components/PaperPlane3D';
 
-// ── Avatars ─────────────────────────────────────────────────────────────────
+// ── Avatars & Action Icons ──────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
 const avatarMew = require('../assets/avatar-mew-ama.png');
 const avatarPaul = require('../assets/avatar-paul-lee.png');
 const avatarThia = require('../assets/avatar-thia-ago.png');
+
+const iconKinh = require('../assets/icon-kinh.png');
+const iconLoa = require('../assets/icon-loa.png');
+const iconDua = require('../assets/icon-dua.png');
 
 const AVATAR_MAP = {
   'Dilan. Jon': avatarDilan,
@@ -287,7 +291,22 @@ export default function RequestScreen({ navigation, route }) {
           >
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quản lý yêu cầu</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Quản lý yêu cầu</Text>
+          </View>
+        </View>
+
+        {/* ── 🌟 Hero 3D Card: Máy bay giấy 3D tương tác ── */}
+        <View style={styles.hero3DCard}>
+          <View style={styles.hero3DInfo}>
+            <Text style={styles.hero3DTitle}>Trạm tiếp nhận yêu cầu</Text>
+            <Text style={styles.hero3DSubtitle}>
+              Gửi yêu cầu đổi ca, xin vắng mặt hoặc đăng ký nghỉ phép trực tiếp tới quản lý ca.
+            </Text>
+          </View>
+          <View style={styles.heroPlaneContainer}>
+            <PaperPlane3D width={140} height={110} interactive={true} />
+          </View>
         </View>
 
         <View style={styles.headerDivider} />
@@ -338,33 +357,38 @@ export default function RequestScreen({ navigation, route }) {
         </View>
 
         {/* ── 3. 3 Action Buttons: Hỗ trợ đổi ca / Vắng mặt / Xin nghỉ phép ── */}
-        <View style={styles.actionButtonsRow}>
-          {/* 1. Hỗ trợ đổi ca */}
-          <TouchableOpacity
-            style={styles.actionCardPill}
-            onPress={() => setSwapModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionCardPillText}>Hỗ trợ đổi ca</Text>
-          </TouchableOpacity>
+        <View style={styles.actionSectionContainer}>
+          <View style={styles.actionButtonsRow}>
+            {/* 1. Hỗ trợ đổi ca */}
+            <TouchableOpacity
+              style={styles.actionCardPill}
+              onPress={() => setSwapModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
+              <Image source={iconKinh} style={styles.actionCardPillIcon} resizeMode="contain" />
+            </TouchableOpacity>
 
-          {/* 2. Vắng mặt */}
-          <TouchableOpacity
-            style={styles.actionCardPill}
-            onPress={() => setAbsentModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionCardPillText}>Vắng mặt</Text>
-          </TouchableOpacity>
+            {/* 2. Vắng mặt */}
+            <TouchableOpacity
+              style={styles.actionCardPill}
+              onPress={() => setAbsentModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
+              <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
+            </TouchableOpacity>
 
-          {/* 3. Xin nghỉ phép */}
-          <TouchableOpacity
-            style={styles.actionCardPill}
-            onPress={() => setLeaveModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionCardPillText}>Xin nghỉ phép</Text>
-          </TouchableOpacity>
+            {/* 3. Xin nghỉ phép */}
+            <TouchableOpacity
+              style={styles.actionCardPill}
+              onPress={() => setLeaveModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
+              <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── 4. Danh sách Yêu cầu ── */}
@@ -925,32 +949,78 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: 40,
+    marginBottom: 12,
+    gap: 12,
   },
   closeBtn: {
-    position: 'absolute',
-    left: 0,
     width: 36,
     height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   closeBtnText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: '#334155',
+  },
+  headerTitleWrap: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#1E1E1E',
+    fontWeight: '800',
+    color: '#0F172A',
   },
+
+  // ── Hero 3D Card (Trạm tiếp nhận yêu cầu với máy bay 3D) ──
+  hero3DCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 18,
+    padding: 14,
+    paddingRight: 6,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(66, 133, 49, 0.25)',
+    borderTopColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#22c55e',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  hero3DInfo: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  hero3DTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  hero3DSubtitle: {
+    fontSize: 11.5,
+    color: '#4B5563',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  heroPlaneContainer: {
+    width: 145,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   headerDivider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 12,
+    height: 1.5,
+    backgroundColor: 'rgba(240, 236, 236, 0.8)',
+    marginVertical: 14,
   },
 
   // ── Top 3 Filter Cards ──
@@ -988,28 +1058,37 @@ const styles = StyleSheet.create({
   },
 
   // ── 3 Action Buttons (Tạo yêu cầu mới) ──
+  actionSectionContainer: {
+    marginTop: 6,
+    marginBottom: 12,
+  },
   actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
   },
   actionCardPill: {
     flex: 1,
     backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 6,
-    height: 52,
+    paddingHorizontal: 8,
+    height: 62,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(81, 163, 61, 0.2)',
   },
   actionCardPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#273426',
-    textAlign: 'center',
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#333333',
     lineHeight: 16,
+  },
+  actionCardPillIcon: {
+    width: 28,
+    height: 28,
   },
 
   // ── Danh sách yêu cầu ──

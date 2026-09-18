@@ -1,17 +1,17 @@
 import { useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 
 const ITEM_HEIGHT = 34;
 const VISIBLE_COUNT = 3;
 const CONTAINER_HEIGHT = ITEM_HEIGHT * VISIBLE_COUNT;
 
 function Column({ data, selectedValue, onChange }) {
-  const scrollRef = useRef(null);
+  const listRef = useRef(null);
   const selectedIndex = data.indexOf(selectedValue);
 
   useEffect(() => {
     setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: selectedIndex * ITEM_HEIGHT, animated: false });
+      listRef.current?.scrollToOffset({ offset: selectedIndex * ITEM_HEIGHT, animated: false });
     }, 0);
   }, []);
 
@@ -23,21 +23,23 @@ function Column({ data, selectedValue, onChange }) {
   };
 
   return (
-    <ScrollView
+    <FlatList
       nestedScrollEnabled
-      ref={scrollRef}
+      ref={listRef}
+      data={data}
+      keyExtractor={(item) => item}
       showsVerticalScrollIndicator={false}
       snapToInterval={ITEM_HEIGHT}
       decelerationRate="fast"
+      getItemLayout={(_, index) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index })}
       contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * Math.floor(VISIBLE_COUNT / 2) }}
       onMomentumScrollEnd={handleMomentumEnd}
-    >
-      {data.map((item) => (
-        <View key={item} style={styles.itemBox}>
+      renderItem={({ item }) => (
+        <View style={styles.itemBox}>
           <Text style={[styles.itemText, item === selectedValue && styles.itemTextActive]}>{item}</Text>
         </View>
-      ))}
-    </ScrollView>
+      )}
+    />
   );
 }
 

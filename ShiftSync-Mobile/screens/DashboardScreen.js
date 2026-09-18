@@ -21,11 +21,16 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import { getStoredAvatar, onAvatarChange } from '../services/avatarSync';
 import { formatVND, formatHourlyRate, formatDateDMY } from '../utils/currency';
 
+import dangKyIcon from '../assets/dangky.png';
+import luongIcon from '../assets/luong.png';
+import yeuCauIcon from '../assets/yeucau.png';
+import lichLamIcon from '../assets/lichlam.png';
+
 const actions = [
-  ['Đăng ký lịch làm', '#EAF8E6', 'Availability'],
-  ['Phiếu lương', '#FFF6DE', 'Payroll'],
-  ['Yêu cầu', '#E7F7FA', 'Request'],
-  ['Lịch làm', '#F7E8F0', 'Schedule'],
+  ['Đăng ký lịch làm', dangKyIcon, '#EAF8E6', 'Availability'],
+  ['Phiếu lương', luongIcon, '#FFF6DE', 'Payroll'],
+  ['Yêu cầu', yeuCauIcon, '#E7F7FA', 'Request'],
+  ['Lịch làm', lichLamIcon, '#F7E8F0', 'Schedule'],
 ];
 
 const nav = (navigation, destination) => {
@@ -339,12 +344,13 @@ export default function DashboardScreen({ navigation }) {
 
         {/* ═══ ACTION GRID ═══ */}
         <View style={s.actionGrid}>
-          {actions.map(([label, color, screen]) => (
+          {actions.map(([label, icon, color, screen]) => (
             <Pressable
               key={label}
               onPress={() => nav(navigation, screen)}
               style={[s.action, { backgroundColor: color }]}
             >
+              <Image source={icon} resizeMode="contain" style={s.actionIcon} />
               <Text style={s.actionText}>{label}</Text>
             </Pressable>
           ))}
@@ -496,11 +502,13 @@ const s = StyleSheet.create({
     width: '48%',
     height: 65,
     borderRadius: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
-  actionText: { fontSize: 14.5, color: '#3F4144', fontWeight: '600', textAlign: 'center' },
+  actionIcon: { width: 36, height: 36 },
+  actionText: { fontSize: 13.5, color: '#3F4144', fontWeight: '600', flexShrink: 1 },
   sectionHeader: {
     marginHorizontal: 25,
     marginTop: 19,

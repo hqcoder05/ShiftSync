@@ -1,10 +1,15 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { login } from '../services/authService';
 import { getBaseUrl } from '../services/api';
 import { validateLoginForm } from '../utils/validators';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+let LoginMascot3D = null;
+if (Platform.OS === 'web') {
+  try { LoginMascot3D = require('../components/LoginMascot3D.web').default; } catch (e) {}
+}
 
 // Logo giống hệt bên Web, vẽ bằng react-native-svg thay vì thẻ <svg> HTML
 function LogoIcon({ size = 32, color = '#4CAF50' }) {
@@ -26,13 +31,19 @@ export default function LoginScreen({ navigation }) {
   const [error, setError] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [mascotStatus, setMascotStatus] = useState('idle');
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
     const errMsg = validateLoginForm(trimmedEmail, trimmedPassword);
-    if (errMsg) { setError(errMsg); return; }
+    if (errMsg) {
+      setError(errMsg);
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
+      return;
+    }
 
     try {
       const res = await login(trimmedEmail, trimmedPassword);
@@ -43,9 +54,14 @@ export default function LoginScreen({ navigation }) {
         ['userRole', role || ''],
         ['userEmail', userEmail || ''],
       ]);
-      navigation.replace('MainTabs');
+      setMascotStatus('success');
+      setTimeout(() => {
+        navigation.replace('MainTabs');
+      }, 1000);
     } catch (err) {
       console.log('LOGIN ERROR:', err.message);
+      setMascotStatus('error');
+      setTimeout(() => setMascotStatus('idle'), 2200);
       const status = err.response?.status;
       if (status === 401) {
         setError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
@@ -61,6 +77,7 @@ export default function LoginScreen({ navigation }) {
     setEmail(demoEmail);
     setPassword(demoPassword);
     setError('');
+    setMascotStatus('idle');
   };
 
   return (
@@ -70,14 +87,25 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.logoText}>ShiftSync</Text>
       </View>
 
+      {LoginMascot3D && (
+        <View style={{ marginBottom: -10, overflow: 'visible', alignItems: 'center' }}>
+          <LoginMascot3D
+            status={mascotStatus}
+            emailLength={email.length}
+            width={280}
+            height={160}
+          />
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={[styles.input, emailFocused && styles.inputFocused]}
           value={email}
           onChangeText={setEmail}
-          onFocus={() => setEmailFocused(true)}
-          onBlur={() => setEmailFocused(false)}
+          onFocus={() => { setEmailFocused(true); setMascotStatus('email'); }}
+          onBlur={() => { setEmailFocused(false); setMascotStatus('idle'); }}
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="Nhập email..."
@@ -88,8 +116,8 @@ export default function LoginScreen({ navigation }) {
           style={[styles.input, passwordFocused && styles.inputFocused]}
           value={password}
           onChangeText={setPassword}
-          onFocus={() => setPasswordFocused(true)}
-          onBlur={() => setPasswordFocused(false)}
+          onFocus={() => { setPasswordFocused(true); setMascotStatus('password'); }}
+          onBlur={() => { setPasswordFocused(false); setMascotStatus('idle'); }}
           secureTextEntry
           placeholder="Nhập mật khẩu..."
         />

@@ -11,6 +11,8 @@ import {
   downloadPayslipPdf,
 } from '../services/payrollService';
 import { toast } from '../context/ToastContext';
+import Payroll3DCharacterWeb from '../components/Payroll3DCharacterWeb';
+import Avatar3DWeb from '../components/Avatar3DWeb';
 import './PayrollPage.css';
 
 // Illustrations & Avatars
@@ -904,13 +906,9 @@ export default function PayrollPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="pay-export-grid">
-              {/* Left Column: Illustration luong.png */}
-              <div className="pay-export-left">
-                <img
-                  src={luongIllustration}
-                  alt="Xuất bảng lương"
-                  className="pay-export-illustration"
-                />
+              {/* Left Column: 3D Low-Poly Character holding gold coin */}
+              <div className="pay-export-left" style={{ overflow: 'visible', padding: '6px 0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Payroll3DCharacterWeb width={280} height={300} interactive={true} />
               </div>
 
               {/* Center Green Divider */}

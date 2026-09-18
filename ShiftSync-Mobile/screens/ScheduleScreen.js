@@ -19,11 +19,15 @@ import { createStaffRequest } from '../services/requestService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 
-// ── Avatars ─────────────────────────────────────────────────────────────────
+// ── Avatars & Action Icons ──────────────────────────────────────────────────
 const avatarDilan = require('../assets/avatar-dilan-jon.png');
 const avatarMew = require('../assets/avatar-mew-ama.png');
 const avatarPaul = require('../assets/avatar-paul-lee.png');
 const avatarThia = require('../assets/avatar-thia-ago.png');
+
+const iconKinh = require('../assets/icon-kinh.png');
+const iconLoa = require('../assets/icon-loa.png');
+const iconDua = require('../assets/icon-dua.png');
 
 const AVATAR_MAP = {
   'Dilan. Jon': avatarDilan,
@@ -812,6 +816,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
+                <Image source={iconKinh} style={styles.actionCardPillIcon} resizeMode="contain" />
               </TouchableOpacity>
 
               {/* 2. Vắng mặt */}
@@ -821,6 +826,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
+                <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
               </TouchableOpacity>
 
               {/* 3. Xin nghỉ phép */}
@@ -830,6 +836,7 @@ export default function ScheduleScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
+                <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
               </TouchableOpacity>
             </View>
           </View>
@@ -1632,18 +1639,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ECF9E8',
     borderRadius: 8,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 8,
-    height: 56,
+    height: 62,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   actionCardPillText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#273426',
-    textAlign: 'center',
+    fontWeight: '600',
+    color: '#333333',
     lineHeight: 16,
+  },
+  actionCardPillIcon: {
+    width: 28,
+    height: 28,
   },
 
   // ── Shift Selector in Modal ──
