@@ -21,6 +21,8 @@ import {
   getLeaveImpact,
 } from '../services/leaveService';
 import { toast } from '../context/ToastContext';
+import Avatar3DWeb from '../components/Avatar3DWeb';
+import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './AttendancePageLive.css';
 
 const MONTH_NAMES_VI = [
@@ -864,9 +866,10 @@ export default function AttendancePageLive() {
                     className={`att-user-list-item${isSelected ? ' active' : ''}`}
                     onClick={() => setUserFilter(isSelected ? 'All' : name)}
                   >
-                    <img
-                      src={AVATARS[name] || DEFAULT_AVATAR}
-                      alt={name}
+                    <Avatar3DWeb
+                      avatarId={emp.avatarId || getAvatarForEmployee(emp)}
+                      name={name}
+                      size={28}
                       className="att-filter-avatar"
                     />
                     <span style={{ flex: 1 }}>{name}</span>
@@ -1169,9 +1172,10 @@ export default function AttendancePageLive() {
                         {/* Nhân viên */}
                         <td>
                           <div className="att-user-cell">
-                            <img
-                              src={AVATARS[row.staffName] || DEFAULT_AVATAR}
-                              alt=""
+                            <Avatar3DWeb
+                              avatarId={row.avatarId || getAvatarForEmployee(row.staffName)}
+                              name={row.staffName}
+                              size={34}
                               className="att-user-avatar"
                             />
                             <div className="att-user-info">
