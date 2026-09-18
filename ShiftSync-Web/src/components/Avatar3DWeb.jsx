@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
-import { getAvatar3DProps, AVATAR_OPTIONS } from './avatarConfigs';
+import { getAvatar3DProps, getAvatarForEmployee, AVATAR_OPTIONS } from './avatarConfigs';
+import { getAvatarThumbnail } from './avatarThumbnails';
 
 /**
  * Avatar3DWeb
@@ -325,70 +326,9 @@ function buildAvatarHeadMesh(props) {
   return { headGroup, eyeL, eyeR, normalMouth, browGroup };
 }
 
-// Generate 3D WebGL Snapshot on an offscreen canvas
-function getAvatar3DSnapshot(avatarId, props) {
-  const key = avatarId || JSON.stringify(props);
-  if (snapshotCache.has(key)) return snapshotCache.get(key);
-
-  if (typeof document === 'undefined') return null;
-
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 160;
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true,
-      powerPreference: 'low-power',
-    });
-    renderer.setSize(160, 160);
-    renderer.setPixelRatio(1);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0, 0, 3.4);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    dirLight.position.set(2.5, 3.5, 4);
-    scene.add(dirLight);
-
-    const pointLight = new THREE.PointLight(0xffd8b8, 0.6);
-    pointLight.position.set(-2.5, 1, 2);
-    scene.add(pointLight);
-
-    const { headGroup } = buildAvatarHeadMesh(props);
-    headGroup.rotation.y = 0.12;
-    headGroup.rotation.x = -0.04;
-    headGroup.scale.set(1.15, 1.15, 1.15);
-    scene.add(headGroup);
-
-    renderer.render(scene, camera);
-    const dataUrl = canvas.toDataURL('image/png');
-    snapshotCache.set(key, dataUrl);
-
-    // Clean up
-    renderer.dispose();
-    headGroup.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
-        else child.material.dispose();
-      }
-    });
-
-    return dataUrl;
-  } catch (e) {
-    return null;
-  }
-}
-
 export default function Avatar3DWeb({
   avatarId,
+  name,
   size = 60,
   skinColor,
   hairColor,
@@ -400,14 +340,23 @@ export default function Avatar3DWeb({
   noseStyle,
   mouthStyle,
   interactive = false,
+  className = '',
+  style = {},
 }) {
   const mountRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
   const [webglError, setWebglError] = useState(false);
   const mousePos = useRef({ x: 0, y: 0 });
 
+  // Resolve safe avatar id
+  const resolvedAvatarId = useMemo(() => {
+    if (avatarId && typeof avatarId === 'string') return avatarId;
+    if (name) return getAvatarForEmployee(name);
+    return 'dilan';
+  }, [avatarId, name]);
+
   // Resolve props từ avatarId nếu có
-  const resolved = useMemo(() => (avatarId ? getAvatar3DProps(avatarId) : {}), [avatarId]);
+  const resolved = useMemo(() => (resolvedAvatarId ? getAvatar3DProps(resolvedAvatarId) : {}), [resolvedAvatarId]);
   const finalProps = useMemo(() => ({
     skinColor: skinColor || resolved.skinColor || '#F4C5A3',
     hairColor: hairColor || resolved.hairColor || '#2b2b2b',
@@ -423,10 +372,14 @@ export default function Avatar3DWeb({
   // Determine if full live WebGL should be used
   const shouldRenderLiveWebGL = Boolean(interactive && size >= 70 && !webglError);
 
-  // Snapshot for fast rendering
+  // Pre-rendered 3D Snapshot for instant 60 FPS rendering without WebGL context exhaustion
   const snapshotUri = useMemo(() => {
-    return getAvatar3DSnapshot(avatarId, finalProps);
-  }, [avatarId, finalProps]);
+    try {
+      return getAvatarThumbnail(resolvedAvatarId);
+    } catch (e) {
+      return null;
+    }
+  }, [resolvedAvatarId]);
 
   useEffect(() => {
     if (!shouldRenderLiveWebGL) return;
@@ -616,6 +569,7 @@ export default function Avatar3DWeb({
   // Otherwise, render the ultra-fast 3D WebGL rendered snapshot
   return (
     <div
+      className={`avatar-3d-wrap ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
@@ -631,13 +585,14 @@ export default function Avatar3DWeb({
         transition: 'transform 0.18s ease-out',
         transform: isHovered ? 'scale(1.08)' : 'scale(1)',
         userSelect: 'none',
+        ...style,
       }}
-      title={avatarId ? `3D Avatar: ${avatarId}` : '3D Avatar'}
+      title={resolvedAvatarId ? `3D Avatar: ${resolvedAvatarId}` : '3D Avatar'}
     >
       {snapshotUri ? (
         <img
           src={snapshotUri}
-          alt={avatarId || '3D Avatar'}
+          alt={resolvedAvatarId || '3D Avatar'}
           style={{
             width: '100%',
             height: '100%',
@@ -660,7 +615,7 @@ export default function Avatar3DWeb({
             fontSize: size * 0.4,
           }}
         >
-          {String(avatarId || '3D').slice(0, 2).toUpperCase()}
+          {String(resolvedAvatarId || '3D').slice(0, 2).toUpperCase()}
         </div>
       )}
     </div>
