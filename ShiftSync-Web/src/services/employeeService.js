@@ -39,6 +39,8 @@ export const getEmployeeById = (id) => api.get(`/users/${id}`);
 
 export const getMyProfile = () => api.get('/users/me');
 
+export const updateMyProfile = (data) => api.put('/users/me', data);
+
 export const getMyShifts = () => api.get('/users/me/shifts');
 
 export const deleteEmployee = (id) => api.delete(`/users/${id}`);

@@ -82,6 +82,16 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserById(userDetails.getId()));
     }
 
+    @PutMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Update the current user's profile")
+    public ResponseEntity<UserDTO> updateMyProfile(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody UserUpdateRequest request) {
+        UserDTO userDTO = userService.updateUser(userDetails.getId(), request);
+        return ResponseEntity.ok(userDTO);
+    }
+
     @PutMapping("/me/avatar")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Update the current user's avatar ID")

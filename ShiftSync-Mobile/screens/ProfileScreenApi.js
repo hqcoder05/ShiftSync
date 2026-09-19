@@ -20,9 +20,8 @@ import BottomNavbar from '../components/BottomNavbar';
 import Avatar3D from '../components/Avatar3D';
 import { AVATAR_OPTIONS, getAvatar3DProps } from '../components/avatarConfigs';
 import { getAllAvatarThumbnails } from '../components/avatarThumbnails';
-import { getMyProfile, getMyStores, updateMyAvatar } from '../services/profileService';
+import { getMyProfile, getMyStores, updateMyProfile } from '../services/profileService';
 import { getStoredAvatar, saveAvatar } from '../services/avatarSync';
-
 
 const INITIAL_PROFILE = {
   fullName: '',
@@ -37,24 +36,47 @@ const INITIAL_PROFILE = {
   email: '',
 };
 
-function EditableRow({ label, value, onChangeText, placeholder, keyboardType, last, secureTextEntry, editable = true }) {
+function ProfileRow({ label, value, placeholder, isReadOnly = true, last }) {
   return (
     <View style={[styles.row, last && styles.lastRow]}>
       <Text style={styles.rowLabel}>{label}</Text>
-      {editable ? (
-        <TextInput
-          style={styles.rowInput}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder || `Nhập ${label.toLowerCase()}...`}
-          placeholderTextColor="#A0A0A0"
-          keyboardType={keyboardType || 'default'}
-          secureTextEntry={secureTextEntry}
-          textAlign="right"
-        />
-      ) : (
-        <Text style={styles.rowStaticValue}>{value || '—'}</Text>
-      )}
+      <View style={styles.rowValueContainer}>
+        <Text style={[styles.rowStaticValue, !value && styles.placeholderValue]}>
+          {value || placeholder || '—'}
+        </Text>
+        {isReadOnly && <Text style={styles.readOnlyBadge}>Cố định</Text>}
+      </View>
+    </View>
+  );
+}
+
+function EditableRowInput({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  last,
+  error,
+  required,
+}) {
+  return (
+    <View style={[styles.editRowBlock, last && styles.lastRowBlock]}>
+      <View style={styles.editRowHeader}>
+        <Text style={styles.editRowLabel}>
+          {label} {required && <Text style={styles.requiredStar}>*</Text>}
+        </Text>
+        {error ? <Text style={styles.fieldErrorText}>{error}</Text> : null}
+      </View>
+      <TextInput
+        style={[styles.editInput, error && styles.editInputError]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder || `Nhập ${label.toLowerCase()}...`}
+        placeholderTextColor="#9E9E9E"
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+      />
     </View>
   );
 }
@@ -69,17 +91,28 @@ export default function ProfileScreen({ navigation }) {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
+  // Edit Mode State
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    phone: '',
+    birthDate: '',
+    birthPlace: '',
+    gender: '',
+  });
+  const [validationErrors, setValidationErrors] = useState({});
+
   const handleSelectAvatar = async (avatarId) => {
     setSelectedAvatarId(avatarId);
     setShowAvatarPicker(false);
-    setSaveStatus('Đang lưu...');
-    // Đồng bộ tức thời vào local cache + background API
+    setSaveStatus('Đang lưu avatar...');
     const ok = await saveAvatar(avatarId, currentUserId);
-    setSaveStatus(ok ? 'Đã đồng bộ' : 'Đã lưu');
-    setTimeout(() => setSaveStatus(''), 2000);
+    setSaveStatus(ok ? 'Đã đổi avatar' : 'Đã lưu');
+    setTimeout(() => setSaveStatus(''), 2500);
   };
 
-  // Load custom profile from Backend API & user-specific AsyncStorage
+  // Load profile from Backend API & user-specific AsyncStorage
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -94,8 +127,8 @@ export default function ProfileScreen({ navigation }) {
       const userId = apiUser.id;
       setCurrentUserId(userId);
 
-      // 2. Ưu tiên load avatar từ Backend API, fallback sang AsyncStorage
-      if (apiUser.avatarId && AVATAR_OPTIONS.some(a => a.id === apiUser.avatarId)) {
+      // 2. Load avatar
+      if (apiUser.avatarId && AVATAR_OPTIONS.some((a) => a.id === apiUser.avatarId)) {
         setSelectedAvatarId(apiUser.avatarId);
         await AsyncStorage.setItem('@user_profile_avatar', apiUser.avatarId);
         await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, apiUser.avatarId);
@@ -116,14 +149,14 @@ export default function ProfileScreen({ navigation }) {
         }
       }
 
-      // 4. Fetch store & position (vị trí phân công thực tế từ backend)
+      // 4. Fetch store & position
       let storeName = 'Chưa phân công chi nhánh';
       let storeAddress = 'Chưa có địa chỉ';
       let position = apiUser.systemRole === 'MANAGER' ? 'Quản lý cửa hàng' : 'Nhân viên';
 
       try {
         const { data: stores } = await getMyStores(userId);
-        const storeList = Array.isArray(stores) ? stores : (stores?.content || []);
+        const storeList = Array.isArray(stores) ? stores : stores?.content || [];
         const activeStore = storeList.find((s) => s.status === 'ACTIVE') || storeList[0];
         if (activeStore) {
           storeName = activeStore.storeName || activeStore.name || storeName;
@@ -138,7 +171,7 @@ export default function ProfileScreen({ navigation }) {
         console.log('Error fetching user stores:', stErr?.message);
       }
 
-      setProfile({
+      const loadedProfile = {
         fullName: apiUser.fullName || '',
         email: apiUser.email || '',
         phone: apiUser.phone || customData.phone || '',
@@ -149,14 +182,18 @@ export default function ProfileScreen({ navigation }) {
         birthDate: customData.birthDate || '',
         birthPlace: customData.birthPlace || '',
         gender: customData.gender || '',
-      });
+      };
+
+      setProfile(loadedProfile);
     } catch (apiErr) {
       console.log('Failed to fetch profile:', apiErr?.message);
-      setError(apiErr.response?.data?.message || 'Không thể tải thông tin hồ sơ. Vui lòng kiểm tra kết nối.');
+      setError(
+        apiErr.response?.data?.message ||
+          'Không thể tải thông tin hồ sơ. Vui lòng kiểm tra kết nối mạng.'
+      );
       const fallbackAvatar = await getStoredAvatar();
       setSelectedAvatarId(fallbackAvatar);
     } finally {
-      // Clear legacy shared key if still exists to prevent ghost data leakage
       AsyncStorage.removeItem('@user_profile_custom_data').catch(() => {});
       setLoading(false);
     }
@@ -170,23 +207,117 @@ export default function ProfileScreen({ navigation }) {
     return unsub;
   }, [navigation, loadProfile]);
 
-  // Update field directly inline and save to user-specific AsyncStorage
-  const updateField = (key, val) => {
-    setProfile((prev) => {
-      const next = { ...prev, [key]: val };
+  // Start Edit Mode
+  const handleStartEdit = () => {
+    setEditForm({
+      fullName: profile.fullName || '',
+      phone: profile.phone || '',
+      birthDate: profile.birthDate || '',
+      birthPlace: profile.birthPlace || '',
+      gender: profile.gender || '',
+    });
+    setValidationErrors({});
+    setIsEditing(true);
+  };
+
+  // Cancel Edit Mode
+  const handleCancelEdit = () => {
+    setEditForm({
+      fullName: profile.fullName || '',
+      phone: profile.phone || '',
+      birthDate: profile.birthDate || '',
+      birthPlace: profile.birthPlace || '',
+      gender: profile.gender || '',
+    });
+    setValidationErrors({});
+    setIsEditing(false);
+  };
+
+  // Validate & Save Profile
+  const handleSaveProfile = async () => {
+    const errors = {};
+
+    // 1. Full name validation (required)
+    if (!editForm.fullName || !editForm.fullName.trim()) {
+      errors.fullName = 'Họ và tên không được để trống';
+    }
+
+    // 2. Phone validation (if provided, must be 9-12 digits)
+    if (editForm.phone && editForm.phone.trim()) {
+      const cleanPhone = editForm.phone.trim();
+      const phoneRegex = /^(0|\+84)[0-9]{8,11}$/;
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.phone = 'SĐT không hợp lệ (VD: 0902123456)';
+      }
+    }
+
+    // 3. Birth date format validation (if provided: DD/MM/YYYY)
+    if (editForm.birthDate && editForm.birthDate.trim()) {
+      const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
+      if (!dateRegex.test(editForm.birthDate.trim())) {
+        errors.birthDate = 'Định dạng ngày sinh phải là DD/MM/YYYY';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      Alert.alert('Thông tin chưa hợp lệ', 'Vui lòng kiểm tra lại các trường thông tin có đánh dấu đỏ.');
+      return;
+    }
+
+    setSaving(true);
+    setValidationErrors({});
+
+    try {
+      // Build request body matching UserUpdateRequest
+      const updatePayload = {
+        fullName: editForm.fullName.trim(),
+        email: profile.email,
+        phone: editForm.phone ? editForm.phone.trim() : '',
+        avatarId: selectedAvatarId,
+      };
+
+      // 1. Call real Backend API: PUT /api/users/me
+      const { data: updatedUser } = await updateMyProfile(updatePayload);
+
+      // 2. Save user-specific custom fields to AsyncStorage
       if (currentUserId) {
         const userStorageKey = `@user_profile_custom_${currentUserId}`;
-        AsyncStorage.setItem(userStorageKey, JSON.stringify({
-          birthDate: next.birthDate,
-          birthPlace: next.birthPlace,
-          gender: next.gender,
-          phone: next.phone,
-        })).catch(() => {});
+        await AsyncStorage.setItem(
+          userStorageKey,
+          JSON.stringify({
+            birthDate: editForm.birthDate.trim(),
+            birthPlace: editForm.birthPlace.trim(),
+            gender: editForm.gender.trim(),
+            phone: editForm.phone ? editForm.phone.trim() : '',
+          })
+        );
       }
-      return next;
-    });
-    setSaveStatus('Đã lưu');
-    setTimeout(() => setSaveStatus(''), 2000);
+
+      // 3. Update local UI state
+      setProfile((prev) => ({
+        ...prev,
+        fullName: updatedUser?.fullName || editForm.fullName.trim(),
+        phone: updatedUser?.phone || editForm.phone.trim(),
+        birthDate: editForm.birthDate.trim(),
+        birthPlace: editForm.birthPlace.trim(),
+        gender: editForm.gender.trim(),
+      }));
+
+      setIsEditing(false);
+      setSaveStatus('Đã cập nhật hồ sơ');
+      Alert.alert('Thành công', 'Cập nhật thông tin hồ sơ thành công!');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (apiErr) {
+      console.log('Update profile error:', apiErr?.response?.data || apiErr?.message);
+      const msg =
+        apiErr.response?.data?.message ||
+        (typeof apiErr.response?.data === 'string' ? apiErr.response?.data : null) ||
+        'Không thể cập nhật hồ sơ. Vui lòng thử lại sau.';
+      Alert.alert('Lỗi cập nhật', msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -198,9 +329,9 @@ export default function ProfileScreen({ navigation }) {
         onPress: async () => {
           try {
             await AsyncStorage.multiRemove([
-              'accessToken', 
+              'accessToken',
               'refreshToken',
-              '@user_profile_custom_data'
+              '@user_profile_custom_data',
             ]);
           } catch (e) {
             // ignore
@@ -216,25 +347,60 @@ export default function ProfileScreen({ navigation }) {
       <StatusBar style="dark" />
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('MainTabs', { screen: 'Dashboard' });
-            }
-          }}
-          hitSlop={15}
-          style={styles.closeBtn}
-          accessibilityLabel="Đóng hồ sơ"
-        >
-          <Text style={styles.closeIcon}>✕</Text>
-        </Pressable>
-        <Text style={styles.title}>Hồ sơ</Text>
-        <View style={styles.saveStatusWrap}>
-          {saveStatus ? <Text style={styles.saveStatusText}>{saveStatus}</Text> : <View style={{ width: 40 }} />}
+        {isEditing ? (
+          <TouchableOpacity onPress={handleCancelEdit} hitSlop={15} style={styles.headerBtn}>
+            <Text style={styles.headerBtnTextCancel}>Hủy</Text>
+          </TouchableOpacity>
+        ) : (
+          <Pressable
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('MainTabs', { screen: 'Dashboard' });
+              }
+            }}
+            hitSlop={15}
+            style={styles.closeBtn}
+            accessibilityLabel="Đóng hồ sơ"
+          >
+            <Text style={styles.closeIcon}>✕</Text>
+          </Pressable>
+        )}
+
+        <Text style={styles.title}>{isEditing ? 'Chỉnh sửa hồ sơ' : 'Hồ sơ'}</Text>
+
+        <View style={styles.headerRightWrap}>
+          {isEditing ? (
+            <TouchableOpacity
+              onPress={handleSaveProfile}
+              disabled={saving}
+              style={[styles.headerSaveBtn, saving && styles.headerSaveBtnDisabled]}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.headerSaveBtnText}>Lưu</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={handleStartEdit}
+              style={styles.headerEditBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.headerEditBtnText}>✎ Sửa</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
+      {/* Save Status Banner */}
+      {saveStatus ? (
+        <View style={styles.statusBanner}>
+          <Text style={styles.statusBannerText}>{saveStatus}</Text>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
@@ -273,11 +439,14 @@ export default function ProfileScreen({ navigation }) {
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.nameDisplay} numberOfLines={1}>
-                  {profile.fullName || 'Nhân viên'}
+                  {isEditing ? editForm.fullName || 'Nhập họ và tên...' : profile.fullName || 'Nhân viên'}
                 </Text>
                 <Text style={styles.positionSubtitle} numberOfLines={1}>
                   {profile.position || 'Chưa phân công'}
                 </Text>
+                {isEditing && (
+                  <Text style={styles.editingBadgeText}>Đang chỉnh sửa</Text>
+                )}
               </View>
             </View>
 
@@ -293,9 +462,7 @@ export default function ProfileScreen({ navigation }) {
 
               <View style={styles.inlineWorkRow}>
                 <Text style={styles.workLabel}>Mã nhân viên:</Text>
-                <Text style={styles.inlineWorkValue}>
-                  {profile.staffCode || '—'}
-                </Text>
+                <Text style={styles.inlineWorkValue}>{profile.staffCode || '—'}</Text>
               </View>
 
               <View style={styles.inlineWorkRow}>
@@ -314,62 +481,173 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
 
-          {/* ═══ THÔNG TIN CÁ NHÂN (Group 136) ═══ */}
-          <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
-          <View style={styles.whiteBlock}>
-            <EditableRow
-              label="Ngày sinh"
-              value={profile.birthDate}
-              onChangeText={(t) => updateField('birthDate', t)}
-              placeholder="Chưa cập nhật (VD: DD/MM/YYYY)"
-            />
-            <EditableRow
-              label="Nơi sinh"
-              value={profile.birthPlace}
-              onChangeText={(t) => updateField('birthPlace', t)}
-              placeholder="Chưa cập nhật nơi sinh"
-            />
-            <EditableRow
-              label="Thông tin liên hệ"
-              value={profile.phone}
-              onChangeText={(t) => updateField('phone', t)}
-              placeholder="Chưa cập nhật SĐT"
-              keyboardType="phone-pad"
-            />
-            <EditableRow
-              label="Giới tính"
-              value={profile.gender}
-              onChangeText={(t) => updateField('gender', t)}
-              placeholder="Chưa cập nhật giới tính"
-              last
-            />
+          {/* ═══ THÔNG TIN CÁ NHÂN ═══ */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+            {!isEditing && (
+              <TouchableOpacity onPress={handleStartEdit} hitSlop={10}>
+                <Text style={styles.sectionActionText}>Chỉnh sửa</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* ═══ THÔNG TIN ĐĂNG NHẬP (Group 138) ═══ */}
+          {isEditing ? (
+            <View style={styles.editWhiteBlock}>
+              <EditableRowInput
+                label="Họ và tên"
+                value={editForm.fullName}
+                onChangeText={(t) => setEditForm((prev) => ({ ...prev, fullName: t }))}
+                placeholder="Nhập họ và tên đầy đủ..."
+                required
+                error={validationErrors.fullName}
+              />
+
+              <EditableRowInput
+                label="Số điện thoại"
+                value={editForm.phone}
+                onChangeText={(t) => setEditForm((prev) => ({ ...prev, phone: t }))}
+                placeholder="0902xxxxxx"
+                keyboardType="phone-pad"
+                error={validationErrors.phone}
+              />
+
+              <EditableRowInput
+                label="Ngày sinh"
+                value={editForm.birthDate}
+                onChangeText={(t) => setEditForm((prev) => ({ ...prev, birthDate: t }))}
+                placeholder="DD/MM/YYYY (VD: 15/08/2000)"
+                error={validationErrors.birthDate}
+              />
+
+              <EditableRowInput
+                label="Nơi sinh"
+                value={editForm.birthPlace}
+                onChangeText={(t) => setEditForm((prev) => ({ ...prev, birthPlace: t }))}
+                placeholder="Tỉnh / Thành phố..."
+              />
+
+              <View style={styles.editRowBlock}>
+                <Text style={styles.editRowLabel}>Giới tính</Text>
+                <View style={styles.genderSelectRow}>
+                  {['Nam', 'Nữ', 'Khác'].map((g) => {
+                    const isSelected = editForm.gender === g;
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[styles.genderChip, isSelected && styles.genderChipSelected]}
+                        onPress={() => setEditForm((prev) => ({ ...prev, gender: g }))}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.genderChipText,
+                            isSelected && styles.genderChipTextSelected,
+                          ]}
+                        >
+                          {g}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.whiteBlock}>
+              <ProfileRow
+                label="Họ và tên"
+                value={profile.fullName}
+                isReadOnly={false}
+              />
+              <ProfileRow
+                label="Số điện thoại"
+                value={profile.phone}
+                placeholder="Chưa cập nhật SĐT"
+                isReadOnly={false}
+              />
+              <ProfileRow
+                label="Ngày sinh"
+                value={profile.birthDate}
+                placeholder="Chưa cập nhật ngày sinh"
+                isReadOnly={false}
+              />
+              <ProfileRow
+                label="Nơi sinh"
+                value={profile.birthPlace}
+                placeholder="Chưa cập nhật nơi sinh"
+                isReadOnly={false}
+              />
+              <ProfileRow
+                label="Giới tính"
+                value={profile.gender}
+                placeholder="Chưa cập nhật giới tính"
+                isReadOnly={false}
+                last
+              />
+            </View>
+          )}
+
+          {/* ═══ THÔNG TIN ĐĂNG NHẬP ═══ */}
           <Text style={styles.sectionTitle}>Thông tin đăng nhập</Text>
           <View style={styles.whiteBlock}>
-            <EditableRow
+            <ProfileRow
               label="Email"
               value={profile.email}
-              editable={false}
-              placeholder="Chưa cập nhật email"
-              keyboardType="email-address"
+              isReadOnly={true}
             />
-            <EditableRow
+            <ProfileRow
               label="Mật khẩu"
               value="••••••••••••••••"
-              editable={false}
+              isReadOnly={true}
               last
             />
           </View>
 
-          {/* ═══ ĐĂNG XUẤT (Group 139) ═══ */}
-          <Pressable onPress={handleLogout} style={styles.logoutBtn}>
-            <Text style={styles.logoutText}>Đăng xuất</Text>
-          </Pressable>
+          {/* ═══ EDIT MODE ACTION BUTTONS ═══ */}
+          {isEditing ? (
+            <View style={styles.editActionContainer}>
+              <TouchableOpacity
+                style={styles.cancelActionBtn}
+                onPress={handleCancelEdit}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelActionBtnText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.saveActionBtn, saving && styles.saveActionBtnDisabled]}
+                onPress={handleSaveProfile}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveActionBtnText}>Lưu thay đổi</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.editProfileBtn}
+              onPress={handleStartEdit}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.editProfileBtnText}>✎ Chỉnh sửa hồ sơ</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ═══ ĐĂNG XUẤT ═══ */}
+          {!isEditing && (
+            <Pressable onPress={handleLogout} style={styles.logoutBtn}>
+              <Text style={styles.logoutText}>Đăng xuất</Text>
+            </Pressable>
+          )}
           <View style={{ height: 90 }} />
         </ScrollView>
       )}
+
       {/* ═══ MODAL CHỌN ẢNH ĐẠI DIỆN 3D ═══ */}
       <Modal
         visible={showAvatarPicker}
@@ -394,7 +672,7 @@ export default function ProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* ── TOP SPOTLIGHT 3D STAGE (1 WEBGL CONTEXT DUY NHẤT) ── */}
+            {/* ── TOP SPOTLIGHT 3D STAGE ── */}
             {(() => {
               const isCurrent = selectedAvatarId === previewAvatarId;
               const thumbnails = getAllAvatarThumbnails();
@@ -438,7 +716,7 @@ export default function ProfileScreen({ navigation }) {
 
                   <Text style={styles.pickerGridTitle}>Chọn diện mạo 3D ({AVATAR_OPTIONS.length}):</Text>
 
-                  {/* ── GRID 18 ẢNH 3D THỰC TẾ (KHÔNG ICON, KHÔNG TÊN ẢO) ── */}
+                  {/* ── GRID 18 ẢNH 3D THỰC TẾ ── */}
                   <FlatList
                     data={AVATAR_OPTIONS}
                     keyExtractor={(item) => item.id}
@@ -517,17 +795,59 @@ const styles = StyleSheet.create({
     color: '#1E1E1E',
   },
   title: {
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#161616',
   },
-  saveStatusWrap: {
-    minWidth: 40,
+  headerBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  headerBtnTextCancel: {
+    fontSize: 15,
+    color: '#666666',
+    fontWeight: '600',
+  },
+  headerRightWrap: {
+    minWidth: 60,
     alignItems: 'flex-end',
   },
-  saveStatusText: {
+  headerEditBtn: {
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  headerEditBtnText: {
+    color: '#2E7D32',
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  headerSaveBtn: {
+    backgroundColor: '#428531',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  headerSaveBtnDisabled: {
+    opacity: 0.6,
+  },
+  headerSaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statusBanner: {
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  statusBannerText: {
+    color: '#2E7D32',
     fontSize: 13,
-    color: '#428531',
     fontWeight: '600',
   },
   center: {
@@ -617,204 +937,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 14,
   },
-
-  /* ═══ Avatar Picker Modal (Spotlight 3D Stage) ═══ */
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  pickerSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 28,
-    maxHeight: '90%',
-  },
-  pickerHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  pickerSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  pickerCloseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerCloseX: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#555',
-  },
-
-  /* ── Featured Spotlight Stage ── */
-  spotlightCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F7F8FA',
-    borderRadius: 18,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#E8ECF0',
-    marginBottom: 14,
-  },
-  spotlight3DWrap: {
-    width: 110,
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spotlightInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  spotlightNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  spotlightIcon: {
-    fontSize: 18,
-  },
-  spotlightName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#222',
-  },
-  spotlightUsingTag: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginLeft: 4,
-  },
-  spotlightUsingText: {
-    fontSize: 10.5,
-    color: '#2E7D32',
-    fontWeight: '700',
-  },
-  spotlightDesc: {
-    fontSize: 12,
-    color: '#555',
-    marginTop: 3,
-    lineHeight: 16,
-  },
-  spotlightHint: {
-    fontSize: 10.5,
-    color: '#888',
-    marginTop: 3,
-  },
-  spotlightSelectBtn: {
-    marginTop: 8,
-    backgroundColor: '#428531',
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  spotlightSelectBtnActive: {
-    backgroundColor: '#2E7D32',
-  },
-  spotlightSelectBtnText: {
-    color: '#FFF',
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-
-  pickerGridTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#444',
-    marginBottom: 8,
-  },
-  pickerGridRow: {
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  pickerCard: {
-    width: '31%',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 12,
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1.5,
-    borderColor: '#EEEEEE',
-    position: 'relative',
-  },
-  pickerCardPreviewing: {
-    borderColor: '#428531',
-    backgroundColor: '#F1F8EE',
-  },
-  pickerCardSelected: {
-    borderColor: '#428531',
-  },
-  pickerCardCheck: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#428531',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerCardCheckText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  pickerBadgeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-  },
-  pickerHairAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 12,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-  },
-  pickerEmojiText: {
-    fontSize: 18,
-    marginTop: 4,
-  },
-  pickerCardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 6,
-  },
-  pickerCardLabelActive: {
-    color: '#428531',
-    fontWeight: '700',
-  },
   nameDisplay: {
     fontSize: 20,
     fontWeight: '700',
@@ -826,17 +948,11 @@ const styles = StyleSheet.create({
     color: '#428531',
     marginTop: 2,
   },
-  nameInput: {
-    flex: 1,
-    fontSize: 22,
-    color: '#333333',
+  editingBadgeText: {
+    fontSize: 11.5,
+    color: '#E65100',
     fontWeight: '600',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
+    marginTop: 2,
   },
   cardLine: {
     height: 1.5,
@@ -849,46 +965,46 @@ const styles = StyleSheet.create({
   inlineWorkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 32,
+    minHeight: 30,
   },
   workLabel: {
-    fontSize: 14.5,
+    fontSize: 14,
     color: 'rgba(51, 51, 51, 0.75)',
     fontWeight: '500',
     minWidth: 125,
   },
   inlineWorkValue: {
     flex: 1,
-    fontSize: 14.5,
+    fontSize: 14,
     color: '#222222',
     fontWeight: '600',
     paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  inlineWorkInput: {
-    flex: 1,
-    fontSize: 14.5,
-    color: '#333333',
-    fontWeight: '600',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
   },
 
-  /* ═══ Section Titles ═══ */
+  /* ═══ Section Titles & Rows ═══ */
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 10,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#333333',
     paddingHorizontal: 22,
     paddingTop: 22,
     paddingBottom: 10,
   },
+  sectionActionText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
 
-  /* ═══ White Block Container ═══ */
+  /* ═══ View Mode White Block ═══ */
   whiteBlock: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 22,
@@ -904,40 +1020,189 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: '#F5F2F3',
+    paddingVertical: 8,
   },
   lastRow: {
     borderBottomWidth: 0,
   },
   rowLabel: {
-    fontSize: 15,
-    color: '#333333',
+    fontSize: 14.5,
+    color: '#444444',
     fontWeight: '500',
+    minWidth: 110,
   },
-  rowInput: {
+  rowValueContainer: {
     flex: 1,
-    fontSize: 15,
-    color: 'rgba(51, 51, 51, 0.85)',
-    fontWeight: '500',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginLeft: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   rowStaticValue: {
-    fontSize: 15,
-    color: 'rgba(51, 51, 51, 0.75)',
+    fontSize: 14.5,
+    color: '#1E1E1E',
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  placeholderValue: {
+    color: '#9E9E9E',
+    fontWeight: '400',
+  },
+  readOnlyBadge: {
+    fontSize: 10,
+    color: '#757575',
+    backgroundColor: '#EEEEEE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontWeight: '600',
+  },
+
+  /* ═══ Edit Mode White Block ═══ */
+  editWhiteBlock: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EFEAEB',
+    gap: 12,
+  },
+  editRowBlock: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F2F3',
+    paddingBottom: 12,
+  },
+  lastRowBlock: {
+    borderBottomWidth: 0,
+    paddingBottom: 4,
+  },
+  editRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  editRowLabel: {
+    fontSize: 13.5,
+    color: '#333333',
+    fontWeight: '600',
+  },
+  requiredStar: {
+    color: '#D32F2F',
+    fontWeight: '700',
+  },
+  fieldErrorText: {
+    fontSize: 11.5,
+    color: '#D32F2F',
+    fontWeight: '600',
+  },
+  editInput: {
+    backgroundColor: '#F9F9FB',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14.5,
+    color: '#1E1E1E',
+  },
+  editInputError: {
+    borderColor: '#D32F2F',
+    backgroundColor: '#FFF8F8',
+  },
+  genderSelectRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  genderChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#F9F9FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  genderChipSelected: {
+    borderColor: '#428531',
+    backgroundColor: '#E8F5E9',
+  },
+  genderChipText: {
+    fontSize: 13.5,
+    color: '#555555',
     fontWeight: '500',
+  },
+  genderChipTextSelected: {
+    color: '#2E7D32',
+    fontWeight: '700',
+  },
+
+  /* ═══ Action Buttons ═══ */
+  editProfileBtn: {
+    marginHorizontal: 20,
+    marginTop: 24,
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editProfileBtnText: {
+    color: '#2E7D32',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  editActionContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 24,
+  },
+  cancelActionBtn: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelActionBtnText: {
+    color: '#555555',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  saveActionBtn: {
+    flex: 1.6,
+    backgroundColor: '#428531',
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveActionBtnDisabled: {
+    opacity: 0.6,
+  },
+  saveActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 
   /* ═══ Logout Button ═══ */
   logoutBtn: {
     alignSelf: 'center',
-    marginTop: 40,
+    marginTop: 36,
     marginBottom: 20,
     paddingVertical: 10,
     paddingHorizontal: 24,
   },
   logoutText: {
-    fontSize: 20,
+    fontSize: 17,
     color: 'rgba(198, 13, 28, 0.9)',
     textDecorationLine: 'underline',
     fontWeight: '600',
@@ -1120,3 +1385,4 @@ const styles = StyleSheet.create({
     fontSize: 30,
   },
 });
+
