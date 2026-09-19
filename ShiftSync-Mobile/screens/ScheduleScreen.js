@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
+import { getLeaveTypes } from '../services/leaveService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getSkillsByStore } from '../services/skillService';
 import BottomNavbar from '../components/BottomNavbar';
@@ -305,6 +306,15 @@ export default function ScheduleScreen({ navigation }) {
   const [isAllDay, setIsAllDay] = useState(true);
   const [startDate, setStartDate] = useState(fmtD(tomorrow));
   const [endDate, setEndDate] = useState(fmtD(dayAfter));
+  const [leaveTypes, setLeaveTypes] = useState([
+    { code: 'ANNUAL', name: 'Phép năm' },
+    { code: 'SICK', name: 'Nghỉ ốm' },
+    { code: 'UNPAID', name: 'Không lương' },
+    { code: 'PERSONAL', name: 'Việc riêng' },
+    { code: 'OTHER', name: 'Nghỉ khác' },
+    { code: 'EMERGENCY', name: 'Khẩn cấp' },
+  ]);
+  const [selectedLeaveType, setSelectedLeaveType] = useState('ANNUAL');
 
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
@@ -358,6 +368,11 @@ export default function ScheduleScreen({ navigation }) {
           activeStoreId = activeStore?.storeId || activeStore?.id;
           setActiveStoreId(activeStoreId);
           if (activeStoreId) {
+            getLeaveTypes(activeStoreId).then(res => {
+              if (res?.data && Array.isArray(res.data)) {
+                setLeaveTypes(res.data);
+              }
+            }).catch(() => {});
             const skillRes = await getSkillsByStore(activeStoreId).catch(() => null);
             if (skillRes?.data) {
               storeSkills = Array.isArray(skillRes.data) ? skillRes.data : (skillRes.data.content || []);
@@ -610,11 +625,11 @@ export default function ScheduleScreen({ navigation }) {
         type: 'LEAVE',
         typeCategory: 'leave',
         requestType: 'Yêu cầu xin nghỉ',
-        leaveType: 'ANNUAL',
+        leaveType: selectedLeaveType,
         startDate,
         endDate,
         reason: leaveReason.trim(),
-        content: `Đơn xin nghỉ phép từ ${startDate} đến ${endDate}.\nLý do: ${leaveReason.trim()}`,
+        content: `Đơn xin nghỉ phép (${selectedLeaveType}) từ ${startDate} đến ${endDate}.\nLý do: ${leaveReason.trim()}`,
       }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
@@ -1303,6 +1318,25 @@ export default function ScheduleScreen({ navigation }) {
             <View style={styles.formRowInline}>
               <Text style={styles.formRowLabel}>Phân loại yêu cầu</Text>
               <Text style={styles.formRowValue}>Xin nghỉ</Text>
+            </View>
+
+            <Text style={styles.formSectionHeading}>Loại nghỉ phép</Text>
+            <View style={styles.leaveTypeRow}>
+              {leaveTypes.map((t) => {
+                const isSel = selectedLeaveType === t.code;
+                return (
+                  <TouchableOpacity
+                    key={t.code}
+                    style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                    onPress={() => setSelectedLeaveType(t.code)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
+                      {t.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={styles.formSectionHeading}>Thời gian</Text>
@@ -2097,6 +2131,33 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minWidth: 100,
     textAlign: 'right',
+  },
+  leaveTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 8,
+  },
+  leaveTypePill: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  leaveTypePillActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
+  },
+  leaveTypePillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  leaveTypePillTextActive: {
+    color: '#15803D',
+    fontWeight: '700',
   },
 
   // ── Loading ──

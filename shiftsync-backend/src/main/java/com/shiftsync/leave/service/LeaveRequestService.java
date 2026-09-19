@@ -60,7 +60,7 @@ public class LeaveRequestService {
         
         List<LeaveRequest> overlapping = leaveRequestRepository.findOverlappingRequests(staffId, request.getStartDate(), request.getEndDate());
         if (!overlapping.isEmpty()) {
-            throw new BusinessException("Leave request overlaps with an existing pending or approved request", HttpStatus.CONFLICT);
+            throw new BusinessException("Khoảng thời gian xin nghỉ bị trùng với một đơn nghỉ phép khác đang chờ duyệt hoặc đã duyệt.", HttpStatus.CONFLICT);
         }
 
         long requestedDays = java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) + 1;

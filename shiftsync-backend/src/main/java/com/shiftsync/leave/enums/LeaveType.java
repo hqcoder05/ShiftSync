@@ -1,5 +1,5 @@
 package com.shiftsync.leave.enums;
 
 public enum LeaveType {
-    SICK, ANNUAL, EMERGENCY, UNPAID
+    SICK, ANNUAL, EMERGENCY, UNPAID, PERSONAL, OTHER
 }

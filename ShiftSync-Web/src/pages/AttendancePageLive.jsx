@@ -19,6 +19,7 @@ import {
   cancelLeaveRequest,
   updateLeaveReason,
   getLeaveImpact,
+  getLeaveTypes,
 } from '../services/leaveService';
 import { toast } from '../context/ToastContext';
 import Avatar3DWeb from '../components/Avatar3DWeb';
@@ -76,6 +77,33 @@ const fmtTimeAMPM = (value) => {
     return `${String(h).padStart(2, '0')}:${m} ${period}`;
   } catch (e) {
     return '—';
+  }
+};
+
+const DEFAULT_LEAVE_TYPES = [
+  { code: 'ANNUAL', name: 'Nghỉ phép năm', isPaid: true },
+  { code: 'SICK', name: 'Nghỉ ốm', isPaid: true },
+  { code: 'UNPAID', name: 'Nghỉ không lương', isPaid: false },
+  { code: 'PERSONAL', name: 'Nghỉ việc riêng', isPaid: false },
+  { code: 'OTHER', name: 'Nghỉ khác', isPaid: false },
+  { code: 'EMERGENCY', name: 'Nghỉ khẩn cấp', isPaid: false },
+];
+
+const getLeaveTypeBadgeStyle = (type) => {
+  switch (type) {
+    case 'SICK':
+      return { bg: '#fee2e2', color: '#991b1b', label: 'Nghỉ ốm' };
+    case 'EMERGENCY':
+      return { bg: '#fef3c7', color: '#92400e', label: 'Khẩn cấp' };
+    case 'UNPAID':
+      return { bg: '#f1f5f9', color: '#475569', label: 'Không lương' };
+    case 'PERSONAL':
+      return { bg: '#f3e8ff', color: '#7e22ce', label: 'Việc riêng' };
+    case 'OTHER':
+      return { bg: '#e2e8f0', color: '#334155', label: 'Nghỉ khác' };
+    case 'ANNUAL':
+    default:
+      return { bg: '#e0e7ff', color: '#3730a3', label: 'Phép năm' };
   }
 };
 
@@ -139,6 +167,7 @@ export default function AttendancePageLive() {
 
   // Leave Management State
   const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState(DEFAULT_LEAVE_TYPES);
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('ALL');
   const [leaveSearch, setLeaveSearch] = useState('');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -355,7 +384,7 @@ export default function AttendancePageLive() {
     return () => document.removeEventListener('mousedown', handleDocClick);
   }, []);
 
-  // Fetch Leave Requests
+  // Fetch Leave Requests & Types
   const fetchLeaves = useCallback(async () => {
     const sId = storeId || localStorage.getItem('selectedStoreId');
     if (!sId) return;
@@ -368,6 +397,15 @@ export default function AttendancePageLive() {
         const res = await getMyLeaveRequests(sId);
         const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setLeaveRequests(list);
+      }
+      try {
+        const typesRes = await getLeaveTypes(sId);
+        const typesList = typesRes.data?.data || (Array.isArray(typesRes.data) ? typesRes.data : []);
+        if (typesList.length > 0) {
+          setLeaveTypes(typesList);
+        }
+      } catch (e) {
+        // Fallback to default leave types if error
       }
     } catch (e) {
       console.error('Failed to load leaves', e);
@@ -1535,16 +1573,21 @@ export default function AttendancePageLive() {
                             <strong>{isManager ? (r.staffName || 'Nhân viên') : 'Tôi (Bạn)'}</strong>
                           </td>
                           <td>
-                            <span style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              background: r.leaveType === 'SICK' ? '#fee2e2' : r.leaveType === 'EMERGENCY' ? '#fef3c7' : r.leaveType === 'UNPAID' ? '#f1f5f9' : '#e0e7ff',
-                              color: r.leaveType === 'SICK' ? '#991b1b' : r.leaveType === 'EMERGENCY' ? '#92400e' : r.leaveType === 'UNPAID' ? '#475569' : '#3730a3',
-                            }}>
-                              {r.leaveType === 'SICK' ? 'Nghỉ ốm' : r.leaveType === 'EMERGENCY' ? 'Khẩn cấp' : r.leaveType === 'UNPAID' ? 'Không lương' : 'Phép năm'}
-                            </span>
+                            {(() => {
+                              const badge = getLeaveTypeBadgeStyle(r.leaveType);
+                              return (
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  background: badge.bg,
+                                  color: badge.color,
+                                }}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td>
                             <div>{fmtShortDate(r.startDate)} → {fmtShortDate(r.endDate)}</div>
@@ -1872,9 +1915,11 @@ export default function AttendancePageLive() {
                   value={leaveForm.leaveType}
                   onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
                 >
-                  <option value="ANNUAL">Phép năm (ANNUAL)</option>
-                  <option value="SICK">Nghỉ ốm (SICK)</option>
-                  <option value="EMERGENCY">Khẩn cấp (EMERGENCY)</option>
+                  {leaveTypes.map((t) => (
+                    <option key={t.code || t.name} value={t.code || t.name}>
+                      {t.name || t.code} ({t.code})
+                    </option>
+                  ))}
                 </select>
               </div>
 
