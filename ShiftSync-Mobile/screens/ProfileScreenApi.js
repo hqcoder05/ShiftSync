@@ -61,7 +61,8 @@ function EditableRow({ label, value, onChangeText, placeholder, keyboardType, la
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(INITIAL_PROFILE);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [saveStatus, setSaveStatus] = useState('');
   const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
   const [previewAvatarId, setPreviewAvatarId] = useState('dilan');
@@ -81,100 +82,93 @@ export default function ProfileScreen({ navigation }) {
   // Load custom profile from Backend API & user-specific AsyncStorage
   const loadProfile = useCallback(async () => {
     setLoading(true);
-    // 0. Nạp avatar từ local cache trước để hiển thị tức thì
-    const cachedAvatar = await getStoredAvatar(currentUserId);
-    setSelectedAvatarId(cachedAvatar);
+    setError(null);
 
     try {
-      // 1. Fetch real user from Backend API
+      // 1. Fetch real authenticated user profile from Backend
       const { data: apiUser } = await getMyProfile();
-      if (apiUser) {
-        const userId = apiUser.id;
-        setCurrentUserId(userId);
-
-        // 2. Ưu tiên load avatar từ Backend API, fallback sang AsyncStorage
-        if (apiUser.avatarId && AVATAR_OPTIONS.some(a => a.id === apiUser.avatarId)) {
-          setSelectedAvatarId(apiUser.avatarId);
-          await AsyncStorage.setItem('@user_profile_avatar', apiUser.avatarId);
-          await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, apiUser.avatarId);
-        } else {
-          const savedAvatar = await getStoredAvatar(userId);
-          setSelectedAvatarId(savedAvatar);
-        }
-
-        // 3. Load custom data specifically for this user
-        const userStorageKey = `@user_profile_custom_${userId}`;
-        const savedData = await AsyncStorage.getItem(userStorageKey);
-        let customData = {};
-        if (savedData) {
-          try {
-            customData = JSON.parse(savedData) || {};
-          } catch (e) {
-            customData = {};
-          }
-        }
-
-        // 4. Fetch store & position (vị trí phân công thực tế từ web)
-        let storeName = 'Chưa phân công chi nhánh';
-        let storeAddress = 'Chưa có địa chỉ';
-        let position = 'Chưa phân công vị trí';
-
-        try {
-          const { data: stores } = await getMyStores(userId);
-          const storeList = Array.isArray(stores) ? stores : (stores?.content || []);
-          const activeStore = storeList.find((s) => s.status === 'ACTIVE') || storeList[0];
-          if (activeStore) {
-            storeName = activeStore.storeName || activeStore.name || storeName;
-            storeAddress = activeStore.storeAddress || activeStore.address || storeAddress;
-            if (activeStore.skillName) {
-              position = activeStore.skillName;
-            } else if (activeStore.employmentType) {
-              const typeMap = {
-                FULL_TIME: 'Toàn thời gian',
-                PART_TIME: 'Bán thời gian',
-                SEASONAL: 'Thời vụ',
-                INTERN: 'Thực tập',
-              };
-              position = typeMap[activeStore.employmentType] || activeStore.employmentType;
-            }
-          }
-        } catch (stErr) {
-          console.log('Error fetching user stores:', stErr?.message);
-        }
-
-        setProfile({
-          fullName: apiUser.fullName || '',
-          email: apiUser.email || '',
-          phone: apiUser.phone || customData.phone || '',
-          staffCode: userId ? `NV-${String(userId).slice(0, 6).toUpperCase()}` : '',
-          storeName,
-          storeAddress,
-          position,
-          birthDate: customData.birthDate || '',
-          birthPlace: customData.birthPlace || '',
-          gender: customData.gender || '',
-        });
+      if (!apiUser) {
+        throw new Error('Không nhận được dữ liệu từ máy chủ.');
       }
+
+      const userId = apiUser.id;
+      setCurrentUserId(userId);
+
+      // 2. Ưu tiên load avatar từ Backend API, fallback sang AsyncStorage
+      if (apiUser.avatarId && AVATAR_OPTIONS.some(a => a.id === apiUser.avatarId)) {
+        setSelectedAvatarId(apiUser.avatarId);
+        await AsyncStorage.setItem('@user_profile_avatar', apiUser.avatarId);
+        await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, apiUser.avatarId);
+      } else {
+        const savedAvatar = await getStoredAvatar(userId);
+        setSelectedAvatarId(savedAvatar);
+      }
+
+      // 3. Load custom data specifically for this user
+      const userStorageKey = `@user_profile_custom_${userId}`;
+      const savedData = await AsyncStorage.getItem(userStorageKey);
+      let customData = {};
+      if (savedData) {
+        try {
+          customData = JSON.parse(savedData) || {};
+        } catch (e) {
+          customData = {};
+        }
+      }
+
+      // 4. Fetch store & position (vị trí phân công thực tế từ backend)
+      let storeName = 'Chưa phân công chi nhánh';
+      let storeAddress = 'Chưa có địa chỉ';
+      let position = apiUser.systemRole === 'MANAGER' ? 'Quản lý cửa hàng' : 'Nhân viên';
+
+      try {
+        const { data: stores } = await getMyStores(userId);
+        const storeList = Array.isArray(stores) ? stores : (stores?.content || []);
+        const activeStore = storeList.find((s) => s.status === 'ACTIVE') || storeList[0];
+        if (activeStore) {
+          storeName = activeStore.storeName || activeStore.name || storeName;
+          storeAddress = activeStore.storeAddress || activeStore.address || storeAddress;
+          if (activeStore.contractType?.name) {
+            position = activeStore.contractType.name;
+          } else if (activeStore.systemRole === 'MANAGER') {
+            position = 'Quản lý cửa hàng';
+          }
+        }
+      } catch (stErr) {
+        console.log('Error fetching user stores:', stErr?.message);
+      }
+
+      setProfile({
+        fullName: apiUser.fullName || '',
+        email: apiUser.email || '',
+        phone: apiUser.phone || customData.phone || '',
+        staffCode: userId ? `NV-${String(userId).slice(0, 6).toUpperCase()}` : '—',
+        storeName,
+        storeAddress,
+        position,
+        birthDate: customData.birthDate || '',
+        birthPlace: customData.birthPlace || '',
+        gender: customData.gender || '',
+      });
     } catch (apiErr) {
-      console.log('Backend offline or failed to fetch profile:', apiErr?.message);
-      // Giữ nguyên avatar đã lưu trong local storage, tuyệt đối không reset về 'dilan'
-      const fallbackAvatar = await getStoredAvatar(currentUserId);
+      console.log('Failed to fetch profile:', apiErr?.message);
+      setError(apiErr.response?.data?.message || 'Không thể tải thông tin hồ sơ. Vui lòng kiểm tra kết nối.');
+      const fallbackAvatar = await getStoredAvatar();
       setSelectedAvatarId(fallbackAvatar);
-      setProfile(INITIAL_PROFILE);
     } finally {
       // Clear legacy shared key if still exists to prevent ghost data leakage
       AsyncStorage.removeItem('@user_profile_custom_data').catch(() => {});
       setLoading(false);
     }
-  }, [currentUserId]);
+  }, []);
 
   useEffect(() => {
-    // Đọc avatar từ local cache ngay khi component mount
-    getStoredAvatar().then((av) => {
-      if (av) setSelectedAvatarId(av);
-    });
     loadProfile();
-  }, [loadProfile]);
+    const unsub = navigation?.addListener?.('focus', () => {
+      loadProfile();
+    });
+    return unsub;
+  }, [navigation, loadProfile]);
 
   // Update field directly inline and save to user-specific AsyncStorage
   const updateField = (key, val) => {
@@ -245,6 +239,15 @@ export default function ProfileScreen({ navigation }) {
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#428531" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorCenter}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorTitle}>Lỗi tải dữ liệu hồ sơ</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadProfile} activeOpacity={0.8}>
+            <Text style={styles.retryBtnText}>Thử lại</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -531,6 +534,40 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  errorCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  errorIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E1E1E',
+    marginBottom: 6,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  retryBtn: {
+    backgroundColor: '#428531',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 
   /* ═══ Profile Card (Yellow #FFF8E1) ═══ */
