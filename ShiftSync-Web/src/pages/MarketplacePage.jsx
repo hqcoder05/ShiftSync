@@ -889,6 +889,7 @@ export default function MarketplacePage() {
       });
       showToast('Đã tạo yêu cầu mượn nhân sự gửi đến chi nhánh đối tác thành công!');
       setShowCreateWorkforceModal(false);
+      setWorkforceSubTab('OUTGOING');
       loadData();
       window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {

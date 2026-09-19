@@ -28,75 +28,7 @@ public class StaffRequestService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
-    @PostConstruct
-    @Transactional
-    public void initDefaultDataIfEmpty() {
-        try {
-            if (staffRequestRepository.count() == 0) {
-                log.info("Seeding initial mock staff requests matching Figma design...");
-                
-                List<StaffRequest> initialRequests = List.of(
-                    StaffRequest.builder()
-                        .requesterName("Vivi.an")
-                        .avatarKey("vivi")
-                        .requestType("Yêu cầu hỗ trợ")
-                        .typeCategory("support")
-                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
-                        .recipient("Quản lý cửa hàng (Store Manager)")
-                        .startDate(LocalDate.of(2026, 8, 8))
-                        .endDate(LocalDate.of(2026, 8, 8))
-                        .shiftInfo("Ca A (06:00 - 12:00)")
-                        .content("Yêu cầu hỗ trợ nhân viên\nNgười gửi: Vivi (Quản lý)\n\nChào anh/chị quản lý, hiện tại quán em đang thiếu nhân sự trong ca làm sắp tới nên cần hỗ trợ thêm 1 nhân viên từ quán khác sang phụ giúp để đảm bảo hoạt động phục vụ khách hàng được ổn định.\n\nQuán cần hỗ trợ nhân viên vào ngày 08/08/2026, ca A từ 06:00 đến 12:00.\nRất mong anh/chị hỗ trợ sắp xếp một nhân viên phù hợp từ quán khác sang hỗ trợ quán em trong ca này.\n\nCảm ơn anh/chị đã hỗ trợ!\nVivi – Quản lý quán")
-                        .createdAt(OffsetDateTime.now().minusHours(4))
-                        .build(),
-                    StaffRequest.builder()
-                        .requesterName("Mew. Ama")
-                        .avatarKey("mew")
-                        .requestType("Yêu cầu nghỉ")
-                        .typeCategory("leave")
-                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
-                        .recipient("Quản lý trực tiếp")
-                        .startDate(LocalDate.of(2026, 8, 6))
-                        .endDate(LocalDate.of(2026, 8, 7))
-                        .shiftInfo("Cả ngày")
-                        .content("Kính gửi Quản lý cửa hàng,\n\nEm xin phép được nghỉ phép 2 ngày (06/08/2026 - 07/08/2026) do gia đình có việc quan trọng cần giải quyết ở quê.\nEm đã hoàn thành bàn giao công việc ca trực tuần này cho các bạn trong nhóm và sẽ quay trở lại làm việc đúng giờ vào ngày 08/08/2026.\n\nMong quản lý xem xét và phê duyệt giúp em ạ!\nEm xin cảm ơn!")
-                        .createdAt(OffsetDateTime.now().minusHours(6))
-                        .build(),
-                    StaffRequest.builder()
-                        .requesterName("Thia. Ago")
-                        .avatarKey("thia")
-                        .requestType("Yêu cầu đổi ca")
-                        .typeCategory("swap")
-                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
-                        .recipient("Quản lý ca")
-                        .startDate(LocalDate.of(2026, 8, 3))
-                        .endDate(LocalDate.of(2026, 8, 3))
-                        .shiftInfo("Ca Chiều ⇄ Ca Sáng")
-                        .content("Kính gửi Quản lý,\n\nEm viết đơn này xin phép hoán đổi ca làm việc ngày 03/08/2026 từ Ca Chiều (14:00 - 22:00) sang Ca Sáng (06:00 - 14:00) với bạn Paul. Lee do em có lịch thi học phần tại trường vào buổi chiều.\nBạn Paul. Lee đã đồng ý hỗ trợ và nhận ca chiều thay em.\n\nKính mong Ban quản lý phê duyệt hoán đổi ca trực.\nTrân trọng!")
-                        .createdAt(OffsetDateTime.now().minusDays(2))
-                        .build(),
-                    StaffRequest.builder()
-                        .requesterName("Dilan. Jon")
-                        .avatarKey("dilan")
-                        .requestType("Yêu cầu đổi ca")
-                        .typeCategory("swap")
-                        .status(com.shiftsync.request.enums.RequestStatus.PENDING)
-                        .recipient("Quản lý cửa hàng")
-                        .startDate(LocalDate.of(2026, 8, 5))
-                        .endDate(LocalDate.of(2026, 8, 5))
-                        .shiftInfo("Ca Tối ⇄ Ca Sáng")
-                        .content("Kính gửi Quản lý,\n\nEm xin phép đổi ca làm việc ngày 05/08/2026 từ Ca Tối sang Ca Sáng. Em đã trao đổi và thống nhất với bạn trong ca cùng chi nhánh để đảm bảo đủ quân số phục vụ khách hàng.\n\nKính nhờ Quản lý duyệt giúp em. Em cảm ơn!")
-                        .createdAt(OffsetDateTime.now().minusDays(3))
-                        .build()
-                );
-
-                staffRequestRepository.saveAll(initialRequests);
-                log.info("Successfully seeded {} staff requests.", initialRequests.size());
-            }
-        } catch (Exception e) {
-            log.warn("Notice: Initial requests seed skipped or already existing: {}", e.getMessage());
-        }
-    }
+    // Real data only from database
 
     @Transactional(readOnly = true)
     public List<StaffRequestDTO> getAllRequests(com.shiftsync.request.enums.RequestStatus status, String typeCategory, String search) {
