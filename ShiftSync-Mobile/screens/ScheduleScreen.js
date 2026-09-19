@@ -312,6 +312,7 @@ export default function ScheduleScreen({ navigation }) {
 
   const weekDays = getWeekDates(weekOffset);
   const startDay = weekDays[0];
+  const endDay = weekDays[weekDays.length - 1];
   const monthTitle = startDay.dateObj.getMonth() === endDay.dateObj.getMonth()
     ? `${MONTH_NAMES[startDay.dateObj.getMonth()]}, ${startDay.dateObj.getFullYear()}`
     : `${MONTH_NAMES[startDay.dateObj.getMonth()]} - ${MONTH_NAMES[endDay.dateObj.getMonth()]}, ${endDay.dateObj.getFullYear()}`;
