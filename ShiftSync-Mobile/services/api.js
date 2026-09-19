@@ -78,8 +78,39 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const method = originalRequest?.method?.toUpperCase() || 'UNKNOWN';
+    const url = originalRequest?.url || 'UNKNOWN';
+    const status = error.response?.status || 'No Response';
+    const resData = error.response?.data;
 
-    console.log(`[API Err] ${originalRequest?.url} ->`, error.message, error.response?.status || 'No Response');
+    let safePayload = undefined;
+    if (originalRequest?.data) {
+      try {
+        const raw = originalRequest.data;
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : { ...raw };
+        delete parsed.password;
+        delete parsed.token;
+        delete parsed.accessToken;
+        delete parsed.refreshToken;
+        safePayload = parsed;
+      } catch (_) {
+        safePayload = originalRequest.data;
+      }
+    }
+
+    console.log(`[API Err] [${method}] ${url} -> Status: ${status}`);
+    if (safePayload !== undefined) {
+      console.log(`[API Err Request Payload]`, safePayload);
+    }
+    if (resData) {
+      console.log(`[API Err Response Details]`, {
+        status: error.response?.status,
+        data: resData,
+        message: resData?.message,
+        error: resData?.error,
+        code: resData?.code || resData?.statusCode,
+      });
+    }
 
     // Nếu gặp lỗi 401 và không phải request đăng nhập/refresh
     if (

@@ -36,6 +36,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException ex) {
+        logger.warn("[BusinessException] status={}, message={}", ex.getStatus(), ex.getMessage());
         return new ResponseEntity<>(
             buildResponse(ex.getStatus().name(), ex.getMessage(), null), 
             ex.getStatus()

@@ -104,6 +104,9 @@ export default function RequestScreen({ navigation, route }) {
   const [startDate, setStartDate] = useState(fmtD(tomorrow));
   const [endDate, setEndDate] = useState(fmtD(dayAfter));
   const [leaveReason, setLeaveReason] = useState('');
+  const [leaveError, setLeaveError] = useState(null);
+  const [swapError, setSwapError] = useState(null);
+  const [absentError, setAbsentError] = useState(null);
 
   // ── Form States (Đổi ca - Image 3) ──
   const [selectedSwapShift, setSelectedSwapShift] = useState(EMPTY_SHIFT);
@@ -290,13 +293,18 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Xin nghỉ (Image 1) ──
   const handleSubmitLeave = async () => {
+    setLeaveError(null);
     if (!leaveReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin nghỉ phép', 'warning');
+      const msg = 'Vui lòng nhập lý do xin nghỉ phép';
+      setLeaveError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
 
     if (!activeStoreId) {
-      showToast('Lỗi', 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn', 'error');
+      const msg = 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn';
+      setLeaveError(msg);
+      showToast('Lỗi', msg, 'error');
       return;
     }
 
@@ -304,7 +312,9 @@ export default function RequestScreen({ navigation, route }) {
     const currentType = leaveTypes.find(t => t.code === selectedLeaveType);
     if (currentType?.deductsAnnualBalance && leaveBalance) {
       if (duration > leaveBalance.remainingDays) {
-        showToast('Không đủ ngày phép', `Bạn chỉ còn ${leaveBalance.remainingDays} ngày phép năm (cần ${duration} ngày). Hãy rút ngắn hoặc chọn loại nghỉ khác.`, 'warning');
+        const msg = `Bạn chỉ còn ${leaveBalance.remainingDays} ngày phép năm (cần ${duration} ngày). Hãy rút ngắn hoặc chọn loại nghỉ khác.`;
+        setLeaveError(msg);
+        showToast('Không đủ ngày phép', msg, 'warning');
         return;
       }
     }
@@ -323,10 +333,12 @@ export default function RequestScreen({ navigation, route }) {
       }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
+      setLeaveError(null);
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
       loadRequests();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu xin nghỉ';
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin nghỉ';
+      setLeaveError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -335,12 +347,17 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Đổi ca (Image 3) ──
   const handleSubmitSwap = async () => {
+    setSwapError(null);
     if (!selectedSwapShift || selectedSwapShift.id === 'no-shift') {
-      showToast('Lưu ý', 'Vui lòng chọn ca làm việc của bạn để thực hiện đổi ca', 'warning');
+      const msg = 'Vui lòng chọn ca làm việc của bạn để thực hiện đổi ca';
+      setSwapError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     if (!selectedSwapStaff) {
-      showToast('Lưu ý', 'Vui lòng chọn nhân viên đồng nghiệp để đổi ca', 'warning');
+      const msg = 'Vui lòng chọn nhân viên đồng nghiệp để đổi ca';
+      setSwapError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
 
@@ -357,10 +374,12 @@ export default function RequestScreen({ navigation, route }) {
         content: `Đề xuất đổi ca làm việc: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
       });
       setSwapModalVisible(false);
+      setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff}`);
       loadRequests();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu đổi ca';
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
+      setSwapError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -369,12 +388,17 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Xin vắng (Image 4) ──
   const handleSubmitAbsent = async () => {
+    setAbsentError(null);
     if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
-      showToast('Lưu ý', 'Vui lòng chọn ca làm việc cần xin vắng', 'warning');
+      const msg = 'Vui lòng chọn ca làm việc cần xin vắng';
+      setAbsentError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     if (!absentReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin vắng ca làm việc', 'warning');
+      const msg = 'Vui lòng nhập lý do xin vắng ca làm việc';
+      setAbsentError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
 
@@ -391,10 +415,12 @@ export default function RequestScreen({ navigation, route }) {
       });
       setAbsentModalVisible(false);
       setAbsentReason('');
+      setAbsentError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
       loadRequests();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu xin vắng';
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin vắng';
+      setAbsentError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -405,34 +431,39 @@ export default function RequestScreen({ navigation, route }) {
     ? requests.filter(r => r.status === filterStatus)
     : requests;
 
+  const renderToast = () => {
+    if (!toastMessage) return null;
+    return (
+      <View style={styles.toastOverlay}>
+        <View style={[
+          styles.toastCard,
+          toastMessage.type === 'warning' && styles.toastCardWarning,
+          toastMessage.type === 'error' && styles.toastCardError,
+        ]}>
+          <View style={[
+            styles.toastIconCircle,
+            toastMessage.type === 'warning' && styles.toastIconCircleWarning,
+            toastMessage.type === 'error' && styles.toastIconCircleError,
+          ]}>
+            <Text style={styles.toastIconText}>
+              {toastMessage.type === 'warning' ? '!' : toastMessage.type === 'error' ? '✕' : '✓'}
+            </Text>
+          </View>
+          <View style={styles.toastTextContainer}>
+            <Text style={styles.toastTitle}>{toastMessage.title}</Text>
+            <Text style={styles.toastMessage} numberOfLines={3}>{toastMessage.message}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       {/* ── CUSTOM TOAST NOTIFICATION ─────────────────────────── */}
-      {toastMessage && (
-        <View style={styles.toastOverlay}>
-          <View style={[
-            styles.toastCard,
-            toastMessage.type === 'warning' && styles.toastCardWarning,
-            toastMessage.type === 'error' && styles.toastCardError,
-          ]}>
-            <View style={[
-              styles.toastIconCircle,
-              toastMessage.type === 'warning' && styles.toastIconCircleWarning,
-              toastMessage.type === 'error' && styles.toastIconCircleError,
-            ]}>
-              <Text style={styles.toastIconText}>
-                {toastMessage.type === 'warning' ? '!' : toastMessage.type === 'error' ? '✕' : '✓'}
-              </Text>
-            </View>
-            <View style={styles.toastTextContainer}>
-              <Text style={styles.toastTitle}>{toastMessage.title}</Text>
-              <Text style={styles.toastMessage} numberOfLines={2}>{toastMessage.message}</Text>
-            </View>
-          </View>
-        </View>
-      )}
+      {renderToast()}
 
       <ScrollView
         style={styles.page}
@@ -780,11 +811,21 @@ export default function RequestScreen({ navigation, route }) {
             <TextInput
               style={styles.reasonTextArea}
               value={leaveReason}
-              onChangeText={setLeaveReason}
+              onChangeText={(txt) => {
+                setLeaveReason(txt);
+                setLeaveError(null);
+              }}
               placeholder="Nhập lý do xin nghỉ..."
               multiline
               numberOfLines={4}
             />
+
+            {leaveError && (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{leaveError}</Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
@@ -799,6 +840,7 @@ export default function RequestScreen({ navigation, route }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
 
@@ -921,6 +963,13 @@ export default function RequestScreen({ navigation, route }) {
               )}
             </View>
 
+            {swapError && (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{swapError}</Text>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitSwap}
@@ -934,6 +983,7 @@ export default function RequestScreen({ navigation, route }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
 
@@ -1046,6 +1096,13 @@ export default function RequestScreen({ navigation, route }) {
               </Text>
             </View>
 
+            {absentError && (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{absentError}</Text>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitAbsent}
@@ -1059,6 +1116,7 @@ export default function RequestScreen({ navigation, route }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
 
@@ -1227,6 +1285,28 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#444444',
     marginTop: 2,
+  },
+  modalErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#F87171',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  modalErrorIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  modalErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '500',
+    lineHeight: 18,
   },
 
   // ── Header ──

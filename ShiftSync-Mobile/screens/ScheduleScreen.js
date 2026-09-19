@@ -315,6 +315,9 @@ export default function ScheduleScreen({ navigation }) {
     { code: 'EMERGENCY', name: 'Khẩn cấp' },
   ]);
   const [selectedLeaveType, setSelectedLeaveType] = useState('ANNUAL');
+  const [leaveError, setLeaveError] = useState(null);
+  const [swapError, setSwapError] = useState(null);
+  const [absentError, setAbsentError] = useState(null);
 
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
@@ -540,17 +543,23 @@ export default function ScheduleScreen({ navigation }) {
 
   const handleOpenLeaveModal = () => {
     setActionBoxVisible(false);
+    setLeaveError(null);
     setLeaveModalVisible(true);
   };
 
   // ── Submit Đổi ca ──
   const handleSubmitSwap = async () => {
+    setSwapError(null);
     if (!selectedSwapShift || selectedSwapShift.id === 'no-shift') {
-      showToast('Lưu ý', 'Vui lòng chọn ca làm việc để đổi', 'warning');
+      const msg = 'Vui lòng chọn ca làm việc để đổi';
+      setSwapError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     if (!selectedSwapStaff) {
-      showToast('Lưu ý', 'Vui lòng chọn đồng nghiệp để đổi ca', 'warning');
+      const msg = 'Vui lòng chọn đồng nghiệp để đổi ca';
+      setSwapError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     try {
@@ -566,9 +575,11 @@ export default function ScheduleScreen({ navigation }) {
         content: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
       });
       setSwapModalVisible(false);
+      setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff} tới Quản lý`);
     } catch (e) {
-      const errMsg = e.response?.data?.message || e.message || 'Không thể gửi yêu cầu đổi ca';
+      const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu đổi ca';
+      setSwapError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -577,12 +588,17 @@ export default function ScheduleScreen({ navigation }) {
 
   // ── Submit Xin vắng ──
   const handleSubmitAbsent = async () => {
+    setAbsentError(null);
     if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
-      showToast('Lưu ý', 'Vui lòng chọn ca làm việc xin vắng', 'warning');
+      const msg = 'Vui lòng chọn ca làm việc xin vắng';
+      setAbsentError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     if (!absentReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin vắng ca', 'warning');
+      const msg = 'Vui lòng nhập lý do xin vắng ca';
+      setAbsentError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
     try {
@@ -598,9 +614,11 @@ export default function ScheduleScreen({ navigation }) {
       });
       setAbsentModalVisible(false);
       setAbsentReason('');
+      setAbsentError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
     } catch (e) {
-      const errMsg = e.response?.data?.message || e.message || 'Không thể gửi yêu cầu xin vắng';
+      const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu xin vắng';
+      setAbsentError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -609,13 +627,18 @@ export default function ScheduleScreen({ navigation }) {
 
   // ── Submit Xin nghỉ ──
   const handleSubmitLeave = async () => {
+    setLeaveError(null);
     if (!leaveReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin nghỉ phép', 'warning');
+      const msg = 'Vui lòng nhập lý do xin nghỉ phép';
+      setLeaveError(msg);
+      showToast('Lưu ý', msg, 'warning');
       return;
     }
 
     if (!activeStoreId) {
-      showToast('Lỗi', 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn', 'error');
+      const msg = 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn';
+      setLeaveError(msg);
+      showToast('Lỗi', msg, 'error');
       return;
     }
 
@@ -633,9 +656,11 @@ export default function ScheduleScreen({ navigation }) {
       }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
+      setLeaveError(null);
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
     } catch (e) {
-      const errMsg = e.response?.data?.message || e.message || 'Không thể gửi yêu cầu xin nghỉ';
+      const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu xin nghỉ';
+      setLeaveError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
@@ -646,34 +671,39 @@ export default function ScheduleScreen({ navigation }) {
     ? [weekDays[selectedDayIndex]]
     : weekDays;
 
+  const renderToast = () => {
+    if (!toastMessage) return null;
+    return (
+      <View style={styles.toastOverlay}>
+        <View style={[
+          styles.toastCard,
+          toastMessage.type === 'warning' && styles.toastCardWarning,
+          toastMessage.type === 'error' && styles.toastCardError,
+        ]}>
+          <View style={[
+            styles.toastIconCircle,
+            toastMessage.type === 'warning' && styles.toastIconCircleWarning,
+            toastMessage.type === 'error' && styles.toastIconCircleError,
+          ]}>
+            <Text style={styles.toastIconText}>
+              {toastMessage.type === 'warning' ? '!' : toastMessage.type === 'error' ? '✕' : '✓'}
+            </Text>
+          </View>
+          <View style={styles.toastTextContainer}>
+            <Text style={styles.toastTitle}>{toastMessage.title}</Text>
+            <Text style={styles.toastMessage} numberOfLines={3}>{toastMessage.message}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       {/* ── CUSTOM TOAST NOTIFICATION ─────────────────────────── */}
-      {toastMessage && (
-        <View style={styles.toastOverlay}>
-          <View style={[
-            styles.toastCard,
-            toastMessage.type === 'warning' && styles.toastCardWarning,
-            toastMessage.type === 'error' && styles.toastCardError,
-          ]}>
-            <View style={[
-              styles.toastIconCircle,
-              toastMessage.type === 'warning' && styles.toastIconCircleWarning,
-              toastMessage.type === 'error' && styles.toastIconCircleError,
-            ]}>
-              <Text style={styles.toastIconText}>
-                {toastMessage.type === 'warning' ? '!' : toastMessage.type === 'error' ? '✕' : '✓'}
-              </Text>
-            </View>
-            <View style={styles.toastTextContainer}>
-              <Text style={styles.toastTitle}>{toastMessage.title}</Text>
-              <Text style={styles.toastMessage} numberOfLines={2}>{toastMessage.message}</Text>
-            </View>
-          </View>
-        </View>
-      )}
+      {renderToast()}
 
       <ScrollView
         style={styles.page}
@@ -1154,6 +1184,13 @@ export default function ScheduleScreen({ navigation }) {
               )}
             </View>
 
+            {swapError ? (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{swapError}</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitSwap}
@@ -1167,6 +1204,7 @@ export default function ScheduleScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
 
@@ -1278,6 +1316,13 @@ export default function ScheduleScreen({ navigation }) {
               </Text>
             </View>
 
+            {absentError ? (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{absentError}</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitAbsent}
@@ -1291,6 +1336,7 @@ export default function ScheduleScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
 
@@ -1375,11 +1421,21 @@ export default function ScheduleScreen({ navigation }) {
             <TextInput
               style={styles.formTextArea}
               value={leaveReason}
-              onChangeText={setLeaveReason}
+              onChangeText={(txt) => {
+                setLeaveReason(txt);
+                setLeaveError(null);
+              }}
               placeholder="Nhập lý do xin nghỉ..."
               multiline
               numberOfLines={4}
             />
+
+            {leaveError ? (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorIcon}>⚠️</Text>
+                <Text style={styles.modalErrorText}>{leaveError}</Text>
+              </View>
+            ) : null}
 
             <TouchableOpacity
               style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
@@ -1394,6 +1450,7 @@ export default function ScheduleScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </ScrollView>
+          {renderToast()}
         </SafeAreaView>
       </Modal>
       <BottomNavbar navigation={navigation} activeRoute="Schedule" />
@@ -1483,6 +1540,28 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#444444',
     marginTop: 2,
+  },
+  modalErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#F87171',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  modalErrorIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  modalErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '500',
+    lineHeight: 18,
   },
 
   // ── Month Header & Week Navigation ──
