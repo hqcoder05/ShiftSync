@@ -40,6 +40,7 @@ export const getMyRequests = async (storeId) => {
           id: l.id,
           rawId: l.id,
           type: 'LEAVE',
+          typeCategory: 'leave',
           leaveType: l.leaveType,
           requestedDays: l.requestedDays,
           storeId: l.storeId,
@@ -50,6 +51,7 @@ export const getMyRequests = async (storeId) => {
           endDate: l.endDate,
           date: l.startDate && l.endDate ? `${l.startDate} → ${l.endDate}` : (l.startDate || ''),
           reason: l.reason || '',
+          content: l.reason || '',
           rejectionReason: l.rejectionReason,
           description: l.status === 'APPROVED'
             ? `Đơn xin nghỉ (${l.requestedDays || 1} ngày) đã được Quản lý phê duyệt.`
@@ -64,32 +66,53 @@ export const getMyRequests = async (storeId) => {
     }
   }
 
-  // 2. Fetch Generic Staff Requests (if any)
+  // 2. Fetch Generic Staff Requests (SWAP, ABSENT, SUPPORT)
   try {
     const res = await api.get('/requests');
     if (res.data && Array.isArray(res.data)) {
       res.data.forEach((r) => {
+        const cat = (r.typeCategory || '').toLowerCase();
+        let type = 'OTHER';
+        let typeLabel = r.requestType || 'Yêu cầu hỗ trợ';
+        if (cat === 'swap' || (r.requestType && r.requestType.toLowerCase().includes('đổi'))) {
+          type = 'SWAP';
+          typeLabel = 'Yêu cầu đổi ca';
+        } else if (cat === 'absence' || cat === 'absent' || (r.requestType && r.requestType.toLowerCase().includes('vắng'))) {
+          type = 'ABSENT';
+          typeLabel = 'Yêu cầu xin vắng';
+        } else if (cat === 'leave' || (r.requestType && r.requestType.toLowerCase().includes('nghỉ'))) {
+          type = 'LEAVE';
+          typeLabel = 'Yêu cầu xin nghỉ';
+        }
+
         allRequests.push({
           id: r.id,
           rawId: r.id,
-          type: r.type || 'OTHER',
-          typeLabel: r.type === 'SWAP' ? 'Hỗ trợ đổi ca' : (r.type === 'ABSENT' ? 'Yêu cầu xin vắng' : 'Yêu cầu khác'),
+          type,
+          typeCategory: r.typeCategory,
+          requestType: r.requestType,
+          typeLabel,
           status: r.status || 'PENDING',
           statusLabel: r.status === 'APPROVED' ? 'Đã duyệt' : (r.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'),
-          date: r.date || r.startDate || '',
+          date: r.requestDate || (r.startDate && r.endDate ? `${r.startDate} → ${r.endDate}` : (r.startDate || '')),
+          requestDate: r.requestDate,
+          requestTime: r.requestTime,
           startDate: r.startDate,
           endDate: r.endDate,
           requesterName: r.requesterName || 'Nhân viên',
+          avatarKey: r.avatarKey,
           targetStaffName: r.targetStaffName || '',
           shiftInfo: r.shiftInfo || '',
-          description: r.description || r.reason || '',
-          reason: r.reason || '',
+          content: r.content || '',
+          description: r.content || '',
+          reason: r.content || '',
+          recipient: r.recipient || 'Quản lý cửa hàng',
           createdAt: r.createdAt,
         });
       });
     }
   } catch (err) {
-    // ignore
+    console.log('Error fetching staff requests from backend:', err.message);
   }
 
   return allRequests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -97,10 +120,10 @@ export const getMyRequests = async (storeId) => {
 
 // Tạo yêu cầu mới (Xin nghỉ, Đổi ca, Xin vắng)
 export const createStaffRequest = async (requestData, storeId) => {
-  // If request is a Leave Request, route directly to real Leave Request backend API
-  if (requestData.type === 'LEAVE') {
+  // 1. If request is a Leave Request, route to real Leave Request backend API
+  if (requestData.type === 'LEAVE' || requestData.typeCategory === 'leave') {
     if (!storeId) {
-      throw new Error('Không tìm thấy thông tin cửa hàng để gửi đơn xin nghỉ');
+      throw new Error('Không tìm thấy thông tin cửa hàng của bạn để gửi đơn xin nghỉ phép.');
     }
     const isoStart = toIsoDate(requestData.startDate);
     const isoEnd = toIsoDate(requestData.endDate);
@@ -108,12 +131,36 @@ export const createStaffRequest = async (requestData, storeId) => {
       leaveType: requestData.leaveType || 'ANNUAL',
       startDate: isoStart,
       endDate: isoEnd,
-      reason: requestData.reason || '',
+      reason: requestData.reason || requestData.content || '',
     });
     return res.data;
   }
 
-  // Fallback for other request types
-  const res = await api.post('/requests', requestData);
+  // 2. Generic staff requests (SWAP, ABSENT, SUPPORT, etc.) -> POST /api/requests
+  const category = (requestData.typeCategory || requestData.type || 'support').toLowerCase();
+  let defaultRequestType = 'Yêu cầu hỗ trợ';
+  if (category === 'swap') defaultRequestType = 'Yêu cầu đổi ca';
+  else if (category === 'absent' || category === 'absence') defaultRequestType = 'Yêu cầu xin vắng';
+  else if (category === 'leave') defaultRequestType = 'Yêu cầu xin nghỉ';
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const startIso = requestData.startDate ? toIsoDate(requestData.startDate) : todayIso;
+  const endIso = requestData.endDate ? toIsoDate(requestData.endDate) : startIso;
+
+  const contentText = requestData.content || requestData.reason || requestData.description || 'Yêu cầu gửi tới Quản lý';
+
+  const payload = {
+    requesterName: requestData.requesterName || undefined,
+    avatarKey: requestData.avatarKey || 'paul',
+    requestType: requestData.requestType || defaultRequestType,
+    typeCategory: category === 'absent' ? 'absence' : category,
+    recipient: requestData.recipient || 'Quản lý cửa hàng (Store Manager)',
+    startDate: startIso,
+    endDate: endIso,
+    shiftInfo: requestData.shiftInfo || 'Ca tiêu chuẩn',
+    content: contentText,
+  };
+
+  const res = await api.post('/requests', payload);
   return res.data;
 };

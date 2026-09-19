@@ -213,6 +213,13 @@ export default function RequestScreen({ navigation, route }) {
       }
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
+        if (!storeId && shiftsRes.value.data.length > 0) {
+          const shiftStoreId = shiftsRes.value.data.find(s => s.storeId)?.storeId;
+          if (shiftStoreId) {
+            storeId = shiftStoreId;
+            setActiveStoreId(storeId);
+          }
+        }
         const mapped = shiftsRes.value.data.map((s, idx) => {
           const d = s.shiftDate ? new Date(s.shiftDate) : new Date();
           const dow = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
@@ -284,12 +291,12 @@ export default function RequestScreen({ navigation, route }) {
   // ── Submit Xin nghỉ (Image 1) ──
   const handleSubmitLeave = async () => {
     if (!leaveReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin nghỉ', 'warning');
+      showToast('Lưu ý', 'Vui lòng nhập lý do xin nghỉ phép', 'warning');
       return;
     }
 
     if (!activeStoreId) {
-      showToast('Lỗi', 'Không tìm thấy thông tin cửa hàng của bạn', 'error');
+      showToast('Lỗi', 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn', 'error');
       return;
     }
 
@@ -306,10 +313,13 @@ export default function RequestScreen({ navigation, route }) {
       setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
+        typeCategory: 'leave',
+        requestType: 'Yêu cầu xin nghỉ',
         leaveType: selectedLeaveType,
         startDate: startDate,
         endDate: endDate,
         reason: leaveReason.trim(),
+        content: `Đơn xin nghỉ phép (${selectedLeaveType}) từ ${startDate} đến ${endDate}.\nLý do: ${leaveReason.trim()}`,
       }, activeStoreId);
       setLeaveModalVisible(false);
       setLeaveReason('');
@@ -325,20 +335,33 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Đổi ca (Image 3) ──
   const handleSubmitSwap = async () => {
+    if (!selectedSwapShift || selectedSwapShift.id === 'no-shift') {
+      showToast('Lưu ý', 'Vui lòng chọn ca làm việc của bạn để thực hiện đổi ca', 'warning');
+      return;
+    }
+    if (!selectedSwapStaff) {
+      showToast('Lưu ý', 'Vui lòng chọn nhân viên đồng nghiệp để đổi ca', 'warning');
+      return;
+    }
+
     try {
       setLoading(true);
       await createStaffRequest({
         type: 'SWAP',
+        typeCategory: 'swap',
+        requestType: 'Yêu cầu đổi ca',
         requesterName: currentUserName || 'Nhân viên',
         targetStaffName: selectedSwapStaff,
         shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
-        reason: `Yêu cầu đổi ca trực với bạn ${selectedSwapStaff}`,
+        reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
+        content: `Đề xuất đổi ca làm việc: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
       });
       setSwapModalVisible(false);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff}`);
       loadRequests();
     } catch (err) {
-      showToast('Thất bại', 'Không thể gửi yêu cầu đổi ca', 'error');
+      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu đổi ca';
+      showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -346,8 +369,12 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Xin vắng (Image 4) ──
   const handleSubmitAbsent = async () => {
+    if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
+      showToast('Lưu ý', 'Vui lòng chọn ca làm việc cần xin vắng', 'warning');
+      return;
+    }
     if (!absentReason.trim()) {
-      showToast('Lưu ý', 'Vui lòng nhập lý do xin vắng ca', 'warning');
+      showToast('Lưu ý', 'Vui lòng nhập lý do xin vắng ca làm việc', 'warning');
       return;
     }
 
@@ -355,16 +382,20 @@ export default function RequestScreen({ navigation, route }) {
       setLoading(true);
       await createStaffRequest({
         type: 'ABSENT',
+        typeCategory: 'absence',
+        requestType: 'Yêu cầu xin vắng',
         requesterName: currentUserName || 'Nhân viên',
         shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
         reason: absentReason.trim(),
+        content: `Xin vắng ca làm: ${selectedAbsentShift.dayLabel} (${selectedAbsentShift.timeRange}).\nLý do: ${absentReason.trim()}`,
       });
       setAbsentModalVisible(false);
       setAbsentReason('');
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
       loadRequests();
     } catch (err) {
-      showToast('Thất bại', 'Không thể gửi yêu cầu xin vắng', 'error');
+      const errMsg = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu xin vắng';
+      showToast('Thất bại', errMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -756,11 +787,16 @@ export default function RequestScreen({ navigation, route }) {
             />
 
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitLeave}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -886,11 +922,16 @@ export default function RequestScreen({ navigation, route }) {
             </View>
 
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitSwap}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -1006,11 +1047,16 @@ export default function RequestScreen({ navigation, route }) {
             </View>
 
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
               onPress={handleSubmitAbsent}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -1502,6 +1548,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
   },
   submitBtnText: {
     fontSize: 17,
