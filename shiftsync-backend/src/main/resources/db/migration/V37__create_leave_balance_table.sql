@@ -1,7 +1,7 @@
 -- Flyway Migration V37: Create leave_balance table for annual leave entitlement tracking and concurrency control
 CREATE TABLE IF NOT EXISTS leave_balance (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    staff_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
     store_id UUID NOT NULL REFERENCES store(id) ON DELETE CASCADE,
     year INT NOT NULL,
     annual_entitlement INT NOT NULL DEFAULT 12,
