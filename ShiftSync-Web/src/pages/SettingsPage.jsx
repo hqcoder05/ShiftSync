@@ -344,6 +344,8 @@ export default function SettingsPage() {
             address: config.address,
             latitude: parseFloat(config.latitude) || s.latitude,
             longitude: parseFloat(config.longitude) || s.longitude,
+            openTime: storeOpen,
+            closeTime: storeClose,
           };
         }
         return s;
