@@ -10,7 +10,8 @@ import java.util.UUID;
 
 @Repository
 public interface ShiftSkillRequirementRepository extends JpaRepository<ShiftSkillRequirement, UUID> {
-    List<ShiftSkillRequirement> findByShiftId(UUID shiftId);
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM ShiftSkillRequirement r WHERE r.shift.id = :shiftId ORDER BY r.skill.id ASC, r.id ASC")
+    List<ShiftSkillRequirement> findByShiftId(@org.springframework.data.repository.query.Param("shiftId") UUID shiftId);
     Optional<ShiftSkillRequirement> findByShiftIdAndSkillId(UUID shiftId, UUID skillId);
 }
 
