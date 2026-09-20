@@ -1213,6 +1213,7 @@ class SchedulingPhase52WeightedOptimizationTest {
                     .shift(shift)
                     .staff(manualStaff)
                     .source(AssignmentSource.MANUAL)
+                    .requiredSkillId(baristaSkill.getId())
                     .deleted(false)
                     .build();
             when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.singletonList(manualAssignment));
