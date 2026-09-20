@@ -153,6 +153,7 @@ class SchedulingPhase51ForensicVerificationTest {
         when(skillRepository.findById(cashierSkill.getId())).thenReturn(Optional.of(cashierSkill));
         when(skillRepository.findByIdAndStoreId(baristaSkill.getId(), storeId)).thenReturn(Optional.of(baristaSkill));
         when(skillRepository.findByIdAndStoreId(cashierSkill.getId(), storeId)).thenReturn(Optional.of(cashierSkill));
+        when(skillRepository.findByStoreId(storeId)).thenReturn(List.of(baristaSkill, cashierSkill));
 
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
                 any(), any(), any(), any())).thenReturn(false);
@@ -1038,5 +1039,29 @@ class SchedulingPhase51ForensicVerificationTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.saveBulkDemandPlanning(storeId, req));
         assertTrue(ex.getMessage().contains("after store close time"));
+    }
+
+    @Test
+    @DisplayName("SCENARIO 31: Bulk demand rejects an invalid skill before any shift is persisted")
+    void test31_BulkDemandInvalidSkillIsAtomic() {
+        BulkDemandPlanningRequest.ShiftDemandConfig config = new BulkDemandPlanningRequest.ShiftDemandConfig();
+        config.setName("Morning Shift");
+        config.setStartTime(LocalTime.of(8, 0));
+        config.setEndTime(LocalTime.of(16, 0));
+        ShiftRequirementRequest invalidRequirement = new ShiftRequirementRequest();
+        invalidRequirement.setSkillId(UUID.randomUUID());
+        invalidRequirement.setRequiredCount(1);
+        config.setRequirements(List.of(invalidRequirement));
+
+        BulkDemandPlanningRequest request = new BulkDemandPlanningRequest();
+        request.setScope("DAY");
+        request.setTargetDate(startDate);
+        request.setShifts(List.of(config));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> shiftService.saveBulkDemandPlanning(storeId, request));
+
+        assertTrue(error.getMessage().contains("Skill not found in this store"));
+        verify(shiftRepository, never()).save(any(Shift.class));
     }
 }
