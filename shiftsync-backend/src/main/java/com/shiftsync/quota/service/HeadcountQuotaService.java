@@ -3,6 +3,8 @@ package com.shiftsync.quota.service;
 import com.shiftsync.layout.entity.StoreZone;
 import com.shiftsync.layout.repository.StoreZoneRepository;
 import com.shiftsync.quota.dto.*;
+import com.shiftsync.quota.entity.PositionNormOverride;
+import com.shiftsync.quota.repository.PositionNormOverrideRepository;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.enums.ShiftStatus;
@@ -40,6 +42,7 @@ public class HeadcountQuotaService {
     private final ShiftRepository shiftRepository;
     private final StoreZoneRepository storeZoneRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final PositionNormOverrideRepository positionNormOverrideRepository;
 
     private static final long MONTHLY_BUDGET_STANDARD = 85_000_000L;
     private final Map<UUID, Long> storeMonthlyBudgets = new ConcurrentHashMap<>();
@@ -68,6 +71,45 @@ public class HeadcountQuotaService {
         return open.plusMinutes(minutes / 2);
     }
 
+    private double durationHours(LocalTime start, LocalTime end) {
+        if (start == null || end == null) {
+            return 0;
+        }
+        return java.time.Duration.between(start, end).toMinutes() / 60.0;
+    }
+
+    private double durationHours(String start, String end) {
+        try {
+            return durationHours(LocalTime.parse(start), LocalTime.parse(end));
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private double durationForShiftType(String shiftType, LocalTime open, LocalTime mid, LocalTime close) {
+        return "morning".equalsIgnoreCase(shiftType) ? durationHours(open, mid) : durationHours(mid, close);
+    }
+
+    private double calculatePositionWeeklyHours(UUID positionId, List<WeeklyMatrixQuotaResponse.MatrixRow> rows,
+                                                LocalTime open, LocalTime mid, LocalTime close) {
+        return rows.stream()
+                .filter(row -> positionId.equals(row.getPositionId()))
+                .flatMap(row -> row.getCells().stream())
+                .mapToDouble(cell -> cell.getCount() * durationForShiftType(cell.getShiftType(), open, mid, close))
+                .sum();
+    }
+
+    private PositionNormOverride findNormOverride(UUID storeId, UUID skillId) {
+        return positionNormOverrideRepository == null ? null
+                : positionNormOverrideRepository.findByStoreIdAndSkillId(storeId, skillId).orElse(null);
+    }
+
+    private void validateNorm(PositionNormOverride override) {
+        if (override.getMin() > override.getTarget() || override.getTarget() > override.getMax()) {
+            throw new BusinessException("Quota norm must satisfy min <= target <= max", HttpStatus.BAD_REQUEST);
+        }
+    }
+
     private List<Integer> generateTimelineHours(LocalTime start, LocalTime end) {
         List<Integer> hours = new ArrayList<>();
         int s = start.getHour();
@@ -76,20 +118,6 @@ public class HeadcountQuotaService {
             hours.add(h);
         }
         return hours;
-    }
-
-    // In-memory cache for dynamic Min/Target/Max overrides per store and position
-    private final Map<String, PositionNormOverride> normOverrides = new ConcurrentHashMap<>();
-
-    private static class PositionNormOverride {
-        int min;
-        int target;
-        int max;
-        PositionNormOverride(int min, int target, int max) {
-            this.min = min;
-            this.target = target;
-            this.max = max;
-        }
     }
 
     /**
@@ -104,6 +132,8 @@ public class HeadcountQuotaService {
                         .code("CN-" + store.getId().toString().substring(0, 6).toUpperCase())
                         .address(store.getAddress() != null ? store.getAddress() : "Khu vực trung tâm")
                         .format(store.getFormat() != null ? store.getFormat() : "Standard")
+                        .openTime(store.getOpenTime())
+                        .closeTime(store.getCloseTime())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -212,12 +242,11 @@ public class HeadcountQuotaService {
         }
 
         // Check custom overrides
-        String key = branchId + "_" + s.getId();
-        PositionNormOverride override = normOverrides.get(key);
+        PositionNormOverride override = findNormOverride(branchId, s.getId());
         if (override != null) {
-            defaultMin = override.min;
-            defaultTarget = override.target;
-            defaultMax = override.max;
+            defaultMin = override.getMin();
+            defaultTarget = override.getTarget();
+            defaultMax = override.getMax();
         }
 
         return PositionDTO.builder()
@@ -239,13 +268,6 @@ public class HeadcountQuotaService {
                                               long rate, String color, String icon,
                                               int min, int target, int max, String scope) {
         UUID tempId = UUID.nameUUIDFromBytes((branchId.toString() + "_" + code).getBytes());
-        String key = branchId + "_" + tempId;
-        PositionNormOverride override = normOverrides.get(key);
-        if (override != null) {
-            min = override.min;
-            target = override.target;
-            max = override.max;
-        }
         return PositionDTO.builder()
                 .id(tempId)
                 .name(name)
@@ -264,7 +286,7 @@ public class HeadcountQuotaService {
     /**
      * GET /api/headcount-quotas?branchId=&date=
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public DailyQuotaResponse getDailyQuotas(UUID branchId, LocalDate date) {
         Store store = storeRepository.findById(branchId).orElse(null);
         String storeName = store != null ? store.getName() : "ShiftSync Store";
@@ -280,9 +302,9 @@ public class HeadcountQuotaService {
         String midStr = String.format("%02d:%02d", mid.getHour(), mid.getMinute());
         String closeStr = String.format("%02d:%02d", close.getHour(), close.getMinute());
 
-        // Ensure 2 default operational shifts exist within store hours
-        Shift morningShift = getOrCreateShift(store, date, open, mid, "Ca Sáng");
-        Shift afternoonShift = getOrCreateShift(store, date, mid, close, "Ca Chiều");
+        // Reads must not initialize scheduler state. Explicit write endpoints do that.
+        Shift morningShift = resolveCanonicalShift(shifts, date, open, mid, true, open, close);
+        Shift afternoonShift = resolveCanonicalShift(shifts, date, mid, close, false, open, close);
 
         List<DailyQuotaResponse.DailyShiftQuota> shiftQuotas = new ArrayList<>();
         shiftQuotas.add(buildDailyShiftQuota(morningShift, "Ca Sáng (" + openStr + "-" + midStr + ")", openStr, midStr, generateTimelineHours(open, mid), positions, true));
@@ -290,7 +312,7 @@ public class HeadcountQuotaService {
 
         // Evaluate Position KPIs
         List<DailyQuotaResponse.DailyPositionKpi> kpis = new ArrayList<>();
-        int totalAssignedHoursAll = 0;
+        double totalAssignedHoursAll = 0;
         long totalCostAll = 0;
         int compliantCellsCount = 0;
         int totalCellsCount = 0;
@@ -298,7 +320,7 @@ public class HeadcountQuotaService {
         List<String> overstaffedDetails = new ArrayList<>();
 
         for (PositionDTO pos : positions) {
-            int posAssignedHours = 0;
+            double posAssignedHours = 0;
             int posTotalCount = 0;
             int posCompliantCount = 0;
 
@@ -307,8 +329,9 @@ public class HeadcountQuotaService {
                     if (cell.getPositionId().equals(pos.getId())) {
                         totalCellsCount++;
                         posTotalCount++;
-                        posAssignedHours += cell.getCount() * 8;
-                        totalCostAll += cell.getCount() * 8 * pos.getHourlyRate();
+                        double shiftHours = sq.getDurationHours();
+                        posAssignedHours += cell.getCount() * shiftHours;
+                        totalCostAll += Math.round(cell.getCount() * shiftHours * pos.getHourlyRate());
 
                         if ("COMPLIANT".equals(cell.getStatus())) {
                             posCompliantCount++;
@@ -345,7 +368,10 @@ public class HeadcountQuotaService {
         }
 
         double overallSla = totalCellsCount > 0 ? Math.round(((double) compliantCellsCount / totalCellsCount) * 1000.0) / 10.0 : 100.0;
-        int totalHeadcount = totalAssignedHoursAll / 8;
+        int totalHeadcount = shiftQuotas.stream()
+                .flatMap(sq -> sq.getQuotas().stream())
+                .mapToInt(DailyQuotaResponse.DailyQuotaCell::getCount)
+                .sum();
 
         DailyQuotaResponse.DailyWarningBanner warningBanner;
         if (!violationDetails.isEmpty()) {
@@ -379,6 +405,11 @@ public class HeadcountQuotaService {
                 .branchName(storeName)
                 .date(date)
                 .dateFormatted(date.format(DATE_FORMATTER))
+                .openTime(open)
+                .closeTime(close)
+                .midTime(mid)
+                .morningLabel("Ca Sáng (" + openStr + "-" + midStr + ")")
+                .afternoonLabel("Ca Chiều (" + midStr + "-" + closeStr + ")")
                 .slaPercentage(overallSla)
                 .statusBadge(warningBanner.isHasViolation() ? "● " + compliantCellsCount + "/" + totalCellsCount + " ca đã đủ định biên" : "● Đã đủ định biên chuẩn")
                 .completedShiftsCount(compliantCellsCount)
@@ -418,11 +449,14 @@ public class HeadcountQuotaService {
                 });
     }
 
-    private Shift resolveCanonicalShift(List<Shift> shifts, LocalDate date, LocalTime targetStart, LocalTime targetEnd, boolean isMorning) {
+    private Shift resolveCanonicalShift(List<Shift> shifts, LocalDate date, LocalTime targetStart, LocalTime targetEnd, boolean isMorning, LocalTime openTime, LocalTime closeTime) {
         if (shifts == null || shifts.isEmpty()) return null;
 
         List<Shift> dayShifts = shifts.stream()
                 .filter(s -> s.getShiftDate().equals(date) && s.getStartTime() != null)
+                // Strictly exclude shifts that violate store operating boundaries
+                .filter(s -> (openTime == null || !s.getStartTime().isBefore(openTime)) &&
+                             (closeTime == null || s.getEndTime() == null || !s.getEndTime().isAfter(closeTime)))
                 .collect(Collectors.toList());
 
         // 1. Exact match start and end
@@ -439,7 +473,7 @@ public class HeadcountQuotaService {
             }
         }
 
-        // 3. Fallback matching period (morning < targetEnd vs afternoon >= targetStart)
+        // 3. Fallback matching period (morning < targetEnd vs afternoon >= targetStart) within operating hours
         return dayShifts.stream()
                 .filter(s -> isMorning ? s.getStartTime().isBefore(targetEnd) : !s.getStartTime().isBefore(targetStart))
                 .min(Comparator.comparingLong(s -> Math.abs(java.time.Duration.between(s.getStartTime(), targetStart).toMinutes())))
@@ -514,12 +548,14 @@ public class HeadcountQuotaService {
                     .build());
         }
 
+        double durationHours = durationHours(startTime, endTime);
+
         return DailyQuotaResponse.DailyShiftQuota.builder()
                 .id(shift != null ? shift.getId() : UUID.randomUUID())
                 .name(name)
                 .startTime(startTime)
                 .endTime(endTime)
-                .durationHours(8)
+                .durationHours(durationHours)
                 .timelineHours(timelineHours)
                 .quotas(cells)
                 .build();
@@ -590,12 +626,12 @@ public class HeadcountQuotaService {
                 boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
 
                 // Morning shift
-                Shift mShift = resolveCanonicalShift(shifts, d, open, mid, true);
+                Shift mShift = resolveCanonicalShift(shifts, d, open, mid, true, open, close);
                 WeeklyMatrixQuotaResponse.MatrixCell mCell = buildMatrixCell(store, d, mShift, "morning", morningLabel, pos, isWeekend, open, mid);
                 cells.add(mCell);
 
                 // Afternoon shift
-                Shift aShift = resolveCanonicalShift(shifts, d, mid, close, false);
+                Shift aShift = resolveCanonicalShift(shifts, d, mid, close, false, open, close);
                 WeeklyMatrixQuotaResponse.MatrixCell aCell = buildMatrixCell(store, d, aShift, "afternoon", afternoonLabel, pos, isWeekend, mid, close);
                 cells.add(aCell);
 
@@ -604,7 +640,7 @@ public class HeadcountQuotaService {
                     totalSlotsAll++;
                     assignedForPos += c.getCount();
                     targetForPos += c.getTarget();
-                    totalWeeklyCost += c.getCount() * 8 * pos.getHourlyRate();
+                    totalWeeklyCost += Math.round(c.getCount() * durationForShiftType(c.getShiftType(), open, mid, close) * pos.getHourlyRate());
 
                     if ("COMPLIANT".equals(c.getStatus())) totalSlotsCompliant++;
                     else if ("PEAK".equals(c.getStatus())) totalSlotsPeak++;
@@ -640,7 +676,7 @@ public class HeadcountQuotaService {
         // Summary Rows (14 shift totals, 7 day totals, 7 man-hours)
         List<Integer> shiftTotals = new ArrayList<>();
         List<WeeklyMatrixQuotaResponse.DayTotalSummary> dayTotals = new ArrayList<>();
-        List<Integer> manHours = new ArrayList<>();
+        List<Double> manHours = new ArrayList<>();
 
         for (int i = 0; i < 7; i++) {
             int morningTotal = 0;
@@ -693,7 +729,7 @@ public class HeadcountQuotaService {
                     .badgeType(badgeType)
                     .build());
 
-            manHours.add(dayTotal * 8);
+            manHours.add(morningTotal * durationHours(open, mid) + afternoonTotal * durationHours(mid, close));
         }
 
         // Blue Auto Peak Warning
@@ -723,7 +759,7 @@ public class HeadcountQuotaService {
                     .hourlyRate(pos.getHourlyRate())
                     .assignedSlots(assigned)
                     .targetSlots(target)
-                    .totalHours(assigned * 8)
+                    .totalHours(calculatePositionWeeklyHours(pos.getId(), matrixRows, open, mid, close))
                     .applyScope(pos.getShiftScope().equals("PEAK_ONLY") ? "Áp dụng: Chỉ ca cao điểm" : "Áp dụng: Mọi ca")
                     .slaPercentage(slaPct)
                     .color(pos.getColor())
@@ -732,7 +768,7 @@ public class HeadcountQuotaService {
         }
 
         double totalSla = totalSlotsAll > 0 ? Math.round(((double) (totalSlotsCompliant + totalSlotsPeak) / totalSlotsAll) * 1000.0) / 10.0 : 100.0;
-        int totalHoursAll = shiftTotals.stream().mapToInt(Integer::intValue).sum() * 8;
+        double totalHoursAll = manHours.stream().mapToDouble(Double::doubleValue).sum();
         long monthlyBudget = branchId != null ? storeMonthlyBudgets.getOrDefault(branchId, MONTHLY_BUDGET_STANDARD) : MONTHLY_BUDGET_STANDARD;
         double budgetPct = Math.round(((double) totalWeeklyCost / monthlyBudget) * 1000.0) / 10.0;
 
@@ -747,6 +783,11 @@ public class HeadcountQuotaService {
                 .weekStart(weekStart)
                 .weekEnd(weekEnd)
                 .weekFormatted(weekStart.format(SHORT_DATE_FORMATTER) + " – " + weekEnd.format(DATE_FORMATTER))
+                .openTime(open)
+                .closeTime(close)
+                .midTime(mid)
+                .morningLabel(morningLabel)
+                .afternoonLabel(afternoonLabel)
                 .slaPercentage(totalSla)
                 .totalQuotaSlots(totalSlotsCompliant + totalSlotsPeak)
                 .standardQuotaSlots(totalSlotsAll)
@@ -888,12 +929,17 @@ public class HeadcountQuotaService {
 
         // Update norm override if Min/Target/Max changed
         if (req.getPositionId() != null && (req.getMin() != null || req.getTarget() != null || req.getMax() != null)) {
-            String key = branchId + "_" + req.getPositionId();
-            PositionNormOverride existing = normOverrides.getOrDefault(key, new PositionNormOverride(1, 2, 3));
-            if (req.getMin() != null) existing.min = req.getMin();
-            if (req.getTarget() != null) existing.target = req.getTarget();
-            if (req.getMax() != null) existing.max = req.getMax();
-            normOverrides.put(key, existing);
+            Store store = storeRepository.findById(branchId)
+                    .orElseThrow(() -> new BusinessException("Store not found: " + branchId, HttpStatus.NOT_FOUND));
+            Skill skill = skillRepository.findByIdAndStoreId(req.getPositionId(), branchId)
+                    .orElseThrow(() -> new BusinessException("Position/Skill not found in this store: " + req.getPositionId(), HttpStatus.NOT_FOUND));
+            PositionNormOverride existing = positionNormOverrideRepository.findByStoreIdAndSkillId(branchId, req.getPositionId())
+                    .orElse(PositionNormOverride.builder().store(store).skill(skill).min(1).target(2).max(3).build());
+            if (req.getMin() != null) existing.setMin(req.getMin());
+            if (req.getTarget() != null) existing.setTarget(req.getTarget());
+            if (req.getMax() != null) existing.setMax(req.getMax());
+            validateNorm(existing);
+            positionNormOverrideRepository.save(existing);
         }
 
         // Update shift requirement in database if count is provided
