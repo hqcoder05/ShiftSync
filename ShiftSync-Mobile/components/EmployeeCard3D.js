@@ -255,7 +255,7 @@ export default function EmployeeCard3D({
               style={styles.flipBadgeTop}
               accessibilityLabel="Lật thẻ mặt sau"
             >
-              <Text style={styles.flipBadgeText}>3D Flip • Chạm để lật thẻ</Text>
+              <Text style={styles.flipBadgeText}>✨ 3D Flip • Chạm để lật 🪪</Text>
             </TouchableOpacity>
           </View>
 
