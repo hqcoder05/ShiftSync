@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +22,11 @@ public class WeeklyMatrixQuotaResponse {
     private LocalDate weekStart;
     private LocalDate weekEnd;
     private String weekFormatted; // e.g. "14/09 – 20/09/2026"
+    private LocalTime openTime;
+    private LocalTime closeTime;
+    private LocalTime midTime;
+    private String morningLabel;
+    private String afternoonLabel;
     private double slaPercentage; // e.g. 97.8
     private int totalQuotaSlots; // e.g. 88
     private int standardQuotaSlots; // e.g. 90
@@ -74,7 +80,7 @@ public class WeeklyMatrixQuotaResponse {
         private long hourlyRate;
         private int assignedSlots;
         private int targetSlots;
-        private int totalHours;
+        private double totalHours;
         private String applyScope; // "Áp dụng: Mọi ca" or "Áp dụng: Chỉ ca cao điểm"
         private int slaPercentage;
         private String color;
@@ -137,7 +143,7 @@ public class WeeklyMatrixQuotaResponse {
         // Total staff per day vs norm (7 values)
         private List<DayTotalSummary> dayTotals;
         // Converted man-hours (7 values: 8h x totalStaff)
-        private List<Integer> manHours;
+        private List<Double> manHours;
     }
 
     @Data
@@ -173,7 +179,7 @@ public class WeeklyMatrixQuotaResponse {
     @AllArgsConstructor
     public static class WeeklyBudgetFooter {
         private int totalQuotas; // e.g. 121
-        private int totalHours; // e.g. 968
+        private double totalHours; // e.g. 968
         private long estimatedCost; // e.g. 27328000
         private String formattedEstimatedCost; // "27.328.000 đ"
         private double slaComplianceRate; // 100.0
