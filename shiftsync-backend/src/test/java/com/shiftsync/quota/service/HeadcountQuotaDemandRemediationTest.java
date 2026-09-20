@@ -3,6 +3,8 @@ package com.shiftsync.quota.service;
 import com.shiftsync.quota.dto.ApplySchedulerRequest;
 import com.shiftsync.quota.dto.UpdateQuotaRequest;
 import com.shiftsync.quota.dto.WeeklyMatrixQuotaResponse;
+import com.shiftsync.quota.entity.PositionNormOverride;
+import com.shiftsync.quota.repository.PositionNormOverrideRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.BulkDemandPlanningRequest;
 import com.shiftsync.shift.dto.ShiftRequirementRequest;
@@ -47,6 +49,7 @@ class HeadcountQuotaDemandRemediationTest {
     @Mock private ShiftRepository shiftRepository;
     @Mock private ShiftAssignmentRepository shiftAssignmentRepository;
     @Mock private StaffSkillRepository staffSkillRepository;
+    @Mock private PositionNormOverrideRepository positionNormOverrideRepository;
 
     @InjectMocks
     private HeadcountQuotaService headcountQuotaService;
@@ -93,6 +96,7 @@ class HeadcountQuotaDemandRemediationTest {
         when(skillRepository.findById(baristaSkill.getId())).thenReturn(Optional.of(baristaSkill));
         when(skillRepository.findById(cashierSkill.getId())).thenReturn(Optional.of(cashierSkill));
         when(skillRepository.findById(waiterSkill.getId())).thenReturn(Optional.of(waiterSkill));
+        when(skillRepository.findByIdAndStoreId(baristaSkill.getId(), storeId)).thenReturn(Optional.of(baristaSkill));
     }
 
     @Test
@@ -129,6 +133,41 @@ class HeadcountQuotaDemandRemediationTest {
         assertEquals(1, existingShift.getRequirements().size());
         assertEquals(baristaSkill.getId(), existingShift.getRequirements().get(0).getSkill().getId());
         assertEquals(2, existingShift.getRequirements().get(0).getRequiredCount());
+    }
+
+    @Test
+    @DisplayName("Quota GET is side-effect free when canonical shifts do not exist")
+    void getDailyQuotas_DoesNotCreateDraftShifts() {
+        when(shiftRepository.findByStoreIdAndShiftDate(storeId, testDate)).thenReturn(Collections.emptyList());
+
+        headcountQuotaService.getDailyQuotas(storeId, testDate);
+
+        verify(shiftRepository, never()).save(any(Shift.class));
+    }
+
+    @Test
+    @DisplayName("Persisted norm override is used by subsequent quota reads")
+    void updateNorm_PersistsAndIsReadFromRepository() {
+        UpdateQuotaRequest req = new UpdateQuotaRequest();
+        req.setBranchId(storeId);
+        req.setPositionId(baristaSkill.getId());
+        req.setMin(2);
+        req.setTarget(3);
+        req.setMax(4);
+        when(positionNormOverrideRepository.findByStoreIdAndSkillId(storeId, baristaSkill.getId()))
+                .thenReturn(Optional.empty(), Optional.of(PositionNormOverride.builder()
+                        .store(store).skill(baristaSkill).min(2).target(3).max(4).build()));
+
+        headcountQuotaService.updateQuota("norm", req);
+
+        ArgumentCaptor<PositionNormOverride> captor = ArgumentCaptor.forClass(PositionNormOverride.class);
+        verify(positionNormOverrideRepository).save(captor.capture());
+        assertEquals(2, captor.getValue().getMin());
+        assertEquals(3, captor.getValue().getTarget());
+        assertEquals(4, captor.getValue().getMax());
+        assertEquals(3, headcountQuotaService.getPositions(storeId).stream()
+                .filter(position -> position.getId().equals(baristaSkill.getId()))
+                .findFirst().orElseThrow().getDefaultTarget());
     }
 
     @Test
