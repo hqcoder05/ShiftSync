@@ -230,7 +230,7 @@ export default function LoginPage() {
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px', textAlign: 'center' }}>
               ⚡ Tài khoản thử nghiệm (Click để điền nhanh)
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
               <button
                 type="button"
                 onClick={() => handleQuickFill('manager@shiftsync.com')}
@@ -258,6 +258,13 @@ export default function LoginPage() {
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
                 👤 <strong>Nhân viên</strong><br /><span style={{ color: '#64748b' }}>emp01@shiftsync.com</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('emp30@shiftsync.com')}
+                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', textAlign: 'left' }}
+              >
+                🆕 <strong>NV (Chưa đ/k rảnh)</strong><br /><span style={{ color: '#92400e' }}>emp30@shiftsync.com</span>
               </button>
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '6px' }}>
