@@ -11,7 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment, UUID> {
-    List<ShiftAssignment> findByShiftId(UUID shiftId);
+    @Query("SELECT a FROM ShiftAssignment a WHERE a.shift.id = :shiftId ORDER BY a.staff.id ASC, a.id ASC")
+    List<ShiftAssignment> findByShiftId(@Param("shiftId") UUID shiftId);
 
     List<ShiftAssignment> findByStaffId(UUID staffId);
 
@@ -26,7 +27,9 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
     
     boolean existsByShiftIdAndStaffId(UUID shiftId, UUID staffId);
 
-    List<ShiftAssignment> findByStaffIdInAndShift_ShiftDateBetween(List<UUID> staffIds, LocalDate startDate, LocalDate endDate);
+    @Query("SELECT a FROM ShiftAssignment a WHERE a.staff.id IN :staffIds AND a.shift.shiftDate BETWEEN :startDate AND :endDate " +
+           "ORDER BY a.staff.id ASC, a.shift.shiftDate ASC, a.shift.startTime ASC, a.shift.endTime ASC, a.shift.id ASC, a.id ASC")
+    List<ShiftAssignment> findByStaffIdInAndShift_ShiftDateBetween(@Param("staffIds") List<UUID> staffIds, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
     
     List<ShiftAssignment> findByShift_Store_IdAndShift_ShiftDateBetween(UUID storeId, LocalDate startDate, LocalDate endDate);
     @Query("SELECT sa.shift.id FROM ShiftAssignment sa WHERE sa.staff.id = :staffId AND sa.shift.status = 'PUBLISHED' AND sa.shift.shiftDate >= :startDate AND sa.shift.shiftDate <= :endDate")
@@ -50,4 +53,12 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     List<ShiftAssignment> findByShift_Store_IdAndShift_ShiftDateAndShift_StartTimeBetween(
             UUID storeId, LocalDate shiftDate, java.time.LocalTime startTimeStart, java.time.LocalTime startTimeEnd);
+
+    List<ShiftAssignment> findByStaffIdAndShift_ShiftDate(UUID staffId, LocalDate shiftDate);
+
+    @Query(value = "SELECT sa.* FROM shift_assignment sa " +
+                   "JOIN shift s ON sa.shift_id = s.id " +
+                   "WHERE sa.staff_id = :staffId AND s.shift_date = :shiftDate " +
+                   "ORDER BY sa.deleted ASC LIMIT 1", nativeQuery = true)
+    Optional<ShiftAssignment> findAssignmentForStaffOnDateIncludingDeleted(@Param("staffId") UUID staffId, @Param("shiftDate") LocalDate shiftDate);
 }
