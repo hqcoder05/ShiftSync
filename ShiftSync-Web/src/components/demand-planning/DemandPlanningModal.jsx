@@ -4,6 +4,13 @@ import DemandWeeklyMatrixView from './DemandWeeklyMatrixView';
 import headcountQuotaService from '../../services/headcountQuotaService';
 import './DemandPlanning.css';
 
+const hoursBetween = (start, end) => {
+  if (!start || !end) return 0;
+  const [startHour, startMinute = 0] = start.toString().slice(0, 5).split(':').map(Number);
+  const [endHour, endMinute = 0] = end.toString().slice(0, 5).split(':').map(Number);
+  return ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60;
+};
+
 export default function DemandPlanningModal({
   isOpen,
   onClose,
@@ -167,8 +174,9 @@ export default function DemandPlanningModal({
             if (q.positionId === kpi.positionId) {
               totalCellsCount++;
               posTotalCount++;
-              posAssignedHours += (q.count || 0) * 8;
-              totalCostAll += (q.count || 0) * 8 * (kpi.hourlyRate || 28000);
+              const shiftHours = s.durationHours ?? hoursBetween(s.startTime, s.endTime);
+              posAssignedHours += (q.count || 0) * shiftHours;
+              totalCostAll += (q.count || 0) * shiftHours * (kpi.hourlyRate || 28000);
 
               if (q.status === 'COMPLIANT') {
                 posCompliantCount++;
@@ -359,14 +367,21 @@ export default function DemandPlanningModal({
           badgeType: badgeType,
         });
 
-        manHours.push(dayTotal * 8);
+        manHours.push(
+          morningTotal * hoursBetween(prev.openTime, prev.midTime) +
+          afternoonTotal * hoursBetween(prev.midTime, prev.closeTime)
+        );
       }
 
       // 2. Recalculate Position Cards (assignedSlots, totalHours, slaPercentage)
       const updatedPositionCards = (prev.positionCards || []).map((card) => {
         const row = updatedRows.find((r) => r.positionId === card.positionId);
         const assignedSlots = row ? row.cells.reduce((sum, c) => sum + (c.count || 0), 0) : card.assignedSlots;
-        const totalHours = assignedSlots * 8;
+        const totalHours = row
+          ? row.cells.reduce((sum, cell) => sum + (cell.count || 0) * (cell.shiftType === 'morning'
+            ? hoursBetween(prev.openTime, prev.midTime)
+            : hoursBetween(prev.midTime, prev.closeTime)), 0)
+          : card.totalHours;
         const targetSlots = card.targetSlots || 28;
         const slaPercentage = targetSlots > 0 ? Math.min(100, Math.round((assignedSlots / targetSlots) * 100)) : 100;
         return {
@@ -388,7 +403,9 @@ export default function DemandPlanningModal({
         const rate = row.hourlyRate || 28000;
         for (const c of row.cells) {
           totalSlotsAll++;
-          totalWeeklyCost += (c.count || 0) * 8 * rate;
+          totalWeeklyCost += (c.count || 0) * (c.shiftType === 'morning'
+            ? hoursBetween(prev.openTime, prev.midTime)
+            : hoursBetween(prev.midTime, prev.closeTime)) * rate;
           if (c.status === 'COMPLIANT') totalSlotsCompliant++;
           else if (c.status === 'PEAK') totalSlotsPeak++;
           else totalSlotsReview++;
@@ -397,7 +414,7 @@ export default function DemandPlanningModal({
 
       const totalStaffSum = shiftTotals.reduce((a, b) => a + b, 0);
       const totalSla = totalSlotsAll > 0 ? Math.round(((totalSlotsCompliant + totalSlotsPeak) / totalSlotsAll) * 1000) / 10 : 100;
-      const totalHoursAll = totalStaffSum * 8;
+      const totalHoursAll = manHours.reduce((sum, hours) => sum + hours, 0);
       const monthlyBudget = prev.budget?.monthlyQuotaBudget || 85000000;
       const budgetPct = Math.round((totalWeeklyCost / monthlyBudget) * 1000) / 10;
       const formattedCost = new Intl.NumberFormat('vi-VN').format(totalWeeklyCost) + ' đ';
