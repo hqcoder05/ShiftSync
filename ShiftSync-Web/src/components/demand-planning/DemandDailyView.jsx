@@ -78,7 +78,9 @@ export default function DemandDailyView({
         impactDescription: `Tỷ lệ đáp ứng SLA hiện tại: ${slaPct}%. Cần bổ sung thêm ${viols.reduce((sum, v) => sum + v.diff, 0)} nhân sự trước khi áp dụng sang Scheduler để đảm bảo chất lượng phục vụ.`,
       };
     } else if (totalCount > 0) {
-      const totalHours = summary?.totalHours || (headcount * 8);
+      const totalHours = summary?.totalHours ?? shifts.reduce(
+        (sum, shift) => sum + (shift.quotas || []).reduce(
+          (shiftSum, quota) => shiftSum + (quota.count || 0) * (shift.durationHours || 0), 0), 0);
       const extraOverstaffed = overs.length > 0
         ? ` (Ghi nhận ${overs.length} vị trí vượt mức trần tối đa: ${overs.map((o) => `${o.positionName} ${o.count}/${o.max}`).join(', ')})`
         : '';
@@ -143,8 +145,8 @@ export default function DemandDailyView({
 
   if (!data) return null;
 
-  const morningShift = shifts.find((s) => s.startTime?.startsWith('06') || s.name?.includes('Sáng')) || shifts[0];
-  const afternoonShift = shifts.find((s) => s.startTime?.startsWith('14') || s.name?.includes('Chiều')) || shifts[1];
+  const morningShift = shifts.find((s) => s.name?.includes('Sáng')) || shifts[0];
+  const afternoonShift = shifts.find((s) => s.name?.includes('Chiều')) || shifts[1];
 
   // Map quotas by position ID for each shift
   const morningQuotas = new Map((morningShift?.quotas || []).map((q) => [q.positionId, q]));
@@ -182,7 +184,7 @@ export default function DemandDailyView({
                 </div>
                 <div className="dp-kpi-card-desc">
                   <span>
-                    {kpi.assignedHours / 8} NV cần ({kpi.assignedHours}h công)
+                    {kpi.assignedHours}h công
                   </span>
                   {isWarning && <span className="dp-violation-note">• Chưa đạt</span>}
                 </div>
@@ -292,13 +294,13 @@ export default function DemandDailyView({
             <div className="dp-shift-header-block">
               <div className="dp-shift-title-row">
                 <span className="dp-shift-dot" style={{ background: '#f59e0b' }} />
-                <span className="dp-shift-name">{morningShift?.name || 'Ca Sáng'}</span>
+                <span className="dp-shift-name">{morningShift?.name || data?.morningLabel || 'Ca Sáng'}</span>
                 <span className="dp-shift-timerange">
-                  {morningShift?.startTime || '06:00'} – {morningShift?.endTime || '14:00'} ({morningShift?.durationHours || 8} tiếng)
+                  {morningShift?.startTime || data?.openTime?.slice(0, 5) || '08:00'} – {morningShift?.endTime || data?.midTime?.slice(0, 5) || '15:30'} ({morningShift?.durationHours || 8} tiếng)
                 </span>
               </div>
               <div className="dp-shift-timeline-ticks">
-                {(morningShift?.timelineHours || [6, 8, 10, 12, 14]).map((h) => (
+                {(morningShift?.timelineHours || [8, 10, 12, 14]).map((h) => (
                   <span key={h}>{h}h</span>
                 ))}
               </div>
@@ -308,13 +310,13 @@ export default function DemandDailyView({
             <div className="dp-shift-header-block">
               <div className="dp-shift-title-row">
                 <span className="dp-shift-dot" style={{ background: '#6366f1' }} />
-                <span className="dp-shift-name">{afternoonShift?.name || 'Ca Chiều'}</span>
+                <span className="dp-shift-name">{afternoonShift?.name || data?.afternoonLabel || 'Ca Chiều'}</span>
                 <span className="dp-shift-timerange">
-                  {afternoonShift?.startTime || '14:00'} – {afternoonShift?.endTime || '22:00'} ({afternoonShift?.durationHours || 8} tiếng)
+                  {afternoonShift?.startTime || data?.midTime?.slice(0, 5) || '15:30'} – {afternoonShift?.endTime || data?.closeTime?.slice(0, 5) || '23:00'} ({afternoonShift?.durationHours || 8} tiếng)
                 </span>
               </div>
               <div className="dp-shift-timeline-ticks">
-                {(afternoonShift?.timelineHours || [14, 16, 18, 20, 22]).map((h) => (
+                {(afternoonShift?.timelineHours || [16, 18, 20, 22]).map((h) => (
                   <span key={h}>{h}h</span>
                 ))}
               </div>
@@ -597,7 +599,7 @@ export default function DemandDailyView({
         <div className="dp-daily-footer-bar">
           <div className="dp-footer-meta-left">
             <span className="dp-footer-main-text">
-              Tổng giờ công dự kiến: <strong>{summary.totalHours} giờ</strong> ({summary.totalShiftsCount} lượt ca x 8h) • Chi phí ước tính: ~<strong>{summary.estimatedCost?.toLocaleString('vi-VN')} đ</strong> {summary.costBreakdownText}
+              Tổng giờ công dự kiến: <strong>{summary.totalHours} giờ</strong> ({summary.totalShiftsCount} lượt ca) • Chi phí ước tính: ~<strong>{summary.estimatedCost?.toLocaleString('vi-VN')} đ</strong> {summary.costBreakdownText}
             </span>
             <span className="dp-footer-sub-rate">
               Tỷ lệ đáp ứng định biên: {summary.slaComplianceRate}% Tuân thủ SLA vận hành
