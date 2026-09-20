@@ -1,4 +1,9 @@
 # BÁO CÁO TOÀN DIỆN DỮ LIỆU SEED (MANUAL AUDIT LOG)
+
+> **CURRENT STATUS — 2026-09-20:** This document describes a historical
+> database snapshot and manual QA dataset. It is preserved for reproducibility;
+> it does not establish that a fresh PostgreSQL migration or full real-
+> infrastructure integration suite has passed.
 > **Hệ thống Quản lý Ca làm việc ShiftSync**
 > **Thời gian xuất dữ liệu:** `2026-09-17 10:51:05`
 > **Cơ sở dữ liệu:** PostgreSQL 15 (`shiftsync`) trên Docker Container `shiftsync-db`
