@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { getActiveShifts, claimShift } from '../services/marketplaceService';
+import { getMyProposals, respondProposal } from '../services/workforceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getMyShifts } from '../services/shiftService';
 import BottomNavbar from '../components/BottomNavbar';
@@ -153,6 +154,10 @@ export default function MarketplaceScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
+  const [proposals, setProposals] = useState([]);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [proposalsError, setProposalsError] = useState(null);
+  const [respondingProposalId, setRespondingProposalId] = useState(null);
 
   const currentStore = useMemo(() => {
     if (!stores || stores.length === 0) return null;
@@ -165,6 +170,17 @@ export default function MarketplaceScreen({ navigation }) {
       const { data: user } = await getMyProfile();
       if (!user?.id) return;
       setCurrentUser(user);
+
+      setProposalsLoading(true);
+      setProposalsError(null);
+      try {
+        const { data } = await getMyProposals();
+        setProposals(Array.isArray(data) ? data : []);
+      } catch (proposalError) {
+        setProposalsError(proposalError);
+      } finally {
+        setProposalsLoading(false);
+      }
 
       // 2. Fetch my shifts for live conflict checking
       try {
@@ -194,6 +210,41 @@ export default function MarketplaceScreen({ navigation }) {
       setRefreshing(false);
     }
   }, [selectedStoreIndex]);
+
+  const proposalErrorMessage = (error) => {
+    const status = error?.response?.status;
+    if (status === 400) return error.response?.data?.message || 'Đề xuất không còn hợp lệ hoặc đã được xử lý.';
+    if (status === 403) return 'Bạn không có quyền phản hồi đề xuất này.';
+    if (status === 409) return error.response?.data?.message || 'Đề xuất vừa được thay đổi. Vui lòng tải lại.';
+    if (status >= 500) return 'Máy chủ đang gặp lỗi. Vui lòng thử lại sau.';
+    return 'Không thể kết nối máy chủ để tải đề xuất.';
+  };
+
+  const handleProposalResponse = (proposal, accepted) => {
+    Alert.alert(
+      accepted ? 'Nhận đề xuất?' : 'Từ chối đề xuất?',
+      accepted ? 'Bạn sẽ được phân công vào yêu cầu hỗ trợ này nếu đủ điều kiện.' : 'Bạn có chắc muốn từ chối đề xuất này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: accepted ? 'Nhận' : 'Từ chối',
+          style: accepted ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              setRespondingProposalId(proposal.id);
+              await respondProposal(proposal.id, { accepted });
+              await loadData();
+              Alert.alert('Thành công', accepted ? 'Đã nhận đề xuất hỗ trợ.' : 'Đã từ chối đề xuất.');
+            } catch (error) {
+              Alert.alert('Không thể phản hồi', proposalErrorMessage(error));
+            } finally {
+              setRespondingProposalId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     loadData();
@@ -230,6 +281,10 @@ export default function MarketplaceScreen({ navigation }) {
             try {
               setClaimingId(shift.id);
               await claimShift(storeId, shift.id);
+              // The backend claims the shift before the success dialog opens.
+              // Refresh immediately so the card reflects the authoritative state
+              // without requiring a second user action.
+              await loadData();
               Alert.alert(
                 'Đăng ký thành công',
                 'Bạn đã nhận ca thành công! Ca làm việc đã được cập nhật trực tiếp vào Lịch làm của bạn.',
@@ -238,7 +293,7 @@ export default function MarketplaceScreen({ navigation }) {
                     text: 'Xem Lịch làm',
                     onPress: () => navigation.navigate('MainTabs', { screen: 'Schedule' }),
                   },
-                  { text: 'Ở lại Sàn ca', onPress: () => loadData() },
+                  { text: 'Ở lại Sàn ca' },
                 ]
               );
             } catch (err) {
@@ -324,6 +379,66 @@ export default function MarketplaceScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#27272a']} />
         }
       >
+        <View style={styles.proposalSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Đề xuất chi viện nhân sự</Text>
+            <TouchableOpacity onPress={onRefresh} disabled={proposalsLoading}>
+              <Text style={styles.proposalRefreshText}>Làm mới</Text>
+            </TouchableOpacity>
+          </View>
+          {proposalsLoading ? (
+            <View style={styles.proposalState}><ActivityIndicator size="small" color="#4F46E5" /></View>
+          ) : proposalsError ? (
+            <View style={styles.proposalErrorCard}>
+              <Text style={styles.proposalErrorText}>{proposalErrorMessage(proposalsError)}</Text>
+              <TouchableOpacity onPress={onRefresh} style={styles.proposalRetryButton}>
+                <Text style={styles.proposalRetryText}>Thử lại</Text>
+              </TouchableOpacity>
+            </View>
+          ) : proposals.length === 0 ? (
+            <View style={styles.proposalEmptyCard}>
+              <Text style={styles.proposalEmptyText}>Bạn chưa có đề xuất chi viện nào.</Text>
+            </View>
+          ) : (
+            proposals.map((proposal) => {
+              const isPending = proposal.status === 'PENDING';
+              const isResponding = respondingProposalId === proposal.id;
+              const statusLabel = proposal.status === 'ACCEPTED'
+                ? 'Đã nhận'
+                : proposal.status === 'DECLINED' ? 'Đã từ chối' : 'Đang chờ phản hồi';
+              return (
+                <View key={proposal.id} style={styles.proposalCard}>
+                  <View style={styles.proposalCardHeader}>
+                    <Text style={styles.proposalTitle}>Đề xuất hỗ trợ nhân sự</Text>
+                    <Text style={[styles.proposalStatus, isPending && styles.proposalStatusPending]}>{statusLabel}</Text>
+                  </View>
+                  <Text style={styles.proposalDetail}>Đơn vị đề xuất: {proposal.proposedByName || '—'}</Text>
+                  <Text style={styles.proposalDetail}>Mã yêu cầu: {proposal.workforceRequestId || '—'}</Text>
+                  <Text style={styles.proposalDetail}>Ngày tạo: {proposal.createdAt ? new Date(proposal.createdAt).toLocaleString('vi-VN') : '—'}</Text>
+                  {isPending && (
+                    <View style={styles.proposalActions}>
+                      <TouchableOpacity
+                        style={[styles.proposalActionButton, styles.proposalDeclineButton, isResponding && styles.claimButtonDisabled]}
+                        disabled={isResponding}
+                        onPress={() => handleProposalResponse(proposal, false)}
+                      >
+                        <Text style={styles.proposalDeclineText}>{isResponding ? 'Đang xử lý…' : 'Từ chối'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.proposalActionButton, styles.proposalAcceptButton, isResponding && styles.claimButtonDisabled]}
+                        disabled={isResponding}
+                        onPress={() => handleProposalResponse(proposal, true)}
+                      >
+                        <Text style={styles.proposalAcceptText}>{isResponding ? 'Đang xử lý…' : 'Nhận đề xuất'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+
         {/* Banner tổng quan */}
         <View style={styles.bannerCard}>
           <View style={styles.bannerTop}>
@@ -943,5 +1058,124 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#27272A',
+  },
+  proposalSection: {
+    marginBottom: 18,
+  },
+  proposalRefreshText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  proposalState: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+  },
+  proposalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+  },
+  proposalCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  proposalTitle: {
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E1B4B',
+  },
+  proposalStatus: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  proposalStatusPending: {
+    color: '#92400E',
+    backgroundColor: '#FEF3C7',
+  },
+  proposalDetail: {
+    fontSize: 12,
+    color: '#52525B',
+    marginTop: 3,
+  },
+  proposalActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  proposalActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  proposalDeclineButton: {
+    backgroundColor: '#FFF7F7',
+    borderColor: '#FECACA',
+  },
+  proposalAcceptButton: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C7D2FE',
+  },
+  proposalDeclineText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B91C1C',
+  },
+  proposalAcceptText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4338CA',
+  },
+  proposalEmptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+  },
+  proposalEmptyText: {
+    fontSize: 12.5,
+    color: '#71717A',
+  },
+  proposalErrorCard: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  proposalErrorText: {
+    fontSize: 12.5,
+    color: '#9A3412',
+    marginBottom: 8,
+  },
+  proposalRetryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+  },
+  proposalRetryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9A3412',
   },
 });
