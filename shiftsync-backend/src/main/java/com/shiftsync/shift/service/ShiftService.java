@@ -59,6 +59,7 @@ public class ShiftService {
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final ShiftAssignmentValidator shiftAssignmentValidator;
+    private final ShiftAssignmentService shiftAssignmentService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftService(
@@ -75,7 +76,8 @@ public class ShiftService {
             StoreZoneRepository storeZoneRepository,
             com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository,
             com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
-            ShiftAssignmentValidator shiftAssignmentValidator
+            ShiftAssignmentValidator shiftAssignmentValidator,
+            ShiftAssignmentService shiftAssignmentService
     ) {
         this.auditLogService = auditLogService;
         this.shiftRepository = shiftRepository;
@@ -91,6 +93,7 @@ public class ShiftService {
         this.staffSkillRepository = staffSkillRepository;
         this.employmentRepository = employmentRepository;
         this.shiftAssignmentValidator = shiftAssignmentValidator;
+        this.shiftAssignmentService = shiftAssignmentService;
     }
 
     public ShiftService(
@@ -107,7 +110,7 @@ public class ShiftService {
             StoreZoneRepository storeZoneRepository,
             com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository
     ) {
-        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, null, null);
+        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, null, null, null);
     }
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
@@ -186,32 +189,7 @@ public class ShiftService {
         Shift savedShift = shiftRepository.save(shift);
 
         if (request.getStaffId() != null) {
-            userRepository.findById(request.getStaffId()).ifPresent(staff -> {
-                UUID requiredSkillId = request.getSkillId();
-                if (requiredSkillId == null) {
-                    List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staff.getId());
-                    if (!staffSkills.isEmpty()) {
-                        requiredSkillId = staffSkills.get(0).getSkillId();
-                    }
-                }
-                ShiftAssignment assignment = ShiftAssignment.builder()
-                        .shift(savedShift)
-                        .staff(staff)
-                        .requiredSkillId(requiredSkillId)
-                        .source(AssignmentSource.MANUAL)
-                        .build();
-                shiftAssignmentRepository.save(assignment);
-
-                try {
-                    notificationService.sendNotification(
-                            staff.getId(),
-                            com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Phân công ca làm việc",
-                            "Bạn đã được phân công ca làm việc ngày " + savedShift.getShiftDate() + " (" + savedShift.getStartTime() + " - " + savedShift.getEndTime() + ")",
-                            java.util.Map.of("shiftId", savedShift.getId().toString())
-                    );
-                } catch (Exception ignored) {
-                }
-            });
+            requireAssignmentService().assignStaffToShift(storeId, savedShift.getId(), request.getStaffId());
         }
 
         return mapToDTO(savedShift);
@@ -251,7 +229,9 @@ public class ShiftService {
 
             StoreZone zone = null;
             if (req.getZoneId() != null) {
-                zone = storeZoneRepository.findById(req.getZoneId()).orElse(null);
+                zone = storeZoneRepository.findById(req.getZoneId())
+                        .filter(candidate -> candidate.getStore() != null && storeId.equals(candidate.getStore().getId()))
+                        .orElseThrow(() -> new BusinessException("Zone not found in this store: " + req.getZoneId(), HttpStatus.NOT_FOUND));
             }
             if (zone == null && !storeZones.isEmpty()) {
                 String sName = skill.getName().toLowerCase();
@@ -300,6 +280,8 @@ public class ShiftService {
         List<Skill> storeSkills = skillRepository.findByStoreId(storeId);
         Map<UUID, Skill> skillMap = storeSkills.stream().collect(Collectors.toMap(Skill::getId, s -> s));
 
+        validateBulkDemandRequirements(storeId, request, skillMap, storeZones);
+
         int createdCount = 0;
         int updatedCount = 0;
         int totalRequirements = 0;
@@ -345,22 +327,15 @@ public class ShiftService {
                 java.util.Set<UUID> seenSkillIds = new java.util.HashSet<>();
                 if (dConfig.getRequirements() != null) {
                     for (ShiftRequirementRequest req : dConfig.getRequirements()) {
-                        if (req.getSkillId() == null) continue;
-                        if (req.getRequiredCount() < 0) {
-                            throw new BusinessException("Required count cannot be negative: " + req.getRequiredCount(), HttpStatus.BAD_REQUEST);
-                        }
-                        if (!seenSkillIds.add(req.getSkillId())) {
-                            throw new BusinessException("Duplicate skill requirement for skill: " + req.getSkillId(), HttpStatus.BAD_REQUEST);
-                        }
+                        seenSkillIds.add(req.getSkillId());
                         Skill skill = skillMap.get(req.getSkillId());
-                        if (skill == null) {
-                            skill = skillRepository.findByIdAndStoreId(req.getSkillId(), storeId).orElse(null);
-                        }
-                        if (skill == null) continue;
 
                         StoreZone zone = null;
                         if (req.getZoneId() != null) {
-                            zone = storeZoneRepository.findById(req.getZoneId()).orElse(null);
+                            zone = storeZones.stream()
+                                    .filter(candidate -> req.getZoneId().equals(candidate.getId()))
+                                    .findFirst()
+                                    .orElseThrow(() -> new BusinessException("Zone not found in this store: " + req.getZoneId(), HttpStatus.NOT_FOUND));
                         }
                         if (zone == null && !storeZones.isEmpty()) {
                             String sName = skill.getName().toLowerCase();
@@ -392,6 +367,36 @@ public class ShiftService {
                 .message(String.format("Successfully configured demand for %d shifts (%d created, %d updated, %d requirements)",
                         createdCount + updatedCount, createdCount, updatedCount, totalRequirements))
                 .build();
+    }
+
+    private void validateBulkDemandRequirements(UUID storeId, BulkDemandPlanningRequest request,
+                                                Map<UUID, Skill> skillMap, List<StoreZone> storeZones) {
+        if (request.getShifts() == null) {
+            throw new BusinessException("Shifts configuration list cannot be null", HttpStatus.BAD_REQUEST);
+        }
+        for (BulkDemandPlanningRequest.ShiftDemandConfig config : request.getShifts()) {
+            if (config.getRequirements() == null) {
+                continue;
+            }
+            java.util.Set<UUID> seenSkillIds = new java.util.HashSet<>();
+            for (ShiftRequirementRequest requirement : config.getRequirements()) {
+                if (requirement.getSkillId() == null) {
+                    throw new BusinessException("Skill ID cannot be null in requirements", HttpStatus.BAD_REQUEST);
+                }
+                if (requirement.getRequiredCount() < 0) {
+                    throw new BusinessException("Required count cannot be negative: " + requirement.getRequiredCount(), HttpStatus.BAD_REQUEST);
+                }
+                if (!seenSkillIds.add(requirement.getSkillId())) {
+                    throw new BusinessException("Duplicate skill requirement for skill: " + requirement.getSkillId(), HttpStatus.BAD_REQUEST);
+                }
+                if (!skillMap.containsKey(requirement.getSkillId())) {
+                    throw new BusinessException("Skill not found in this store: " + requirement.getSkillId(), HttpStatus.NOT_FOUND);
+                }
+                if (requirement.getZoneId() != null && storeZones.stream().noneMatch(zone -> requirement.getZoneId().equals(zone.getId()))) {
+                    throw new BusinessException("Zone not found in this store: " + requirement.getZoneId(), HttpStatus.NOT_FOUND);
+                }
+            }
+        }
     }
 
 
@@ -495,36 +500,18 @@ public class ShiftService {
             List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
             if (existing.isEmpty() || !existing.get(0).getStaff().getId().equals(request.getStaffId())) {
                 shiftAssignmentRepository.deleteAll(existing);
-                userRepository.findById(request.getStaffId()).ifPresent(staff -> {
-                    UUID requiredSkillId = request.getSkillId();
-                    if (requiredSkillId == null) {
-                        List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staff.getId());
-                        if (!staffSkills.isEmpty()) {
-                            requiredSkillId = staffSkills.get(0).getSkillId();
-                        }
-                    }
-                    ShiftAssignment assignment = ShiftAssignment.builder()
-                            .shift(saved)
-                            .staff(staff)
-                            .requiredSkillId(requiredSkillId)
-                            .source(AssignmentSource.MANUAL)
-                            .build();
-                    shiftAssignmentRepository.save(assignment);
-
-                    try {
-                        notificationService.sendNotification(
-                                staff.getId(),
-                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Cập nhật ca làm việc",
-                                "Ca làm việc ngày " + saved.getShiftDate() + " (" + saved.getStartTime() + " - " + saved.getEndTime() + ") của bạn đã được cập nhật.",
-                                java.util.Map.of("shiftId", saved.getId().toString())
-                        );
-                    } catch (Exception ignored) {
-                    }
-                });
+                requireAssignmentService().assignStaffToShift(storeId, saved.getId(), request.getStaffId());
             }
         }
 
         return mapToDTO(saved);
+    }
+
+    private ShiftAssignmentService requireAssignmentService() {
+        if (shiftAssignmentService == null) {
+            throw new IllegalStateException("ShiftAssignmentService is required for staff assignment");
+        }
+        return shiftAssignmentService;
     }
 
     @Transactional
