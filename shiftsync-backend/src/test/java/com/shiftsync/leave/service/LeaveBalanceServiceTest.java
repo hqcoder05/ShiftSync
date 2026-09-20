@@ -67,7 +67,7 @@ class LeaveBalanceServiceTest {
     void testGetLeaveTypes() {
         List<LeaveTypeDTO> types = leaveBalanceService.getLeaveTypes();
         assertNotNull(types);
-        assertEquals(4, types.size());
+        assertEquals(6, types.size());
         assertTrue(types.stream().anyMatch(t -> t.getCode() == LeaveType.ANNUAL && t.isDeductsAnnualBalance()));
         assertTrue(types.stream().anyMatch(t -> t.getCode() == LeaveType.UNPAID && !t.isDeductsAnnualBalance()));
     }
