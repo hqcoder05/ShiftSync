@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -21,7 +22,8 @@ import Avatar3D from '../components/Avatar3D';
 import EmployeeCard3D from '../components/EmployeeCard3D';
 import { AVATAR_OPTIONS, getAvatar3DProps } from '../components/avatarConfigs';
 import { getAllAvatarThumbnails } from '../components/avatarThumbnails';
-import { getMyProfile, getMyStores, updateMyAvatar } from '../services/profileService';
+import { getMyProfile, getMyStores, updateMyProfile, updateMyAvatar } from '../services/profileService';
+import { logout as logoutApi } from '../services/authService';
 import { getStoredAvatar, saveAvatar } from '../services/avatarSync';
 
 
@@ -68,6 +70,7 @@ export default function ProfileScreen({ navigation }) {
   const [previewAvatarId, setPreviewAvatarId] = useState('dilan');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     birthDate: '',
@@ -208,28 +211,71 @@ export default function ProfileScreen({ navigation }) {
     updateField('birthPlace', editForm.birthPlace);
     updateField('phone', editForm.phone);
     updateField('gender', editForm.gender);
+    if (editForm.phone && editForm.phone !== profile.phone) {
+      // UserUpdateRequest requires fullName and email as well as phone.
+      // Sending only phone makes the backend reject the update with 400.
+      updateMyProfile({
+        fullName: profile.fullName,
+        email: profile.email,
+        phone: editForm.phone,
+      }).then(({ data }) => {
+        if (data?.phone) {
+          setProfile((prev) => ({ ...prev, phone: data.phone }));
+        }
+      }).catch(() => {
+        setSaveStatus('Chưa đồng bộ máy chủ');
+        setTimeout(() => setSaveStatus(''), 2500);
+      });
+    }
     setShowEditModal(false);
   };
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+
+    const performLogout = async () => {
+      setLoggingOut(true);
+      const storageKeys = [
+        'accessToken',
+        'refreshToken',
+        'userRole',
+        'userEmail',
+        '@user_profile_custom_data',
+        '@user_profile_avatar',
+      ];
+      if (currentUserId) {
+        storageKeys.push(
+          `@user_profile_custom_${currentUserId}`,
+          `@user_profile_avatar_${currentUserId}`,
+        );
+      }
+
+      try {
+        const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+        if (storedRefreshToken) {
+          await logoutApi(storedRefreshToken).catch(() => {});
+        }
+      } catch (_) {}
+
+      try {
+        await AsyncStorage.multiRemove(storageKeys);
+      } catch (e) {
+        // ignore
+      } finally {
+        setLoggingOut(false);
+      }
+
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    };
+
+    if (Platform.OS === 'web') {
+      await performLogout();
+      return;
+    }
+
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
       { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Đăng xuất',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await AsyncStorage.multiRemove([
-              'accessToken', 
-              'refreshToken',
-              '@user_profile_custom_data'
-            ]);
-          } catch (e) {
-            // ignore
-          }
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-        },
-      },
+      { text: 'Đăng xuất', style: 'destructive', onPress: performLogout },
     ]);
   };
 
@@ -303,7 +349,11 @@ export default function ProfileScreen({ navigation }) {
           </View>
 
           {/* ═══ ĐĂNG XUẤT (Group 139) ═══ */}
-          <Pressable onPress={handleLogout} style={styles.logoutBtn}>
+          <Pressable
+            onPress={handleLogout}
+            disabled={loggingOut}
+            style={[styles.logoutBtn, loggingOut && styles.logoutBtnDisabled]}
+          >
             <Text style={styles.logoutText}>Đăng xuất</Text>
           </Pressable>
           <View style={{ height: 90 }} />
@@ -748,6 +798,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingVertical: 10,
     paddingHorizontal: 24,
+  },
+  logoutBtnDisabled: {
+    opacity: 0.55,
   },
   logoutText: {
     fontSize: 20,
