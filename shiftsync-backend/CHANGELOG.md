@@ -1,5 +1,10 @@
 # CHANGELOG - Bug Fix Tổng Hợp (Tuần 8)
 
+> **CURRENT STATUS — 2026-09-20:** The entries below are historical fixes and
+> remain part of the audit trail. They are not a substitute for the current
+> verification report. The current backend suite is 384 tests, 0 failures,
+> 0 errors and 3 explicitly skipped PostgreSQL/Redis-dependent tests.
+
 Bản cập nhật này tập trung vào việc xử lý triệt để các lỗi Critical và High được ghi nhận trong các đợt kiểm thử hiệu năng, bảo mật và logic tuần trước.
 
 ## 🔴 [Critical] 
