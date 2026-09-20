@@ -62,7 +62,7 @@ import SpatialToolbar from './components/SpatialToolbar';
 import SpatialInspector from './components/SpatialInspector';
 import SpatialTimeline from './components/SpatialTimeline';
 import TwoDSpatialSchematic from '../../components/spatial/TwoDSpatialSchematic';
-import { toThreeCoords, getDeterministicPersonOffset, resolveSemanticZone, getZoneShiftRequirements } from '../../components/spatial/spatial.constants';
+import { toThreeCoords, getDeterministicPersonOffset, getZoneShiftRequirements } from '../../components/spatial/spatial.constants';
 
 export default function SpatialWorkspace({
   layout = { length: 24, width: 16, height: 6 },
@@ -230,10 +230,14 @@ export default function SpatialWorkspace({
 
   // ── 1. Temporal Staff Resolver (Bridges Real Shift Data to Timeline) ──
   const temporalStaff = useMemo(() => {
-    if (!allDateShifts || allDateShifts.length === 0) return staff;
+    // The selected Schedule shift is the single source of truth for the spatial view.
+    // The timeline may animate within that shift, but must never merge assignments
+    // from other shifts on the same date.
+    const sourceShifts = currentShift ? [currentShift] : allDateShifts;
+    if (!sourceShifts || sourceShifts.length === 0) return staff;
 
     const list = [];
-    allDateShifts.forEach((shift) => {
+    sourceShifts.forEach((shift) => {
       const partsStart = (shift.startTime || '06:00').split(':');
       const startM = parseInt(partsStart[0], 10) * 60 + parseInt(partsStart[1], 10);
       const partsEnd = (shift.endTime || '14:00').split(':');
@@ -241,12 +245,11 @@ export default function SpatialWorkspace({
 
       // Check if this shift covers currentTimeMinutes
       if (currentTimeMinutes >= startM && currentTimeMinutes <= endM) {
-        const usedCounts = {};
         if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
           shift.shiftAssignments.forEach((assign, idx) => {
             const matchedEmp = employees.find((e) => e.id === assign.staffId);
             const skObj = skills.find((s) => s.id === (assign.requiredSkillId || assign.skillId) || s.name === assign.skillName);
-            const skillName = assign.skillName || skObj?.name || assign.role || matchedEmp?.skillName || matchedEmp?.position || 'Nhân viên';
+            const skillName = assign.skillName || skObj?.name || assign.role || matchedEmp?.skillName || matchedEmp?.position || 'Chưa xác định vị trí';
 
             let assignedZoneId = assign.zoneId;
             if (!assignedZoneId || !zones.some((z) => z.id === assignedZoneId)) {
@@ -256,11 +259,11 @@ export default function SpatialWorkspace({
               if (reqMatch && reqMatch.zoneId && zones.some((z) => z.id === reqMatch.zoneId)) {
                 assignedZoneId = reqMatch.zoneId;
               } else {
-                const semanticZone = resolveSemanticZone(skillName, zones, usedCounts);
-                assignedZoneId = semanticZone?.id || zones[idx % Math.max(1, zones.length)]?.id;
+                const namedZone = zones.find(
+                  (zone) => assign.zoneName && String(zone.name).toLowerCase() === String(assign.zoneName).toLowerCase()
+                );
+                assignedZoneId = namedZone?.id || null;
               }
-            } else {
-              usedCounts[assignedZoneId] = (usedCounts[assignedZoneId] || 0) + 1;
             }
 
             list.push({
@@ -269,22 +272,21 @@ export default function SpatialWorkspace({
               staffName: assign.staffName || matchedEmp?.fullName || 'Nhân viên',
               skillName: skillName,
               zoneId: assignedZoneId,
-              zoneName: zones.find((z) => z.id === assignedZoneId)?.name,
+              zoneName: assign.zoneName || zones.find((z) => z.id === assignedZoneId)?.name || null,
               startTime: shift.startTime,
               endTime: shift.endTime,
             });
           });
         } else if (shift.staffName || shift.staffId) {
-          const skillName = shift.skillName || 'Nhân viên';
-          const semanticZone = resolveSemanticZone(skillName, zones, usedCounts);
-          const assignedZoneId = shift.zoneId || semanticZone?.id || zones[0]?.id;
+          const skillName = shift.skillName || 'Chưa xác định vị trí';
+          const assignedZoneId = shift.zoneId || null;
           list.push({
             id: shift.staffId || shift.id,
             staffId: shift.staffId,
             staffName: shift.staffName,
             skillName: skillName,
             zoneId: assignedZoneId,
-            zoneName: zones.find((z) => z.id === assignedZoneId)?.name,
+            zoneName: shift.zoneName || zones.find((z) => z.id === assignedZoneId)?.name || null,
             startTime: shift.startTime,
             endTime: shift.endTime,
           });
@@ -293,7 +295,7 @@ export default function SpatialWorkspace({
     });
 
     return list.length > 0 ? list : (staff.length > 0 ? staff : []);
-  }, [allDateShifts, currentTimeMinutes, staff, employees, skills, zones]);
+  }, [allDateShifts, currentShift, currentTimeMinutes, staff, employees, skills, zones]);
 
   // Active workforce to render (Real Temporal vs What-If Simulated)
   const displayStaff = useMemo(() => {
@@ -370,7 +372,8 @@ export default function SpatialWorkspace({
     if (!cameraControllerRef.current || !emp) return;
     cameraControllerRef.current.stopFollowing();
     setFollowingStaff(null);
-    const zone = zones.find((z) => z.id === (emp.zoneId || emp.zone?.id)) || zones[0];
+    const zone = zones.find((z) => z.id === (emp.zoneId || emp.zone?.id));
+    if (!zone) return;
     const [tx, ty, tz] = toThreeCoords(zone?.x || 0, zone?.y || 0, zone?.z || 0, layout);
     const cfg = getEmployeeFocusCameraConfig([tx, ty, tz]);
     cameraControllerRef.current.flyTo(cfg.position, cfg.target);
@@ -457,6 +460,9 @@ export default function SpatialWorkspace({
   }, [zones, displayStaff, allDateShifts, currentShift, skills]);
 
   const attentionCount = understaffedZonesCount + (openShiftsCount > 0 ? 1 : 0);
+  const unresolvedAssignmentsCount = displayStaff.filter(
+    (s) => !(s.zoneId || s.zone?.id)
+  ).length;
 
   const handleOpenAttentionCenter = useCallback(() => {
     setSelectedZone(null);
@@ -1427,6 +1433,7 @@ export default function SpatialWorkspace({
         maxStoreCapacity={totalPhysicalCapacity}
         understaffedZonesCount={understaffedZonesCount}
         openShiftsCount={openShiftsCount}
+        unresolvedAssignmentsCount={unresolvedAssignmentsCount}
         isSimulating={isSimulating}
         costDelta={simulationImpact?.delta?.costDelta || 0}
         onOpenAttentionCenter={handleOpenAttentionCenter}
