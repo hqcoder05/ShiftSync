@@ -100,8 +100,9 @@ export default function AttendanceScreenLive({ navigation }) {
       const available = (shiftsRes.data || []).filter(
         (item) => item.status === 'PUBLISHED' || item.status === 'COMPLETED'
       );
-      // Tìm ca làm của hôm nay, nếu không có lấy ca gần nhất để hỗ trợ test
-      const currentShift = available.find((item) => item.shiftDate === today) || (available.length > 0 ? available[0] : null);
+      // Chỉ cho phép thao tác trên ca của ngày hiện tại. Không chọn ca gần nhất
+      // vì như vậy có thể gửi attendance cho một ngày/ca khác.
+      const currentShift = available.find((item) => item.shiftDate === today) || null;
       setShift(currentShift || null);
     } catch (error) {
       if (isInitial) {
@@ -153,9 +154,7 @@ export default function AttendanceScreenLive({ navigation }) {
     try {
       const [photo, location] = await Promise.all([
         cameraRef.current.takePictureAsync({ quality: 0.6 }),
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => ({
-          coords: { latitude: 10.8168, longitude: 106.6334 },
-        })),
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
       ]);
 
       const response = await submitSelfieAttendance({
