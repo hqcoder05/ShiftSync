@@ -13,7 +13,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class QuotaSummaryResponse {
     private UUID branchId;
-    private int totalHours;
+    private double totalHours;
     private int totalQuotas;
     private long estimatedCost;
     private String formattedEstimatedCost;
