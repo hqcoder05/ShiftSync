@@ -263,6 +263,12 @@ Danh mục các state machine chính trong hệ thống — dùng làm cơ sở 
 
 # 8. Mô hình chấm điểm Auto Scheduling (Scoring Model)
 
+> **CURRENT STATUS — 2026-09-20:** Bảng dưới đây là đề xuất nghiệp vụ
+> lịch sử. Trong contract hiện tại đã được xác minh, Availability chỉ là
+> hard constraint; ứng viên đã qua lọc nhận `availabilityScore = 1.0` và
+> Availability không được dùng như soft ranking preference. Không được dùng
+> bảng đề xuất cũ để kết luận rằng scheduler là global optimizer.
+
 Thay vì chỉ lọc theo điều kiện cứng (hard constraint), thuật toán Auto Scheduling áp dụng thêm mô hình chấm điểm (soft scoring) để chọn ứng viên tốt nhất khi có nhiều Staff cùng thỏa điều kiện — giúp thuật toán có chiều sâu hơn khi trình bày trong báo cáo/bảo vệ:
 
 ## 8.1. Thứ tự ràng buộc cứng (Hard Constraints — lọc trước)
@@ -273,7 +279,7 @@ Priority → Availability → Required Skill → Skill Level → Working Hours �
 
 | **Tiêu chí** | **Trọng số đề xuất** | **Ý nghĩa** |
 | --- | --- | --- |
-| Availability | 30% | Ưu tiên Staff có khung giờ rảnh khớp sát với ca, không chỉ "khả dụng" mà còn "phù hợp nhất" |
+| Availability | 30% (đề xuất lịch sử; không áp dụng trong contract hiện tại) | Contract hiện tại chỉ dùng Availability để lọc hard constraint; ứng viên hợp lệ nhận điểm `1.0` |
 | Skill | 30% | Ưu tiên Staff có Skill Level cao hơn cho ca yêu cầu chuyên môn |
 | Working Hour | 20% | Ưu tiên Staff chưa đạt giờ làm tối đa trong tuần, tránh dồn giờ vào 1 người |
 | Rest Time | 10% | Ưu tiên Staff có khoảng nghỉ an toàn hơn mức tối thiểu bắt buộc |
