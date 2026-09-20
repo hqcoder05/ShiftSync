@@ -10,6 +10,7 @@ import com.shiftsync.store.mapper.StoreMapper;
 import com.shiftsync.store.repository.StoreRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import com.shiftsync.shift.service.ShiftTemplateService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +22,12 @@ import java.util.UUID;
 public class StoreService {
     private final AuditLogService auditLogService;
     private final StoreRepository storeRepository;
+    private final ShiftTemplateService shiftTemplateService;
 
-    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService) {
+    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService) {
         this.storeRepository = storeRepository;
         this.auditLogService = auditLogService;
+        this.shiftTemplateService = shiftTemplateService;
     }
 
     @Transactional
@@ -101,6 +104,9 @@ public class StoreService {
         if (request.getCloseTime() != null) store.setCloseTime(request.getCloseTime());
 
         Store updatedStore = storeRepository.save(store);
+        if (request.getOpenTime() != null || request.getCloseTime() != null) {
+            shiftTemplateService.deactivateOutOfBoundsTemplates(updatedStore);
+        }
         return StoreMapper.toDTO(updatedStore);
     }
 
