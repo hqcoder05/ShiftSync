@@ -9,7 +9,6 @@ import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts
 import { getStaffAvailability } from '../services/availabilityService';
 import { getStoreLayout, getStoreZones, allocateZonesForShift } from '../services/layoutService';
 import Store3DCanvas from '../components/spatial/Store3DCanvas';
-import { resolveSemanticZone } from '../components/spatial/spatial.constants';
 import CompactDropdownFilter from '../components/CompactDropdownFilter';
 import DemandPlanningModal from '../components/demand-planning/DemandPlanningModal';
 import { Compass, Clock, Users } from 'lucide-react';
@@ -644,7 +643,6 @@ export default function SchedulePage() {
   const active3DStaff = useMemo(() => {
     if (!current3DShift) return [];
     const list = [];
-    const usedCounts = {};
     if (Array.isArray(current3DShift.shiftAssignments) && current3DShift.shiftAssignments.length > 0) {
       current3DShift.shiftAssignments.forEach((assign, idx) => {
         const matchedEmp = employees.find((e) => e.id === assign.staffId);
@@ -660,12 +658,11 @@ export default function SchedulePage() {
           if (reqMatch && reqMatch.zoneId && storeZones.some((z) => z.id === reqMatch.zoneId)) {
             assignedZoneId = reqMatch.zoneId;
           } else {
-            // 3. Phân bổ thông minh theo ngữ cảnh kỹ năng
-            const semanticZone = resolveSemanticZone(skillName, storeZones, usedCounts);
-            assignedZoneId = semanticZone?.id || storeZones[idx % Math.max(1, storeZones.length)]?.id;
+            const namedZone = storeZones.find(
+              (zone) => assign.zoneName && String(zone.name).toLowerCase() === String(assign.zoneName).toLowerCase()
+            );
+            assignedZoneId = namedZone?.id || null;
           }
-        } else {
-          usedCounts[assignedZoneId] = (usedCounts[assignedZoneId] || 0) + 1;
         }
 
         list.push({
@@ -674,21 +671,20 @@ export default function SchedulePage() {
           staffName: assign.staffName || matchedEmp?.fullName || 'Nhân viên',
           skillName: skillName,
           zoneId: assignedZoneId,
-          zoneName: storeZones.find((z) => z.id === assignedZoneId)?.name || 'Khu vực',
+          zoneName: assign.zoneName || storeZones.find((z) => z.id === assignedZoneId)?.name || null,
           avatarId: getAvatarForEmployee(assign.staffName || matchedEmp?.fullName),
         });
       });
     } else if (current3DShift.staffId) {
       const matchedEmp = employees.find((e) => e.id === current3DShift.staffId);
       const skillName = resolveShiftPositionName(current3DShift, null, skills, matchedEmp);
-      const semanticZone = resolveSemanticZone(skillName, storeZones, usedCounts);
       list.push({
         id: current3DShift.staffId,
         staffId: current3DShift.staffId,
         staffName: current3DShift.staffName || matchedEmp?.fullName || 'Nhân viên',
         skillName: skillName,
-        zoneId: semanticZone?.id || storeZones[0]?.id,
-        zoneName: semanticZone?.name || storeZones[0]?.name || 'Khu vực',
+        zoneId: current3DShift.zoneId || null,
+        zoneName: current3DShift.zoneName || null,
         avatarId: getAvatarForEmployee(current3DShift.staffName || matchedEmp?.fullName),
       });
     }
@@ -717,7 +713,10 @@ export default function SchedulePage() {
     if (!storeId) return;
     setLoading(true);
     setError('');
-    Promise.all([getStaffByStore(storeId), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
+    // The schedule board needs the complete active-store roster so empty rows,
+    // assignment rendering, filters, and headcounts are not truncated by the
+    // employment endpoint's default 20-item page.
+    Promise.all([getStaffByStore(storeId, 0, 100), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
       .then(([staffRes, shiftsRes, skillsRes]) => {
         const loadedSkills = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
         if (loadedSkills.length > 0) {
@@ -819,7 +818,7 @@ export default function SchedulePage() {
         const staff = rawStaff.map((emp) => {
           const id = emp.staffId || emp.id;
           const name = emp.staffFullName || emp.fullName || 'Nhân viên';
-          const contractType = emp.contractType?.name || emp.employmentType || 'Full-Time';
+          const contractType = emp.contractType?.name || emp.employmentType || 'Chưa có hợp đồng';
           const pos = savedPositions[id] || empPositionsFound[id] || emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || (loadedSkills[0]?.name) || 'Nhân viên';
           return {
             ...emp,
@@ -1004,13 +1003,14 @@ export default function SchedulePage() {
 
     const defaults = getEmpDefaultSkillAndColor(empId);
     const currentStore = stores.find((store) => store.id === storeId);
-    const defaultStartTime = currentStore?.openTime?.slice(0, 5) || '06:00';
+    const defaultStartTime = currentStore?.openTime?.slice(0, 5) || '08:00';
+    const defaultEndTime = currentStore?.closeTime ? currentStore.closeTime.slice(0, 5) : '16:00';
 
     setRegisterForm({
       staffId: empId || '',
       shiftDate: dateIso || '',
       startTime: defaultStartTime,
-      endTime: '14:00',
+      endTime: defaultEndTime,
       color: defaults.color || SHIFT_COLORS[0],
       location: defaults.location || '',
       branch: storeId,
@@ -1026,8 +1026,9 @@ export default function SchedulePage() {
   const openEditModal = (shift, empId) => {
     setModalMode('edit');
     setEditingShift(shift);
+    const currentStore = stores.find((store) => store.id === storeId);
     const fmtT = (t) => {
-      if (!t) return '06:00';
+      if (!t) return currentStore?.openTime?.slice(0, 5) || '08:00';
       if (typeof t === 'string') return t.slice(0, 5);
       return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
     };
@@ -2258,7 +2259,7 @@ export default function SchedulePage() {
                 visibleEmployees.map((emp) => {
                   const empId = emp.staffId || emp.id;
                   const name = emp.staffFullName || emp.fullName || '';
-                  const role = emp.position || emp.jobTitle || emp.employmentType || '';
+                  const role = emp.contractTypeName || emp.contractType?.name || emp.employmentType || 'Chưa có hợp đồng';
                   const hasSubmittedAvail = staffWithAvailability.has(empId);
 
                   return (
@@ -2293,7 +2294,7 @@ export default function SchedulePage() {
                           </div>
                           <div>
                             <div className="sch-emp-name">{name}</div>
-                            <div className="sch-emp-role">{role || emp.position || emp.jobTitle || emp.skillName || 'Nhân viên'}</div>
+                            <div className="sch-emp-role">{role}</div>
                           </div>
                         </div>
                       </td>
