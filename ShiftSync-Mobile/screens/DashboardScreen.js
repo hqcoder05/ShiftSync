@@ -63,19 +63,36 @@ const getVietnameseDateString = (date = new Date()) => {
 
 
 const formatTimeWithPeriod = (timeStr) => {
-  if (!timeStr) return { time: '6:00', period: 'AM' };
+  if (!timeStr) return { time: '—', period: '' };
   const parts = String(timeStr).split(':');
   let h = parseInt(parts[0], 10);
   const m = parts[1] || '00';
   const period = h < 12 ? 'AM' : 'PM';
-  return { time: `${h}:${m}`, period };
+  const displayHour = h % 12 || 12;
+  return { time: `${displayHour}:${m}`, period };
 };
 
-function ShiftRow({ item }) {
-  const startTime = item.startTime ? String(item.startTime).slice(0, 5) : '';
-  const endTime = item.endTime ? String(item.endTime).slice(0, 5) : '';
+const getShiftPosition = (item, userId) => {
+  const assignment = (item?.shiftAssignments || []).find(
+    (candidate) => String(candidate?.staffId) === String(userId)
+  );
+  return assignment?.zoneName
+    || assignment?.skillName
+    || 'Chưa xác định vị trí';
+};
+
+const hasAuthenticatedAssignment = (item, userId) => (
+  Boolean(userId)
+  && (item?.shiftAssignments || []).some(
+    (candidate) => String(candidate?.staffId) === String(userId)
+  )
+);
+
+function ShiftRow({ item, userId }) {
+  const startTime = formatTimeWithPeriod(item.startTime);
+  const endTime = formatTimeWithPeriod(item.endTime);
   const address = item.storeAddress || item.storeName || '';
-  const role = item.skillName || item.requiredSkillName || 'Nhân viên';
+  const position = getShiftPosition(item, userId);
   const dateLabel = item.shiftDate
     ? new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${item.shiftDate}T00:00:00`))
     : '';
@@ -83,16 +100,16 @@ function ShiftRow({ item }) {
   return (
     <View style={s.shiftRow}>
       <View style={s.shiftTime}>
-        <Text style={s.time}>{startTime}<Text style={s.amPm}>AM</Text></Text>
+        <Text style={s.time}>{startTime.time}<Text style={s.amPm}>{startTime.period}</Text></Text>
         <View style={s.timeDash} />
-        <Text style={s.time}>{endTime}<Text style={s.amPm}>PM</Text></Text>
+        <Text style={s.time}>{endTime.time}<Text style={s.amPm}>{endTime.period}</Text></Text>
       </View>
       <View style={s.shiftInfo}>
         <Text style={s.shiftDate}>{dateLabel}</Text>
         <Text style={s.address}>{address}</Text>
         <View style={s.roleRow}>
           <View style={s.dot} />
-          <Text style={s.role}>{role}</Text>
+          <Text style={s.role}>{position}</Text>
         </View>
       </View>
     </View>
@@ -106,6 +123,7 @@ export default function DashboardScreen({ navigation }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [hourlyRate, setHourlyRate] = useState(25000);
   const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState(null);
   const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
   const isFetchingRef = useRef(false);
 
@@ -132,6 +150,7 @@ export default function DashboardScreen({ navigation }) {
       try {
         const res = await getMyProfile();
         const profile = res.data;
+        setUserId(profile?.id || null);
         const name = profile?.fullName || profile?.name || '';
         setUserName(name);
 
@@ -200,14 +219,16 @@ export default function DashboardScreen({ navigation }) {
   const realShifts = useMemo(
     () =>
       assignedShifts
-        .filter((shift) => shift.shiftDate >= todayIso && shift.status !== 'CANCELLED')
+        .filter((shift) => (
+          shift.shiftDate >= todayIso
+          && shift.status !== 'CANCELLED'
+          && hasAuthenticatedAssignment(shift, userId)
+        ))
         .sort((a, b) => `${a.shiftDate}${a.startTime}`.localeCompare(`${b.shiftDate}${b.startTime}`)),
-    [assignedShifts, todayIso]
+    [assignedShifts, todayIso, userId]
   );
 
-  const todayShift = assignedShifts.find(
-    (shift) => shift.shiftDate === todayIso && shift.status !== 'CANCELLED'
-  );
+  const todayShift = realShifts.find((shift) => shift.shiftDate === todayIso);
 
   // ✅ Báo cáo thu nhập: Backend là Source of Truth. Ưu tiên phiếu lương chính thức từ kỳ gần nhất
   const calculatedStats = useMemo(() => {
@@ -278,8 +299,8 @@ export default function DashboardScreen({ navigation }) {
 
   const checkButtonText = isCheckedOut ? 'Đã hoàn thành' : isCheckedIn ? 'Check Out' : 'Check In';
 
-  const startTimeObj = todayShift ? formatTimeWithPeriod(todayShift.startTime) : { time: '6:00', period: 'AM' };
-  const endTimeObj = todayShift ? formatTimeWithPeriod(todayShift.endTime) : { time: '14:00', period: 'PM' };
+  const startTimeObj = todayShift ? formatTimeWithPeriod(todayShift.startTime) : null;
+  const endTimeObj = todayShift ? formatTimeWithPeriod(todayShift.endTime) : null;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -325,7 +346,7 @@ export default function DashboardScreen({ navigation }) {
               <View style={s.roleRow}>
                 <View style={s.dot} />
                 <Text style={s.role}>
-                  {todayShift.skillName || todayShift.requiredSkillName || 'Barista'}
+                  {getShiftPosition(todayShift, userId)}
                 </Text>
               </View>
 
@@ -366,7 +387,7 @@ export default function DashboardScreen({ navigation }) {
 
         <View style={s.shiftList}>
           {displayShifts.length ? (
-            displayShifts.map((item, i) => <ShiftRow key={i} item={item} />)
+            displayShifts.map((item, i) => <ShiftRow key={i} item={item} userId={userId} />)
           ) : (
             <Text style={s.empty}>Chưa có ca làm việc sắp tới.</Text>
           )}
