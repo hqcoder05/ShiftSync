@@ -37,56 +37,16 @@ public class LeaveBalanceService {
     private final EmploymentRepository employmentRepository;
 
     public List<LeaveTypeDTO> getLeaveTypes() {
-        return Arrays.asList(
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.ANNUAL)
-                        .name("Nghỉ phép năm")
-                        .description("Nghỉ phép theo chế độ hàng năm, hưởng nguyên lương và khấu trừ vào quỹ phép năm.")
-                        .isPaid(true)
-                        .deductsAnnualBalance(true)
+        return Arrays.stream(LeaveType.values())
+                .map(type -> LeaveTypeDTO.builder()
+                        .code(type)
+                        .name(type.getDisplayName())
+                        .description(type.getDescription())
+                        .isPaid(type.isPaid())
+                        .deductsAnnualBalance(type.isDeductsAnnualBalance())
                         .requiresApproval(true)
-                        .build(),
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.SICK)
-                        .name("Nghỉ ốm")
-                        .description("Nghỉ do lý do sức khỏe/ốm đau theo chế độ bảo hiểm xã hội, không trừ quỹ phép năm.")
-                        .isPaid(false)
-                        .deductsAnnualBalance(false)
-                        .requiresApproval(true)
-                        .build(),
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.UNPAID)
-                        .name("Nghỉ không lương")
-                        .description("Nghỉ việc riêng không hưởng lương theo thỏa thuận, không trừ quỹ phép năm.")
-                        .isPaid(false)
-                        .deductsAnnualBalance(false)
-                        .requiresApproval(true)
-                        .build(),
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.PERSONAL)
-                        .name("Nghỉ việc riêng")
-                        .description("Nghỉ việc riêng (kết hôn, tang lễ,...) theo quy định Bộ luật Lao động, hưởng nguyên lương.")
-                        .isPaid(true)
-                        .deductsAnnualBalance(false)
-                        .requiresApproval(true)
-                        .build(),
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.OTHER)
-                        .name("Nghỉ khác")
-                        .description("Nghỉ theo các trường hợp đặc thù khác, không trừ quỹ phép năm.")
-                        .isPaid(false)
-                        .deductsAnnualBalance(false)
-                        .requiresApproval(true)
-                        .build(),
-                LeaveTypeDTO.builder()
-                        .code(LeaveType.EMERGENCY)
-                        .name("Nghỉ khẩn cấp")
-                        .description("Nghỉ việc khẩn cấp phát sinh đột xuất, không trừ quỹ phép năm.")
-                        .isPaid(true)
-                        .deductsAnnualBalance(false)
-                        .requiresApproval(true)
-                        .build()
-        );
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Transactional
