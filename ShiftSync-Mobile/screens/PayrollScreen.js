@@ -12,8 +12,6 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { getMyPayslips } from '../services/payrollService';
-import { getMyShifts } from '../services/shiftService';
-import { getMyProfile, getMyStores } from '../services/profileService';
 import BottomNavbar from '../components/BottomNavbar';
 import FlowerMascot3D from '../components/FlowerMascot3D';
 
@@ -25,80 +23,25 @@ export default function PayrollScreen({ navigation }) {
   const [payslips, setPayslips] = useState([]);
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Load backend payslips and realtime attendance
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      // 1. Fetch API payslips from Backend (SOURCE OF TRUTH)
-      let apiPayslips = [];
-      try {
-        const { data } = await getMyPayslips();
-        if (data && Array.isArray(data) && data.length > 0) {
-          apiPayslips = data;
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      let completedHours = 0;
-      let completedDays = 0;
-      let userRole = 'Nhân viên';
-      let userHourlyRate = 25000;
-
-      try {
-        const profileRes = await getMyProfile();
-        if (profileRes?.data?.id) {
-          const storeRes = await getMyStores(profileRes.data.id);
-          const stores = storeRes?.data || [];
-          if (stores.length > 0) {
-            const r = stores[0].hourlyRate || stores[0].contractType?.defaultHourlyRate;
-            if (r && !isNaN(Number(r)) && Number(r) > 0) {
-              userHourlyRate = Number(r);
-            }
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      try {
-        const { data: shifts } = await getMyShifts();
-        if (shifts && Array.isArray(shifts)) {
-          const finished = shifts.filter((s) => s.status === 'COMPLETED');
-          if (finished.length > 0) {
-            userRole = finished[0].skillName || finished[0].requiredSkillName || 'Nhân viên';
-          }
-          completedHours = finished.reduce((acc, s) => {
-            if (s.startTime && s.endTime) {
-              const [h1, m1] = s.startTime.split(':').map(Number);
-              const [h2, m2] = s.endTime.split(':').map(Number);
-              const dur = (h2 * 60 + m2 - (h1 * 60 + m1)) / 60;
-              return acc + Math.max(0, dur);
-            }
-            return acc + 8;
-          }, 0);
-          completedDays = finished.length;
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      if (apiPayslips.length > 0) {
-        const mapped = apiPayslips.map((p, idx) => {
+      const { data } = await getMyPayslips();
+      const apiPayslips = Array.isArray(data) ? data : [];
+      const mapped = apiPayslips.map((p, idx) => {
           const d = p.periodStartDate ? new Date(p.periodStartDate) : new Date();
           const month = d.getMonth() + 1;
           const year = d.getFullYear();
-          const workedH = Number(p.totalHours || 0);
-          const otH = Number(p.otHours || 0);
-          const baseH = Math.max(0, workedH - otH);
-          const totalAmt = Number(p.totalAmount || 0);
-          const baseAmt = Number(p.baseAmount || totalAmt);
-          const otAmt = Number(p.otAmount || 0);
-          const holAmt = Number(p.holidayAmount || 0);
-          const rate = (baseH > 0 && baseAmt > 0)
-            ? Math.round(baseAmt / baseH)
-            : (workedH > 0 && baseAmt > 0 ? Math.round(baseAmt / workedH) : userHourlyRate);
+          const workedH = p.totalHours;
+          const otH = p.otHours;
+          const totalAmt = p.totalAmount;
+          const baseAmt = p.baseAmount;
+          const otAmt = p.otAmount;
+          const holAmt = p.holidayAmount;
 
           const rangeStr = (p.periodStartDate && p.periodEndDate)
             ? `${formatDateDMY(p.periodStartDate)} – ${formatDateDMY(p.periodEndDate)}`
@@ -111,14 +54,14 @@ export default function PayrollScreen({ navigation }) {
             title: `Phiếu lương tháng ${month}/${year}`,
             periodRange: rangeStr,
             periodStatus: p.periodStatus || 'CLOSED',
-            role: userRole,
-            hourlyRate: rate,
-            totalShifts: Math.round(workedH / 8) || completedDays || 1,
-            completedShifts: Math.round(workedH / 8) || completedDays || 1,
-            scheduledHours: workedH || Math.round(completedHours) || 8,
-            workedHours: workedH || Math.round(completedHours) || 8,
+            role: p.skillName || p.role || 'Nhân viên',
+            hourlyRate: p.hourlyRate,
+            totalShifts: p.totalShifts,
+            completedShifts: p.completedShifts,
+            scheduledHours: p.scheduledHours,
+            workedHours: workedH,
             otHours: otH,
-            workedDays: Math.round(workedH / 8) || completedDays || 1,
+            workedDays: p.workedDays,
             baseAmount: baseAmt,
             otAmount: otAmt,
             holidayAmount: holAmt,
@@ -128,50 +71,10 @@ export default function PayrollScreen({ navigation }) {
             isEstimate: false,
           };
         });
-        setPayslips(mapped);
-      } else if (completedHours > 0) {
-        // Live current active month estimate from real shifts
-        const now = new Date();
-        const currentMonth = now.getMonth() + 1;
-        const currentYear = now.getFullYear();
-        const startStr = `01/${String(currentMonth).padStart(2, '0')}/${currentYear}`;
-        const lastDay = new Date(currentYear, currentMonth, 0).getDate();
-        const endStr = `${lastDay}/${String(currentMonth).padStart(2, '0')}/${currentYear}`;
-        const worked = Math.round(completedHours * 10) / 10;
-        const hourlyRate = userHourlyRate;
-        const baseAmt = Math.round(worked * hourlyRate);
-        const allowance = 0;
-        const deduction = 0;
-        const totalAmt = baseAmt + allowance - deduction;
-
-        setPayslips([
-          {
-            id: `live-current-${currentMonth}-${currentYear}`,
-            month: currentMonth,
-            year: currentYear,
-            title: `Phiếu lương tháng ${currentMonth}/${currentYear} (Ước tính)`,
-            periodRange: `${startStr} – ${endStr}`,
-            periodStatus: 'OPEN',
-            role: userRole,
-            hourlyRate,
-            totalShifts: completedDays,
-            completedShifts: completedDays,
-            scheduledHours: worked,
-            workedHours: worked,
-            otHours: 0,
-            workedDays: completedDays,
-            baseAmount: baseAmt,
-            otAmount: 0,
-            holidayAmount: 0,
-            deduction: 0,
-            allowance: 0,
-            totalAmount: totalAmt,
-            isEstimate: true,
-          }
-        ]);
-      } else {
-        setPayslips([]);
-      }
+      setPayslips(mapped);
+    } catch (e) {
+      setPayslips([]);
+      setError(e?.response?.data?.message || e?.message || 'Không thể tải phiếu lương. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -389,7 +292,14 @@ export default function PayrollScreen({ navigation }) {
 
         {/* Monthly Payslips List */}
         <View style={styles.payslipsCard}>
-          {payslips.length === 0 ? (
+          {error ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ textAlign: 'center', color: '#B42318', fontSize: 14 }}>{error}</Text>
+              <Pressable onPress={loadData} style={{ marginTop: 12 }}>
+                <Text style={{ color: '#428531', fontWeight: '700' }}>Thử lại</Text>
+              </Pressable>
+            </View>
+          ) : payslips.length === 0 ? (
             <Text style={{ padding: 24, textAlign: 'center', color: '#7B8490', fontSize: 14 }}>
               Chưa có phiếu lương nào trong hệ thống.
             </Text>
