@@ -177,11 +177,11 @@ export default function EmployeeCard3D({
     opacity: backOpacity,
   };
 
-  const staffCode = profile.staffCode || 'NV-472EE9';
-  const fullName = profile.fullName || 'Nhân viên';
+  const staffCode = profile.staffCode || 'Chưa cập nhật';
+  const fullName = profile.fullName || 'Chưa cập nhật';
   const position = profile.position || 'Chưa phân công vị trí';
-  const storeName = profile.storeName || 'highlands';
-  const storeAddress = profile.storeAddress || 'Phường Tây Thạnh, Thành phố Hồ Chí Minh, 72009, Việt Nam';
+  const storeName = profile.storeName || 'Chưa phân công chi nhánh';
+  const storeAddress = profile.storeAddress || 'Chưa có địa chỉ';
 
   // Thông tin cá nhân mặt sau
   const birthDate = profile.birthDate || 'Chưa cập nhật';
