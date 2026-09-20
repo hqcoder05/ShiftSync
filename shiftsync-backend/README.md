@@ -1,17 +1,28 @@
-# ShiftSync - Auto Scheduling Module
+# ShiftSync Backend
 
-## Báo Cáo Tính Nang (Scoring Model)
-Thu?t toán Auto-Schedule ch?m di?m nhân viên d?a trên 5 tiêu chí: Skill, Hour, Fairness, Rest Time, và Availability.
+## AutoSchedule
 
-**Luu ý quan tr?ng (Known Limitation):**
-Availability Score hi?n là h?ng s? 1.0 (known limitation), 4/5 tiêu chí còn l?i dã scoring d?y d? theo tr?ng s? c?u hình du?c.
+AutoSchedule filters candidates through hard constraints before applying configured soft scoring. The current verified contract is:
 
-Các tiêu chí khác:
-- **Skill**: Match tuy?t d?i level (Beginner 0.25 -> Expert 1.0).
-- **Hour**: T? l? thu?n v?i s? gi? còn l?i so v?i gi?i h?n tu?n.
-- **Fairness**: D?a trên t?ng s? ca trong THÁNG so v?i d?nh m?c h?p d?ng.
-- **Rest Time**: N?i suy tuy?n tính d?a trên kho?ng cách ngh? v?i ca g?n nh?t.
+- Skill and skill expiry are hard constraints.
+- Availability is a hard constraint; eligible candidates receive `availabilityScore = 1.0`.
+- Leave, blackout, overlap, minimum rest, weekly and contract limits are enforced before assignment.
+- Monthly fairness uses global employee workload, including qualifying cross-store workforce-sharing assignments.
+- Local Repair preserves hard constraints and may rescue coverage before applying soft fairness/score preferences.
+- Spatial allocation is reported separately from staffing coverage.
 
-### Ghi ch quan tr?ng v? Lu?ng nghi?p v? (FR-12, FR-13, FR-14)
-- **FR-13 (Nh?n ca tr?ng - Open Shift Claim):** p d?ng co ch? t? d?ng First Valid First Served. Khi Staff claim m?t Open Shift trn Marketplace, h? th?ng s? T? Ð?NG t?o ShiftAssignment ngay l?p t?c m khng c?n Manager duy?t.
-- **FR-12 & FR-14 (D?i ca - Shift Swap):** Khi nhn vin t?o yu c?u d?i ca v?i nhau, s? c?n hai bu?c xc nh?n: (1) Nhn vin cn l?i ph?i accept (employeeAccepted = true), v (2) Manager ph?i vo duy?t (Approve ho?c Reject). Lu?ng d?i ca ch? th?c s? c hi?u l?c sau khi Manager Approve. M?i hành vi Reject (t? Staff B ho?c Manager) s? gi? nguyn tr?ng thi assignment ban d?u.
+## Marketplace and shift swap
+
+Open Shift claims use the backend's concurrency protection and create an `OPEN_SHIFT` assignment when the claim is valid. Shift swap remains a two-step flow: the other employee accepts, then a manager approves.
+
+## Verification status
+
+The current backend suite is **GREEN WITH DOCUMENTED INFRASTRUCTURE GAPS**:
+
+- 384 total tests;
+- 381 executed successfully;
+- 0 failures;
+- 0 errors;
+- 3 explicitly skipped tests requiring live PostgreSQL and Redis.
+
+There is no complete real-infrastructure integration suite in the repository. See the repository-level [current system status](../SHIFTSYNC_CURRENT_SYSTEM_STATUS.md).
