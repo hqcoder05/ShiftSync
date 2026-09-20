@@ -1,27 +1,27 @@
 # ShiftSync Seed Data
 
-Thu m?c này ch?a các file SQL dùng d? n?p d? li?u m?u (mock data) vào database ph?c v? cho vi?c test và demo ?ng d?ng.
+Thu m?c nï¿½y ch?a cï¿½c file SQL dï¿½ng d? n?p d? li?u m?u (mock data) vï¿½o database ph?c v? cho vi?c test vï¿½ demo ?ng d?ng.
 
-## Cách s? d?ng
+## Cï¿½ch s? d?ng
 
-**Yêu c?u:** Database ph?i du?c kh?i t?o và ch?y d?y d? các file migration c?a Flyway tru?c khi n?p seed data.
+**Yï¿½u c?u:** Database ph?i du?c kh?i t?o vï¿½ ch?y d?y d? cï¿½c file migration c?a Flyway tru?c khi n?p seed data.
 
-### 1. Dùng psql
+### 1. Dï¿½ng psql
 ```bash
 psql -U postgres -d shiftsync -f scripts/seed/seed_demo.sql
 ```
 
-### 2. Dùng DataGrip / DBeaver / pgAdmin
+### 2. Dï¿½ng DataGrip / DBeaver / pgAdmin
 1. M? k?t n?i d?n database `shiftsync`.
 2. M? file `scripts/seed/seed_demo.sql`.
-3. Ch?y toàn b? file (Execute All).
+3. Ch?y toï¿½n b? file (Execute All).
 
 ## D? li?u m?u cung c?p trong `seed_demo.sql`:
-- **Store**: 1 c?a hàng (ShiftSync Flagship Store)
+- **Store**: 1 c?a hï¿½ng (ShiftSync Flagship Store)
 - **Contract Type**: 4 lo?i m?c d?nh (FULL_TIME, PART_TIME, SEASONAL, INTERN)
-- **Tài kho?n**: (Password chung là `password123`)
+- **Tï¿½i kho?n**: (Password chung lï¿½ `password123`)
   - `admin@shiftsync.com` (Admin)
   - `manager@shiftsync.com` (Manager)
   - `staff1@shiftsync.com` (Staff - Part-time)
   - `staff2@shiftsync.com` (Staff - Intern)
-- **Ca làm vi?c**: 1 ca dã du?c x?p cho `staff1`, 1 ca dang m? (Open Shift).
+- **Ca lï¿½m vi?c**: 1 ca dï¿½ du?c x?p cho `staff1`, 1 ca dang m? (Open Shift).
