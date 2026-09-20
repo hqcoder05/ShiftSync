@@ -1,5 +1,11 @@
 # AI Development Log - ShiftSync Project
 
+> **CURRENT STATUS — 2026-09-20:** This development log preserves historical
+> implementation claims. Current release documentation supersedes old test
+> counts and runtime claims: backend verification is 384 tests (0 failures,
+> 0 errors, 3 infrastructure skips), while final live Web/Mobile smoke and
+> full PostgreSQL/Redis integration remain verification gaps.
+
 Tai lieu nay ghi nhan chi tiet toan bo qua trinh su dung tri tue nhan tao (AI) va vibe coding trong qua trinh phat trien du an ShiftSync, tuan thu nghiem ngat theo quy dinh thuc tap tot nghiep (quy_dinh.pdf).
 
 ----------------------------------------------------------------------------------------------
