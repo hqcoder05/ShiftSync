@@ -24,4 +24,10 @@ public class ShiftTemplateDTO {
 
     @Schema(description = "End Time", example = "16:00:00")
     private LocalTime endTime;
+
+    @Schema(description = "Is Template Active")
+    private Boolean isActive;
+
+    @Schema(description = "Is Template strictly within store operating hours")
+    private Boolean isWithinOperatingHours;
 }
