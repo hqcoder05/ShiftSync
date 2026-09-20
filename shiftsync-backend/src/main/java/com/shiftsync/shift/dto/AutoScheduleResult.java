@@ -36,16 +36,16 @@ public class AutoScheduleResult {
     @Schema(description = "Total demanded slots across all draft shifts")
     private int totalDemandSlots;
 
-    @Schema(description = "Number of slots pre-filled by manual assignments")
+    @Schema(description = "Backward-compatible count of pre-existing non-AUTO assignments (includes MANUAL and OPEN_SHIFT)")
     private int existingManualAssignments;
 
-    @Schema(description = "Net slots demanded from the scheduler (totalDemandSlots - existingManualAssignments)")
+    @Schema(description = "Net slots demanded from the scheduler after preserved non-AUTO assignments")
     private int schedulerDemandSlots;
 
     @Schema(description = "Number of new auto assignments created in this run")
     private int newAssignmentsCreated;
 
-    @Schema(description = "Total assigned slots (existingManualAssignments + newAssignmentsCreated)")
+    @Schema(description = "Total assigned slots (preserved non-AUTO assignments + new assignments)")
     private int totalAssignedSlots;
 
     @Schema(description = "Total shortage slots (Math.max(0, totalDemandSlots - totalAssignedSlots))")
@@ -64,4 +64,14 @@ public class AutoScheduleResult {
 
     @Schema(description = "Feasibility diagnostics comparing staff capacity with shift demand")
     private FeasibilityDiagnosticsDTO feasibility;
+
+    @Schema(description = "Spatial allocation outcome: NOT_RUN, SUCCESS, PARTIAL, or UNAVAILABLE")
+    private String spatialAllocationStatus;
+
+    @Builder.Default
+    @Schema(description = "Shifts whose optional spatial allocation failed after schedule assignments were saved")
+    private List<UUID> spatialAllocationFailedShiftIds = new ArrayList<>();
+
+    @Schema(description = "Number of existing non-AUTO assignments preserved before scheduling")
+    private int existingNonAutoAssignments;
 }
