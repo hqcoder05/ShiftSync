@@ -1,4 +1,11 @@
 # Auth API Test Report — ShiftSync
+
+> **CURRENT STATUS — 2026-09-20:** This is a historical Postman report from
+> August 2026. Its recorded cases and findings are preserved as audit trail.
+> Current backend verification is 384 tests with 0 failures and 0 errors, but
+> live PostgreSQL/Redis integration and final authenticated Web/Mobile smoke
+> remain documented verification gaps. Do not treat the historical pending
+> findings below as a current release verdict without re-running them.
 Người test: Duyên | Ngày: 09/08/2026 | Công cụ: Postman
 
 | # | Test case | Input | Expected | Actual | Pass/Fail |
