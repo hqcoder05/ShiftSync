@@ -1,5 +1,11 @@
 # Báo Cáo Sử Dụng AI (AI Development Log) - ShiftSync Mobile
 
+> **CURRENT STATUS — 2026-09-20:** This development log is historical. The
+> current release status is documented in the repository-level system status;
+> final full authenticated Mobile smoke verification was not rerun during the
+> release sign-off, so historical export/runtime claims must not be treated as
+> the final release gate.
+
 1. **Công cụ & Mô hình:** Claude (Anthropic - Claude 3.5 Sonnet).
 
 2. **Ngày - Mục tiêu - Ngữ cảnh:**
