@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,11 @@ public class DailyQuotaResponse {
     private String branchName;
     private LocalDate date;
     private String dateFormatted; // e.g. "14/09/2026"
+    private LocalTime openTime;
+    private LocalTime closeTime;
+    private LocalTime midTime;
+    private String morningLabel;
+    private String afternoonLabel;
     private double slaPercentage; // e.g. 96.8
     private String statusBadge; // e.g. "● 5/6 ca đã đủ định biên"
     private int completedShiftsCount;
@@ -44,7 +50,7 @@ public class DailyQuotaResponse {
         private String positionName;
         private String code;
         private int slaPercentage;
-        private int assignedHours;
+        private double assignedHours;
         private int requiredCount;
         private int min;
         private int target;
@@ -65,7 +71,7 @@ public class DailyQuotaResponse {
         private String name; // "Ca Sáng" or "Ca Chiều"
         private String startTime; // "06:00"
         private String endTime; // "14:00"
-        private int durationHours; // 8
+        private double durationHours;
         private List<Integer> timelineHours; // [6, 8, 10, 12] or [14, 16, 18, 20]
         private List<DailyQuotaCell> quotas;
     }
@@ -111,7 +117,7 @@ public class DailyQuotaResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DailySummaryFooter {
-        private int totalHours; // e.g. 136
+        private double totalHours; // e.g. 136
         private int totalShiftsCount; // e.g. 17
         private long estimatedCost; // e.g. 3840000
         private String costBreakdownText; // "(Barista 28k/h, Thu ngân 26k/h, Bếp 30k/h)"
