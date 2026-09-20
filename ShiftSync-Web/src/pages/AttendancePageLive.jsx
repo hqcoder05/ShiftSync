@@ -80,15 +80,6 @@ const fmtTimeAMPM = (value) => {
   }
 };
 
-const DEFAULT_LEAVE_TYPES = [
-  { code: 'ANNUAL', name: 'Nghỉ phép năm', isPaid: true },
-  { code: 'SICK', name: 'Nghỉ ốm', isPaid: true },
-  { code: 'UNPAID', name: 'Nghỉ không lương', isPaid: false },
-  { code: 'PERSONAL', name: 'Nghỉ việc riêng', isPaid: false },
-  { code: 'OTHER', name: 'Nghỉ khác', isPaid: false },
-  { code: 'EMERGENCY', name: 'Nghỉ khẩn cấp', isPaid: false },
-];
-
 const getLeaveTypeBadgeStyle = (type) => {
   switch (type) {
     case 'SICK':
@@ -167,7 +158,9 @@ export default function AttendancePageLive() {
 
   // Leave Management State
   const [leaveRequests, setLeaveRequests] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState(DEFAULT_LEAVE_TYPES);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [loadingLeaveTypes, setLoadingLeaveTypes] = useState(false);
+  const [leaveTypesError, setLeaveTypesError] = useState(null);
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('ALL');
   const [leaveSearch, setLeaveSearch] = useState('');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -175,7 +168,7 @@ export default function AttendancePageLive() {
   const [selectedLeaveImpact, setSelectedLeaveImpact] = useState(null);
   const [pendingApproveLeaveId, setPendingApproveLeaveId] = useState(null);
   const [leaveForm, setLeaveForm] = useState({
-    leaveType: 'ANNUAL',
+    leaveType: '',
     startDate: '',
     endDate: '',
     reason: '',
@@ -398,14 +391,23 @@ export default function AttendancePageLive() {
         const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setLeaveRequests(list);
       }
+      setLoadingLeaveTypes(true);
+      setLeaveTypesError(null);
       try {
         const typesRes = await getLeaveTypes(sId);
         const typesList = typesRes.data?.data || (Array.isArray(typesRes.data) ? typesRes.data : []);
         if (typesList.length > 0) {
           setLeaveTypes(typesList);
+          setLeaveForm((prev) => (prev.leaveType ? prev : { ...prev, leaveType: typesList[0].code }));
+        } else {
+          setLeaveTypes([]);
+          setLeaveTypesError('Không tìm thấy danh mục loại nghỉ phép từ hệ thống.');
         }
       } catch (e) {
-        // Fallback to default leave types if error
+        setLeaveTypes([]);
+        setLeaveTypesError('Không thể tải danh mục loại nghỉ phép từ máy chủ.');
+      } finally {
+        setLoadingLeaveTypes(false);
       }
     } catch (e) {
       console.error('Failed to load leaves', e);
@@ -575,6 +577,10 @@ export default function AttendancePageLive() {
   const handleCreateLeaveSubmit = async (e) => {
     e.preventDefault();
     const sId = storeId || localStorage.getItem('selectedStoreId');
+    if (!leaveForm.leaveType || leaveTypes.length === 0) {
+      toast.error('Vui lòng chọn loại nghỉ phép hợp lệ từ hệ thống.');
+      return;
+    }
     if (!leaveForm.startDate || !leaveForm.endDate) {
       toast.error('Vui lòng chọn ngày bắt đầu và kết thúc.');
       return;
@@ -1910,17 +1916,34 @@ export default function AttendancePageLive() {
             <form className="att-edit-form" onSubmit={handleCreateLeaveSubmit}>
               <div className="att-form-group">
                 <label>Loại nghỉ phép</label>
-                <select
-                  className="att-select-input"
-                  value={leaveForm.leaveType}
-                  onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
-                >
-                  {leaveTypes.map((t) => (
-                    <option key={t.code || t.name} value={t.code || t.name}>
-                      {t.name || t.code} ({t.code})
-                    </option>
-                  ))}
-                </select>
+                {loadingLeaveTypes ? (
+                  <div style={{ fontSize: '13px', color: '#64748b', padding: '8px 0' }}>Đang tải danh mục loại nghỉ phép...</div>
+                ) : leaveTypesError ? (
+                  <div style={{ fontSize: '13px', color: '#dc2626', padding: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>⚠️ {leaveTypesError}</span>
+                    <button
+                      type="button"
+                      onClick={() => fetchLeaves()}
+                      style={{ padding: '2px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #dc2626', background: '#fee2e2', color: '#dc2626', cursor: 'pointer' }}
+                    >
+                      Thử lại
+                    </button>
+                  </div>
+                ) : leaveTypes.length > 0 ? (
+                  <select
+                    className="att-select-input"
+                    value={leaveForm.leaveType}
+                    onChange={(e) => setLeaveForm((prev) => ({ ...prev, leaveType: e.target.value }))}
+                  >
+                    {leaveTypes.map((t) => (
+                      <option key={t.code || t.name} value={t.code || t.name}>
+                        {t.name || t.code} ({t.code})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: '13px', color: '#dc2626', padding: '8px 0' }}>Không có loại nghỉ phép khả dụng</div>
+                )}
               </div>
 
               <div className="att-form-group">
@@ -1968,7 +1991,7 @@ export default function AttendancePageLive() {
                 <button
                   type="submit"
                   className="att-save-btn"
-                  disabled={actionLoading}
+                  disabled={actionLoading || loadingLeaveTypes || leaveTypes.length === 0}
                 >
                   {actionLoading ? 'Đang gửi...' : 'Nộp đơn'}
                 </button>
