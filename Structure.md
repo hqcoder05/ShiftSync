@@ -1,61 +1,95 @@
-# ShiftSync - Project Structure & Architecture
+# ShiftSync — Báo cáo kiến trúc và cấu trúc hệ thống
 
-Hệ thống được chia thành 3 phần chính: **Backend (Spring Boot)**, **Web Frontend (React)**, và **Mobile App (React Native)**.
+## 1. Mô hình triển khai
 
-## 1. Tựu chung (Root Directory)
-```text
-ShiftSync/
-├── shiftsync-backend/       # Mã nguồn Backend (Java 21, Spring Boot 3)
-├── ShiftSync-Web/           # Mã nguồn Web Admin (React, Vite, TailwindCSS)
-├── ShiftSync-Mobile/        # Mã nguồn Mobile App cho nhân viên (React Native, Expo)
-└── docs/                    # Các tài liệu phân tích nghiệp vụ, ERD, v.v.
-```
-
-## 2. Cấu trúc Backend (`shiftsync-backend`)
-
-Backend áp dụng kiến trúc **Modular Monolith**, chia tách rõ ràng theo hướng Domain-Driven Design (DDD) để dễ dàng bảo trì và scale:
+ShiftSync là hệ thống full-stack monorepo. Backend xử lý dữ liệu và business rule; Web phục vụ Manager/Admin; Mobile phục vụ Staff.
 
 ```text
-com.shiftsync
-├── shared/                          # 📦 MODULE CHUNG: Cấu hình, Security, Exception, Base DTO
-├── config/                          # ⚙️ Cấu hình hệ thống (Scheduler Config, v.v.)
-├── auth/                            # 🔐 MODULE AUTH: Đăng nhập, JWT, Quản lý tài khoản (User)
-├── store/                           # 🏪 MODULE STORE: Cửa hàng, Cấu hình cửa hàng, Dashboard
-├── employment/                      # 👥 MODULE EMPLOYMENT: Loại hợp đồng, Quản lý nhân sự
-├── skill/                           # 🎓 MODULE SKILL: Kỹ năng & Yêu cầu kỹ năng
-├── availability/                    # 📅 MODULE AVAILABILITY: Thời gian rảnh của nhân viên
-├── leave/                           # 🏖️ MODULE LEAVE: Quản lý đơn nghỉ phép
-├── shift/                           # 🕒 MODULE SHIFT: Ca làm, Đổi ca, Xếp ca tự động (Auto-Schedule)
-├── layout/                          # 🧊 MODULE LAYOUT (3D): Sơ đồ không gian, Phân bổ nhân sự 3D
-├── marketplace/                     # 🛒 MODULE MARKETPLACE: Chợ ca làm việc
-├── attendance/                      # 📍 MODULE ATTENDANCE: Điểm danh (GPS/Selfie), Xin sửa công
-├── payroll/                         # 💰 MODULE PAYROLL: Bảng lương, Tính toán thu nhập
-├── notification/                    # 🔔 MODULE NOTIFICATION: Thông báo hệ thống & tùy chỉnh
-├── workforce/                       # 🤝 MODULE WORKFORCE: Chia sẻ nhân lực liên chi nhánh
-├── request/                         # 📩 MODULE REQUEST: Quản lý các loại yêu cầu của nhân viên
-├── audit/                           # 📝 MODULE AUDIT: Ghi log, truy vết hành động
-└── job/                             # ⏳ MODULE JOB: Các tiến trình chạy ngầm (Cron Jobs)
+Client Web ───────┐
+                  ├── REST API / WebSocket ── ShiftSync Backend ── PostgreSQL
+Client Mobile ────┘                              │
+                                                 ├── Redis / Redisson
+                                                 ├── Flyway migrations
+                                                 └── Firebase notifications
 ```
 
-## 3. Cấu trúc Frontend Web (`ShiftSync-Web/src`)
+## 2. Backend architecture
+
+Backend sử dụng Spring Boot modular monolith. Mỗi domain được tổ chức theo Controller, Service, Repository, DTO và Entity; các thành phần dùng chung nằm trong `shared` và `config`.
 
 ```text
-src/
-├── assets/                          # Hình ảnh, Fonts, Icon
-├── components/                      # Các UI Component tái sử dụng (Header, Sidebar, Modal...)
-├── layouts/                         # Bố cục trang (Ví dụ: MainLayout có sidebar)
-├── pages/                           # Các màn hình chính (Dashboard, Schedule, Payroll, Stores...)
-├── services/                        # Call API Backend (api.js, authService, requestService...)
-└── utils/                           # Các hàm tiện ích (Format ngày giờ, tiền tệ...)
+shiftsync-backend/src/main/java/com/shiftsync/
+├── shared/         exception, response, security primitives
+├── config/          application và scheduler configuration
+├── auth/            authentication, JWT, user và role
+├── store/           store, configuration và dashboard
+├── employment/      employment và contract
+├── skill/           skill, staff skill và requirement
+├── availability/    weekly availability và blackout date
+├── leave/           leave request, leave type và balance
+├── shift/           shift, assignment, requirement và AutoSchedule
+├── layout/          store layout, zone và spatial allocation
+├── marketplace/     open shift và claim flow
+├── workforce/       workforce sharing liên chi nhánh
+├── attendance/      check-in/out và adjustment
+├── payroll/         payroll period, calculation và payslip
+├── notification/    notification và reminder
+├── request/         staff request workflow
+├── audit/           audit log
+└── job/             background jobs
 ```
 
-## 4. Cấu trúc Mobile App (`ShiftSync-Mobile`)
+Luồng xử lý Backend:
 
 ```text
-ShiftSync-Mobile/
-├── assets/                          # Hình ảnh, Icon ứng dụng, Splash screen
-├── components/                      # UI Component dùng chung (BottomNavbar...)
-├── navigation/                      # Cấu hình chuyển trang (AppNavigator - Stack/Tab)
-├── screens/                         # Các màn hình App (Login, Schedule, Attendance, Profile...)
-└── services/                        # Tương tác API với Backend
+HTTP request → Controller → DTO validation và authentication
+             → Service business rule → Repository
+             → Entity/database → Response DTO
 ```
+
+## 3. Các domain nghiệp vụ
+
+### Authentication và authorization
+
+JWT xác thực người dùng. Spring Security áp dụng RBAC cho ADMIN, MANAGER và STAFF, đồng thời kiểm tra ownership và store isolation.
+
+### Workforce và scheduling
+
+Employment, skill, availability, leave và shift cung cấp dữ liệu đầu vào cho AutoSchedule. Scheduler xử lý hard constraint, skill requirement, overlap, rest, giới hạn giờ và tạo assignment.
+
+### Spatial allocation
+
+Module layout quản lý store layout, zone và vị trí làm việc. Spatial allocation được thực hiện sau khi assignment hợp lệ.
+
+### Marketplace và workforce sharing
+
+Marketplace quản lý open shift và claim cạnh tranh. Workforce quản lý yêu cầu chia sẻ nhân sự giữa các chi nhánh.
+
+### Attendance và payroll
+
+Attendance lưu check-in/out, GPS, selfie và adjustment request. Payroll sử dụng dữ liệu chấm công, shift và payroll period để tạo payslip.
+
+## 4. Database và tích hợp
+
+- PostgreSQL là cơ sở dữ liệu chính.
+- Flyway quản lý thứ tự migration và schema.
+- JPA/Hibernate ánh xạ Entity và Repository.
+- Redis/Redisson hỗ trợ cache và distributed lock.
+- WebSocket và Firebase Admin hỗ trợ notification.
+
+## 5. Web và Mobile
+
+Web tổ chức trong `ShiftSync-Web/src` với `assets`, `components`, `layouts`, `pages`, `services` và `utils`.
+
+Mobile tổ chức trong `ShiftSync-Mobile` với `assets`, `components`, `navigation`, `screens` và `services`.
+
+Hai client gọi API và hiển thị trạng thái theo quyền người dùng; business calculation thuộc Backend.
+
+## 6. Nguyên tắc kiến trúc
+
+1. Backend là nguồn dữ liệu và business rule trung tâm.
+2. Mọi truy cập dữ liệu phải qua authentication, authorization và store scope.
+3. Business logic đặt trong Service, không đặt trong UI client.
+4. Schema thay đổi phải đi qua Flyway migration.
+5. Scheduler phải bảo toàn assignment thủ công và trạng thái nghiệp vụ hợp lệ.
+6. Thay đổi domain quan trọng phải có test và regression test phù hợp.
