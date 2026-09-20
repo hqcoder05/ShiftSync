@@ -71,6 +71,8 @@ public class AutoScheduleService {
     private final HeadcountQuotaService headcountQuotaService;
     private final SpatialAllocationService spatialAllocationService;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
+    /** Production default remains enabled; package-private test seam only. */
+    private boolean fairnessCapEnabled = true;
 
     @Autowired
     public AutoScheduleService(
@@ -98,6 +100,10 @@ public class AutoScheduleService {
         this.headcountQuotaService = headcountQuotaService;
         this.spatialAllocationService = spatialAllocationService;
         this.leaveRequestRepository = leaveRequestRepository;
+    }
+
+    void setFairnessCapEnabledForTest(boolean enabled) {
+        this.fairnessCapEnabled = enabled;
     }
 
     public AutoScheduleService(
@@ -150,19 +156,25 @@ public class AutoScheduleService {
     static class Slot {
         Shift shift;
         UUID skillId;
+        UUID requirementId;
         com.shiftsync.layout.entity.StoreZone zone;
         com.shiftsync.layout.entity.Workstation workstation;
         int eligibleCandidates = 0;
         
         public Slot(Shift shift, UUID skillId) {
-            this(shift, skillId, null, null);
+            this(shift, skillId, null, null, null);
         }
 
         public Slot(Shift shift, UUID skillId, com.shiftsync.layout.entity.StoreZone zone, com.shiftsync.layout.entity.Workstation workstation) {
+            this(shift, skillId, zone, workstation, null);
+        }
+
+        public Slot(Shift shift, UUID skillId, com.shiftsync.layout.entity.StoreZone zone, com.shiftsync.layout.entity.Workstation workstation, UUID requirementId) {
             this.shift = shift;
             this.skillId = skillId;
             this.zone = zone;
             this.workstation = workstation;
+            this.requirementId = requirementId;
         }
     }
     
@@ -212,6 +224,10 @@ public class AutoScheduleService {
         List<Shift> draftShifts = allShifts.stream()
                 .filter(s -> s.getStatus() == ShiftStatus.DRAFT)
                 .collect(Collectors.toList());
+        draftShifts.sort(Comparator.comparing(Shift::getShiftDate)
+                .thenComparing(Shift::getStartTime)
+                .thenComparing(Shift::getEndTime)
+                .thenComparing(Shift::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
 
         // Validate and clean up any DRAFT shifts outside store operating hours
         if (storeRepository != null && headcountQuotaService != null) {
@@ -373,6 +389,9 @@ public class AutoScheduleService {
             
             staffMap.put(sid, data);
         }
+        List<StaffData> sortedStaff = staffMap.values().stream()
+                .sorted(Comparator.comparing(sd -> sd.getEmployment().getUser().getId()))
+                .collect(Collectors.toList());
 
         // 3. Flatten Shifts into Slots & compute baseline demand metrics
         int totalDemandSlots = 0;
@@ -404,44 +423,27 @@ public class AutoScheduleService {
             final List<ShiftAssignment> activeNonAuto = existingOnShift.stream()
                     .filter(a -> !a.isDeleted() && a.getSource() != AssignmentSource.AUTO)
                     .collect(Collectors.toList());
-            existingManualAssignments += activeNonAuto.size();
 
             if (shift.getRequirements().isEmpty()) {
-                int remainingDemand = Math.max(0, 1 - activeNonAuto.size());
+                int matchedCount = Math.min(1, activeNonAuto.size());
+                existingManualAssignments += matchedCount;
+                int remainingDemand = 1 - matchedCount;
                 for (int i = 0; i < remainingDemand; i++) {
-                    slots.add(new Slot(shift, null, null, null));
+                    slots.add(new Slot(shift, null, null, null, null));
                 }
             } else {
-                for (ShiftSkillRequirement req : shift.getRequirements()) {
-                    long assignedCount = 0;
-                    if (req.getSkill() != null) {
-                        UUID targetSkillId = req.getSkill().getId();
-                        assignedCount = activeNonAuto.stream()
-                                .filter(a -> {
-                                    if (targetSkillId.equals(a.getRequiredSkillId())) {
-                                        if (req.getZone() != null && a.getZone() != null) {
-                                            return req.getZone().getId().equals(a.getZone().getId());
-                                        }
-                                        return true;
-                                    }
-                                    if (a.getRequiredSkillId() == null && a.getStaff() != null) {
-                                        StaffData sd = staffMap.get(a.getStaff().getId());
-                                        if (sd != null && hasValidSkill(sd, targetSkillId, shift.getShiftDate())) {
-                                            return true;
-                                        }
-                                    }
-                                    return false;
-                                })
-                                .count();
-                    } else {
-                        assignedCount = activeNonAuto.size();
-                    }
-                    if (assignedCount == 0 && shift.getRequirements().size() == 1) {
-                        assignedCount = activeNonAuto.size();
-                    }
-                    int remainingDemand = Math.max(0, req.getRequiredCount() - (int) assignedCount);
+                List<ShiftAssignment> availableManualAssignments = new ArrayList<>(activeNonAuto);
+                for (ShiftSkillRequirement req : orderedRequirements(shift)) {
+                    List<ShiftAssignment> matched = availableManualAssignments.stream()
+                            .filter(a -> assignmentMatchesRequirement(a, req, shift, staffMap))
+                            .limit(req.getRequiredCount())
+                            .collect(Collectors.toList());
+                    availableManualAssignments.removeAll(matched);
+                    existingManualAssignments += matched.size();
+
+                    int remainingDemand = Math.max(0, req.getRequiredCount() - matched.size());
                     for (int i = 0; i < remainingDemand; i++) {
-                        slots.add(new Slot(shift, req.getSkill() != null ? req.getSkill().getId() : null, req.getZone(), req.getWorkstation()));
+                        slots.add(new Slot(shift, req.getSkill() != null ? req.getSkill().getId() : null, req.getZone(), req.getWorkstation(), req.getId()));
                     }
                 }
             }
@@ -465,7 +467,7 @@ public class AutoScheduleService {
             int minCandidates = Integer.MAX_VALUE;
 
             for (Slot candidateSlot : remainingSlots) {
-                List<StaffData> validCandidates = findValidCandidates(candidateSlot, staffMap.values(), storeConfig.getMinRestHours(), teamMonthlyAvg);
+                List<StaffData> validCandidates = findValidCandidates(candidateSlot, sortedStaff, storeConfig.getMinRestHours(), teamMonthlyAvg);
                 int count = validCandidates.size();
 
                 boolean isBetter = false;
@@ -484,11 +486,23 @@ public class AutoScheduleService {
                         if (timeCmp < 0) {
                             isBetter = true;
                         } else if (timeCmp == 0) {
-                            // Tie-breaker 3: Deterministic UUID comparison
-                            String idA = candidateSlot.getShift().getId() != null ? candidateSlot.getShift().getId().toString() : "";
-                            String idB = bestSlot.getShift().getId() != null ? bestSlot.getShift().getId().toString() : "";
-                            if (idA.compareTo(idB) < 0) {
+                            int endCmp = candidateSlot.getShift().getEndTime().compareTo(bestSlot.getShift().getEndTime());
+                            if (endCmp < 0) {
                                 isBetter = true;
+                            } else if (endCmp == 0) {
+                                UUID skillA = candidateSlot.getSkillId();
+                                UUID skillB = bestSlot.getSkillId();
+                                int skillCmp = Comparator.nullsFirst(Comparator.<UUID>naturalOrder()).compare(skillA, skillB);
+                                if (skillCmp < 0) {
+                                    isBetter = true;
+                                } else if (skillCmp == 0) {
+                                    int shiftCmp = Comparator.nullsFirst(Comparator.<UUID>naturalOrder()).compare(candidateSlot.getShift().getId(), bestSlot.getShift().getId());
+                                    if (shiftCmp < 0) {
+                                        isBetter = true;
+                                    } else if (shiftCmp == 0 && Comparator.nullsFirst(Comparator.<UUID>naturalOrder()).compare(candidateSlot.getRequirementId(), bestSlot.getRequirementId()) < 0) {
+                                        isBetter = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -502,6 +516,7 @@ public class AutoScheduleService {
             }
 
             remainingSlots.remove(bestSlot);
+
 
             if (bestSlotCandidates == null || bestSlotCandidates.isEmpty()) {
                 log.warn("AutoSchedule: Could not find any valid candidate for Shift {} (Skill {}). Thêm vào danh sách chờ Local Repair.",
@@ -524,6 +539,7 @@ public class AutoScheduleService {
                             // Tie-break 3: Fallback định danh tuyệt đối bằng userId để đảm bảo tính tất định 100%
                             .thenComparing(empData -> empData.getEmployment().getUser().getId()))
                     .orElse(bestSlotCandidates.get(0));
+
 
             // 8. Make Assignment
             ShiftAssignment assignment = ShiftAssignment.builder()
@@ -557,12 +573,16 @@ public class AutoScheduleService {
         int localRepairRescuedCount = unassignedSlotsBeforeRepair - stillUnassigned.size();
         int finalUnassignedCount = stillUnassigned.size();
 
+        String spatialAllocationStatus = spatialAllocationService == null ? "UNAVAILABLE" : "NOT_RUN";
+        List<UUID> spatialAllocationFailedShiftIds = new ArrayList<>();
+
         if (!newAssignments.isEmpty()) {
             shiftAssignmentRepository.saveAll(newAssignments);
             shiftAssignmentRepository.flush();
 
             // Auto-trigger 3D Spatial Allocation for the scheduled shifts
             if (spatialAllocationService != null) {
+                spatialAllocationStatus = "SUCCESS";
                 Set<UUID> assignedShiftIds = newAssignments.stream()
                         .map(a -> a.getShift().getId())
                         .collect(Collectors.toSet());
@@ -570,7 +590,9 @@ public class AutoScheduleService {
                     try {
                         spatialAllocationService.allocateZonesForShift(storeId, sid);
                     } catch (Exception e) {
-                        log.debug("Spatial allocation skipped for shift {}: {}", sid, e.getMessage());
+                        spatialAllocationFailedShiftIds.add(sid);
+                        spatialAllocationStatus = "PARTIAL";
+                        log.warn("Spatial allocation failed for shift {} after assignments were saved: {}", sid, e.getMessage());
                     }
                 }
             }
@@ -664,7 +686,7 @@ public class AutoScheduleService {
                 }
             } else {
                 List<ShiftAssignment> availableAssignments = new ArrayList<>(activeAssignmentsOnShift);
-                for (ShiftSkillRequirement req : shift.getRequirements()) {
+                for (ShiftSkillRequirement req : orderedRequirements(shift)) {
                     UUID targetSkillId = req.getSkill() != null ? req.getSkill().getId() : null;
                     String targetSkillName = req.getSkill() != null ? req.getSkill().getName() : null;
                     UUID targetZoneId = req.getZone() != null ? req.getZone().getId() : null;
@@ -677,28 +699,8 @@ public class AutoScheduleService {
                         if (matched.size() >= req.getRequiredCount()) {
                             break;
                         }
-                        boolean skillMatches = false;
-                        if (targetSkillId != null) {
-                            if (targetSkillId.equals(a.getRequiredSkillId())) {
-                                skillMatches = true;
-                            } else if (a.getRequiredSkillId() == null && a.getStaff() != null) {
-                                StaffData sd = staffMap.get(a.getStaff().getId());
-                                if (sd != null && hasValidSkill(sd, targetSkillId, shift.getShiftDate())) {
-                                    skillMatches = true;
-                                }
-                            }
-                        } else {
-                            skillMatches = true;
-                        }
-
-                        if (skillMatches) {
-                            if (targetZoneId != null) {
-                                if (a.getZone() != null && targetZoneId.equals(a.getZone().getId())) {
-                                    matched.add(a);
-                                }
-                            } else {
-                                matched.add(a);
-                            }
+                        if (assignmentMatchesRequirement(a, req, shift, staffMap)) {
+                            matched.add(a);
                         }
                     }
                     availableAssignments.removeAll(matched);
@@ -789,6 +791,7 @@ public class AutoScheduleService {
                 .message(message)
                 .totalDemandSlots(totalDemandSlots)
                 .existingManualAssignments(existingManualAssignments)
+                .existingNonAutoAssignments(existingManualAssignments)
                 .schedulerDemandSlots(slots.size())
                 .newAssignmentsCreated(newAssignmentsCreated)
                 .totalAssignedSlots(totalAssignedSlots)
@@ -797,6 +800,8 @@ public class AutoScheduleService {
                 .shortages(shortages)
                 .requirementCoverages(requirementCoverages)
                 .feasibility(feasibility)
+                .spatialAllocationStatus(spatialAllocationStatus)
+                .spatialAllocationFailedShiftIds(spatialAllocationFailedShiftIds)
                 .build();
     }
 
@@ -854,7 +859,12 @@ public class AutoScheduleService {
             candidateAssignments.sort(Comparator.comparingDouble((ShiftAssignment a) -> {
                 StaffData sd = staffMap.get(a.getStaff().getId());
                 return sd != null ? sd.getUtilizationRatio() : 0.0;
-            }).reversed());
+            }).reversed()
+                    .thenComparing(a -> a.getShift().getShiftDate())
+                    .thenComparing(a -> a.getShift().getStartTime())
+                    .thenComparing(a -> a.getShift().getEndTime())
+                    .thenComparing(a -> a.getShift().getId(), Comparator.nullsFirst(Comparator.naturalOrder()))
+                    .thenComparing(a -> a.getId(), Comparator.nullsFirst(Comparator.naturalOrder())));
 
             for (ShiftAssignment existingAssignment : candidateAssignments) {
                 if (attempts >= MAX_REPAIR_ATTEMPTS_PER_SLOT) break;
@@ -892,7 +902,9 @@ public class AutoScheduleService {
 
                 // (c) Tìm staffY (≠ staffX) thỏa mãn HC1-HC5 cho otherShift — ưu tiên người có ít giờ tháng nhất (fairness)
                 List<StaffData> staffYCandidates = new ArrayList<>();
-                for (StaffData candidate : staffMap.values()) {
+                for (StaffData candidate : staffMap.values().stream()
+                        .sorted(Comparator.comparing(sd -> sd.getEmployment().getUser().getId()))
+                        .collect(Collectors.toList())) {
                     UUID candidateId = candidate.getEmployment().getUser().getId();
                     if (candidateId.equals(staffXId)) continue;
 
@@ -1035,6 +1047,41 @@ public class AutoScheduleService {
                               (s.getExpirationDate() == null || !s.getExpirationDate().isBefore(shiftDate)));
     }
 
+    private List<ShiftSkillRequirement> orderedRequirements(Shift shift) {
+        return shift.getRequirements().stream()
+                .sorted(Comparator.comparing((ShiftSkillRequirement req) -> req.getSkill() != null ? req.getSkill().getId() : null,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(ShiftSkillRequirement::getId, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .collect(Collectors.toList());
+    }
+
+    private boolean assignmentMatchesRequirement(ShiftAssignment assignment,
+                                                 ShiftSkillRequirement requirement,
+                                                 Shift shift,
+                                                 Map<UUID, StaffData> staffMap) {
+        if (assignment == null) return false;
+
+        UUID requiredSkillId = requirement.getSkill() != null ? requirement.getSkill().getId() : null;
+        if (requiredSkillId != null) {
+            boolean skillMatches = requiredSkillId.equals(assignment.getRequiredSkillId());
+            if (!skillMatches && assignment.getRequiredSkillId() == null && assignment.getStaff() != null) {
+                StaffData staff = staffMap.get(assignment.getStaff().getId());
+                skillMatches = staff != null && hasValidSkill(staff, requiredSkillId, shift.getShiftDate());
+            }
+            if (!skillMatches) return false;
+        }
+
+        if (requirement.getZone() != null
+                && (assignment.getZone() == null
+                || !requirement.getZone().getId().equals(assignment.getZone().getId()))) {
+            return false;
+        }
+
+        return requirement.getWorkstation() == null
+                || (assignment.getWorkstation() != null
+                && requirement.getWorkstation().getId().equals(assignment.getWorkstation().getId()));
+    }
+
     private boolean isUnavailable(StaffData empData, Shift shift) {
         // Check Blackout Dates
         boolean isBlackout = empData.getBlackoutDates().stream()
@@ -1052,16 +1099,32 @@ public class AutoScheduleService {
         boolean isCovered = empData.getAvailabilities().stream()
                 .anyMatch(a -> {
                     if (a.getDayOfWeek() == null || a.getDayOfWeek() != shiftDayOfWeek) return false;
-                    // Allow up to 30 minutes tolerance at shift start/end to match store shifts flexibly
-                    LocalTime availStart = a.getStartTime();
-                    LocalTime availEnd = a.getEndTime();
-                    LocalTime effStart = availStart.isAfter(LocalTime.of(0, 30)) ? availStart.minusMinutes(30) : LocalTime.MIN;
-                    LocalTime effEnd = availEnd.isBefore(LocalTime.of(23, 30)) ? availEnd.plusMinutes(30) : LocalTime.MAX;
-                    
-                    return !effStart.isAfter(shift.getStartTime()) && !effEnd.isBefore(shift.getEndTime());
+                    return availabilityCoversShift(a, shift);
                 });
         
         return !isCovered;
+    }
+
+    private boolean availabilityCoversShift(Availability availability, Shift shift) {
+        LocalTime availabilityStart = availability.getStartTime();
+        LocalTime availabilityEnd = availability.getEndTime();
+
+        // AvailabilityService rejects equal endpoints, so an equal-time record is not a valid interval.
+        if (availabilityStart == null || availabilityEnd == null || availabilityStart.equals(availabilityEnd)) {
+            return false;
+        }
+
+        LocalDateTime availabilityStartDateTime = LocalDateTime.of(shift.getShiftDate(), availabilityStart);
+        LocalDateTime availabilityEndDateTime = LocalDateTime.of(shift.getShiftDate(), availabilityEnd);
+        if (availabilityEnd.isBefore(availabilityStart)) {
+            availabilityEndDateTime = availabilityEndDateTime.plusDays(1);
+        }
+
+        LocalDateTime effectiveStart = availabilityStartDateTime.minusMinutes(30);
+        LocalDateTime effectiveEnd = availabilityEndDateTime.plusMinutes(30);
+        LocalDateTime shiftStart = getStartDateTime(shift);
+        LocalDateTime shiftEnd = getEndDateTime(shift);
+        return !effectiveStart.isAfter(shiftStart) && !effectiveEnd.isBefore(shiftEnd);
     }
 
     // Lỗi 6: Validate tổng trọng số scoring = 1.000 (cho phép sai số float 0.001)
@@ -1167,7 +1230,7 @@ public class AutoScheduleService {
 
         // Soft Fairness Cap: loại bớt ứng viên có giờ tháng vượt quá 1.3x trung bình snapshot toàn team,
         // CHỈ áp dụng khi có > 1 ứng viên hợp lệ và teamMonthlyAvg > 0 để không bao giờ bỏ trống ca
-        if (validCandidates.size() > 1 && teamMonthlyAvg > 0) {
+        if (fairnessCapEnabled && validCandidates.size() > 1 && teamMonthlyAvg > 0) {
             double cap = teamMonthlyAvg * 1.3;
             List<StaffData> fairCandidates = validCandidates.stream()
                     .filter(e -> e.getMonthlyAssignedHours() <= cap)
