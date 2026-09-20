@@ -2,6 +2,7 @@ package com.shiftsync.store.service;
 import com.shiftsync.audit.service.AuditLogService;
 
 import com.shiftsync.shared.exception.BusinessException;
+import com.shiftsync.shift.service.ShiftTemplateService;
 import com.shiftsync.store.dto.StoreConfigurationDTO;
 import com.shiftsync.store.dto.StoreConfigurationUpdateRequest;
 import com.shiftsync.store.entity.Store;
@@ -22,6 +23,7 @@ public class StoreConfigurationService {
 
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final StoreRepository storeRepository;
+    private final ShiftTemplateService shiftTemplateService;
 
     @Transactional(readOnly = true)
     public StoreConfigurationDTO getStoreConfiguration(UUID storeId) {
@@ -50,7 +52,10 @@ public class StoreConfigurationService {
         // Update Store open/close times
         store.setOpenTime(request.getOpenTime());
         store.setCloseTime(request.getCloseTime());
-        storeRepository.save(store);
+        store = storeRepository.save(store);
+
+        // Deactivate templates that fall outside new operating hours
+        shiftTemplateService.deactivateOutOfBoundsTemplates(store);
 
         // Update or Create StoreConfiguration
         StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId)
