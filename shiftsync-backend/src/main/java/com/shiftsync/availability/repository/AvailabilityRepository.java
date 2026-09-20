@@ -13,7 +13,8 @@ public interface AvailabilityRepository extends JpaRepository<Availability, UUID
 
     List<Availability> findByUserId(UUID userId);
     
-    List<Availability> findByUser_IdIn(List<UUID> userIds);
+    @Query("SELECT a FROM Availability a WHERE a.user.id IN :userIds ORDER BY a.user.id ASC, a.dayOfWeek ASC, a.startTime ASC, a.endTime ASC, a.id ASC")
+    List<Availability> findByUser_IdIn(@Param("userIds") List<UUID> userIds);
 
     @Query("SELECT COUNT(a) > 0 FROM Availability a " +
            "WHERE a.user.id = :staffId " +
