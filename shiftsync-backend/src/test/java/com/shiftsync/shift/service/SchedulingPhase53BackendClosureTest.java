@@ -753,6 +753,7 @@ class SchedulingPhase53BackendClosureTest {
                     .shift(shift)
                     .staff(manualUser)
                     .source(AssignmentSource.MANUAL)
+                    .requiredSkillId(baristaSkill.getId())
                     .deleted(false)
                     .build();
             when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.singletonList(manualAssignment));
@@ -847,15 +848,15 @@ class SchedulingPhase53BackendClosureTest {
 
             User u1 = User.builder().id(UUID.randomUUID()).build();
             User u2 = User.builder().id(UUID.randomUUID()).build();
-            ShiftAssignment m1 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(u1).source(AssignmentSource.MANUAL).deleted(false).build();
-            ShiftAssignment m2 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(u2).source(AssignmentSource.MANUAL).deleted(false).build();
+            ShiftAssignment m1 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(u1).source(AssignmentSource.MANUAL).requiredSkillId(baristaSkill.getId()).deleted(false).build();
+            ShiftAssignment m2 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(u2).source(AssignmentSource.MANUAL).requiredSkillId(UUID.randomUUID()).deleted(false).build();
             when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Arrays.asList(m1, m2));
             when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate)).thenReturn(Collections.singletonList(shift));
 
             AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
 
             assertEquals(1, result.getTotalDemandSlots());
-            assertEquals(2, result.getExistingManualAssignments());
+            assertEquals(1, result.getExistingManualAssignments(), "Only the matching manual assignment counts toward demand");
             assertEquals(0, result.getSchedulerDemandSlots(), "Demand slots must be max(0, required - manual) = 0");
             assertEquals(0, result.getNewAssignmentsCreated());
         }
