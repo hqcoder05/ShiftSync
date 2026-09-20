@@ -1,4 +1,4 @@
-﻿# 📖 Tài liệu API ShiftSync (Toàn tập)
+# 📖 Tài liệu API ShiftSync (Toàn tập)
 
 > Tự động sinh từ cấu trúc Swagger OpenAPI của dự án. Bao gồm tất cả các endpoint của hệ thống Backend.
 
@@ -1296,4 +1296,85 @@
 - `200`: OK
 
 ---
+
+## Nhóm: Demand Planning và Headcount
+
+### `GET` /api/branches
+Lấy danh sách branch phục vụ demand planning. Phản hồi: `200`, `401`, `403`.
+
+### `GET` /api/positions
+Lấy danh sách position dùng cho headcount quota. Phản hồi: `200`, `401`, `403`.
+
+### `GET` /api/headcount-quotas
+Lấy quota nhân sự theo branch, position và ngày.
+
+### `GET` /api/headcount-quotas/weekly
+Lấy ma trận quota theo tuần.
+
+### `GET` /api/headcount-quotas/summary
+Lấy tổng hợp coverage và shortage.
+
+### `PUT` /api/headcount-quotas/{quotaId}
+Cập nhật quota cụ thể. Phản hồi: `200`, `400`, `403`, `404`.
+
+### `PUT` /api/headcount-quotas/budget
+Cập nhật ngân sách headcount. Phản hồi: `200`, `400`, `403`.
+
+### `POST` /api/headcount-quotas/auto-fill
+Tự động điền quota theo cấu hình demand.
+
+### `POST` /api/headcount-quotas/apply-to-scheduler
+Áp dụng quota vào scheduler.
+
+---
+
+## Nhóm: Layout và Spatial Allocation
+
+Các endpoint layout hỗ trợ prefix `/api/stores/{storeId}` và alias `/api/locations/{storeId}`.
+
+### `POST` /api/stores/{storeId}/layout
+Tạo hoặc lưu store layout.
+
+### `GET` /api/stores/{storeId}/layout
+Lấy store layout hiện tại.
+
+### `POST` /api/stores/{storeId}/zones
+Tạo zone trong layout.
+
+### `PUT` /api/stores/{storeId}/zones/{zoneId}
+Cập nhật zone.
+
+### `GET` /api/stores/{storeId}/zones
+Lấy danh sách zone.
+
+### `DELETE` /api/stores/{storeId}/zones/{zoneId}
+Xóa zone.
+
+### `GET` /api/stores/{storeId}/workstations
+Lấy danh sách workstation.
+
+### `POST` /api/stores/{storeId}/workstations
+Tạo workstation.
+
+### `PUT` /api/stores/{storeId}/workstations/{workstationId}
+Cập nhật workstation.
+
+### `DELETE` /api/stores/{storeId}/workstations/{workstationId}
+Xóa workstation.
+
+### `POST` /api/stores/{storeId}/shifts/{shiftId}/allocate-zones
+Phân bổ zone cho assignment của shift.
+
+---
+
+## API bổ sung trong Shift và Swap
+
+### `POST` /api/stores/{storeId}/shifts/demand-planning
+Tạo hoặc cập nhật demand/headcount requirement cho store.
+
+### `GET` /api/stores/{storeId}/shifts/{shiftId}/eligible-staff
+Lấy danh sách staff đủ điều kiện theo skill và các ràng buộc hiện tại.
+
+### `POST` /api/swaps/{requestId}/cancel
+Hủy yêu cầu đổi ca của người tạo yêu cầu.
 
