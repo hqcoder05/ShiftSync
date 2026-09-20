@@ -251,7 +251,9 @@ export default function StaffAvailabilityPage() {
       if (!storeId) return;
 
       // 1. Load Store Staff
-      const staffRes = await getStaffByStore(storeId);
+      // The availability matrix is an all-active-staff view (including staff
+      // who have not submitted availability), not a paginated roster view.
+      const staffRes = await getStaffByStore(storeId, 0, 100);
       const rawStaff = (staffRes.data.content || staffRes.data || []).filter(
         (emp) => (emp.systemRole || emp.role) !== 'MANAGER' && (emp.systemRole || emp.role) !== 'ADMIN'
       );
