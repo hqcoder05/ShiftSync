@@ -66,6 +66,8 @@ class PayrollCalculationServiceTest {
     private com.shiftsync.skill.repository.SkillRepository skillRepository;
     @Mock
     private com.shiftsync.audit.service.AuditLogService auditLogService;
+    @Mock
+    private com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
@@ -99,6 +101,7 @@ class PayrollCalculationServiceTest {
         endDate = LocalDate.of(2023, 10, 31);
 
         lenient().when(skillRepository.findByStoreId(any())).thenReturn(List.of());
+        lenient().when(leaveRequestRepository.findApprovedLeavesInPeriod(any(), any(), any(), any())).thenReturn(List.of());
     }
 
     @Test
