@@ -85,6 +85,7 @@ public class ShiftAssignmentService {
             ShiftAssignment existing = existingOpt.get();
             if (requestedZoneId != null) {
                 StoreZone targetZone = storeZoneRepository.findById(requestedZoneId)
+                        .filter(zone -> zone.getStore() != null && storeId.equals(zone.getStore().getId()))
                         .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
                 existing.setZone(targetZone);
                 existing = shiftAssignmentRepository.save(existing);
@@ -99,7 +100,9 @@ public class ShiftAssignmentService {
         // Resolve best matching zone and skill for this employee based on available requirement capacity
         StoreZone assignedZone = null;
         if (requestedZoneId != null) {
-            assignedZone = storeZoneRepository.findById(requestedZoneId).orElse(null);
+            assignedZone = storeZoneRepository.findById(requestedZoneId)
+                    .filter(zone -> zone.getStore() != null && storeId.equals(zone.getStore().getId()))
+                    .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
         }
 
         UUID matchedSkillId = null;
