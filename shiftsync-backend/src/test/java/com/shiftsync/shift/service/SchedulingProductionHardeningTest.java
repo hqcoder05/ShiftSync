@@ -2,7 +2,6 @@ package com.shiftsync.shift.service;
 
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.availability.entity.Availability;
-import com.shiftsync.availability.entity.BlackoutDate;
 import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.entity.ContractType;
