@@ -72,17 +72,25 @@ export default function RequestScreen({ navigation, route }) {
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
   // ── Leave Types & Leave Balance (Backend Source of Truth) ──
-  const [leaveTypes, setLeaveTypes] = useState([
-    { code: 'ANNUAL', name: 'Phép năm', deductsAnnualBalance: true },
-    { code: 'SICK', name: 'Nghỉ ốm', deductsAnnualBalance: false },
-    { code: 'EMERGENCY', name: 'Khẩn cấp', deductsAnnualBalance: false },
-    { code: 'UNPAID', name: 'Không lương', deductsAnnualBalance: false },
-  ]);
-  const [selectedLeaveType, setSelectedLeaveType] = useState('ANNUAL');
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [loadingLeaveTypes, setLoadingLeaveTypes] = useState(false);
+  const [leaveTypesError, setLeaveTypesError] = useState(null);
+  const [selectedLeaveType, setSelectedLeaveType] = useState('');
   const [leaveBalance, setLeaveBalance] = useState(null);
 
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
+
+  // ── ✈️ 3D Paper Plane launch trigger ──
+  const [planeLaunched, setPlaneLaunched] = useState(false);
+
+  const triggerLaunchPlane = () => {
+    setPlaneLaunched(false);
+    setTimeout(() => {
+      setPlaneLaunched(true);
+      setTimeout(() => setPlaneLaunched(false), 2600);
+    }, 40);
+  };
 
   // ── Modal States ──
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -165,6 +173,39 @@ export default function RequestScreen({ navigation, route }) {
     }
   };
 
+  const fetchLeaveTypesData = async (targetStoreId) => {
+    const sId = targetStoreId || activeStoreId;
+    if (!sId) return;
+    try {
+      setLoadingLeaveTypes(true);
+      setLeaveTypesError(null);
+      const [typesRes, balRes] = await Promise.allSettled([
+        getLeaveTypes(sId),
+        getMyLeaveBalance(sId),
+      ]);
+      if (typesRes.status === 'fulfilled' && typesRes.value?.data) {
+        const data = typesRes.value.data;
+        setLeaveTypes(data);
+        if (data.length > 0) {
+          setSelectedLeaveType((prev) => {
+            if (prev && data.some((t) => (t.code || t.name) === prev)) return prev;
+            return data[0].code || data[0].name;
+          });
+        }
+      } else {
+        setLeaveTypesError('Không thể tải danh sách loại nghỉ. Vui lòng thử lại.');
+      }
+      if (balRes.status === 'fulfilled' && balRes.value?.data) {
+        setLeaveBalance(balRes.value.data);
+      }
+    } catch (err) {
+      console.log('Error fetching leave types/balance:', err);
+      setLeaveTypesError('Không thể tải danh sách loại nghỉ. Vui lòng thử lại.');
+    } finally {
+      setLoadingLeaveTypes(false);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -199,20 +240,7 @@ export default function RequestScreen({ navigation, route }) {
 
       // Load leave types and user balance
       if (storeId) {
-        try {
-          const [typesRes, balRes] = await Promise.allSettled([
-            getLeaveTypes(storeId),
-            getMyLeaveBalance(storeId),
-          ]);
-          if (typesRes.status === 'fulfilled' && typesRes.value?.data) {
-            setLeaveTypes(typesRes.value.data);
-          }
-          if (balRes.status === 'fulfilled' && balRes.value?.data) {
-            setLeaveBalance(balRes.value.data);
-          }
-        } catch (err) {
-          console.log('Error fetching leave balance/types:', err.message);
-        }
+        fetchLeaveTypesData(storeId);
       }
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
@@ -294,6 +322,12 @@ export default function RequestScreen({ navigation, route }) {
   // ── Submit Xin nghỉ (Image 1) ──
   const handleSubmitLeave = async () => {
     setLeaveError(null);
+    if (!selectedLeaveType || leaveTypes.length === 0) {
+      const msg = 'Vui lòng chọn loại nghỉ phép hợp lệ';
+      setLeaveError(msg);
+      showToast('Lưu ý', msg, 'warning');
+      return;
+    }
     if (!leaveReason.trim()) {
       const msg = 'Vui lòng nhập lý do xin nghỉ phép';
       setLeaveError(msg);
@@ -335,6 +369,8 @@ export default function RequestScreen({ navigation, route }) {
       setLeaveReason('');
       setLeaveError(null);
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin nghỉ';
@@ -376,6 +412,8 @@ export default function RequestScreen({ navigation, route }) {
       setSwapModalVisible(false);
       setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff}`);
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
@@ -417,6 +455,8 @@ export default function RequestScreen({ navigation, route }) {
       setAbsentReason('');
       setAbsentError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
       loadRequests();
     } catch (err) {
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin vắng';
@@ -485,7 +525,11 @@ export default function RequestScreen({ navigation, route }) {
         </View>
 
         {/* ── 🌟 Hero 3D Card: Máy bay giấy 3D tương tác ── */}
-        <View style={styles.hero3DCard}>
+        <TouchableOpacity
+          style={styles.hero3DCard}
+          activeOpacity={0.92}
+          onPress={triggerLaunchPlane}
+        >
           <View style={styles.hero3DInfo}>
             <Text style={styles.hero3DTitle}>Trạm tiếp nhận yêu cầu</Text>
             <Text style={styles.hero3DSubtitle}>
@@ -493,9 +537,17 @@ export default function RequestScreen({ navigation, route }) {
             </Text>
           </View>
           <View style={styles.heroPlaneContainer}>
-            <PaperPlane3D width={140} height={110} interactive={true} />
+            <PaperPlane3D
+              launched={planeLaunched}
+              color="#f8fafc"
+              accentColor="#428531"
+              width={145}
+              height={120}
+              interactive={true}
+              onPress={triggerLaunchPlane}
+            />
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.headerDivider} />
 
@@ -740,23 +792,44 @@ export default function RequestScreen({ navigation, route }) {
 
             {/* Loại nghỉ phép */}
             <Text style={styles.sectionHeader}>Loại nghỉ phép</Text>
-            <View style={styles.leaveTypeRow}>
-              {leaveTypes.map((t) => {
-                const isSel = selectedLeaveType === t.code;
-                return (
-                  <TouchableOpacity
-                    key={t.code}
-                    style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
-                    onPress={() => setSelectedLeaveType(t.code)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
-                      {t.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {loadingLeaveTypes ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
+                <ActivityIndicator size="small" color="#51A33D" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Đang tải danh sách loại nghỉ...</Text>
+              </View>
+            ) : leaveTypesError ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12.5, color: '#DC2626', flex: 1 }}>{leaveTypesError}</Text>
+                <TouchableOpacity
+                  onPress={() => fetchLeaveTypesData(activeStoreId)}
+                  style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#DC2626' }}>Thử lại</Text>
+                </TouchableOpacity>
+              </View>
+            ) : leaveTypes.length === 0 ? (
+              <Text style={{ fontSize: 13, color: '#9CA3AF', paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
+            ) : (
+              <View style={styles.leaveTypeRow}>
+                {leaveTypes.map((t) => {
+                  const typeCode = t.code || t.name;
+                  const typeName = t.name || t.code;
+                  const isSel = selectedLeaveType === typeCode;
+                  return (
+                    <TouchableOpacity
+                      key={typeCode}
+                      style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                      onPress={() => setSelectedLeaveType(typeCode)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
+                        {typeName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             <Text style={styles.sectionHeader}>Thời gian</Text>
 
