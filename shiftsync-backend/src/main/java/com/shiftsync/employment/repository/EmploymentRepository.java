@@ -19,7 +19,8 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     Page<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status, Pageable pageable);
 
-    List<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status);
+    @Query("SELECT e FROM Employment e WHERE e.store.id = :storeId AND e.status = :status ORDER BY e.user.id ASC, e.id ASC")
+    List<Employment> findByStoreIdAndStatus(@Param("storeId") UUID storeId, @Param("status") EmploymentStatus status);
 
     long countByStoreIdAndContractTypeId(UUID storeId, UUID contractTypeId);
 
