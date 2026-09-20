@@ -20,6 +20,7 @@ import {
   DollarSign,
   Briefcase,
   Layers,
+  MapPin,
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function StaffingKpiBar({
   maxStoreCapacity = 0,
   understaffedZonesCount = 0,
   openShiftsCount = 0,
+  unresolvedAssignmentsCount = 0,
   estimatedCost = 0,
   costDelta = 0,
   isSimulating = false,
@@ -134,6 +136,30 @@ export default function StaffingKpiBar({
             {understaffedZonesCount > 0
               ? `${understaffedZonesCount} Phân khu thiếu`
               : 'Phân khu đạt chuẩn'}
+          </span>
+        </div>
+
+        <div style={{ width: 1, height: 16, backgroundColor: '#334155' }} />
+
+        {/* Spatial assignment integrity */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '2px 8px',
+            borderRadius: 6,
+            backgroundColor: unresolvedAssignmentsCount > 0 ? 'rgba(245, 158, 11, 0.16)' : 'rgba(148, 163, 184, 0.1)',
+            color: unresolvedAssignmentsCount > 0 ? '#FBBF24' : '#94A3B8',
+            fontWeight: 600,
+          }}
+          title="Assignment của ca hiện tại chưa có phân khu không gian"
+        >
+          <MapPin size={13} />
+          <span>
+            {unresolvedAssignmentsCount > 0
+              ? `${unresolvedAssignmentsCount} chưa xác định vị trí`
+              : 'Vị trí đã xác định'}
           </span>
         </div>
 
