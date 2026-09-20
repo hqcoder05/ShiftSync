@@ -20,6 +20,7 @@ import { getLeaveTypes } from '../services/leaveService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getSkillsByStore } from '../services/skillService';
 import BottomNavbar from '../components/BottomNavbar';
+import PaperPlane3D from '../components/PaperPlane3D';
 
 import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import { getAvatarForEmployee, AVATAR_OPTIONS } from '../components/avatarConfigs';
@@ -56,11 +57,11 @@ export const getStaffAvatarSource = (staffName, avatarId) => {
 
 // ── Color palette matching Web Schedule & SkillsPage (Figma Tokens) ─────────────
 export const SHIFT_COLORS = [
-  '#5BC8B8', // teal/green - Barista / Pha chế
-  '#D97FB2', // pink - Cashier / Thu ngân
-  '#D98080', // salmon/red - Kitchen / Bếp
-  '#C8C84A', // yellow-green - Service / Phục vụ
-  '#7AA8D9', // blue - Supervisor / Giám sát / Quản lý
+  '#8DD9CC', // Barista / Pha chế
+  '#F4A8C4', // Cashier / Thu ngân
+  '#FDBA74', // Kitchen / Bếp
+  '#A5B4FC', // Service / Phục vụ
+  '#93C5FD', // Supervisor / Giám sát / Quản lý
 ];
 
 export const PRESET_ROLE_COLORS = [
@@ -75,13 +76,13 @@ export const PRESET_ROLE_COLORS = [
 ];
 
 export const resolveRoleColor = (roleName = '') => {
-  if (!roleName) return '#5BC8B8';
+  if (!roleName) return SHIFT_COLORS[0];
   const r = roleName.toLowerCase().trim();
-  if (r.includes('barista') || r.includes('pha chế') || r.includes('pha che')) return '#5BC8B8';
-  if (r.includes('cashier') || r.includes('thu ngân') || r.includes('thu ngan')) return '#D97FB2';
-  if (r.includes('kitchen') || r.includes('bếp') || r.includes('bep')) return '#D98080';
-  if (r.includes('service') || r.includes('phục vụ') || r.includes('phuc vu') || r.includes('waiter') || r.includes('server')) return '#C8C84A';
-  if (r.includes('supervisor') || r.includes('giám sát') || r.includes('quản lý') || r.includes('quan ly') || r.includes('manager')) return '#7AA8D9';
+  if (r.includes('barista') || r.includes('pha chế') || r.includes('pha che')) return '#8DD9CC';
+  if (r.includes('cashier') || r.includes('thu ngân') || r.includes('thu ngan')) return '#F4A8C4';
+  if (r.includes('kitchen') || r.includes('bếp') || r.includes('bep')) return '#FDBA74';
+  if (r.includes('service') || r.includes('phục vụ') || r.includes('phuc vu') || r.includes('waiter') || r.includes('server')) return '#A5B4FC';
+  if (r.includes('supervisor') || r.includes('giám sát') || r.includes('quản lý') || r.includes('quan ly') || r.includes('manager')) return '#93C5FD';
   const code = [...r].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return SHIFT_COLORS[code % SHIFT_COLORS.length];
 };
@@ -306,18 +307,24 @@ export default function ScheduleScreen({ navigation }) {
   const [isAllDay, setIsAllDay] = useState(true);
   const [startDate, setStartDate] = useState(fmtD(tomorrow));
   const [endDate, setEndDate] = useState(fmtD(dayAfter));
-  const [leaveTypes, setLeaveTypes] = useState([
-    { code: 'ANNUAL', name: 'Phép năm' },
-    { code: 'SICK', name: 'Nghỉ ốm' },
-    { code: 'UNPAID', name: 'Không lương' },
-    { code: 'PERSONAL', name: 'Việc riêng' },
-    { code: 'OTHER', name: 'Nghỉ khác' },
-    { code: 'EMERGENCY', name: 'Khẩn cấp' },
-  ]);
-  const [selectedLeaveType, setSelectedLeaveType] = useState('ANNUAL');
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [loadingLeaveTypes, setLoadingLeaveTypes] = useState(false);
+  const [leaveTypesError, setLeaveTypesError] = useState(null);
+  const [selectedLeaveType, setSelectedLeaveType] = useState('');
   const [leaveError, setLeaveError] = useState(null);
   const [swapError, setSwapError] = useState(null);
   const [absentError, setAbsentError] = useState(null);
+
+  // ── ✈️ 3D Paper Plane launch trigger ──
+  const [planeLaunched, setPlaneLaunched] = useState(false);
+
+  const triggerLaunchPlane = () => {
+    setPlaneLaunched(false);
+    setTimeout(() => {
+      setPlaneLaunched(true);
+      setTimeout(() => setPlaneLaunched(false), 2600);
+    }, 40);
+  };
 
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
@@ -348,6 +355,29 @@ export default function ScheduleScreen({ navigation }) {
     }, 3500);
   };
 
+  const fetchLeaveTypesData = async (targetStoreId) => {
+    const sId = targetStoreId || activeStoreId;
+    if (!sId) return;
+    try {
+      setLoadingLeaveTypes(true);
+      setLeaveTypesError(null);
+      const res = await getLeaveTypes(sId);
+      const data = res?.data || [];
+      setLeaveTypes(data);
+      if (data.length > 0) {
+        setSelectedLeaveType((prev) => {
+          if (prev && data.some((t) => (t.code || t.name) === prev)) return prev;
+          return data[0].code || data[0].name;
+        });
+      }
+    } catch (err) {
+      console.log('Error fetching leave types in ScheduleScreen:', err);
+      setLeaveTypesError('Không thể tải danh sách loại nghỉ. Vui lòng thử lại.');
+    } finally {
+      setLoadingLeaveTypes(false);
+    }
+  };
+
   const handleManualRefresh = async () => {
     setRefreshing(true);
     await fetchScheduleData(false);
@@ -371,11 +401,7 @@ export default function ScheduleScreen({ navigation }) {
           activeStoreId = activeStore?.storeId || activeStore?.id;
           setActiveStoreId(activeStoreId);
           if (activeStoreId) {
-            getLeaveTypes(activeStoreId).then(res => {
-              if (res?.data && Array.isArray(res.data)) {
-                setLeaveTypes(res.data);
-              }
-            }).catch(() => {});
+            fetchLeaveTypesData(activeStoreId);
             const skillRes = await getSkillsByStore(activeStoreId).catch(() => null);
             if (skillRes?.data) {
               storeSkills = Array.isArray(skillRes.data) ? skillRes.data : (skillRes.data.content || []);
@@ -387,7 +413,7 @@ export default function ScheduleScreen({ navigation }) {
       }
 
       const getShiftColor = (s, roleName) => {
-        if (!s) return '#5BC8B8';
+        if (!s) return SHIFT_COLORS[0];
         if (s.color && typeof s.color === 'string' && s.color.startsWith('#')) return s.color;
         if (s.skillColor && typeof s.skillColor === 'string' && s.skillColor.startsWith('#')) return s.skillColor;
         const sSkillId = s.skillId || s.location;
@@ -405,6 +431,39 @@ export default function ScheduleScreen({ navigation }) {
         return resolveRoleColor(matched?.name || roleName);
       };
 
+      // ShiftDTO contains one or more assignment-specific work locations.  The
+      // assignment is the source of truth for both the staff member's skill
+      // and zone; top-level ShiftDTO fields describe the shift as a whole.
+      const resolveAssignmentDetails = (shift, assignment) => {
+        const assignmentSkillId = assignment?.requiredSkillId || assignment?.skillId;
+        const matchedSkill = storeSkills.find((skill) =>
+          assignmentSkillId && String(skill.id) === String(assignmentSkillId)
+        );
+        const requirement = (shift.skillRequirements || []).find((item) =>
+          assignmentSkillId && String(item.skillId) === String(assignmentSkillId)
+        );
+        const skillRole = assignment?.skillName
+          || matchedSkill?.name
+          || requirement?.skillName
+          || shift.skillName;
+        const position = assignment?.zoneName
+          || shift.zoneName
+          || skillRole
+          || 'Chưa xác định vị trí';
+        const shiftForColor = {
+          ...shift,
+          skillId: assignmentSkillId || shift.skillId,
+          skillName: skillRole || position,
+        };
+
+        return {
+          position,
+          color: getShiftColor(shiftForColor, skillRole || position),
+          location: assignment?.zoneName || shift.zoneName || shift.storeAddress || shift.storeName || 'Chi nhánh phân công',
+          zoneId: assignment?.zoneId || shift.zoneId || null,
+        };
+      };
+
       // 2. Fetch real my shifts from API
       const res = await getMyShifts().catch(() => null);
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -418,19 +477,24 @@ export default function ScheduleScreen({ navigation }) {
             if (typeof t === 'string') return t.slice(0, 5);
             return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
           };
-          const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-          const shiftColor = getShiftColor(s, role);
+          const myAssignment = (s.shiftAssignments || []).find((assignment) =>
+            String(assignment.staffId) === String(currentUser?.id)
+          );
+          const assignmentDetails = resolveAssignmentDetails(s, myAssignment);
           return {
-            id: s.id || `live-my-${idx}`,
+            id: myAssignment?.id ? `${s.id}-${myAssignment.id}` : (s.id || `live-my-${idx}`),
+            shiftId: s.id,
             shiftDate: s.shiftDate,
             dayIndex: actualIdx,
             dayLabel: `${DAY_LABELS.find((d) => d.dowIndex === dow)?.fullLabel || 'Thứ 2'} (${d || shiftDateObj.getDate()}/${m || (shiftDateObj.getMonth() + 1)})`,
             staffName: currentUser?.fullName || s.staffName || 'Nhân viên',
             avatarId: currentUser?.avatarId || s.avatarId,
             timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
-            location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
-            role,
-            color: shiftColor,
+            location: assignmentDetails.location,
+            zoneId: assignmentDetails.zoneId,
+            position: assignmentDetails.position,
+            role: assignmentDetails.position,
+            color: assignmentDetails.color,
             note: s.note || '',
             hasFlag: Boolean(s.note && s.note.trim().length > 0),
           };
@@ -449,7 +513,7 @@ export default function ScheduleScreen({ navigation }) {
         const storeRes = await getShiftsForStore(activeStoreId).catch(() => null);
         if (storeRes && storeRes.data && Array.isArray(storeRes.data) && storeRes.data.length > 0) {
           const colleaguesMap = new Map();
-          const mappedStore = storeRes.data.map((s, idx) => {
+          const mappedStore = storeRes.data.flatMap((s, idx) => {
             const [y, m, d] = (s.shiftDate || '').split('-').map(Number);
             const shiftDateObj = y ? new Date(y, m - 1, d) : new Date();
             const dow = shiftDateObj.getDay();
@@ -459,34 +523,39 @@ export default function ScheduleScreen({ navigation }) {
               if (typeof t === 'string') return t.slice(0, 5);
               return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
             };
-            const role = s.skillName || s.requirements?.[0]?.skillName || 'Barista';
-            const shiftColor = getShiftColor(s, role);
-            const staffName = s.assignedStaffName || s.staffName || 'Nhân viên';
+            const assignments = s.shiftAssignments?.length ? s.shiftAssignments : [null];
+            return assignments.map((assignment, assignmentIndex) => {
+              const assignmentDetails = resolveAssignmentDetails(s, assignment);
+              const staffName = assignment?.staffName || s.assignedStaffName || s.staffName || 'Nhân viên';
 
-            if (staffName && staffName !== 'Chưa phân công' && (!currentUser?.fullName || staffName !== currentUser.fullName)) {
-              if (!colleaguesMap.has(staffName)) {
-                colleaguesMap.set(staffName, {
-                  name: staffName,
-                  role: role,
-                  avatarId: s.avatarId,
-                });
+              if (staffName && staffName !== 'Chưa phân công' && (!currentUser?.fullName || staffName !== currentUser.fullName)) {
+                if (!colleaguesMap.has(staffName)) {
+                  colleaguesMap.set(staffName, {
+                    name: staffName,
+                    role: assignmentDetails.position,
+                    avatarId: assignment?.avatarId || s.avatarId,
+                  });
+                }
               }
-            }
 
-            return {
-              id: s.id || `live-store-${idx}`,
+              return {
+              id: assignment?.id ? `${s.id}-${assignment.id}` : (s.id || `live-store-${idx}-${assignmentIndex}`),
+              shiftId: s.id,
               shiftDate: s.shiftDate,
               dayIndex: actualIdx,
               dayLabel: `${DAY_LABELS.find((d) => d.dowIndex === dow)?.fullLabel || 'Thứ 2'} (${d || shiftDateObj.getDate()}/${m || (shiftDateObj.getMonth() + 1)})`,
               staffName,
-              avatarId: s.avatarId,
+              avatarId: assignment?.avatarId || s.avatarId,
               timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
-              location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
-              role,
-              color: shiftColor,
+              location: assignmentDetails.location,
+              zoneId: assignmentDetails.zoneId,
+              position: assignmentDetails.position,
+              role: assignmentDetails.position,
+              color: assignmentDetails.color,
               note: s.note || '',
               hasFlag: Boolean(s.note && s.note.trim().length > 0),
-            };
+              };
+            });
           });
           setLiveStoreShifts(mappedStore);
           const colleaguesList = Array.from(colleaguesMap.values());
@@ -544,6 +613,9 @@ export default function ScheduleScreen({ navigation }) {
   const handleOpenLeaveModal = () => {
     setActionBoxVisible(false);
     setLeaveError(null);
+    if (activeStoreId && leaveTypes.length === 0) {
+      fetchLeaveTypesData(activeStoreId);
+    }
     setLeaveModalVisible(true);
   };
 
@@ -577,6 +649,8 @@ export default function ScheduleScreen({ navigation }) {
       setSwapModalVisible(false);
       setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff} tới Quản lý`);
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
     } catch (e) {
       const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu đổi ca';
       setSwapError(errMsg);
@@ -616,6 +690,8 @@ export default function ScheduleScreen({ navigation }) {
       setAbsentReason('');
       setAbsentError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
     } catch (e) {
       const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu xin vắng';
       setAbsentError(errMsg);
@@ -628,6 +704,12 @@ export default function ScheduleScreen({ navigation }) {
   // ── Submit Xin nghỉ ──
   const handleSubmitLeave = async () => {
     setLeaveError(null);
+    if (!selectedLeaveType || leaveTypes.length === 0) {
+      const msg = 'Vui lòng chọn loại nghỉ phép hợp lệ';
+      setLeaveError(msg);
+      showToast('Lưu ý', msg, 'warning');
+      return;
+    }
     if (!leaveReason.trim()) {
       const msg = 'Vui lòng nhập lý do xin nghỉ phép';
       setLeaveError(msg);
@@ -658,6 +740,8 @@ export default function ScheduleScreen({ navigation }) {
       setLeaveReason('');
       setLeaveError(null);
       showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
+      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      triggerLaunchPlane();
     } catch (e) {
       const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu xin nghỉ';
       setLeaveError(errMsg);
@@ -943,7 +1027,7 @@ export default function ScheduleScreen({ navigation }) {
                           </Text>
                           <View style={styles.shiftRoleRow}>
                             <View style={[styles.roleDot, { backgroundColor: theme.dotColor }]} />
-                            <Text style={styles.roleLabelText}>{shift.role}</Text>
+                            <Text style={styles.roleLabelText}>{shift.position || 'Chưa xác định vị trí'}</Text>
                           </View>
                         </View>
                       </TouchableOpacity>
@@ -1367,23 +1451,44 @@ export default function ScheduleScreen({ navigation }) {
             </View>
 
             <Text style={styles.formSectionHeading}>Loại nghỉ phép</Text>
-            <View style={styles.leaveTypeRow}>
-              {leaveTypes.map((t) => {
-                const isSel = selectedLeaveType === t.code;
-                return (
-                  <TouchableOpacity
-                    key={t.code}
-                    style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
-                    onPress={() => setSelectedLeaveType(t.code)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
-                      {t.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {loadingLeaveTypes ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
+                <ActivityIndicator size="small" color="#51A33D" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Đang tải danh sách loại nghỉ...</Text>
+              </View>
+            ) : leaveTypesError ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12.5, color: '#DC2626', flex: 1 }}>{leaveTypesError}</Text>
+                <TouchableOpacity
+                  onPress={() => fetchLeaveTypesData(activeStoreId)}
+                  style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#DC2626' }}>Thử lại</Text>
+                </TouchableOpacity>
+              </View>
+            ) : leaveTypes.length === 0 ? (
+              <Text style={{ fontSize: 13, color: '#9CA3AF', paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
+            ) : (
+              <View style={styles.leaveTypeRow}>
+                {leaveTypes.map((t) => {
+                  const typeCode = t.code || t.name;
+                  const typeName = t.name || t.code;
+                  const isSel = selectedLeaveType === typeCode;
+                  return (
+                    <TouchableOpacity
+                      key={typeCode}
+                      style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                      onPress={() => setSelectedLeaveType(typeCode)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.leaveTypePillText, isSel && styles.leaveTypePillTextActive]}>
+                        {typeName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             <Text style={styles.formSectionHeading}>Thời gian</Text>
 
@@ -1453,6 +1558,7 @@ export default function ScheduleScreen({ navigation }) {
           {renderToast()}
         </SafeAreaView>
       </Modal>
+      {PaperPlane3D && <PaperPlane3D launched={planeLaunched} />}
       <BottomNavbar navigation={navigation} activeRoute="Schedule" />
     </SafeAreaView>
   );
