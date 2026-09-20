@@ -264,8 +264,12 @@ export default function DemandWeeklyMatrixView({
               <tr>
                 {days.map((d) => (
                   <React.Fragment key={d.date}>
-                    <th className="dp-col-subshift-head">Ca Sáng (06-14h)</th>
-                    <th className="dp-col-subshift-head">Ca Chiều (14-22h)</th>
+                    <th className="dp-col-subshift-head">
+                      {data?.morningLabel || (data?.openTime && data?.midTime ? `Ca Sáng (${data.openTime.slice(0, 5)}-${data.midTime.slice(0, 5)})` : 'Ca Sáng')}
+                    </th>
+                    <th className="dp-col-subshift-head">
+                      {data?.afternoonLabel || (data?.midTime && data?.closeTime ? `Ca Chiều (${data.midTime.slice(0, 5)}-${data.closeTime.slice(0, 5)})` : 'Ca Chiều')}
+                    </th>
                   </React.Fragment>
                 ))}
               </tr>
