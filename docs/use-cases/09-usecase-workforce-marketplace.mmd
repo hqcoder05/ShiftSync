@@ -1,0 +1,22 @@
+flowchart LR
+  M[Manager]:::actor
+  S[Staff]:::actor
+  subgraph WF[Workforce sharing and open shifts]
+    R((Request workforce from another store)):::uc
+    P((Propose staff member)):::uc
+    D((Respond to workforce proposal)):::uc
+    O((Publish open shift)):::uc
+    C((Apply for open shift)):::uc
+    MA((Create MANUAL assignment)):::uc
+    OA((Create OPEN_SHIFT assignment)):::uc
+  end
+  M --- R
+  M --- P
+  S --- D
+  M --- O
+  S --- C
+  D -.->|accepted| MA
+  D -.->|declined| R
+  C -.->|claim success| OA
+  classDef actor fill:#fff3cd,stroke:#8a6d3b,color:#222
+  classDef uc fill:#e8f1ff,stroke:#356ac3,color:#222
