@@ -40,5 +40,17 @@ public class GlobalExceptionHandlerTest {
         assertEquals("Invalid input value", response.getBody().get("message"));
     }
 
+    @Test
+    public void testMaxUploadSizeExceededExceptionReturns413() {
+        org.springframework.web.multipart.MaxUploadSizeExceededException ex =
+                new org.springframework.web.multipart.MaxUploadSizeExceededException(10485760);
+        ResponseEntity<Map<String, Object>> response = handler.handleMaxUploadSizeExceeded(ex);
+
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("PAYLOAD_TOO_LARGE", response.getBody().get("code"));
+        assertEquals("Uploaded file exceeds the maximum permitted size limit", response.getBody().get("message"));
+    }
+
     public void dummyMethod(Integer age) {}
 }
