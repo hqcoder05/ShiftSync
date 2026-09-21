@@ -2,27 +2,27 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Sidebar.css';
 
-const CardIcon = () => (
+export const CardIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <rect x="2" y="6" width="20" height="12" rx="2" />
     <line x1="2" y1="10" x2="22" y2="10" />
   </svg>
 );
 
-const SearchIcon = () => (
+export const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <circle cx="11" cy="11" r="7" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
 );
 
-const ChevronIcon = () => (
+export const ChevronIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
     <path d="M7 10l5 5 5-5z" />
   </svg>
 );
 
-function Dropdown({ icon, value, options, onSelect, small }) {
+export function Dropdown({ icon, value, options, onSelect, small, headerLabel }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const current = options.find(o => o.value === value);
@@ -43,7 +43,7 @@ function Dropdown({ icon, value, options, onSelect, small }) {
         aria-expanded={open}
       >
         <span className="ss-box-icon" aria-hidden="true">{icon || <CardIcon />}</span>
-        <span className="ss-box-value">{current?.label || ''}</span>
+        <span className="ss-box-value">{headerLabel || current?.label || ''}</span>
         <span className={'ss-box-arrow' + (open ? ' ss-box-arrow-open' : '')} aria-hidden="true"><ChevronIcon /></span>
       </button>
       {open && (
@@ -66,9 +66,7 @@ function Dropdown({ icon, value, options, onSelect, small }) {
   );
 }
 
-export default function Sidebar({ search, pageNav, subSelect }) {
-  const navigate = useNavigate();
-
+export default function Sidebar({ search, subSelect }) {
   return (
     <aside className="ss-sidebar">
       {search && (
@@ -81,15 +79,6 @@ export default function Sidebar({ search, pageNav, subSelect }) {
             onChange={e => search.onChange(e.target.value)}
           />
         </div>
-      )}
-
-      {pageNav && (
-        <Dropdown
-          icon={<CardIcon />}
-          value={pageNav.currentTo}
-          options={pageNav.options.map(o => ({ value: o.to, label: o.label }))}
-          onSelect={(to) => { if (to !== pageNav.currentTo) navigate(to); }}
-        />
       )}
 
       {subSelect && (
