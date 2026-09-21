@@ -1,105 +1,53 @@
-/**
- * Avatar3D.native.js
- * ─────────────────────────────────────────────────────────────────────────────
- * Platform wrapper cho React Native.
- * Bỏ viền/vòng tròn, hỗ trợ kéo xoay 3D và hiệu ứng hover/chạm phóng to.
- * ─────────────────────────────────────────────────────────────────────────────
- */
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 
-import React, { useRef, useState } from 'react';
-import { View, PanResponder, StyleSheet } from 'react-native';
-import { Canvas } from '@react-three/fiber/native';
-import Avatar3DScene from './Avatar3DScene';
+/**
+ * Native-safe avatar implementation.
+ *
+ * Expo Go/Hermes can resolve the CommonJS entry of Three through
+ * @react-three/fiber/native before Dashboard renders. The avatar is optional,
+ * so native keeps the same footprint with a lightweight React Native visual.
+ * Web continues to use Avatar3D.web.js and the Three/R3F implementation.
+ */
 
 export default function Avatar3D({
   size         = 80,
   skinColor    = '#F4C5A3',
   eyeColor     = '#3A86FF',
-  hairStyle    = 'short',
-  hairColor    = '#3D2B1F',
-  eyeShape     = 'round',
-  noseStyle    = 'button',
-  mouthStyle   = 'smile',
-  hasEyebrows  = true,
-  eyebrowColor = '#3D2B1F',
-  accessory    = 'none',
-  accessoryColor = '#FBC02D',
-  isHovered    = false,
 }) {
-  const isPanning  = useRef(false);
-  const [panState, setPanState] = useState({ dx: 0, dy: 0, active: false });
-  const [touchHover, setTouchHover] = useState(false);
-
-  const prevPos = useRef({ x: 0, y: 0 });
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-
-      onPanResponderGrant: (_, gestureState) => {
-        prevPos.current = { x: gestureState.x0, y: gestureState.y0 };
-        isPanning.current = true;
-        setTouchHover(true);
-      },
-
-      onPanResponderMove: (_, gestureState) => {
-        const dx = gestureState.moveX - prevPos.current.x;
-        const dy = gestureState.moveY - prevPos.current.y;
-        prevPos.current = { x: gestureState.moveX, y: gestureState.moveY };
-        setPanState({ dx, dy, active: true });
-      },
-
-      onPanResponderRelease: () => {
-        isPanning.current = false;
-        setPanState({ dx: 0, dy: 0, active: false });
-        setTimeout(() => setTouchHover(false), 800);
-      },
-
-      onPanResponderTerminate: () => {
-        isPanning.current = false;
-        setPanState({ dx: 0, dy: 0, active: false });
-        setTouchHover(false);
-      },
-    })
-  ).current;
+  const eyeSize = Math.max(4, Math.round(size * 0.1));
+  const eyeTop = Math.round(size * 0.37);
+  const eyeOffset = Math.round(size * 0.18);
+  const mouthWidth = Math.max(10, Math.round(size * 0.28));
 
   return (
-    <View
-      style={[styles.container, { width: size, height: size }]}
-      {...panResponder.panHandlers}
-    >
-      <Canvas
-        style={{ width: size, height: size }}
-        camera={{ position: [0, 0, 3.5], fov: 45 }}
-        dpr={[1, 2]}
-        shadows="basic"
-        gl={{ antialias: true, alpha: true }}
-      >
-        <Avatar3DScene
-          skinColor={skinColor}
-          eyeColor={eyeColor}
-          hairStyle={hairStyle}
-          hairColor={hairColor}
-          eyeShape={eyeShape}
-          noseStyle={noseStyle}
-          mouthStyle={mouthStyle}
-          hasEyebrows={hasEyebrows}
-          eyebrowColor={eyebrowColor}
-          accessory={accessory}
-          accessoryColor={accessoryColor}
-          panDelta={panState}
-          isPanning={panState.active}
-          isHovered={isHovered || touchHover}
-        />
-      </Canvas>
+    <View accessible accessibilityLabel="Avatar" style={[styles.container, { width: size, height: size }]}>
+      <View style={[styles.face, { width: size * 0.68, height: size * 0.68, borderRadius: size * 0.34, backgroundColor: skinColor }]}>
+        <View style={[styles.eye, { width: eyeSize, height: eyeSize, borderRadius: eyeSize / 2, backgroundColor: eyeColor, top: eyeTop, left: eyeOffset }]} />
+        <View style={[styles.eye, { width: eyeSize, height: eyeSize, borderRadius: eyeSize / 2, backgroundColor: eyeColor, top: eyeTop, right: eyeOffset }]} />
+        <View style={[styles.mouth, { width: mouthWidth, top: size * 0.52, left: (size * 0.68 - mouthWidth) / 2 }]} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'transparent',
-    // Đã bỏ hoàn toàn viền và bo tròn (no circle border)
+  },
+  face: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  eye: {
+    position: 'absolute',
+  },
+  mouth: {
+    position: 'absolute',
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#6D3B2E',
   },
 });
