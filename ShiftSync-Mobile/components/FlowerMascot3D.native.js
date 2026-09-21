@@ -1,11 +1,20 @@
 import React from 'react';
-import FlowerMascot3DWeb from './FlowerMascot3D.web';
+import { View, StyleSheet } from 'react-native';
 
 /**
  * FlowerMascot3D.native.js
  * Platform entrypoint cho FlowerMascot3D.
  */
 export default function FlowerMascot3DNative(props) {
-  // Tương thích đa nền tảng
-  return <FlowerMascot3DWeb {...props} />;
+  // Native/Expo Go không có DOM hoặc WebGLRenderer của implementation web.
+  // Giữ nguyên footprint của mascot nhưng không chạy browser-only code trên iOS.
+  const { width = 180, height = 160, style } = props;
+  return <View style={[styles.container, { width, height }, style]} />;
 }
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
