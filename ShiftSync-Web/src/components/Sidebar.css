@@ -36,7 +36,11 @@
 }
 .ss-dropdown-option:not(:last-child) { border-bottom: 1px solid #f0f0f0; }
 .ss-dropdown-option:hover { background: var(--ss-accent-bg); }
-.ss-dropdown-option.selected { background: #ececec; font-weight: 600; }
+.ss-dropdown-option.selected {
+  background: var(--ss-accent-bg, #EEFAEB);
+  color: var(--ss-accent-hover, #166534);
+  font-weight: 600;
+}
 
 /* Box phụ (subSelect) - nhỏ hơn, cách box chính 1 khoảng để biết nó là lựa chọn phụ thuộc trang */
 .ss-dropdown-small { margin-top: 4px; }
