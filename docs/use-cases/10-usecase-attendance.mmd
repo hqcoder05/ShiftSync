@@ -1,0 +1,27 @@
+flowchart LR
+  S[Staff]:::actor
+  M[Manager]:::actor
+  A[Admin]:::actor
+  Q[QR / camera / location device]:::actor
+  subgraph ATT[Attendance]
+    G((Generate attendance QR)):::uc
+    I((Record check-in or check-out)):::uc
+    F((Submit selfie attendance)):::uc
+    H((View attendance history)):::uc
+    C((Request attendance correction)):::uc
+    R((Review attendance correction)):::uc
+  end
+  M --- G
+  A --- G
+  S --- I
+  S --- F
+  S --- H
+  S --- C
+  M --- R
+  A --- R
+  Q --- I
+  Q --- F
+  F -.->|coordinates and photo| I
+  C -.->|requires review| R
+  classDef actor fill:#fff3cd,stroke:#8a6d3b,color:#222
+  classDef uc fill:#e8f1ff,stroke:#356ac3,color:#222
