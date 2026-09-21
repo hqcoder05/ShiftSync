@@ -752,6 +752,11 @@
   color: #b91c1c;
 }
 
+.att-status-pill.unknown {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 /* Proof & GPS */
 .att-proof-cell {
   display: flex;
