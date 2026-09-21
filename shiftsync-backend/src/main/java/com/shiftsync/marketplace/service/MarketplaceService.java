@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +27,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MarketplaceService {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final ShiftRepository shiftRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
@@ -116,13 +119,22 @@ public class MarketplaceService {
 
     @Transactional(readOnly = true)
     public List<Shift> getOpenShifts(UUID storeId) {
-        // Return open shifts that are PUBLISHED and deadline has not passed
-        ZonedDateTime now = ZonedDateTime.now();
+        // Return only shifts that are still claimable by time in the business timezone.
+        ZonedDateTime now = ZonedDateTime.now(BUSINESS_ZONE);
         List<Shift> openShifts = shiftRepository.findByStoreIdAndStatusAndIsOpenTrue(storeId, ShiftStatus.PUBLISHED);
         
         return openShifts.stream()
-                .filter(s -> s.getAvailabilityDeadline() == null || s.getAvailabilityDeadline().isAfter(now) || !s.getShiftDate().isBefore(java.time.LocalDate.now()))
+                .filter(s -> isClaimableByTime(s, now))
                 .collect(Collectors.toList());
+    }
+
+    private boolean isClaimableByTime(Shift shift, ZonedDateTime now) {
+        boolean deadlineOpen = shift.getAvailabilityDeadline() == null
+                || shift.getAvailabilityDeadline().isAfter(now);
+        ZonedDateTime shiftStart = shift.getShiftDate()
+                .atTime(shift.getStartTime())
+                .atZone(BUSINESS_ZONE);
+        return deadlineOpen && shiftStart.isAfter(now);
     }
 
     public void claimOpenShift(UUID storeId, UUID shiftId, UUID staffId) {
@@ -140,6 +152,10 @@ public class MarketplaceService {
 
             if (!shift.isOpen()) {
                 throw new BusinessException("Ca này không còn trên Marketplace", HttpStatus.BAD_REQUEST);
+            }
+
+            if (!isClaimableByTime(shift, ZonedDateTime.now(BUSINESS_ZONE))) {
+                throw new BusinessException("Ca này đã hết hạn đăng ký hoặc đã bắt đầu", HttpStatus.BAD_REQUEST);
             }
 
             if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)) {
