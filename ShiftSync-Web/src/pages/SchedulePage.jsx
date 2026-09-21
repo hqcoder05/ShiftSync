@@ -1385,8 +1385,12 @@ export default function SchedulePage() {
       setShowRegisterModal(false);
       setMenuFor(null);
       notifyShiftUpdates();
+      // Re-read the authoritative backend representation after a direct edit.
+      // The optimistic assignment update does not cover every server-derived
+      // field (requirements, assignment metadata and persisted note).
+      await loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Xóa ca làm việc thất bại');
+      setError(err.response?.data?.message || 'Cập nhật ca làm việc thất bại');
     }
   };
 
