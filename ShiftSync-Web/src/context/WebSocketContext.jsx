@@ -52,8 +52,9 @@ export function WebSocketProvider({ children }) {
       return;
     }
 
-    const host = window.location.hostname || 'localhost';
-    const wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + host + ':8080/ws/websocket';
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080/api`;
+    const apiOrigin = new URL(apiUrl).origin;
+    const wsUrl = apiOrigin.replace(/^http/, 'ws') + '/ws/websocket';
 
     const handleIncomingNotification = (notif) => {
       if (!notif) return;
