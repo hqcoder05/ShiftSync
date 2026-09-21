@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore } from '../services/employmentService';
 import {
@@ -14,20 +15,23 @@ import { toast } from '../context/ToastContext';
 import Payroll3DCharacterWeb from '../components/Payroll3DCharacterWeb';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
+import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import './PayrollPage.css';
 
 // Illustrations
 import luongIllustration from '../assets/illustrations/luong.png';
 
-// Format currency to standard Vietnamese Dong (normalize if legacy seed had thousands)
+// Format currency to standard Vietnamese Dong faithfully as whole integer VND
 export const formatVND = (num) => {
   if (num === null || num === undefined || isNaN(num)) return '—';
-  let val = Number(num);
-  // Auto-detect and normalize if amount is represented in thousands (e.g. 5600 -> 5,600,000 VND)
-  if (val > 0 && val < 100000) {
-    val = val * 1000;
-  }
-  return new Intl.NumberFormat('vi-VN').format(Math.round(val)) + 'đ';
+  const val = Math.round(Number(num));
+  return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
+};
+
+// Format payroll hours to 2 decimal places (e.g., 0.00h, 0.02h, 7.50h, 8.00h)
+export const formatHours = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return '0.00h';
+  return Number(num).toFixed(2) + 'h';
 };
 
 // Format nice period label
@@ -43,6 +47,7 @@ const formatPeriodLabel = (startDate, endDate) => {
 };
 
 export default function PayrollPage() {
+  const navigate = useNavigate();
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
   const isStaff = !isManager;
@@ -203,14 +208,10 @@ export default function PayrollPage() {
               Math.round((totalHours - otHours - holidayHours) * 100) / 100
             );
 
-            let baseSalary = Number(ps.baseAmount || 0);
-            if (baseSalary > 0 && baseSalary < 100000) baseSalary *= 1000;
-            let otSalary = Number(ps.otAmount || 0);
-            if (otSalary > 0 && otSalary < 100000) otSalary *= 1000;
-            let bonus = Number(ps.holidayAmount || 0);
-            if (bonus > 0 && bonus < 100000) bonus *= 1000;
-            let totalSalary = Number(ps.totalAmount || 0);
-            if (totalSalary > 0 && totalSalary < 100000) totalSalary *= 1000;
+            const baseSalary = Number(ps.baseAmount ?? 0);
+            const otSalary = Number(ps.otAmount ?? 0);
+            const bonus = Number(ps.holidayAmount ?? 0);
+            const totalSalary = Number(ps.totalAmount ?? 0);
 
             const periodObj = {
               id: ps.periodId,
@@ -277,17 +278,10 @@ export default function PayrollPage() {
               Math.round((totalHours - otHours - holidayHours) * 100) / 100
             );
 
-            let baseSalary = Number(ps.baseAmount || 0);
-            if (baseSalary > 0 && baseSalary < 100000) baseSalary *= 1000;
-
-            let otSalary = Number(ps.otAmount || 0);
-            if (otSalary > 0 && otSalary < 100000) otSalary *= 1000;
-
-            let bonus = Number(ps.holidayAmount || 0);
-            if (bonus > 0 && bonus < 100000) bonus *= 1000;
-
-            let totalSalary = Number(ps.totalAmount || baseSalary + otSalary + bonus);
-            if (totalSalary > 0 && totalSalary < 100000) totalSalary *= 1000;
+            const baseSalary = Number(ps.baseAmount ?? 0);
+            const otSalary = Number(ps.otAmount ?? 0);
+            const bonus = Number(ps.holidayAmount ?? 0);
+            const totalSalary = Number(ps.totalAmount ?? 0);
 
             const empInfo = employmentMap[ps.staffId];
             // Do not show Managers or Admins in hourly staff payroll
@@ -470,9 +464,9 @@ export default function PayrollPage() {
     let csvContent =
       '\uFEFFNhân viên,Loại hợp đồng,Giờ làm,Tăng ca,Tổng giờ làm,Lương cơ bản,Lương OT,Thưởng,Tổng lương (VNĐ)\n';
     visibleRows.forEach((r) => {
-      csvContent += `"${r.name}","${r.role}",${r.hours}h,${r.otHours}h,${r.totalHours}h,${r.baseSalary},${r.otSalary},${r.bonus},${r.totalSalary}\n`;
+      csvContent += `"${r.name}","${r.role}",${formatHours(r.hours)},${formatHours(r.otHours)},${formatHours(r.totalHours)},${r.baseSalary},${r.otSalary},${r.bonus},${r.totalSalary}\n`;
     });
-    csvContent += `"Tổng cộng:","",${totals.hours}h,${totals.otHours}h,${totals.totalHours}h,${totals.baseSalary},${totals.otSalary},${totals.bonus},${totals.totalSalary}\n`;
+    csvContent += `"Tổng cộng:","",${formatHours(totals.hours)},${formatHours(totals.otHours)},${formatHours(totals.totalHours)},${totals.baseSalary},${totals.otSalary},${totals.bonus},${totals.totalSalary}\n`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -496,21 +490,48 @@ export default function PayrollPage() {
   const currentStore = stores.find((s) => String(s.id) === String(storeId));
 
   return (
-    <div className="pay-container">
-      {/* ═══ LEFT SIDEBAR ═══ */}
-      <aside className="pay-sidebar">
-        {/* Active Store Indicator */}
-        <div className="pay-store-badge">
-          <span className="pay-store-dot" />
-          <span className="pay-store-name">
-            {currentStore ? currentStore.name : 'ShiftSync Store'}
-          </span>
-        </div>
+    <EmployeeModuleLayout
+      title="Bảng lương"
+      subtitle="Theo dõi và quản lý bảng lương nhân viên"
+      actions={
+        isManager && (
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="ss-btn ss-btn-primary ss-btn-elevated"
+              onClick={() => setShowNewPeriodModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              + Kỳ mới
+            </button>
+            <button
+              type="button"
+              className="ss-btn ss-btn-outline"
+              onClick={() => setShowExportModal(true)}
+              disabled={visibleRows.length === 0}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              Xuất file
+            </button>
+          </div>
+        )
+      }
+    >
+      <div className="pay-container">
+        {/* ═══ LEFT SIDEBAR ═══ */}
+        <aside className="pay-sidebar">
+          {/* Active Store Indicator */}
+          <div className="pay-store-badge">
+            <span className="pay-store-dot" />
+            <span className="pay-store-name">
+              {currentStore ? currentStore.name : 'ShiftSync Store'}
+            </span>
+          </div>
 
-        {/* Period Selector Dropdown */}
-        <div className="pay-period-select-wrap">
-          <div className="pay-period-header-row">
-            <span className="pay-section-label">KỲ LƯƠNG</span>
+          {/* Period Selector Dropdown */}
+          <div className="pay-period-select-wrap">
+            <div className="pay-period-header-row">
+              <span className="pay-section-label">KỲ LƯƠNG</span>
             {isManager && (
               <button
                 type="button"
@@ -745,9 +766,9 @@ export default function PayrollPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="td-hours">{row.hours.toFixed(1)}h</td>
-                    <td className="td-ot">{row.otHours ? `${row.otHours.toFixed(1)}h` : '-'}</td>
-                    <td className="td-total-hours">{row.totalHours.toFixed(1)}h</td>
+                    <td className="td-hours">{formatHours(row.hours)}</td>
+                    <td className="td-ot">{row.otHours ? formatHours(row.otHours) : '-'}</td>
+                    <td className="td-total-hours">{formatHours(row.totalHours)}</td>
                     <td className="td-base">{formatVND(row.baseSalary)}</td>
                     <td className="td-ot-amount">
                       {row.otSalary ? formatVND(row.otSalary) : '-'}
@@ -758,26 +779,14 @@ export default function PayrollPage() {
                     <td className="td-total-salary">
                       <strong>{formatVND(row.totalSalary)}</strong>
                     </td>
-                    <td className="td-action" style={{ textAlign: 'center' }}>
+                    <td className="td-action">
                       <button
                         type="button"
-                        className="ss-btn-elevated"
-                        style={{
-                          fontSize: '12px',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          background: '#F0FDF4',
-                          color: '#166534',
-                          borderColor: '#BBF7D0',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
+                        className="pay-download-pdf-btn ss-btn-elevated"
                         disabled={downloadingPdfId === (row.payrollId || row.id)}
                         onClick={() => handleDownloadPdf(row.payrollId || row.id, selectedPeriod?.label)}
                       >
-                        {downloadingPdfId === (row.payrollId || row.id) ? '...' : 'Tải PDF'}
+                        {downloadingPdfId === (row.payrollId || row.id) ? 'Đang tải...' : 'Tải PDF'}
                       </button>
                     </td>
                   </tr>
@@ -795,9 +804,9 @@ export default function PayrollPage() {
             <tfoot>
               <tr className="pay-total-row">
                 <td className="td-total-label">Tổng cộng ({visibleRows.length} NV):</td>
-                <td className="td-hours">{totals.hours.toFixed(1)}h</td>
-                <td className="td-ot">{totals.otHours ? `${totals.otHours.toFixed(1)}h` : '0h'}</td>
-                <td className="td-total-hours">{totals.totalHours.toFixed(1)}h</td>
+                <td className="td-hours">{formatHours(totals.hours)}</td>
+                <td className="td-ot">{totals.otHours ? formatHours(totals.otHours) : '0.00h'}</td>
+                <td className="td-total-hours">{formatHours(totals.totalHours)}</td>
                 <td className="td-base">{formatVND(totals.baseSalary)}</td>
                 <td className="td-ot-amount">{formatVND(totals.otSalary)}</td>
                 <td className="td-bonus">{totals.bonus ? formatVND(totals.bonus) : '0đ'}</td>
@@ -969,6 +978,7 @@ export default function PayrollPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </EmployeeModuleLayout>
   );
 }
