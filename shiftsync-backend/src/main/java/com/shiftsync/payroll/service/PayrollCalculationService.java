@@ -167,34 +167,17 @@ public class PayrollCalculationService {
     }
 
     private BigDecimal resolvePositionHourlyRate(ShiftAssignment assignment, Map<UUID, com.shiftsync.skill.entity.Skill> skillMap, Employment emp) {
-        String posName = "";
-        if (assignment != null) {
-            if (assignment.getRequiredSkillId() != null && skillMap.containsKey(assignment.getRequiredSkillId())) {
-                posName = skillMap.get(assignment.getRequiredSkillId()).getName();
-            } else if (assignment.getZone() != null && assignment.getZone().getName() != null) {
-                posName = assignment.getZone().getName();
-            } else if (assignment.getWorkstation() != null && assignment.getWorkstation().getName() != null) {
-                posName = assignment.getWorkstation().getName();
-            }
-        }
-
-        if (posName != null && !posName.isBlank()) {
-            String lower = posName.toLowerCase();
-            if (lower.contains("bếp") || lower.contains("kitchen")) {
-                return BigDecimal.valueOf(30000);
-            } else if (lower.contains("barista") || lower.contains("pha chế")) {
-                return BigDecimal.valueOf(28000);
-            } else if (lower.contains("thu ngân") || lower.contains("cashier")) {
-                return BigDecimal.valueOf(26000);
-            } else if (lower.contains("waiter") || lower.contains("phục vụ") || lower.contains("sảnh") || lower.contains("bàn")) {
-                return BigDecimal.valueOf(25000);
+        if (assignment != null && assignment.getRequiredSkillId() != null && skillMap.containsKey(assignment.getRequiredSkillId())) {
+            com.shiftsync.skill.entity.Skill skill = skillMap.get(assignment.getRequiredSkillId());
+            if (skill != null && skill.getHourlyRate() != null && skill.getHourlyRate().compareTo(BigDecimal.ZERO) > 0) {
+                return skill.getHourlyRate();
             }
         }
 
         if (emp != null && emp.getHourlyRate() != null && emp.getHourlyRate().compareTo(BigDecimal.ZERO) > 0) {
             return emp.getHourlyRate();
         }
-        return BigDecimal.valueOf(23000); // Mặc định 23k
+        return BigDecimal.valueOf(23000); // Default store hourly rate
     }
 
     private Payroll calculateForEmployee(
