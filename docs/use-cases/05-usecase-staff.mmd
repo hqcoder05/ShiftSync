@@ -1,0 +1,28 @@
+flowchart LR
+  S[Staff]:::actor
+  subgraph STAFF[Staff self-service]
+    P((View or update own profile)):::uc
+    V((Manage own availability)):::uc
+    L((Request and view leave)):::uc
+    H((View own schedule)):::uc
+    M((Apply for open shift)):::uc
+    W((Respond to workforce proposal)):::uc
+    T((Record attendance)):::uc
+    C((Request attendance correction)):::uc
+    Y((View payslips)):::uc
+    N((View notifications)):::uc
+    Q((Request shift swap)):::uc
+  end
+  S --- P
+  S --- V
+  S --- L
+  S --- H
+  S --- M
+  S --- W
+  S --- T
+  S --- C
+  S --- Y
+  S --- N
+  S --- Q
+  classDef actor fill:#fff3cd,stroke:#8a6d3b,color:#222
+  classDef uc fill:#e8f1ff,stroke:#356ac3,color:#222
