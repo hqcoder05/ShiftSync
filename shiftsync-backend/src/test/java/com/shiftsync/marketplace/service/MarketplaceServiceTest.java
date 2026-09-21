@@ -26,6 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -131,5 +133,41 @@ public class MarketplaceServiceTest {
         assertThrows(RuntimeException.class, () -> marketplaceService.claimOpenShift(storeId, shiftId, staffId));
         
         verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void getOpenShifts_excludesFutureShiftWithExpiredDeadline() {
+        Shift expired = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(shift.getStore())
+                .shiftDate(LocalDate.now().plusDays(2))
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(17, 0))
+                .availabilityDeadline(ZonedDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusMinutes(1))
+                .status(ShiftStatus.PUBLISHED)
+                .isOpen(true)
+                .build();
+        when(shiftRepository.findByStoreIdAndStatusAndIsOpenTrue(storeId, ShiftStatus.PUBLISHED))
+                .thenReturn(List.of(expired));
+
+        org.junit.jupiter.api.Assertions.assertTrue(marketplaceService.getOpenShifts(storeId).isEmpty());
+    }
+
+    @Test
+    void getOpenShifts_excludesShiftWhoseStartTimeHasPassed() {
+        Shift past = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(shift.getStore())
+                .shiftDate(LocalDate.now().minusDays(1))
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(17, 0))
+                .availabilityDeadline(ZonedDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(1))
+                .status(ShiftStatus.PUBLISHED)
+                .isOpen(true)
+                .build();
+        when(shiftRepository.findByStoreIdAndStatusAndIsOpenTrue(storeId, ShiftStatus.PUBLISHED))
+                .thenReturn(List.of(past));
+
+        org.junit.jupiter.api.Assertions.assertTrue(marketplaceService.getOpenShifts(storeId).isEmpty());
     }
 }
