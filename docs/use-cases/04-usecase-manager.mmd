@@ -1,0 +1,26 @@
+flowchart LR
+  M[Manager]:::actor
+  subgraph MAN[Store management]
+    E((Manage employees and employment)):::uc
+    K((Manage skills and requirements)):::uc
+    V((Manage availability and leave)):::uc
+    H((Create and publish shifts)):::uc
+    A((Assign staff to shifts)):::uc
+    X((Automatically schedule shifts)):::uc
+    W((Request workforce or manage open shifts)):::uc
+    T((Review attendance adjustments)):::uc
+    Y((Generate payroll)):::uc
+    D((View store dashboard)):::uc
+  end
+  M --- E
+  M --- K
+  M --- V
+  M --- H
+  M --- A
+  M --- X
+  M --- W
+  M --- T
+  M --- Y
+  M --- D
+  classDef actor fill:#fff3cd,stroke:#8a6d3b,color:#222
+  classDef uc fill:#e8f1ff,stroke:#356ac3,color:#222
