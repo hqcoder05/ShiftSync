@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from '../components/Sidebar';
+import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getAllStores, createStore, updateStore, deleteStore } from '../services/storeService';
 import { getSkillsByStore, createSkill, updateSkill, deleteSkill } from '../services/skillService';
 import Store3DManager from '../components/spatial/Store3DManager';
@@ -345,28 +346,24 @@ export default function StoresPage() {
   const dynamicMapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
-    <div className="store-page-layout">
+    <EmployeeModuleLayout
+      title="Chi nhánh"
+      subtitle="Quản lý các chi nhánh và vị trí không gian làm việc"
+      actions={
+        <button className="store-add-btn ss-btn-elevated" onClick={openCreate}>
+          + Thêm chi nhánh
+        </button>
+      }
+    >
       {/* Black Toast */}
       {toastMsg && <div className="black-toast">{toastMsg}</div>}
 
-      <Sidebar
-        search={{ value: search, onChange: setSearch, placeholder: 'Tìm kiếm chi nhánh...' }}
-        pageNav={{
-          currentTo: '/stores',
-          options: [
-            { to: '/employees', label: 'Người dùng' },
-            { to: '/stores', label: 'Chi nhánh & Vị trí' },
-          ],
-        }}
-      />
+      <div className="emp-layout-row">
+        <Sidebar
+          search={{ value: search, onChange: setSearch, placeholder: 'Tìm kiếm chi nhánh...' }}
+        />
 
-      <div className="store-page">
-        <div className="store-header">
-          <h1>Chi nhánh &amp; Vị trí</h1>
-          <button className="store-add-btn" onClick={openCreate}>
-            + Thêm chi nhánh
-          </button>
-        </div>
+        <div className="emp-layout-main">
 
         {error && <p className="store-error">{error}</p>}
 
@@ -545,6 +542,7 @@ export default function StoresPage() {
             })}
           </div>
         )}
+        </div>
       </div>
 
       {/* Store Modal */}
@@ -643,6 +641,6 @@ export default function StoresPage() {
           </form>
         </div>
       )}
-    </div>
+    </EmployeeModuleLayout>
   );
 }
