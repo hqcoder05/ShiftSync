@@ -19,6 +19,7 @@ import com.shiftsync.shared.exception.BusinessException;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,7 +67,7 @@ public class AttendanceService {
 
         // Geofencing Validation
         if (shift.getStore().getLatitude() == null || shift.getStore().getLongitude() == null) {
-            throw new IllegalStateException("Store GPS coordinates are not configured. Cannot perform geofence validation.");
+            throw new BusinessException("Store GPS coordinates are not configured. Cannot perform geofence validation.", HttpStatus.BAD_REQUEST);
         }
 
         validateGeofence(shift, config, request.getLatitude(), request.getLongitude());
@@ -87,7 +88,7 @@ public class AttendanceService {
         } else {
             Attendance attendance = existingAttendanceOpt.get();
             if (attendance.getCheckOutTime() != null) {
-                throw new IllegalStateException("You have already checked out for this shift.");
+                throw new BusinessException("You have already checked out for this shift.", HttpStatus.BAD_REQUEST);
             }
             return processCheckOut(attendance, shiftEnd, now, config, request.getLatitude(), request.getLongitude(), null);
         }
@@ -112,7 +113,7 @@ public class AttendanceService {
 
         Optional<Attendance> existing = attendanceRepository.findByShiftAssignmentId(assignment.getId());
         if (existing.isEmpty()) return processCheckIn(assignment, shiftStart, now, config, latitude, longitude, photo);
-        if (existing.get().getCheckOutTime() != null) throw new IllegalStateException("You have already checked out for this shift.");
+        if (existing.get().getCheckOutTime() != null) throw new BusinessException("You have already checked out for this shift.", HttpStatus.BAD_REQUEST);
         return processCheckOut(existing.get(), shiftEnd, now, config, latitude, longitude, photo);
     }
 
@@ -122,10 +123,10 @@ public class AttendanceService {
         LocalDateTime windowEnd = shiftStart.plusMinutes(config.getAllowedCheckInMinutes());
 
         if (now.isBefore(windowStart)) {
-            throw new IllegalStateException("Too early to check in. Check-in starts at " + windowStart);
+            throw new BusinessException("Too early to check in. Check-in starts at " + windowStart, HttpStatus.BAD_REQUEST);
         }
         if (now.isAfter(windowEnd)) {
-            throw new IllegalStateException("Too late to check in. Check-in ended at " + windowEnd);
+            throw new BusinessException("Too late to check in. Check-in ended at " + windowEnd, HttpStatus.BAD_REQUEST);
         }
 
         AttendanceStatus status = AttendanceStatus.PRESENT;
@@ -156,10 +157,10 @@ public class AttendanceService {
         LocalDateTime windowEnd = shiftEnd.plusMinutes(config.getAllowedCheckOutMinutes());
 
         if (now.isBefore(windowStart)) {
-            throw new IllegalStateException("Too early to check out. Check-out starts at " + windowStart);
+            throw new BusinessException("Too early to check out. Check-out starts at " + windowStart, HttpStatus.BAD_REQUEST);
         }
         if (now.isAfter(windowEnd)) {
-            throw new IllegalStateException("Too late to check out. Check-out ended at " + windowEnd);
+            throw new BusinessException("Too late to check out. Check-out ended at " + windowEnd, HttpStatus.BAD_REQUEST);
         }
 
         // If checking out before the end minus early leave grace period, mark as early leave
@@ -243,12 +244,22 @@ public class AttendanceService {
     private com.shiftsync.attendance.dto.AttendanceDTO toDTO(Attendance attendance) {
         ShiftAssignment assignment = attendance.getShiftAssignment();
         Shift shift = assignment.getShift();
+        Long lateMinutes = null;
+        if (attendance.getStatus() == AttendanceStatus.LATE && attendance.getCheckInTime() != null
+                && shift.getShiftDate() != null && shift.getStartTime() != null) {
+            LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+        }
         return com.shiftsync.attendance.dto.AttendanceDTO.builder()
                 .id(attendance.getId()).shiftAssignmentId(assignment.getId()).shiftId(shift.getId())
                 .storeId(shift.getStore().getId()).storeName(shift.getStore().getName())
                 .staffId(assignment.getStaff().getId().toString()).staffName(assignment.getStaff().getFullName())
+                .zoneId(assignment.getZone() != null ? assignment.getZone().getId() : null)
+                .zoneName(assignment.getZone() != null ? assignment.getZone().getName() : null)
+                .workstationId(assignment.getWorkstation() != null ? assignment.getWorkstation().getId() : null)
+                .workstationName(assignment.getWorkstation() != null ? assignment.getWorkstation().getName() : null)
                 .shiftDate(shift.getShiftDate()).scheduledStart(shift.getStartTime()).scheduledEnd(shift.getEndTime())
-                .checkInTime(attendance.getCheckInTime()).checkOutTime(attendance.getCheckOutTime()).status(attendance.getStatus())
+                .checkInTime(attendance.getCheckInTime()).checkOutTime(attendance.getCheckOutTime()).status(attendance.getStatus()).lateMinutes(lateMinutes)
                 .checkInLat(attendance.getCheckInLat()).checkInLng(attendance.getCheckInLng())
                 .checkOutLat(attendance.getCheckOutLat()).checkOutLng(attendance.getCheckOutLng())
                 .checkInPhotoBase64(toBase64(attendance.getCheckInPhoto())).checkOutPhotoBase64(toBase64(attendance.getCheckOutPhoto()))
@@ -259,11 +270,11 @@ public class AttendanceService {
 
     private void validateGeofence(Shift shift, StoreConfiguration config, double latitude, double longitude) {
         if (shift.getStore().getLatitude() == null || shift.getStore().getLongitude() == null) {
-            throw new IllegalStateException("Store GPS coordinates are not configured. Cannot perform geofence validation.");
+            throw new BusinessException("Store GPS coordinates are not configured. Cannot perform geofence validation.", HttpStatus.BAD_REQUEST);
         }
         double distance = calculateDistance(latitude, longitude, shift.getStore().getLatitude().doubleValue(), shift.getStore().getLongitude().doubleValue());
         if (distance > config.getGeofenceRadiusM()) {
-            throw new IllegalStateException(String.format("You are out of the allowed geofence area. Distance: %.0f meters, Allowed: %d meters.", distance, config.getGeofenceRadiusM()));
+            throw new BusinessException(String.format("You are out of the allowed geofence area. Distance: %.0f meters, Allowed: %d meters.", distance, config.getGeofenceRadiusM()), HttpStatus.BAD_REQUEST);
         }
     }
 
