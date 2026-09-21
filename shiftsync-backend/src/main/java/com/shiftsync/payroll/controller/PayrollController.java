@@ -6,14 +6,19 @@ import com.shiftsync.payroll.dto.PayrollPeriodStatusUpdateRequest;
 import com.shiftsync.payroll.dto.PayrollGenerateRequest;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.payroll.repository.PayrollRepository;
+import com.shiftsync.payroll.service.ExcelExportService;
 import com.shiftsync.payroll.service.PayrollCalculationService;
+import com.shiftsync.payroll.service.PdfExportService;
 import com.shiftsync.shared.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,8 +34,8 @@ public class PayrollController {
     private final PayrollCalculationService payrollCalculationService;
     private final PayrollPeriodRepository payrollPeriodRepository;
     private final PayrollRepository payrollRepository;
-    private final com.shiftsync.payroll.service.PdfExportService pdfExportService;
-    private final com.shiftsync.payroll.service.ExcelExportService excelExportService;
+    private final PdfExportService pdfExportService;
+    private final ExcelExportService excelExportService;
 
     @Operation(summary = "Generate payroll for a store")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
@@ -74,6 +79,7 @@ public class PayrollController {
                         .periodEndDate(p.getPayrollPeriod().getEndDate())
                         .periodStatus(p.getPayrollPeriod().getStatus().name())
                         .totalHours(p.getTotalHours())
+                        .payableHours(p.getTotalHours())
                         .otHours(p.getOtHours())
                         .holidayHours(p.getHolidayHours())
                         .baseAmount(p.getBaseAmount())
@@ -100,6 +106,7 @@ public class PayrollController {
                         .periodEndDate(p.getPayrollPeriod().getEndDate())
                         .periodStatus(p.getPayrollPeriod().getStatus().name())
                         .totalHours(p.getTotalHours())
+                        .payableHours(p.getTotalHours())
                         .otHours(p.getOtHours())
                         .holidayHours(p.getHolidayHours())
                         .baseAmount(p.getBaseAmount())
@@ -112,31 +119,30 @@ public class PayrollController {
         return ResponseEntity.ok(myPayslips);
     }
 
-    @Operation(summary = "Download payslip as PDF (STAFF)")
+    @Operation(summary = "Download payslip PDF")
     @PreAuthorize("isAuthenticated()")
-    @GetMapping(value = "/users/me/payslips/{payrollId}/pdf", produces = "application/pdf")
+    @GetMapping({"/users/me/payslips/{payrollId}/pdf", "/payslips/{payrollId}/pdf"})
     public ResponseEntity<byte[]> downloadPayslipPdf(
             @PathVariable UUID payrollId,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        
-        byte[] pdfBytes = pdfExportService.generatePayslipPdf(payrollId, userDetails.getId());
-        
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            Authentication auth) {
+        byte[] pdfBytes = pdfExportService.generatePayslipPdf(payrollId, userDetails, auth);
         return ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=\"payslip_" + payrollId + ".pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"payslip-" + payrollId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
 
-    @Operation(summary = "Download payroll report as Excel (MANAGER)")
+    @Operation(summary = "Download store payroll Excel")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
-    @GetMapping(value = "/stores/{storeId}/payroll/{periodId}/export/excel", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    @GetMapping({"/stores/{storeId}/payroll/{periodId}/excel", "/stores/{storeId}/payroll/{periodId}/export/excel"})
     public ResponseEntity<byte[]> downloadPayrollExcel(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId) {
-        
         byte[] excelBytes = excelExportService.generatePayrollExcel(periodId, storeId);
-        
         return ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=\"payroll_report_" + periodId + ".xlsx\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"payroll-" + periodId + ".xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excelBytes);
     }
 
@@ -146,7 +152,8 @@ public class PayrollController {
     public ResponseEntity<Void> updatePayrollPeriodStatus(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId,
-            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+            @Valid @RequestBody PayrollPeriodStatusUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.ok().build();
     }
