@@ -1,0 +1,15 @@
+flowchart LR
+  U[Authenticated user]:::actor
+  subgraph AUTH[Authentication and session]
+    L((Login)):::uc
+    R((Refresh session)):::uc
+    O((Logout)):::uc
+    P((View or update own profile)):::uc
+  end
+  U --- L
+  U --- R
+  U --- O
+  U --- P
+  L -.->|creates| R
+  classDef actor fill:#fff3cd,stroke:#8a6d3b,color:#222
+  classDef uc fill:#e8f1ff,stroke:#356ac3,color:#222
