@@ -9,6 +9,8 @@ import { getStoreAttendance } from '../services/attendanceService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
+import { Plus, Search } from 'lucide-react';
+import './EmployeeDetailPage.css';
 
 const getEmployeeAvatarId = (emp) => {
   if (!emp) return 'dilan';
