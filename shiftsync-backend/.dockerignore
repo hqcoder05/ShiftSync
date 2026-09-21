@@ -1,0 +1,9 @@
+target
+.mvn/wrapper/maven-wrapper.jar
+.git
+.env
+*.log
+.idea
+.vscode
+backup_pre_reset.sql
+*.bak
