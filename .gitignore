@@ -1,1 +1,21 @@
-node_modules
+node_modules/
+
+# Temporary and backup files
+*.bak
+*.tmp
+*.temp
+*.swp
+*~
+
+# Local backups and audit artifacts
+backups/
+.audit-*/
+.build-*/
+.remediation-*/
+.final-gate-*/
+.expo-*/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini

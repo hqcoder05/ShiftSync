@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import PayrollPage from './PayrollPage';
 import Sidebar from '../components/Sidebar';
+import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getEmployees, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
@@ -102,92 +103,53 @@ export default function EmployeesPage() {
     }
   };
 
+  if (currentTab === 'payroll') {
+    return <PayrollPage />;
+  }
 
   return (
-    <div className="emp-page-container">
-      {/* ═══ DOMAIN SUBTAB BAR ═══ */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', background: '#fff', padding: '0 24px' }}>
-        <button
-          type="button"
-          onClick={() => navigate('/employees', { replace: true })}
-          style={{
-            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
-            borderBottom: currentTab === 'staff' ? '3px solid #0d9488' : '3px solid transparent',
-            color: currentTab === 'staff' ? '#0d9488' : '#64748b',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-        >
-          Danh sách nhân viên
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/employees?tab=payroll', { replace: true })}
-          style={{
-            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
-            borderBottom: currentTab === 'payroll' ? '3px solid #0d9488' : '3px solid transparent',
-            color: currentTab === 'payroll' ? '#0d9488' : '#64748b',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-        >
-          Bảng lương (Payroll)
-        </button>
-      </div>
-
-      {currentTab === 'payroll' ? (
-        <div style={{ padding: '0' }}>
-          <PayrollPage />
-        </div>
-      ) : (
-        <div className="emp-page">
-          {/* Black Toast */}
-          {toastMsg && <div className="black-toast">{toastMsg}</div>}
-
-          <Sidebar
-            search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
-            pageNav={{
-              currentTo: '/employees',
-              options: [
-                { to: '/employees', label: 'Người dùng' },
-                { to: '/stores', label: 'Chi nhánh & Vị trí' },
-              ],
-            }}
-          />
-
-      <main className="emp-main">
-        {/* Page Header with Add CTA */}
-        <div className="emp-header-row">
-          <div className="emp-title-col">
-            <h1>Quản lý người dùng</h1>
-            <p className="emp-subtitle">Danh sách tất cả tài khoản nhân viên, quản lý và phân quyền hệ thống</p>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+    <EmployeeModuleLayout
+      title="Danh sách nhân viên"
+      subtitle="Quản lý thông tin nhân viên, phân quyền và theo dõi hoạt động"
+      actions={
+        <>
+          <button
+            type="button"
+            className="ss-btn ss-btn-outline"
+            onClick={() => setShowAvatarModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
+            title="Khám phá và chọn trong 17 Avatar 3D Digital Twin"
+          >
+            <span>Bộ sưu tập Avatar 3D</span>
+          </button>
+          {canCreateUser && (
             <button
               type="button"
-              className="ss-btn ss-btn-outline"
-              onClick={() => setShowAvatarModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
-              title="Khám phá và chọn trong 17 Avatar 3D Digital Twin"
+              className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated"
+              onClick={() => setShowAddUserModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px' }}
             >
-              <span>Bộ sưu tập Avatar 3D</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Thêm nhân viên</span>
             </button>
-            {canCreateUser && (
-              <button
-                type="button"
-                className="ss-btn ss-btn-primary emp-top-add-btn ss-btn-elevated"
-                onClick={() => setShowAddUserModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '7px' }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                <span>Thêm nhân viên</span>
-              </button>
-            )}
-          </div>
-        </div>
+          )}
+        </>
+      }
+    >
+      {/* Black Toast */}
+      {toastMsg && <div className="black-toast">{toastMsg}</div>}
 
-        {error && !showModal && (
+      <div className="emp-layout-row">
+        <Sidebar
+          search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
+        />
+
+        <main className="emp-layout-main">
+
+        {error && (
           <div className="emp-error-banner" role="alert">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -318,34 +280,33 @@ export default function EmployeesPage() {
           </button>
         </div>
       </main>
-
-      {/* 3D Avatar Collection Modal */}
-      <AvatarCollectionModal
-        isOpen={showAvatarModal}
-        currentAvatarId={currentSelectedAvatarId}
-        onSelectAvatar={(newId) => {
-          setCurrentSelectedAvatarId(newId);
-          const myId = localStorage.getItem('userId');
-          if (myId) {
-            localStorage.setItem(`user_profile_avatar_${myId}`, newId);
-          }
-          showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).label || newId}`);
-        }}
-        onClose={() => setShowAvatarModal(false)}
-      />
-
-      {/* Add User Modal — Enterprise RBAC-aware single-step modal */}
-      <AddUserModal
-        isOpen={showAddUserModal}
-        onClose={() => setShowAddUserModal(false)}
-        storeId={localStorage.getItem('selectedStoreId') || ''}
-        onSuccess={(newUser) => {
-          showToast(`Đã tạo nhân sự mới: ${newUser?.fullName || 'Nhân viên'}`);
-          fetchEmployees();
-        }}
-      />
-        </div>
-      )}
     </div>
+
+    {/* 3D Avatar Collection Modal */}
+    <AvatarCollectionModal
+      isOpen={showAvatarModal}
+      currentAvatarId={currentSelectedAvatarId}
+      onSelectAvatar={(newId) => {
+        setCurrentSelectedAvatarId(newId);
+        const myId = localStorage.getItem('userId');
+        if (myId) {
+          localStorage.setItem(`user_profile_avatar_${myId}`, newId);
+        }
+        showToast(`Đã chọn avatar 3D: ${getAvatarById(newId).label || newId}`);
+      }}
+      onClose={() => setShowAvatarModal(false)}
+    />
+
+    {/* Add User Modal — Enterprise RBAC-aware single-step modal */}
+    <AddUserModal
+      isOpen={showAddUserModal}
+      onClose={() => setShowAddUserModal(false)}
+      storeId={localStorage.getItem('selectedStoreId') || ''}
+      onSuccess={(newUser) => {
+        showToast(`Đã tạo nhân sự mới: ${newUser?.fullName || 'Nhân viên'}`);
+        fetchEmployees();
+      }}
+    />
+  </EmployeeModuleLayout>
   );
 }

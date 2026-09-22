@@ -13,4 +13,8 @@ public class SkillRequest {
 
     @Schema(description = "Skill Description", example = "Makes coffee")
     private String description;
+
+    @jakarta.validation.constraints.DecimalMin(value = "0.0", message = "Hourly rate must be non-negative")
+    @Schema(description = "Hourly pay rate in VND", example = "26000.00")
+    private java.math.BigDecimal hourlyRate;
 }

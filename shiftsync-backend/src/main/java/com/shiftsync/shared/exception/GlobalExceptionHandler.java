@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
@@ -135,6 +136,15 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(
             buildResponse("OPTIMISTIC_LOCK_CONFLICT", "This record was modified by another transaction. Please refresh and try again.", null), 
             HttpStatus.CONFLICT
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        logger.warn("Max upload size exceeded: {}", ex.getMessage());
+        return new ResponseEntity<>(
+            buildResponse("PAYLOAD_TOO_LARGE", "Uploaded file exceeds the maximum permitted size limit", null), 
+            HttpStatus.PAYLOAD_TOO_LARGE
         );
     }
 

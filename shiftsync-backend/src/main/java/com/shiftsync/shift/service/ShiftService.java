@@ -493,6 +493,12 @@ public class ShiftService {
         if (request.getAvailabilityDeadline() != null) {
             shift.setAvailabilityDeadline(request.getAvailabilityDeadline());
         }
+        // The update DTO exposes the optional note field and the Web edit form
+        // sends it. Persist it here so a direct edit survives reload instead of
+        // existing only in the Web local metadata cache.
+        if (request.getNote() != null) {
+            shift.setNote(request.getNote());
+        }
 
         Shift saved = shiftRepository.save(shift);
 

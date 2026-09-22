@@ -4,7 +4,7 @@
  * Entry point duy nhất để import Avatar3D từ bất kỳ screen nào.
  *
  * Metro Bundler tự chọn đúng implementation:
- *   - iOS / Android  → Avatar3D.native.js  (via @react-three/fiber/native + expo-gl)
+ *   - iOS / Android  → Avatar3D.native.js  (safe React Native fallback)
  *   - Web (browser)  → Avatar3D.web.js     (via @react-three/fiber web standard)
  *
  * Cách dùng:

@@ -17,11 +17,11 @@
 .pay-container {
   display: flex;
   gap: 28px;
-  padding: 24px 32px 48px;
+  padding: 0;
   background-color: #FFFFFF;
-  min-height: calc(100vh - 70px);
   box-sizing: border-box;
   font-family: var(--ss-font);
+  width: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -325,10 +325,13 @@
   border-radius: 12px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
   border: 1px solid #EFEFEF;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 
 .pay-table {
+  min-width: 980px;
   width: 100%;
   border-collapse: collapse;
   text-align: left;
@@ -341,8 +344,8 @@
 }
 
 .pay-table th {
-  padding: 12px 18px;
-  font-size: 15.5px;
+  padding: 12px 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--pay-text-main);
   letter-spacing: -0.2px;
@@ -352,22 +355,57 @@
 /* Column Alignments */
 .th-staff, .td-staff {
   text-align: left;
-  min-width: 180px;
+  min-width: 190px;
 }
 
 .th-hours, .td-hours,
 .th-ot, .td-ot,
 .th-total-hours, .td-total-hours {
-  text-align: center;
-  min-width: 95px;
+  text-align: right;
+  min-width: 85px;
 }
 
+.th-base, .td-base,
+.th-ot-amount, .td-ot-amount,
 .th-bonus, .td-bonus,
-.th-allowance, .td-allowance,
-.th-other, .td-other,
 .th-total-salary, .td-total-salary {
   text-align: right;
   min-width: 110px;
+}
+
+.th-action, .td-action {
+  text-align: center;
+  min-width: 100px;
+  white-space: nowrap;
+}
+
+.pay-download-pdf-btn {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #F0FDF4;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  min-width: 76px;
+}
+
+.pay-download-pdf-btn:hover:not(:disabled) {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+  color: #14532D;
+}
+
+.pay-download-pdf-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Table Body Rows */

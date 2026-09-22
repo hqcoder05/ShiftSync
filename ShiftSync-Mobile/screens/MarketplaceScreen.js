@@ -152,6 +152,7 @@ export default function MarketplaceScreen({ navigation }) {
   const [selectedStoreIndex, setSelectedStoreIndex] = useState(0);
   const [openShifts, setOpenShifts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
   const [proposals, setProposals] = useState([]);
@@ -165,6 +166,7 @@ export default function MarketplaceScreen({ navigation }) {
   }, [stores, selectedStoreIndex]);
 
   const loadData = useCallback(async () => {
+    setLoadError(null);
     try {
       // 1. Fetch user profile
       const { data: user } = await getMyProfile();
@@ -205,6 +207,8 @@ export default function MarketplaceScreen({ navigation }) {
       }
     } catch (err) {
       console.log('Lỗi khi tải dữ liệu Sàn ca:', err);
+      setOpenShifts([]);
+      setLoadError(err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -257,6 +261,14 @@ export default function MarketplaceScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const marketplaceErrorMessage = (error) => {
+    const status = error?.response?.status;
+    if (status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    if (status === 403) return 'Bạn không có quyền xem ca mở tại chi nhánh này.';
+    if (status >= 500) return 'Máy chủ đang gặp lỗi. Vui lòng thử lại sau.';
+    return 'Không thể tải ca mở. Vui lòng kiểm tra kết nối và thử lại.';
   };
 
   const handleClaim = (shift) => {
@@ -464,6 +476,14 @@ export default function MarketplaceScreen({ navigation }) {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#27272a" />
             <Text style={styles.loadingText}>Đang tải danh sách ca mở...</Text>
+          </View>
+        ) : loadError ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Không tải được ca mở</Text>
+            <Text style={styles.emptySubtitle}>{marketplaceErrorMessage(loadError)}</Text>
+            <TouchableOpacity onPress={onRefresh} style={styles.reloadEmptyBtn}>
+              <Text style={styles.reloadEmptyText}>Thử lại</Text>
+            </TouchableOpacity>
           </View>
         ) : openShifts.length > 0 ? (
           openShifts.map((shift) => {

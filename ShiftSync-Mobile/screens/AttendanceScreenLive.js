@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +19,7 @@ import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
 
 import { getMyAttendance, submitSelfieAttendance } from '../services/attendanceService';
+import { createAttendanceAdjustment, getMyAttendanceAdjustments } from '../services/attendanceAdjustmentService';
 import { getMyShifts } from '../services/shiftService';
 import BottomNavbar from '../components/BottomNavbar';
 import { Platform } from 'react-native';
@@ -58,17 +60,19 @@ const timeRange = (shift) =>
   `${String(shift.startTime).slice(0, 5)} – ${String(shift.endTime).slice(0, 5)}`;
 
 const statusBadge = (status) => {
-  switch (status) {
+  switch (String(status || '').toUpperCase()) {
     case 'PRESENT':
+    case 'ON_TIME':
       return { text: 'Đúng giờ', color: '#166534', bg: '#DCFCE7' };
     case 'LATE':
       return { text: 'Đi trễ', color: '#9A3412', bg: '#FFEDD5' };
     case 'EARLY_LEAVE':
       return { text: 'Về sớm', color: '#C2410C', bg: '#FFF7ED' };
     case 'ABSENT':
+    case 'NOT_CHECKED_IN':
       return { text: 'Vắng mặt', color: '#991B1B', bg: '#FEE2E2' };
     default:
-      return { text: 'Đã ghi nhận', color: '#374151', bg: '#F3F4F6' };
+      return { text: 'Chưa chấm công', color: '#475569', bg: '#F1F5F9' };
   }
 };
 
@@ -90,6 +94,12 @@ export default function AttendanceScreenLive({ navigation }) {
 
   // Modal xem ảnh phóng to
   const [previewPhoto, setPreviewPhoto] = useState(null); // { uri, title, time }
+  const [adjustments, setAdjustments] = useState([]);
+  const [explanationVisible, setExplanationVisible] = useState(false);
+  const [explanationReason, setExplanationReason] = useState('');
+  const [requestedCheckIn, setRequestedCheckIn] = useState('');
+  const [requestedCheckOut, setRequestedCheckOut] = useState('');
+  const [explanationSubmitting, setExplanationSubmitting] = useState(false);
 
   const loadData = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -104,6 +114,16 @@ export default function AttendanceScreenLive({ navigation }) {
       // vì như vậy có thể gửi attendance cho một ngày/ca khác.
       const currentShift = available.find((item) => item.shiftDate === today) || null;
       setShift(currentShift || null);
+      if (currentShift?.storeId) {
+        try {
+          const adjustmentsRes = await getMyAttendanceAdjustments(currentShift.storeId);
+          setAdjustments(adjustmentsRes.data || []);
+        } catch {
+          setAdjustments([]);
+        }
+      } else {
+        setAdjustments([]);
+      }
     } catch (error) {
       if (isInitial) {
         Alert.alert('Lỗi dữ liệu', 'Không thể kết nối máy chủ để tải lịch làm việc.');
@@ -127,6 +147,36 @@ export default function AttendanceScreenLive({ navigation }) {
   );
   const isCheckedIn = !!(todayAttendance && todayAttendance.checkInTime);
   const isCheckedOut = !!(todayAttendance && todayAttendance.checkOutTime);
+  const lateAttendance = todayAttendance?.status === 'LATE';
+  const currentAdjustment = adjustments.find((item) =>
+    (todayAttendance?.id && item.attendanceId === todayAttendance.id) || (shift?.id && item.shiftId === shift.id)
+  );
+
+  const submitExplanation = async () => {
+    if (!shift?.storeId || !shift?.id || !todayAttendance?.id || !explanationReason.trim()) {
+      return Alert.alert('Thiếu thông tin', 'Vui lòng nhập lý do giải trình.');
+    }
+    setExplanationSubmitting(true);
+    try {
+      await createAttendanceAdjustment(shift.storeId, {
+        attendanceId: todayAttendance.id,
+        shiftId: shift.id,
+        reason: explanationReason.trim(),
+        ...(requestedCheckIn.trim() ? { requestedCheckIn: requestedCheckIn.trim() } : {}),
+        ...(requestedCheckOut.trim() ? { requestedCheckOut: requestedCheckOut.trim() } : {}),
+      });
+      setExplanationVisible(false);
+      setExplanationReason('');
+      setRequestedCheckIn('');
+      setRequestedCheckOut('');
+      await loadData();
+      Alert.alert('Đã gửi giải trình', 'Giải trình đang chờ quản lý duyệt.');
+    } catch (error) {
+      Alert.alert('Gửi giải trình thất bại', error.response?.data?.message || error.message || 'Vui lòng thử lại.');
+    } finally {
+      setExplanationSubmitting(false);
+    }
+  };
 
   // Mở camera chụp ảnh check-in hoặc check-out
   const openCamera = async (mode) => {
@@ -167,11 +217,12 @@ export default function AttendanceScreenLive({ navigation }) {
       setCameraVisible(false);
 
       if (cameraMode === 'CHECK_IN') {
-        const isLate = response.data.status === 'LATE' && response.data.lateMinutes > 0;
+        const isLate = response.data.status === 'LATE';
         if (isLate) {
+          const lateMinutes = Number(response.data.lateMinutes);
           Alert.alert(
             'Check In thành công',
-            `Ghi nhận vào ca lúc ${formatTime(response.data.checkInTime)}. Trạng thái: Đi trễ ${response.data.lateMinutes} phút.`
+            `Ghi nhận vào ca lúc ${formatTime(response.data.checkInTime)}. Trạng thái: Đi trễ${lateMinutes > 0 ? ` ${lateMinutes} phút` : ''}.`
           );
         } else {
           Alert.alert(
@@ -410,6 +461,28 @@ export default function AttendanceScreenLive({ navigation }) {
               </TouchableOpacity>
             </View>
 
+            {lateAttendance && (
+              <View style={styles.explanationCard}>
+                <Text style={styles.explanationTitle}>Giải trình chấm công</Text>
+                <Text style={styles.explanationStatus}>
+                  Đi trễ{Number(todayAttendance?.lateMinutes) > 0 ? ` ${todayAttendance.lateMinutes} phút` : ''}
+                </Text>
+                {currentAdjustment?.status === 'PENDING' ? (
+                  <Text style={styles.explanationPending}>Giải trình đang chờ quản lý duyệt</Text>
+                ) : currentAdjustment?.status === 'APPROVED' ? (
+                  <Text style={styles.explanationApproved}>Giải trình đã được duyệt</Text>
+                ) : currentAdjustment?.status === 'REJECTED' ? (
+                  <TouchableOpacity style={styles.explanationButton} onPress={() => setExplanationVisible(true)}>
+                    <Text style={styles.explanationButtonText}>Gửi lại giải trình</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={styles.explanationButton} onPress={() => setExplanationVisible(true)}>
+                    <Text style={styles.explanationButtonText}>Giải trình chấm công</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             {/* ══ LỊCH SỬ CHẤM CÔNG ══ */}
             <View style={styles.historyHeaderRow}>
               <Text style={styles.historySectionTitle}>Lịch sử chấm công</Text>
@@ -435,6 +508,11 @@ export default function AttendanceScreenLive({ navigation }) {
                           {item.storeName || 'Chi nhánh phân công'}
                           {item.lateMinutes > 0 ? ` · Trễ ${item.lateMinutes} phút` : ''}
                         </Text>
+                        {(item.zoneName || item.workstationName) && (
+                          <Text style={styles.historyItemStore}>
+                            {item.zoneName || 'Chưa gán phân khu'}{item.workstationName ? ` · ${item.workstationName}` : ''}
+                          </Text>
+                        )}
                       </View>
                       <View style={[styles.badge, { backgroundColor: badge.bg }]}>
                         <Text style={[styles.badgeText, { color: badge.color }]}>{badge.text}</Text>
@@ -516,6 +594,43 @@ export default function AttendanceScreenLive({ navigation }) {
       </ScrollView>
 
       {/* ══ MODAL XEM ẢNH PHÓNG TO ══ */}
+      <Modal visible={explanationVisible} transparent animationType="fade" onRequestClose={() => setExplanationVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.explanationModalContent}>
+            <Text style={styles.modalTitle}>Giải trình đi trễ</Text>
+            <Text style={styles.modalSubtitle}>Attendance vẫn giữ trạng thái Đi trễ; giải trình là workflow riêng.</Text>
+            <TextInput
+              value={explanationReason}
+              onChangeText={setExplanationReason}
+              placeholder="Nhập lý do giải trình"
+              multiline
+              style={styles.explanationInput}
+            />
+            <Text style={styles.modalSubtitle}>Giờ đề nghị (không bắt buộc, định dạng ISO có múi giờ)</Text>
+            <TextInput
+              value={requestedCheckIn}
+              onChangeText={setRequestedCheckIn}
+              placeholder="Check-in, ví dụ 2026-09-21T08:00:00+07:00"
+              autoCapitalize="none"
+              style={styles.explanationInput}
+            />
+            <TextInput
+              value={requestedCheckOut}
+              onChangeText={setRequestedCheckOut}
+              placeholder="Check-out, ví dụ 2026-09-21T17:00:00+07:00"
+              autoCapitalize="none"
+              style={styles.explanationInput}
+            />
+            <TouchableOpacity disabled={explanationSubmitting} onPress={submitExplanation} style={styles.explanationButton}>
+              {explanationSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.explanationButtonText}>Gửi giải trình</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setExplanationVisible(false)} style={styles.modalCloseBtn}>
+              <Text style={styles.modalCloseText}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!previewPhoto} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
@@ -809,6 +924,43 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modalCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  explanationCard: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  explanationTitle: { fontSize: 15, fontWeight: '700', color: '#9A3412' },
+  explanationStatus: { fontSize: 13, color: '#C2410C', marginTop: 4, marginBottom: 10 },
+  explanationPending: { fontSize: 13, color: '#92400E', fontWeight: '600' },
+  explanationApproved: { fontSize: 13, color: '#166534', fontWeight: '600' },
+  explanationButton: {
+    backgroundColor: '#C2410C',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  explanationButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  explanationModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    width: '100%',
+    maxWidth: 380,
+  },
+  explanationInput: {
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    padding: 12,
+    textAlignVertical: 'top',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
   badge3DContainer: {
     alignItems: 'center',
     justifyContent: 'center',

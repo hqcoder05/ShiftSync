@@ -37,6 +37,7 @@ export default function PayrollScreen({ navigation }) {
           const month = d.getMonth() + 1;
           const year = d.getFullYear();
           const workedH = p.totalHours;
+          const payableH = p.payableHours ?? workedH;
           const otH = p.otHours;
           const totalAmt = p.totalAmount;
           const baseAmt = p.baseAmount;
@@ -60,6 +61,7 @@ export default function PayrollScreen({ navigation }) {
             completedShifts: p.completedShifts,
             scheduledHours: p.scheduledHours,
             workedHours: workedH,
+            payableHours: payableH,
             otHours: otH,
             workedDays: p.workedDays,
             baseAmount: baseAmt,
@@ -127,7 +129,7 @@ export default function PayrollScreen({ navigation }) {
               <View style={styles.greenCardLeft}>
                 <Text style={styles.greenCardTitle}>Báo cáo thu nhập{'\n'}của bạn</Text>
 
-                <Text style={styles.greenCardSubLabel}>Mức lương ước tính</Text>
+                <Text style={styles.greenCardSubLabel}>Tổng lương theo phiếu</Text>
                 <Text style={styles.greenCardAmount}>{formatVND(item.totalAmount)}</Text>
                 <Text style={styles.greenCardRate}>
                   {formatHourlyRate(item.hourlyRate)}
@@ -194,6 +196,10 @@ export default function PayrollScreen({ navigation }) {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Tổng giờ làm việc</Text>
               <Text style={styles.infoValue}>{item.workedHours} Giờ</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Giờ được tính lương</Text>
+              <Text style={styles.infoValue}>{item.payableHours} Giờ</Text>
             </View>
             {item.otHours > 0 && (
               <View style={styles.infoRow}>
