@@ -20,15 +20,51 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ShiftSwapService {
     private final AuditLogService auditLogService;
-
     private final ShiftSwapRequestRepository shiftSwapRequestRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final UserRepository userRepository;
     private final ShiftValidationService shiftValidationService;
     private final com.shiftsync.notification.service.NotificationService notificationService;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+    private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ShiftSwapService(
+            AuditLogService auditLogService,
+            ShiftSwapRequestRepository shiftSwapRequestRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            UserRepository userRepository,
+            ShiftValidationService shiftValidationService,
+            com.shiftsync.notification.service.NotificationService notificationService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository
+    ) {
+        this.auditLogService = auditLogService;
+        this.shiftSwapRequestRepository = shiftSwapRequestRepository;
+        this.shiftAssignmentRepository = shiftAssignmentRepository;
+        this.userRepository = userRepository;
+        this.shiftValidationService = shiftValidationService;
+        this.notificationService = notificationService;
+        this.employmentRepository = employmentRepository;
+        this.attendanceRepository = attendanceRepository;
+        this.leaveRequestRepository = leaveRequestRepository;
+    }
+
+    public ShiftSwapService(
+            AuditLogService auditLogService,
+            ShiftSwapRequestRepository shiftSwapRequestRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            UserRepository userRepository,
+            ShiftValidationService shiftValidationService,
+            com.shiftsync.notification.service.NotificationService notificationService
+    ) {
+        this(auditLogService, shiftSwapRequestRepository, shiftAssignmentRepository, userRepository,
+             shiftValidationService, notificationService, null, null, null);
+    }
 
     @Transactional(rollbackFor = Exception.class)
     public ShiftSwapRequest createSwapRequest(UUID fromStaffId, UUID fromShiftId, UUID toStaffId, UUID toShiftId) {
@@ -46,6 +82,17 @@ public class ShiftSwapService {
             throw new BusinessException("Shifts must belong to the same store", HttpStatus.BAD_REQUEST);
         }
 
+        if (fromAssignment.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED || 
+            toAssignment.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
+            throw new BusinessException("Only published shifts can be swapped", HttpStatus.BAD_REQUEST);
+        }
+
+        if (attendanceRepository != null && 
+            (attendanceRepository.existsByShiftAssignmentId(fromAssignment.getId()) || 
+             attendanceRepository.existsByShiftAssignmentId(toAssignment.getId()))) {
+            throw new BusinessException("Cannot swap shifts that have already started or recorded attendance", HttpStatus.BAD_REQUEST);
+        }
+
         if (shiftSwapRequestRepository.existsByFromShiftIdAndStatus(fromShiftId, SwapStatus.PENDING)) {
             throw new BusinessException("A pending swap request already exists for this shift", HttpStatus.CONFLICT);
         }
@@ -53,8 +100,10 @@ public class ShiftSwapService {
             throw new BusinessException("Target shift already has a pending swap request", HttpStatus.CONFLICT);
         }
 
-        User fromStaff = userRepository.findById(fromStaffId).orElseThrow();
-        User toStaff = userRepository.findById(toStaffId).orElseThrow();
+        User fromStaff = userRepository.findById(fromStaffId)
+                .orElseThrow(() -> new BusinessException("Source staff not found", HttpStatus.NOT_FOUND));
+        User toStaff = userRepository.findById(toStaffId)
+                .orElseThrow(() -> new BusinessException("Target staff not found", HttpStatus.NOT_FOUND));
 
         ShiftSwapRequest request = ShiftSwapRequest.builder()
                 .fromStaff(fromStaff)
@@ -64,7 +113,21 @@ public class ShiftSwapService {
                 .status(SwapStatus.PENDING)
                 .build();
 
-        return shiftSwapRequestRepository.save(request);
+        ShiftSwapRequest saved = shiftSwapRequestRepository.save(request);
+
+        try {
+            notificationService.sendNotification(
+                toStaff.getId(),
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Yêu cầu đổi ca mới",
+                fromStaff.getFullName() + " muốn đổi ca với bạn (" + fromAssignment.getShift().getShiftDate() + ").",
+                java.util.Map.of("swapRequestId", saved.getId().toString(), "type", "SWAP_REQUEST")
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send notification for new swap request: {}", e.getMessage());
+        }
+
+        return saved;
 
     }
 
@@ -85,18 +148,34 @@ public class ShiftSwapService {
             request.setStatus(SwapStatus.REJECTED);
             shiftSwapRequestRepository.save(request);
             
-            notificationService.sendNotification(
-                request.getFromStaff().getId(),
-                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
-                "Shift Swap Rejected",
-                "Your shift swap request has been rejected.",
-                null
-            );
+            try {
+                notificationService.sendNotification(
+                    request.getFromStaff().getId(),
+                    com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                    "Yêu cầu đổi ca bị từ chối",
+                    request.getToStaff().getFullName() + " đã từ chối yêu cầu đổi ca của bạn.",
+                    java.util.Map.of("swapRequestId", request.getId().toString(), "status", "REJECTED")
+                );
+            } catch (Exception e) {
+                log.warn("Failed to send swap reject notification: {}", e.getMessage());
+            }
             return;
         }
 
         request.setEmployeeAccepted(true);
         shiftSwapRequestRepository.save(request);
+
+        try {
+            notificationService.sendNotification(
+                request.getFromStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Đồng nghiệp đã đồng ý đổi ca",
+                request.getToStaff().getFullName() + " đã chấp nhận yêu cầu đổi ca. Đang chờ Quản lý phê duyệt.",
+                java.util.Map.of("swapRequestId", request.getId().toString(), "status", "ACCEPTED")
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send swap accepted notification: {}", e.getMessage());
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -104,15 +183,53 @@ public class ShiftSwapService {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
 
-        if (!request.isEmployeeAccepted()) {
-            throw new BusinessException("Employee has not accepted this swap yet", HttpStatus.BAD_REQUEST);
-        }
-
         if (request.getStatus() != SwapStatus.PENDING) {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
         }
 
-        User manager = userRepository.findById(managerId).orElseThrow();
+        if (!request.isEmployeeAccepted()) {
+            throw new BusinessException("Employee has not accepted this swap yet", HttpStatus.BAD_REQUEST);
+        }
+
+        User manager = userRepository.findById(managerId)
+                .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
+
+        UUID shiftStoreId = request.getFromShift().getStore().getId();
+        if (manager.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN) {
+            if (employmentRepository != null && !employmentRepository.existsByUserIdAndStoreIdAndStatus(managerId, shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+                throw new BusinessException("Manager does not belong to this store", HttpStatus.FORBIDDEN);
+            }
+        }
+
+        if (request.getFromShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED || 
+            request.getToShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
+            throw new BusinessException("One or both shifts are no longer published", HttpStatus.BAD_REQUEST);
+        }
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime fromStart = java.time.LocalDateTime.of(request.getFromShift().getShiftDate(), request.getFromShift().getStartTime());
+        java.time.LocalDateTime toStart = java.time.LocalDateTime.of(request.getToShift().getShiftDate(), request.getToShift().getStartTime());
+
+        if (fromStart.isBefore(now) || toStart.isBefore(now)) {
+            throw new BusinessException("Cannot approve a swap for shifts that have already started or occurred in the past.", HttpStatus.BAD_REQUEST);
+        }
+
+        // Leave conflict check on swapped dates
+        if (leaveRequestRepository != null) {
+            boolean fromStaffOnLeave = leaveRequestRepository.findOverlappingRequests(
+                    request.getFromStaff().getId(), request.getToShift().getShiftDate(), request.getToShift().getShiftDate())
+                    .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+            if (fromStaffOnLeave) {
+                throw new BusinessException(request.getFromStaff().getFullName() + " has approved leave on target shift date", HttpStatus.BAD_REQUEST);
+            }
+
+            boolean toStaffOnLeave = leaveRequestRepository.findOverlappingRequests(
+                    request.getToStaff().getId(), request.getFromShift().getShiftDate(), request.getFromShift().getShiftDate())
+                    .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
+            if (toStaffOnLeave) {
+                throw new BusinessException(request.getToStaff().getFullName() + " has approved leave on target shift date", HttpStatus.BAD_REQUEST);
+            }
+        }
 
         // Perform Conflict Checking (Security Check from Auditor)
         // 1. Validate A's new shift (toShift) against A's existing shifts (excluding the shift they are giving away)
@@ -127,6 +244,12 @@ public class ShiftSwapService {
 
         ShiftAssignment toAssignment = shiftAssignmentRepository.findByShiftIdAndStaffId(request.getToShift().getId(), request.getToStaff().getId())
                 .orElseThrow(() -> new BusinessException("Original assignment not found for toStaff", HttpStatus.NOT_FOUND));
+
+        if (attendanceRepository != null && 
+            (attendanceRepository.existsByShiftAssignmentId(fromAssignment.getId()) || 
+             attendanceRepository.existsByShiftAssignmentId(toAssignment.getId()))) {
+            throw new BusinessException("Cannot swap shifts that have already started or recorded attendance", HttpStatus.BAD_REQUEST);
+        }
 
         fromAssignment.setStaff(request.getToStaff());
         fromAssignment.setSource(AssignmentSource.SWAP);
@@ -145,13 +268,26 @@ public class ShiftSwapService {
                 java.util.Map.of("status", "APPROVED"));
 
 
-        notificationService.sendNotification(
-            request.getFromStaff().getId(),
-            com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
-            "Shift Swap Approved",
-            "Your shift swap request has been approved.",
-            null
-        );
+        try {
+            notificationService.sendNotification(
+                request.getFromStaff().getId(),
+                com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                "Đổi ca thành công",
+                "Yêu cầu đổi ca của bạn đã được Quản lý phê duyệt thành công.",
+                java.util.Map.of("swapRequestId", requestId.toString(), "status", "APPROVED")
+            );
+            if (request.getToStaff() != null) {
+                notificationService.sendNotification(
+                    request.getToStaff().getId(),
+                    com.shiftsync.notification.entity.NotificationType.SHIFT_SWAP_UPDATED,
+                    "Đổi ca thành công",
+                    "Yêu cầu đổi ca với " + request.getFromStaff().getFullName() + " đã được Quản lý phê duyệt thành công.",
+                    java.util.Map.of("swapRequestId", requestId.toString(), "status", "APPROVED")
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send approval notification for swap {}: {}", requestId, e.getMessage());
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -163,7 +299,15 @@ public class ShiftSwapService {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
         }
 
-        User manager = userRepository.findById(managerId).orElseThrow();
+        User manager = userRepository.findById(managerId)
+                .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
+
+        UUID shiftStoreId = request.getFromShift().getStore().getId();
+        if (manager.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN) {
+            if (employmentRepository != null && !employmentRepository.existsByUserIdAndStoreIdAndStatus(managerId, shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+                throw new BusinessException("Manager does not belong to this store", HttpStatus.FORBIDDEN);
+            }
+        }
 
         request.setStatus(SwapStatus.REJECTED);
         request.setApprovedBy(manager); // Track who rejected it
@@ -211,6 +355,13 @@ public class ShiftSwapService {
 
         if (!isParty && !isManager) {
             throw new BusinessException("You are not authorized to cancel this request", HttpStatus.FORBIDDEN);
+        }
+
+        if (isManager && user.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN) {
+            UUID shiftStoreId = request.getFromShift().getStore().getId();
+            if (employmentRepository != null && !employmentRepository.existsByUserIdAndStoreIdAndStatus(userId, shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+                throw new BusinessException("Manager does not belong to this store", HttpStatus.FORBIDDEN);
+            }
         }
 
         request.setStatus(SwapStatus.CANCELLED);
