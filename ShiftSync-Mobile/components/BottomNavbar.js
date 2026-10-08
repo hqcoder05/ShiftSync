@@ -3,11 +3,13 @@ import { View, Pressable, Image, StyleSheet } from 'react-native';
 
 import dashboardIcon from '../assets/shync.png';
 import calendarIcon from '../assets/Calendar.png';
+import marketIcon from '../assets/icon-kinh.png';
 import reportsIcon from '../assets/icon-reports.png';
 
 const navItems = [
   { screen: 'Dashboard', icon: dashboardIcon, label: 'Trang chủ' },
   { screen: 'Schedule', icon: calendarIcon, label: 'Lịch làm' },
+  { screen: 'Marketplace', icon: marketIcon, label: 'Chợ ca' },
   { screen: 'Request', icon: reportsIcon, label: 'Yêu cầu' },
 ];
 
