@@ -1,0 +1,109 @@
+@startuml AD-07_Attendance_Payroll_Swimlanes
+title **AD-07: SƠ ĐỒ HOẠT ĐỘNG CHẤM CÔNG LIVE SELFIE & BẢNG LƯƠNG (SWIMLANES)**
+
+skinparam {
+    shadowing false
+    roundcorner 6
+    defaultFontName "Segoe UI", "Arial", sans-serif
+    defaultFontSize 11
+    defaultFontColor #2D3142
+    backgroundColor #FFFFFF
+    
+    activityBorderColor #4F5D75
+    activityBackgroundColor #FFFFFF
+    
+    diamondBorderColor #EB6C36
+    diamondBackgroundColor #FFF7ED
+    diamondFontColor #2D3142
+    
+    arrowColor #4F5D75
+    arrowThickness 1.2
+    
+    swimlaneBorderColor #94A3B8
+    swimlaneTitleFontStyle bold
+    swimlaneTitleFontSize 12
+}
+
+|#F8FAFC|Nhân viên (Mobile App)|
+|#F1F5F9|ShiftSync Core & Database|
+|#F8FAFC|Quản lý (Manager / Admin)|
+
+|Nhân viên (Mobile App)|
+start
+:Mở màn hình Chấm công;
+:Kích hoạt Camera trước và bật GPS;
+:Chụp ảnh Live Selfie & Gửi tọa độ (lat, lng);
+
+|ShiftSync Core & Database|
+:Nhận ảnh và tọa độ thực tế;
+:Lấy vị trí Store & Bán kính cho phép (Geofence);
+:Tính khoảng cách Haversine (d);
+
+if (Khoảng cách d <= 100m?) then (Vượt >100m)
+    #FEE2E2:Từ chối chấm công (HTTP 400 Out of Geofence);
+    |Nhân viên (Mobile App)|
+    :Nhận thông báo lỗi ngoài phạm vi cửa hàng;
+    detach
+else (Hợp lệ <= 100m)
+    |ShiftSync Core & Database|
+    :Truy vấn ShiftAssignment hôm nay;
+    if (Tìm thấy ca làm hợp lệ?) then (Không có ca)
+        #FEE2E2:Báo lỗi: Chưa được phân công ca;
+        |Nhân viên (Mobile App)|
+        :Nhận thông báo chưa có ca;
+        detach
+    else (Có ca)
+        |ShiftSync Core & Database|
+        :Lưu Attendance & Ảnh Selfie (BYTEA);\nĐánh giá giờ: ON_TIME hoặc LATE;
+        
+        |Nhân viên (Mobile App)|
+        :Nhận xác nhận Check-in thành công;
+        :Thực hiện ca làm việc;
+        :Chụp ảnh Live Selfie Check-out;
+        
+        |ShiftSync Core & Database|
+        :Lưu giờ Check-out & Tính thời lượng thực tế;
+        
+        ' --- Giai đoạn Giải trình ---
+        if (Có sai lệch hoặc quên Check-out?) then (Chuẩn)
+            :Giữ nguyên bản ghi Attendance;
+        else (Sai lệch)
+            |Nhân viên (Mobile App)|
+            :Gửi Đơn giải trình (Adjustment)\nkèm lý do & mốc giờ đề xuất;
+            
+            |Quản lý (Manager / Admin)|
+            :Xem xét giải trình, đối soát ảnh Selfie & lịch ca;
+            if (Chấp thuận giải trình?) then (Từ chối)
+                #FEE2E2:Từ chối giải trình, giữ nguyên công cũ;
+            else (Duyệt)
+                |ShiftSync Core & Database|
+                #DCFCE7:Cập nhật công thực tế & Ghi AuditLog;
+            endif
+        endif
+        
+        ' --- Giai đoạn Tính Lương ---
+        |ShiftSync Core & Database|
+        :Tổng hợp Attendance đã duyệt trong kỳ;
+        :Tách ca đêm qua 00:00:00 (Phụ cấp đêm +30%);
+        :Tính hệ số làm thêm (OT) & Ngày lễ (300%);
+        :Kiểm tra chống chi trả kép (Leave Protection);
+        :Khởi tạo bảng lương dự thảo (Payroll DRAFT);
+        
+        |Quản lý (Manager / Admin)|
+        :Kiểm tra & Phê duyệt bảng lương;
+        if (Bảng lương chính xác?) then (Yêu cầu sửa)
+            #FEE2E2:Yêu cầu điều chỉnh công / Tái tính toán;
+            detach
+        else (Phê duyệt)
+            |ShiftSync Core & Database|
+            #DCFCE7:Khóa bảng lương (CONFIRMED) & Xuất Payslip;
+            :Gửi WebSocket & Push Notification đến nhân viên;
+            
+            |Nhân viên (Mobile App)|
+            :Xem phiếu lương chi tiết trên thiết bị;
+        endif
+    endif
+endif
+
+stop
+@enduml
