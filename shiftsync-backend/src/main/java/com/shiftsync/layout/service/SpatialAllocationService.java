@@ -114,7 +114,11 @@ public class SpatialAllocationService {
                     }
                 }
             }
-        }
+        }        // Bulk Preload Skills
+        java.util.List<UUID> staffIds = assignments.stream().map(a -> a.getStaff() != null ? a.getStaff().getId() : null).filter(java.util.Objects::nonNull).distinct().toList();
+        java.util.Map<UUID, java.util.List<StaffSkill>> staffSkillMap = staffSkillRepository.findByStaffIdIn(staffIds).stream().collect(java.util.stream.Collectors.groupingBy(StaffSkill::getStaffId));
+        java.util.Set<UUID> allSkillIds = staffSkillMap.values().stream().flatMap(java.util.List::stream).map(StaffSkill::getSkillId).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<UUID, Skill> skillMap = skillRepository.findAllById(allSkillIds).stream().collect(java.util.stream.Collectors.toMap(Skill::getId, s -> s));
 
         for (ShiftAssignment assignment : assignments) {
             StoreZone chosenZone = null;
@@ -340,3 +344,5 @@ public class SpatialAllocationService {
         }
     }
 }
+
+
