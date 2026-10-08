@@ -44,7 +44,7 @@ public class PayrollController {
             @PathVariable UUID storeId,
             @Valid @RequestBody PayrollGenerateRequest request) {
         payrollCalculationService.generatePayroll(storeId, request.getStartDate(), request.getEndDate());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Get all payroll periods for a store")
@@ -155,7 +155,7 @@ public class PayrollController {
             @Valid @RequestBody PayrollPeriodStatusUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
 }
