@@ -40,6 +40,14 @@ public class WorkforceRequest {
     @JoinColumn(name = "shift_id", nullable = false)
     private Shift shift;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "skill_id")
+    private com.shiftsync.skill.entity.Skill skill;
+
+    @Column(name = "needed_count", nullable = false)
+    @Builder.Default
+    private Integer neededCount = 1;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "workforce_request_status_enum", nullable = false)
