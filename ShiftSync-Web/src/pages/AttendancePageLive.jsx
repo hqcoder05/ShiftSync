@@ -654,12 +654,23 @@ export default function AttendancePageLive() {
     }
     setActionLoading(true);
     try {
-      const inTime = adjForm.actualCheckIn ? `${adjForm.date}T${adjForm.actualCheckIn}:00` : null;
-      const outTime = adjForm.actualCheckOut ? `${adjForm.date}T${adjForm.actualCheckOut}:00` : null;
+      const inTime = adjForm.actualCheckIn ? `${adjForm.date}T${adjForm.actualCheckIn}:00+07:00` : null;
+      const outTime = adjForm.actualCheckOut ? `${adjForm.date}T${adjForm.actualCheckOut}:00+07:00` : null;
+      
+      const matchingRow = rows.find(r => (r.shiftDate === adjForm.date) && (r.shiftId || r.shiftAssignment?.shift?.id));
+      if (!matchingRow) {
+          toast.error('Không tìm thấy ca làm việc cho ngày này trong danh sách hiển thị!');
+          setActionLoading(false);
+          return;
+      }
+      
+      const shiftId = matchingRow.shiftId || matchingRow.shiftAssignment?.shift?.id;
+
       await createAdjustmentRequest(sId, {
-        date: adjForm.date,
-        checkInTime: inTime,
-        checkOutTime: outTime,
+        shiftId: shiftId,
+        attendanceId: matchingRow.id || null,
+        requestedCheckIn: inTime,
+        requestedCheckOut: outTime,
         reason: adjForm.reason,
       });
       toast.success('Đã gửi giải trình chấm công thành công.');
