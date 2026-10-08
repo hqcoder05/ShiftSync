@@ -17,20 +17,28 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     org.springframework.data.domain.Page<User> searchUsers(@Param("search") String search, org.springframework.data.domain.Pageable pageable);
 
     @Query(value = "SELECT DISTINCT u FROM User u JOIN Employment e ON e.user = u WHERE " +
-           "e.store.id IN :storeIds AND e.status = 'ACTIVE'",
+           "e.store.id IN :storeIds AND e.status = :status",
            countQuery = "SELECT COUNT(DISTINCT u) FROM User u JOIN Employment e ON e.user = u WHERE " +
-           "e.store.id IN :storeIds AND e.status = 'ACTIVE'")
-    org.springframework.data.domain.Page<User> findUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, org.springframework.data.domain.Pageable pageable);
+           "e.store.id IN :storeIds AND e.status = :status")
+    org.springframework.data.domain.Page<User> findUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, @Param("status") com.shiftsync.employment.enums.EmploymentStatus status, org.springframework.data.domain.Pageable pageable);
 
     @Query(value = "SELECT DISTINCT u FROM User u JOIN Employment e ON e.user = u WHERE " +
-           "e.store.id IN :storeIds AND e.status = 'ACTIVE' AND " +
-           "(LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "e.store.id IN :storeIds AND e.status = :status AND " +
+           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))",
            countQuery = "SELECT COUNT(DISTINCT u) FROM User u JOIN Employment e ON e.user = u WHERE " +
-           "e.store.id IN :storeIds AND e.status = 'ACTIVE' AND " +
-           "(LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "e.store.id IN :storeIds AND e.status = :status AND " +
+           "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
-    org.springframework.data.domain.Page<User> searchUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, @Param("search") String search, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<User> searchUsersInStores(@Param("storeIds") java.util.List<UUID> storeIds, @Param("status") com.shiftsync.employment.enums.EmploymentStatus status, @Param("search") String search, org.springframework.data.domain.Pageable pageable);
+
+    default org.springframework.data.domain.Page<User> findUsersInStores(java.util.List<UUID> storeIds, org.springframework.data.domain.Pageable pageable) {
+        return findUsersInStores(storeIds, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, pageable);
+    }
+
+    default org.springframework.data.domain.Page<User> searchUsersInStores(java.util.List<UUID> storeIds, String search, org.springframework.data.domain.Pageable pageable) {
+        return searchUsersInStores(storeIds, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, search, pageable);
+    }
 
     @Query(value = "SELECT EXISTS (" +
             "SELECT 1 FROM employment e " +
@@ -53,4 +61,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "AND s.shift_date >= CURRENT_DATE AND sa.deleted = false" +
             ")", nativeQuery = true)
     boolean hasFuturePublishedShifts(@Param("userId") UUID userId);
+
+    long countBySystemRole(com.shiftsync.shared.security.SystemRole systemRole);
 }
