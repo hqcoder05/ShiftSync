@@ -37,15 +37,16 @@ public class AttendanceService {
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
+    private final com.shiftsync.payroll.service.PayrollCalculationService payrollCalculationService;
 
     private static final long QR_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
     public QrResponseDTO generateQrForShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
-                .orElseThrow(() -> new IllegalArgumentException("Shift not found"));
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
         if (!shift.getStore().getId().equals(storeId)) {
-            throw new IllegalArgumentException("Shift does not belong to the specified store");
+            throw new BusinessException("Shift does not belong to the specified store", HttpStatus.FORBIDDEN);
         }
 
         String token = jwtTokenProvider.generateQrToken(shiftId.toString(), QR_EXPIRATION_MS);
@@ -62,6 +63,9 @@ public class AttendanceService {
                 .orElseThrow(() -> new IllegalArgumentException("You are not assigned to this shift"));
 
         Shift shift = assignment.getShift();
+        if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED) {
+            throw new BusinessException("Cannot check in for a shift that is CANCELLED", HttpStatus.BAD_REQUEST);
+        }
         StoreConfiguration config = storeConfigurationRepository.findByStoreId(shift.getStore().getId())
                 .orElseGet(StoreConfiguration::new); // Use default config if not found
 
@@ -96,12 +100,18 @@ public class AttendanceService {
 
     @Transactional
     public Attendance submitSelfie(UUID staffId, UUID shiftId, double latitude, double longitude, byte[] photo) {
-        if (photo == null || photo.length == 0) {
-            throw new IllegalArgumentException("A live selfie is required to record attendance.");
-        }
         ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)
-                .orElseThrow(() -> new IllegalArgumentException("You are not assigned to this shift"));
+                .orElseThrow(() -> new BusinessException("You are not assigned to this shift", HttpStatus.FORBIDDEN));
         Shift shift = assignment.getShift();
+        if (payrollCalculationService != null && payrollCalculationService.isDateLocked(shift.getStore().getId(), shift.getShiftDate())) {
+            throw new BusinessException("Payroll for this date is already confirmed or paid.", HttpStatus.FORBIDDEN);
+        }
+        if (photo == null || photo.length == 0) {
+            throw new BusinessException("A live selfie is required to record attendance.", HttpStatus.BAD_REQUEST);
+        }
+        if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED) {
+            throw new BusinessException("Cannot check in for a shift that is CANCELLED", HttpStatus.BAD_REQUEST);
+        }
         StoreConfiguration config = storeConfigurationRepository.findByStoreId(shift.getStore().getId())
                 .orElseGet(StoreConfiguration::new);
         validateGeofence(shift, config, latitude, longitude);
@@ -192,6 +202,10 @@ public class AttendanceService {
             throw new BusinessException("Attendance does not belong to the specified store", HttpStatus.BAD_REQUEST);
         }
 
+        if (payrollCalculationService != null && payrollCalculationService.isDateLocked(storeId, attendance.getShiftAssignment().getShift().getShiftDate())) {
+            throw new BusinessException("Payroll for this date is already confirmed or paid.", HttpStatus.FORBIDDEN);
+        }
+
         if (request.getCheckInTime() != null) {
             attendance.setCheckInTime(request.getCheckInTime());
         }
@@ -199,13 +213,19 @@ public class AttendanceService {
             attendance.setCheckOutTime(request.getCheckOutTime());
         }
 
+        if (attendance.getCheckInTime() != null && attendance.getCheckOutTime() != null) {
+            if (attendance.getCheckOutTime().isBefore(attendance.getCheckInTime())) {
+                throw new BusinessException("Check-out time cannot be before check-in time", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         // recalculate status
         StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId).orElseGet(StoreConfiguration::new);
         Shift shift = attendance.getShiftAssignment().getShift();
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
         
-        AttendanceStatus calculatedStatus = AttendanceStatus.PRESENT;
-        if (attendance.getCheckInTime() != null) {
+        AttendanceStatus calculatedStatus = attendance.getStatus() == AttendanceStatus.EARLY_LEAVE ? AttendanceStatus.EARLY_LEAVE : AttendanceStatus.PRESENT;
+        if (attendance.getCheckInTime() != null && calculatedStatus != AttendanceStatus.EARLY_LEAVE) {
             if (attendance.getCheckInTime().toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
                 calculatedStatus = AttendanceStatus.LATE;
             }
@@ -226,6 +246,10 @@ public class AttendanceService {
 
         if (!attendance.getShiftAssignment().getShift().getStore().getId().equals(storeId)) {
             throw new BusinessException("Attendance does not belong to the specified store", HttpStatus.BAD_REQUEST);
+        }
+
+        if (payrollCalculationService != null && payrollCalculationService.isDateLocked(storeId, attendance.getShiftAssignment().getShift().getShiftDate())) {
+            throw new BusinessException("Payroll for this date is already confirmed or paid.", HttpStatus.FORBIDDEN);
         }
 
         attendanceRepository.delete(attendance);
@@ -289,3 +313,9 @@ public class AttendanceService {
         return R * c; // convert to meters
     }
 }
+
+
+
+
+
+
