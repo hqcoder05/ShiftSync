@@ -7,7 +7,7 @@ export const updateNotificationPreferences = (data) =>
   api.put('/users/me/notification-preferences', data);
 
 export const registerFcmToken = (token) =>
-  api.post('/users/me/fcm-token', { token });
+  api.post('/users/me/fcm-token', { fcmToken: token, deviceType: 'WEB' });
 
 export const getMyNotifications = () =>
   api.get('/users/me/notifications');

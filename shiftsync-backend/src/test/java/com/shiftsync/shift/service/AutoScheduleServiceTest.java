@@ -1186,5 +1186,21 @@ class AutoScheduleServiceTest {
         // Verify spatial allocation service is invoked for auto-scheduled shifts
         verify(spatialAllocationService).allocateZonesForShift(eq(storeId), eq(shift.getId()));
     }
+
+    @Test
+    void testCalculateScore_ZeroMaxWeeklyHoursThrowsBusinessException() {
+        AutoScheduleService.StaffData empData = new AutoScheduleService.StaffData();
+        User staff = User.builder().id(UUID.randomUUID()).build();
+        com.shiftsync.employment.entity.ContractType contract = com.shiftsync.employment.entity.ContractType.builder().maxWeeklyHours(0).build();
+        Employment employment = Employment.builder().user(staff).contractType(contract).build();
+        empData.setEmployment(employment);
+        AutoScheduleService.Slot slot = new AutoScheduleService.Slot(com.shiftsync.shift.entity.Shift.builder().id(UUID.randomUUID()).build(), UUID.randomUUID());
+
+        com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.shiftsync.shared.exception.BusinessException.class, 
+                () -> service.calculateScore(empData, slot, null, 11)
+        );
+        org.junit.jupiter.api.Assertions.assertEquals("Max weekly hours must be strictly positive to avoid division by zero.", ex.getMessage());
+    }
 }
 

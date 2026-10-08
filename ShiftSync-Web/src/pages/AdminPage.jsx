@@ -8,11 +8,11 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
-  getStaffByStore,
   assignStaffToStore,
   removeStaffFromStore
 } from '../services/adminService';
-import { getContractTypes } from '../services/contractTypeService';
+import { getStoreOverview } from '../services/storeService';
+import { getContractTypes, createContractType } from '../services/contractTypeService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './AdminPage.css';
@@ -37,8 +37,7 @@ export default function AdminPage() {
   // Data States
   const [stores, setStores] = useState([]);
   const [users, setUsers] = useState([]);
-  const [managerAssignments, setManagerAssignments] = useState({});
-  const [storeStaffCounts, setStoreStaffCounts] = useState({});
+  const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -80,46 +79,23 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Stores
-      const storeRes = await getAllStores(0, 100);
-      let storeList = [];
-      if (storeRes && storeRes.data) {
-        storeList = Array.isArray(storeRes.data) ? storeRes.data : (storeRes.data.content || []);
-      }
-      setStores(storeList);
+      const [storeRes, userRes, overviewRes] = await Promise.allSettled([
+        getAllStores(0, 100),
+        getEmployees(0, 100),
+        getStoreOverview()
+      ]);
 
-      // 2. Fetch Users
-      const userRes = await getEmployees(0, 100);
-      let userList = [];
-      if (userRes && userRes.data) {
-        userList = Array.isArray(userRes.data) ? userRes.data : (userRes.data.content || []);
+      if (storeRes.status === 'fulfilled' && storeRes.value?.data) {
+        const storeList = Array.isArray(storeRes.value.data) ? storeRes.value.data : (storeRes.value.data.content || []);
+        setStores(storeList);
       }
-      setUsers(userList);
-
-      // 3. Fetch staff counts and manager assignments directly from backend
-      const counts = {};
-      const backendAssignments = {};
-      await Promise.allSettled(
-        storeList.map(async (st) => {
-          try {
-            const sRes = await getStaffByStore(st.id, 0, 100);
-            const list = sRes?.data?.content || sRes?.data || [];
-            counts[st.id] = list.length;
-            // Check if any employed staff is a manager
-            const mgr = list.find((emp) => 
-              emp.systemRole === 'MANAGER' || 
-              userList.find((u) => (u.id || u.staffId) === emp.staffId)?.systemRole === 'MANAGER'
-            );
-            if (mgr) {
-              backendAssignments[st.id] = mgr.staffId;
-            }
-          } catch {
-            counts[st.id] = 0;
-          }
-        })
-      );
-      setStoreStaffCounts(counts);
-      setManagerAssignments((prev) => ({ ...prev, ...backendAssignments }));
+      if (userRes.status === 'fulfilled' && userRes.value?.data) {
+        const userList = Array.isArray(userRes.value.data) ? userRes.value.data : (userRes.value.data.content || []);
+        setUsers(userList);
+      }
+      if (overviewRes.status === 'fulfilled' && overviewRes.value?.data) {
+        setOverview(overviewRes.value.data);
+      }
     } catch (err) {
       console.error('Failed to load admin data:', err);
       showToast('Lỗi tải dữ liệu', 'Không thể đồng bộ dữ liệu với máy chủ, vui lòng kiểm tra kết nối.', true);
@@ -140,36 +116,25 @@ export default function AdminPage() {
     });
   }, [users]);
 
-  // Map store to manager helper
-  const getStoreManager = (storeId) => {
-    const managerId = managerAssignments[storeId];
-    if (!managerId) return null;
-    return users.find(u => (u.id || u.staffId) === managerId) || null;
-  };
-
   // Map manager to assigned stores helper
   const getManagerAssignedStores = (managerId) => {
-    const assigned = [];
-    Object.entries(managerAssignments).forEach(([stId, mId]) => {
-      if (mId === managerId) {
-        const foundStore = stores.find(s => s.id === stId);
-        if (foundStore) assigned.push(foundStore);
-      }
-    });
-    return assigned;
+    return stores.filter(s =>
+      s.managers && s.managers.some(m => (m.id || m.staffId) === managerId)
+    );
   };
 
   // Statistics Computations
   const stats = useMemo(() => {
-    const totalStores = stores.length;
-    let assignedStoresCount = 0;
-    stores.forEach(s => {
-      if (managerAssignments[s.id]) assignedStoresCount++;
-    });
-    const unassignedStoresCount = totalStores - assignedStoresCount;
-    const totalManagers = managers.length;
-    const assignedManagersCount = managers.filter(m => getManagerAssignedStores(m.id || m.staffId).length > 0).length;
-    const totalUsers = users.length;
+    const totalStores = overview?.totalStores ?? stores.length;
+    const assignedStoresCount = overview?.assignedStoresCount ?? stores.filter(s => (s.managers && s.managers.length > 0) || (s.managerCount > 0)).length;
+    const unassignedStoresCount = overview?.unassignedStoresCount ?? (totalStores - assignedStoresCount);
+    const totalManagers = overview?.totalManagers ?? managers.length;
+    const assignedManagersCount = overview?.assignedManagersCount ?? managers.filter(m => {
+      const mId = m.id || m.staffId;
+      return stores.some(s => s.managers?.some(sm => (sm.id || sm.staffId) === mId));
+    }).length;
+    const unassignedManagersCount = overview?.unassignedManagersCount ?? (totalManagers - assignedManagersCount);
+    const totalUsers = overview?.totalUsers ?? users.length;
 
     return {
       totalStores,
@@ -177,85 +142,103 @@ export default function AdminPage() {
       unassignedStoresCount,
       totalManagers,
       assignedManagersCount,
+      unassignedManagersCount,
       totalUsers,
     };
-  }, [stores, managers, managerAssignments, users]);
+  }, [overview, stores, managers, users]);
 
   // Handle Assign Manager
-  const openAssignModal = (store) => {
-    setAssignStoreTarget(store);
-    const currentM = getStoreManager(store.id);
-    setSelectedManagerId(currentM ? (currentM.id || currentM.staffId) : '');
+  const openAssignModal = (store, defaultManagerId = null) => {
+    let target = store;
+    if (!target && stores.length > 0) {
+      target = stores[0];
+    }
+    setAssignStoreTarget(target);
+    setSelectedManagerId(defaultManagerId || '');
     setShowAssignModal(true);
   };
 
+  const openAssignModalForManager = (mgr) => {
+    const mId = mgr.id || mgr.staffId;
+    const assignedStores = getManagerAssignedStores(mId);
+    // Suggest first unassigned store or first store
+    const unassignedStore = stores.find(s => !s.managers || s.managers.length === 0);
+    const targetStore = unassignedStore || (assignedStores.length > 0 ? assignedStores[0] : (stores[0] || null));
+    openAssignModal(targetStore, mId);
+  };
+
   const handleSaveAssignment = async () => {
-    if (!assignStoreTarget) return;
+    if (!assignStoreTarget || !selectedManagerId) {
+      showToast('Thông báo', 'Vui lòng chọn Quản lý để phân công.', true);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const storeId = assignStoreTarget.id;
-      const newAssignments = { ...managerAssignments };
 
-      if (!selectedManagerId) {
-        const prevMgrId = managerAssignments[storeId];
-        if (prevMgrId) {
-          try {
-            await removeStaffFromStore(storeId, prevMgrId);
-          } catch (e) {
-            console.log('Remove staff notice:', e?.response?.data || e.message);
-          }
-        }
-        delete newAssignments[storeId];
-        setManagerAssignments(newAssignments);
-        setShowAssignModal(false);
-        showToast('Đã gỡ Quản lý', `Đã hủy phân công quản lý tại chi nhánh ${assignStoreTarget.name}.`);
-        loadData();
-        return;
-      }
-
-      newAssignments[storeId] = selectedManagerId;
-      setManagerAssignments(newAssignments);
-
-      // Backend employment sync
+      // 1. Đảm bảo store có ContractType
+      let contractTypeId = null;
       try {
         const ctRes = await getContractTypes(storeId).catch(() => null);
         const contractTypes = ctRes?.data || [];
-        const contractTypeId = contractTypes[0]?.id;
-        if (contractTypeId) {
-          await assignStaffToStore(storeId, {
-            staffId: selectedManagerId,
-            contractTypeId,
-            hourlyRate: 50000,
-            joinedDate: new Date().toISOString().slice(0, 10)
+        if (contractTypes.length > 0) {
+          contractTypeId = contractTypes[0]?.id;
+        } else {
+          // Store chưa có loại hợp đồng nào -> tự động tạo ContractType mặc định
+          const newCtRes = await createContractType(storeId, {
+            name: 'Toàn thời gian (Full-time)',
+            maxWeeklyHours: 48,
+            otMultiplier: 1.5,
+            defaultHourlyRate: 50000
           });
+          contractTypeId = newCtRes?.data?.id;
         }
-      } catch (e) {
-        console.log('Backend sync notice:', e?.response?.data || e.message);
+      } catch (ctErr) {
+        console.warn('Contract type init error:', ctErr);
+      }
+
+      if (!contractTypeId) {
+        throw new Error('Không thể khởi tạo loại hợp đồng cho chi nhánh. Vui lòng thử lại.');
+      }
+
+      // 2. Gán Quản lý vào chi nhánh
+      try {
+        await assignStaffToStore(storeId, {
+          staffId: selectedManagerId,
+          contractTypeId,
+          hourlyRate: 50000,
+          joinedDate: new Date().toISOString().slice(0, 10)
+        });
+      } catch (assignErr) {
+        if (assignErr?.response?.status !== 409) {
+          throw assignErr;
+        }
       }
 
       const assignedMgr = users.find(u => (u.id || u.staffId) === selectedManagerId);
       setShowAssignModal(false);
       showToast('Phân công thành công', `Đã phân công ${assignedMgr?.fullName || 'Quản lý'} phụ trách chi nhánh ${assignStoreTarget.name}.`);
-      loadData();
+      await loadData();
+    } catch (err) {
+      console.error('Lỗi khi phân công quản lý:', err);
+      showToast('Lỗi phân công', err?.response?.data?.message || err.message || 'Không thể lưu phân công quản lý vào hệ thống.', true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleRemoveManagerFromStore = async (storeId, storeName) => {
-    const mgrId = managerAssignments[storeId];
-    if (mgrId) {
-      try {
-        await removeStaffFromStore(storeId, mgrId);
-      } catch (e) {
-        console.log('Remove staff notice:', e?.response?.data || e.message);
-      }
+  const handleRemoveManagerFromStore = async (storeId, managerId, storeName, managerName) => {
+    setIsSubmitting(true);
+    try {
+      await removeStaffFromStore(storeId, managerId);
+      showToast('Đã gỡ Quản lý', `Đã gỡ Quản lý ${managerName || ''} khỏi chi nhánh "${storeName}".`);
+      await loadData();
+    } catch (err) {
+      console.error('Lỗi khi gỡ quản lý:', err);
+      showToast('Lỗi gỡ Quản lý', err?.response?.data?.message || 'Không thể gỡ quản lý khỏi chi nhánh.', true);
+    } finally {
+      setIsSubmitting(false);
     }
-    const newAssignments = { ...managerAssignments };
-    delete newAssignments[storeId];
-    setManagerAssignments(newAssignments);
-    showToast('Đã gỡ Quản lý', `Chi nhánh ${storeName} hiện đang để trống vị trí quản lý.`);
-    loadData();
   };
 
   // Handle Store Form (Create / Edit)
@@ -307,7 +290,26 @@ export default function AdminPage() {
         await updateStore(editingStore.id, payload);
         showToast('Cập nhật thành công', `Đã cập nhật chi nhánh "${payload.name}".`);
       } else {
-        await createStore(payload);
+        const createdRes = await createStore(payload);
+        const newStore = createdRes?.data;
+        if (newStore?.id) {
+          try {
+            await createContractType(newStore.id, {
+              name: 'Toàn thời gian (Full-time)',
+              maxWeeklyHours: 48,
+              otMultiplier: 1.5,
+              defaultHourlyRate: 50000
+            });
+            await createContractType(newStore.id, {
+              name: 'Bán thời gian (Part-time)',
+              maxWeeklyHours: 25,
+              otMultiplier: 1.5,
+              defaultHourlyRate: 35000
+            });
+          } catch (ctErr) {
+            console.warn('Auto create contract types error:', ctErr);
+          }
+        }
         showToast('Tạo mới thành công', `Đã tạo thêm chi nhánh "${payload.name}".`);
       }
       setShowStoreModal(false);
@@ -393,9 +395,6 @@ export default function AdminPage() {
     try {
       if (confirmDelete.type === 'store') {
         await deleteStore(confirmDelete.id);
-        const newMgrs = { ...managerAssignments };
-        delete newMgrs[confirmDelete.id];
-        setManagerAssignments(newMgrs);
         showToast('Đã xóa chi nhánh', `Chi nhánh ${confirmDelete.name} đã được gỡ bỏ khỏi hệ thống.`);
       } else if (confirmDelete.type === 'user') {
         await deleteEmployee(confirmDelete.id);
@@ -417,12 +416,12 @@ export default function AdminPage() {
         s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.address?.toLowerCase().includes(searchQuery.toLowerCase());
       
-      const hasManager = Boolean(managerAssignments[s.id]);
+      const hasManager = Boolean((s.managers && s.managers.length > 0) || (s.managerCount > 0));
       if (filterStoreStatus === 'ASSIGNED' && !hasManager) return false;
       if (filterStoreStatus === 'UNASSIGNED' && hasManager) return false;
       return matchesSearch;
     });
-  }, [stores, searchQuery, filterStoreStatus, managerAssignments]);
+  }, [stores, searchQuery, filterStoreStatus]);
 
   // Filtered Users
   const filteredUsers = useMemo(() => {
@@ -676,8 +675,8 @@ export default function AdminPage() {
               /* GRID CARD VIEW */
               <div className="adm-stores-grid">
                 {filteredStores.map((store) => {
-                  const manager = getStoreManager(store.id);
-                  const staffCount = storeStaffCounts[store.id] || 0;
+                  const storeMgrs = store.managers || [];
+                  const staffCount = store.staffCount ?? 0;
 
                   return (
                     <div key={store.id} className="adm-store-card">
@@ -715,34 +714,36 @@ export default function AdminPage() {
                       {/* Manager Section (Core Feature) */}
                       <div className="adm-store-mgr-box">
                         <div className="adm-store-mgr-label">
-                          <span>Quản Lý Phụ Trách</span>
-                          {manager && (
-                            <button
-                              type="button"
-                              className="adm-mgr-reassign-link"
-                              onClick={() => openAssignModal(store)}
-                            >
-                              Đổi Quản lý
-                            </button>
-                          )}
+                          <span>Quản Lý Phụ Trách ({storeMgrs.length})</span>
+                          <button
+                            type="button"
+                            className="adm-mgr-reassign-link"
+                            onClick={() => openAssignModal(store)}
+                          >
+                            + Bổ nhiệm Quản lý
+                          </button>
                         </div>
 
-                        {manager ? (
-                          <div className="adm-store-mgr-card">
-                            <Avatar3DWeb avatarId={manager.avatarId || getAvatarForEmployee(manager.fullName)} size={38} />
-                            <div className="adm-store-mgr-details">
-                              <div className="adm-store-mgr-name">{manager.fullName}</div>
-                              <div className="adm-store-mgr-email">{manager.email}</div>
-                              {manager.phone && (
-                                <div className="adm-store-mgr-phone">{manager.phone}</div>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              className="adm-mgr-unlink-btn"
-                              title="Gỡ Quản lý khỏi chi nhánh này"
-                              onClick={() => handleRemoveManagerFromStore(store.id, store.name)}
-                            >&times;</button>
+                        {storeMgrs.length > 0 ? (
+                          <div className="adm-store-mgr-list">
+                            {storeMgrs.map((mgr) => (
+                              <div key={mgr.id} className="adm-store-mgr-card">
+                                <Avatar3DWeb avatarId={mgr.avatarId || getAvatarForEmployee(mgr.fullName)} size={38} />
+                                <div className="adm-store-mgr-details">
+                                  <div className="adm-store-mgr-name">{mgr.fullName}</div>
+                                  <div className="adm-store-mgr-email">{mgr.email}</div>
+                                  {mgr.phone && (
+                                    <div className="adm-store-mgr-phone">{mgr.phone}</div>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="adm-mgr-unlink-btn"
+                                  title={`Gỡ ${mgr.fullName} khỏi chi nhánh này`}
+                                  onClick={() => handleRemoveManagerFromStore(store.id, mgr.id, store.name, mgr.fullName)}
+                                >&times;</button>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <div className="adm-store-unassigned-box">
@@ -792,8 +793,8 @@ export default function AdminPage() {
                   </thead>
                   <tbody>
                     {filteredStores.map((store) => {
-                      const manager = getStoreManager(store.id);
-                      const staffCount = storeStaffCounts[store.id] || 0;
+                      const storeMgrs = store.managers || [];
+                      const staffCount = store.staffCount ?? 0;
 
                       return (
                         <tr key={store.id}>
@@ -809,13 +810,23 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td>
-                            {manager ? (
-                              <div className="adm-table-mgr-flex">
-                                <Avatar3DWeb avatarId={manager.avatarId || getAvatarForEmployee(manager.fullName)} size={32} />
-                                <div>
-                                  <div className="adm-table-mgr-name">{manager.fullName}</div>
-                                  <div className="adm-table-mgr-sub">{manager.email}</div>
-                                </div>
+                            {storeMgrs.length > 0 ? (
+                              <div className="adm-table-mgr-list">
+                                {storeMgrs.map((mgr) => (
+                                  <div key={mgr.id} className="adm-table-mgr-flex">
+                                    <Avatar3DWeb avatarId={mgr.avatarId || getAvatarForEmployee(mgr.fullName)} size={28} />
+                                    <div>
+                                      <div className="adm-table-mgr-name">{mgr.fullName}</div>
+                                      <div className="adm-table-mgr-sub">{mgr.email}</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="adm-mgr-unlink-btn"
+                                      title={`Gỡ ${mgr.fullName}`}
+                                      onClick={() => handleRemoveManagerFromStore(store.id, mgr.id, store.name, mgr.fullName)}
+                                    >&times;</button>
+                                  </div>
+                                ))}
                               </div>
                             ) : (
                               <span className="adm-badge-warning">Chưa có Quản lý</span>
@@ -831,7 +842,7 @@ export default function AdminPage() {
                                 className="adm-btn adm-btn-xs adm-btn-assign"
                                 onClick={() => openAssignModal(store)}
                               >
-                                {manager ? 'Đổi Quản lý' : 'Phân công'}
+                                {storeMgrs.length > 0 ? '+ Thêm Quản lý' : 'Phân công'}
                               </button>
                               <button
                                 type="button"
@@ -922,12 +933,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           className="adm-btn adm-btn-sm adm-btn-outline"
-                          onClick={() => {
-                            if (stores.length > 0) {
-                              openAssignModal(stores[0]);
-                              setSelectedManagerId(mId);
-                            }
-                          }}
+                          onClick={() => openAssignModalForManager(mgr)}
                         >
                           Phân công chi nhánh
                         </button>
@@ -1028,6 +1034,30 @@ export default function AdminPage() {
             </div>
 
             <div className="adm-modal-body">
+              {/* Select Target Store Field */}
+              <div className="adm-form-group">
+                <label className="adm-form-label">
+                  Chi Nhánh Cần Phân Công:
+                </label>
+                <select
+                  value={assignStoreTarget?.id || ''}
+                  onChange={(e) => {
+                    const st = stores.find(s => s.id === e.target.value);
+                    if (st) {
+                      setAssignStoreTarget(st);
+                      setSelectedManagerId('');
+                    }
+                  }}
+                  className="adm-form-select"
+                >
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.managers?.length || 0} Quản lý)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Selected Store Card Preview */}
               <div className="adm-modal-store-preview">
                 <div>
@@ -1036,36 +1066,69 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Manager Select Field */}
+              {/* Current Managers of this Store */}
+              {assignStoreTarget?.managers && assignStoreTarget.managers.length > 0 ? (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                    Quản lý đang phụ trách ({assignStoreTarget.managers.length}):
+                  </div>
+                  <div className="adm-store-mgr-list">
+                    {assignStoreTarget.managers.map((m) => (
+                      <div key={m.id} className="adm-store-mgr-card">
+                        <Avatar3DWeb avatarId={m.avatarId || getAvatarForEmployee(m.fullName)} size={32} />
+                        <div className="adm-store-mgr-details">
+                          <div className="adm-store-mgr-name">{m.fullName}</div>
+                          <div className="adm-store-mgr-email">{m.email}</div>
+                        </div>
+                        <button
+                          type="button"
+                          className="adm-mgr-unlink-btn"
+                          title={`Gỡ ${m.fullName}`}
+                          onClick={async () => {
+                            await handleRemoveManagerFromStore(assignStoreTarget.id, m.id, assignStoreTarget.name, m.fullName);
+                            setShowAssignModal(false);
+                          }}
+                        >&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 16, fontSize: 12.5, color: '#b45309', background: '#fef3c7', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
+                  ⚠️ Chi nhánh này hiện chưa có Quản lý nào phụ trách.
+                </div>
+              )}
+
+              {/* Manager Select Field to Assign */}
               <div className="adm-form-group">
                 <label className="adm-form-label">
-                  Chọn Quản Lý Phụ Trách:
+                  Bổ Nhiệm Thêm Quản Lý Phụ Trách:
                 </label>
                 <select
                   value={selectedManagerId}
                   onChange={(e) => setSelectedManagerId(e.target.value)}
                   className="adm-form-select"
                 >
-                  <option value="">-- Để trống (Chưa bổ nhiệm Quản lý) --</option>
+                  <option value="">-- Chọn Quản lý từ danh sách --</option>
                   {managers.map((m) => {
                     const mId = m.id || m.staffId;
+                    const isAlreadyAssigned = assignStoreTarget?.managers?.some(sm => (sm.id || sm.staffId) === mId);
                     const assignedList = getManagerAssignedStores(mId);
-                    const isCurrent = managerAssignments[assignStoreTarget.id] === mId;
-                    const assignedText = isCurrent
-                      ? ' (Hiện đang phụ trách chi nhánh này)'
+                    const assignedText = isAlreadyAssigned
+                      ? ' (Đã phụ trách chi nhánh này)'
                       : assignedList.length > 0
                       ? ` (Đang phụ trách: ${assignedList.map(s => s.name).join(', ')})`
                       : ' (Sẵn sàng phân công)';
 
                     return (
-                      <option key={mId} value={mId}>
+                      <option key={mId} value={mId} disabled={isAlreadyAssigned}>
                         {m.fullName} - {m.email} {assignedText}
                       </option>
                     );
                   })}
                 </select>
                 <small className="adm-form-hint">
-                  Chỉ các tài khoản có vai trò <strong>MANAGER</strong> mới có quyền điều hành và duyệt ca tại chi nhánh.
+                  Một cửa hàng có thể có nhiều Quản lý cùng điều hành, và một Quản lý có thể phụ trách nhiều chi nhánh.
                 </small>
               </div>
 

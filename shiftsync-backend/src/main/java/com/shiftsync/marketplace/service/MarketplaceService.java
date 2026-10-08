@@ -46,8 +46,10 @@ public class MarketplaceService {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
-        if (shift.getStatus() != ShiftStatus.PUBLISHED) {
-            throw new BusinessException("Only PUBLISHED shifts can be published to Marketplace", HttpStatus.BAD_REQUEST);
+        if (shift.getStatus() == ShiftStatus.DRAFT) {
+            shift.setStatus(ShiftStatus.PUBLISHED);
+        } else if (shift.getStatus() != ShiftStatus.PUBLISHED) {
+            throw new BusinessException("Cancelled or completed shifts cannot be published to Marketplace", HttpStatus.BAD_REQUEST);
         }
         
         if (shift.isOpen()) {
@@ -58,6 +60,9 @@ public class MarketplaceService {
         int requiredCount = shift.getRequirements().stream()
                 .mapToInt(ShiftSkillRequirement::getRequiredCount)
                 .sum();
+        if (requiredCount == 0) {
+            requiredCount = Math.max(1, (int) shiftAssignmentRepository.countByShiftId(shiftId) + 1);
+        }
                 
         int assignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
         if (assignedCount >= requiredCount) {
@@ -71,19 +76,23 @@ public class MarketplaceService {
         }
         shiftRepository.save(shift);
 
-        // Hook FR-19: OPEN_SHIFT_AVAILABLE
+                // Hook FR-19: OPEN_SHIFT_AVAILABLE
         // Find all ACTIVE employments in store
         List<com.shiftsync.employment.entity.Employment> activeEmployments = 
-            employmentRepository.findByStoreIdAndStatus(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+            employmentRepository.findByStoreIdAndStatusAndUserSystemRole(storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF);
             
         java.util.Set<UUID> requiredSkillIds = shift.getRequirements().stream()
                 .map(r -> r.getSkill().getId())
                 .collect(java.util.stream.Collectors.toSet());
                 
+        java.util.List<UUID> staffIds = activeEmployments.stream().map(e -> e.getUser().getId()).toList();
+        java.util.Map<UUID, java.util.List<com.shiftsync.skill.entity.StaffSkill>> skillsMap = staffSkillRepository.findByStaffIdIn(staffIds)
+                .stream().collect(java.util.stream.Collectors.groupingBy(com.shiftsync.skill.entity.StaffSkill::getStaffId));
+                
         for (com.shiftsync.employment.entity.Employment emp : activeEmployments) {
             boolean eligible = true;
             if (!requiredSkillIds.isEmpty()) {
-                List<com.shiftsync.skill.entity.StaffSkill> staffSkills = staffSkillRepository.findByStaffId(emp.getUser().getId());
+                java.util.List<com.shiftsync.skill.entity.StaffSkill> staffSkills = skillsMap.getOrDefault(emp.getUser().getId(), java.util.Collections.emptyList());
                 boolean hasAnyRequired = staffSkills.stream()
                         .anyMatch(ss -> requiredSkillIds.contains(ss.getSkillId()) && 
                                        (ss.getExpirationDate() == null || !ss.getExpirationDate().isBefore(shift.getShiftDate())));
@@ -167,15 +176,25 @@ public class MarketplaceService {
                     .sum();
             int assignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
 
-            if (assignedCount >= requiredCount) {
+            if (requiredCount > 0 && assignedCount >= requiredCount) {
                 throw new BusinessException("Ca này đã có người nhanh tay nhận mất!", HttpStatus.CONFLICT);
             }
 
-            // Unified eligibility validation (skill, availability, blackout, leave, weekly hours, capacity)
-            shiftAssignmentValidator.validateEligibility(shift, staffId, false);
+            // Unified eligibility validation (skill, blackout, leave, weekly hours, capacity)
+            // Open Shift claim is voluntary by employee, bypassing recurring availability check
+            shiftAssignmentValidator.validateEligibility(shift, staffId, true);
 
             com.shiftsync.auth.entity.User staff = userRepository.findById(staffId)
                     .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
+
+            if (staff.getSystemRole() != null && staff.getSystemRole() != com.shiftsync.shared.security.SystemRole.STAFF) {
+                throw new BusinessException("Only users with role STAFF can claim shifts", HttpStatus.BAD_REQUEST);
+            }
+
+            boolean isActive = employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+            if (!isActive) {
+                throw new BusinessException("Employment Inactive: Staff does not work at this store or is suspended", HttpStatus.BAD_REQUEST);
+            }
 
             // Determine which skill requirement is missing
             List<ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shiftId);
@@ -203,7 +222,12 @@ public class MarketplaceService {
 
             // Close market if full
             assignedCount++;
-            if (assignedCount >= requiredCount) {
+            if (requiredCount > 0) {
+                if (assignedCount >= requiredCount) {
+                    shift.setOpen(false);
+                    shiftRepository.save(shift);
+                }
+            } else {
                 shift.setOpen(false);
                 shiftRepository.save(shift);
             }
@@ -218,5 +242,6 @@ public class MarketplaceService {
         }
     }
 }
+
 
 

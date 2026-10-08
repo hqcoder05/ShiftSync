@@ -44,4 +44,7 @@ public class UserCreateRequest {
 
     @Schema(description = "Optional list of skill IDs to assign to staff member upon creation")
     private List<UUID> skillIds;
+
+    @Schema(description = "Optional store ID to assign the staff member to upon creation")
+    private UUID storeId;
 }

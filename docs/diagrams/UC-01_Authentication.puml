@@ -1,0 +1,147 @@
+@startuml UC-01_Authentication
+' ==============================================================================
+' Diagram: UC-01 - Phân hệ Xác thực & Phân quyền (Authentication & Authorization)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' Bố cục phân định rõ ràng giữa Người dùng và Dịch vụ Hệ thống
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Người dùng\n(User / Staff / Manager / Admin)" as User
+actor "Quản trị viên\n(Admin)" as Admin
+actor "Máy chủ Redis\n(Session Store)" as Redis <<system>>
+actor "Firebase Cloud\nMessaging" as FCM <<system>>
+
+User -[hidden]right- Admin
+
+' ==============================================================================
+' PACKAGE: XÁC THỰC & PHÂN QUYỀN
+' ==============================================================================
+package "Phân hệ Xác thực & Phân quyền (UC-01)" as AuthPkg {
+
+    ' Khối 1: Đăng nhập & Quản lý Phiên
+    package "1. Quản lý Phiên & Đăng nhập" as SessionPkg {
+        usecase "<b>UC-01.2: Đăng nhập hệ thống</b>\n(Email & Password -> Cấp JWT)" as UC_Login <<focal>>
+        usecase "UC-01.3: Làm mới phiên đăng nhập\n(Refresh Token qua Redis)" as UC_Refresh
+        usecase "UC-01.4: Đăng xuất hệ thống\n(Vô hiệu hóa Refresh Token)" as UC_Logout
+        usecase "UC-01.6: Đăng ký thiết bị nhận thông báo\n(Register FCM Device Token)" as UC_DeviceToken
+    }
+
+    ' Khối 2: Quản lý Tài khoản & Hồ sơ
+    package "2. Tài khoản & Bảo mật cá nhân" as AccountPkg {
+        usecase "UC-01.1: Đăng ký / Tạo tài khoản\n(BCrypt Hash, Gán System Role)" as UC_Register
+        usecase "UC-01.5: Đổi mật khẩu cá nhân\n(Xác thực mật khẩu hiện tại)" as UC_ChangePwd
+        usecase "UC-01.7: Xem thông tin hồ sơ & quyền hạn\n(Profile & Role Permissions)" as UC_Profile
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ GIỮA CÁC USE CASE (INCLUDE / EXTEND)
+' ==============================================================================
+UC_Login .> UC_Refresh : <<include>>\n(Cấp RefreshToken 7 ngày)
+UC_Login .> UC_DeviceToken : <<extend>>\n(Khi đăng nhập Mobile)
+UC_Logout .> UC_Refresh : <<include>>\n(Hủy token trên Redis)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+User --> UC_Login
+User --> UC_Logout
+User --> UC_ChangePwd
+User --> UC_Profile
+
+Admin --> UC_Register
+
+' Liên kết System Actors
+UC_Login ..> Redis : Lưu trữ Refresh Token
+UC_Refresh ..> Redis : Đối soát tính hợp lệ
+UC_Logout ..> Redis : Xóa Refresh Token Key
+UC_DeviceToken ..> FCM : Đăng ký Token thiết bị
+
+note right of UC_Login
+  **Quy trình xác thực an toàn:**
+  - Định danh duy nhất bằng **Email**
+  - Mật khẩu mã hóa **BCrypt**
+  - Kiểm tra trạng thái tài khoản: `deleted = false`
+  - Sinh cặp **AccessToken** (HMAC-SHA256, 15m)
+    và **RefreshToken** (Redis, 7 ngày)
+end note
+
+note right of UC_Register
+  Chỉ **Admin** hoặc **Manager**
+  mới có quyền khởi tạo tài khoản
+  nhân sự mới vào chi nhánh.
+end note
+
+@enduml

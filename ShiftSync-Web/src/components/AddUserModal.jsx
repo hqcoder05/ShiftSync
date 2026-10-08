@@ -174,6 +174,11 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
       systemRole: targetRole,
     };
 
+    const activeStoreId = storeId || localStorage.getItem('selectedStoreId');
+    if (activeStoreId) {
+      payload.storeId = activeStoreId;
+    }
+
     // If STAFF, include selected skill IDs for atomic assignment
     if (targetRole === 'STAFF' && selectedSkills.length > 0) {
       payload.skillIds = selectedSkills.map((s) => s.id);

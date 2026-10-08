@@ -1,0 +1,170 @@
+@startuml UC-00_System_Overview
+' ==============================================================================
+' Diagram: UC-00 - Sơ đồ Use Case Tổng quan Toàn Hệ thống (ShiftSync)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' Bố cục phân tầng 3 Actor (Admin, Manager, Staff) kết nối các gói phân hệ chính
+' Triệt tiêu tối đa đường chéo (Zero Crossings) với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Background & Global Canvas
+skinparam backgroundColor #FFFFFF
+
+' Packages & Boundaries
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN NGƯỜI DÙNG (HUMAN ACTORS)
+' ==============================================================================
+actor "Quản trị viên\n(Admin)" as Admin
+actor "Quản lý cửa hàng\n(Manager)" as Manager
+actor "Nhân viên\n(Staff)" as Staff
+
+Admin -[hidden]right- Manager
+Manager -[hidden]right- Staff
+
+' ==============================================================================
+' HÀNG 1: XÁC THỰC & QUẢN TRỊ NỀN TẢNG (CHUNG CHO MỌI ROLE)
+' ==============================================================================
+package "1. Nền tảng & Quản trị Hệ thống" as PkgPlatform {
+    usecase "<b>UC-01: Xác thực & Phân quyền</b>\n(JWT, RBAC, Đổi mật khẩu)" as UC_Auth
+    usecase "UC-00.1: Quản trị chi nhánh & cấu hình\n(Store CRUD, GPS Geofence)" as UC_Store
+    usecase "UC-00.2: Quản lý người dùng\n(User Accounts & RBAC Assignment)" as UC_User
+}
+
+' ==============================================================================
+' HÀNG 2: VẬN HÀNH NHÂN SỰ & LẬP LỊCH TỰ ĐỘNG
+' ==============================================================================
+package "2. Quản lý Nhân sự & Điều phối Ca làm việc" as PkgWorkforce {
+    usecase "UC-02: Quản lý Hồ sơ & Kỹ năng\n(Contract, Skill Catalog, Availability)" as UC_Workforce
+    usecase "<b>UC-03: Lập kế hoạch & Xếp ca tự động</b>\n(Mô hình CSP + Hàm chấm điểm đa tiêu chí)" as UC_Scheduler <<focal>>
+    usecase "UC-04: Thị trường ca mở & Đổi ca\n(Khóa phân tán Redisson chống trùng)" as UC_Marketplace
+}
+
+' ==============================================================================
+' HÀNG 3: VẬN HÀNH THỰC ĐỊA, CHẤM CÔNG & LƯƠNG
+' ==============================================================================
+package "3. Thực thi Vận hành, Chấm công & Đãi ngộ" as PkgOperations {
+    usecase "<b>UC-05: Chấm công & Quản lý Nghỉ phép</b>\n(Live Selfie + GPS Haversine, Leave Approval)" as UC_Attendance <<focal>>
+    usecase "UC-06: Bảng lương & Xuất phiếu lương\n(Tính lương tự động, Ca đêm/Lễ, PDF Payslip)" as UC_Payroll
+    usecase "UC-07: Không gian 3D & Phân bổ trạm\n(Mô hình 3D, Thuật toán Max-Min Dispersion)" as UC_Spatial
+}
+
+' ==============================================================================
+' HÀNG 4: GIÁM SÁT & TRUYỀN THÔNG THỜI GIAN THỰC
+' ==============================================================================
+package "4. Giám sát & Thông tin Thời gian thực" as PkgMonitoring {
+    usecase "UC-08: Bảng điều khiển & Thông báo đẩy\n(KPI Dashboard, Realtime Attendance Cards, FCM)" as UC_Dashboard
+}
+
+' ==============================================================================
+' BOTTOM ROW: TÁC NHÂN HỆ THỐNG NGOẠI VI
+' ==============================================================================
+actor "Firebase Cloud\nMessaging" as FCM <<system>>
+actor "Redis In-Memory\n& Redisson Lock" as Redis <<system>>
+actor "Hệ thống GPS &\nCamera di động" as Device <<system>>
+
+FCM -[hidden]right- Redis
+Redis -[hidden]right- Device
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN -> CA SỬ DỤNG (THEO CỘT VÀ QUYỀN HẠN)
+' ==============================================================================
+' Admin: Quản trị hệ thống, cửa hàng, tài khoản, xem toàn cục
+Admin --> UC_Auth
+Admin --> UC_Store
+Admin --> UC_User
+Admin --> UC_Payroll
+
+' Manager: Quản trị chi nhánh, ca làm, nhân viên, 3D, duyệt đơn, tính lương
+Manager --> UC_Auth
+Manager --> UC_Store
+Manager --> UC_Workforce
+Manager --> UC_Scheduler
+Manager --> UC_Marketplace
+Manager --> UC_Attendance
+Manager --> UC_Payroll
+Manager --> UC_Spatial
+Manager --> UC_Dashboard
+
+' Staff: Đăng nhập, khai báo lịch rảnh, nhận ca mở, đổi ca, chấm công, xem lương
+Staff --> UC_Auth
+Staff --> UC_Workforce
+Staff --> UC_Marketplace
+Staff --> UC_Attendance
+Staff --> UC_Payroll
+Staff --> UC_Dashboard
+
+' Liên kết System Actors
+UC_Marketplace ..> Redis : <<use>> Khóa distributed
+UC_Attendance ..> Device : <<use>> Tọa độ & Live Photo
+UC_Dashboard ..> FCM : <<push>> Thông báo di động
+
+note bottom of UC_Scheduler
+  Động cơ xếp ca thỏa mãn 5 ràng buộc cứng (HC-01..HC-05)
+  và chấm điểm đa mục tiêu (Kỹ năng, Công bằng, Ưu tiên)
+end note
+
+@enduml

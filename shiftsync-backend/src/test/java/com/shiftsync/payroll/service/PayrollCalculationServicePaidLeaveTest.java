@@ -113,7 +113,7 @@ class PayrollCalculationServicePaidLeaveTest {
         lenient().when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         lenient().when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
         lenient().when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        lenient().when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        lenient().when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
         lenient().when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
         lenient().when(skillRepository.findByStoreId(any())).thenReturn(List.of());
     }
@@ -572,3 +572,5 @@ class PayrollCalculationServicePaidLeaveTest {
         assertEquals(new BigDecimal("80.00"), p.getTotalAmount());
     }
 }
+
+

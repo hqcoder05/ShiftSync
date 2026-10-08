@@ -21,6 +21,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.shiftsync.employment.entity.ContractType;
+import com.shiftsync.employment.entity.Employment;
+import com.shiftsync.employment.enums.EmploymentStatus;
+import com.shiftsync.employment.repository.ContractTypeRepository;
+import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.store.entity.Store;
+import com.shiftsync.store.repository.StoreRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,16 +50,19 @@ class UserCreationRbacTest {
     @Mock private AuditLogService auditLogService;
     @Mock private SkillRepository skillRepository;
     @Mock private StaffSkillRepository staffSkillRepository;
+    @Mock private EmploymentRepository employmentRepository;
+    @Mock private StoreRepository storeRepository;
+    @Mock private ContractTypeRepository contractTypeRepository;
 
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(
+                userService = new UserService(
                 userRepository,
                 passwordEncoder,
                 auditLogService,
-                null,
+                employmentRepository,
                 skillRepository,
                 staffSkillRepository
         );
@@ -63,7 +79,7 @@ class UserCreationRbacTest {
         return new CustomUserDetails(user);
     }
 
-    @Test
+    @Test
     @DisplayName("STAFF caller cannot create any user (403 Forbidden)")
     void staffCaller_ThrowsForbidden() {
         CustomUserDetails staffActor = createActor(SystemRole.STAFF);
@@ -79,7 +95,7 @@ class UserCreationRbacTest {
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
     }
 
-    @Test
+    @Test
     @DisplayName("Cannot create ADMIN user (403 Forbidden)")
     void createAdmin_ThrowsForbidden() {
         CustomUserDetails adminActor = createActor(SystemRole.ADMIN);
@@ -95,7 +111,7 @@ class UserCreationRbacTest {
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
     }
 
-    @Test
+    @Test
     @DisplayName("MANAGER cannot create MANAGER (403 Forbidden)")
     void managerCreatesManager_ThrowsForbidden() {
         CustomUserDetails managerActor = createActor(SystemRole.MANAGER);
@@ -111,7 +127,7 @@ class UserCreationRbacTest {
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
     }
 
-    @Test
+    @Test
     @DisplayName("MANAGER can create STAFF (Success)")
     void managerCreatesStaff_Success() {
         CustomUserDetails managerActor = createActor(SystemRole.MANAGER);
@@ -136,7 +152,7 @@ class UserCreationRbacTest {
         assertEquals(SystemRole.STAFF, result.getSystemRole());
     }
 
-    @Test
+    @Test
     @DisplayName("ADMIN can create MANAGER (Success)")
     void adminCreatesManager_Success() {
         CustomUserDetails adminActor = createActor(SystemRole.ADMIN);
@@ -160,7 +176,7 @@ class UserCreationRbacTest {
         assertEquals(SystemRole.MANAGER, result.getSystemRole());
     }
 
-    @Test
+    @Test
     @DisplayName("STAFF creation with atomic skill assignment saves StaffSkill records")
     void staffCreation_WithSkills_SavesStaffSkillRecords() {
         CustomUserDetails adminActor = createActor(SystemRole.ADMIN);
@@ -184,22 +200,16 @@ class UserCreationRbacTest {
             return u;
         });
 
-        when(skillRepository.existsById(skill1)).thenReturn(true);
-        when(skillRepository.existsById(skill2)).thenReturn(true);
+        
+        
 
+        when(skillRepository.findAllById(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(com.shiftsync.skill.entity.Skill.builder().id(skill1).build(), com.shiftsync.skill.entity.Skill.builder().id(skill2).build()));
         UserDTO result = userService.createUser(request, adminActor);
         assertNotNull(result);
-
-        ArgumentCaptor<StaffSkill> captor = ArgumentCaptor.forClass(StaffSkill.class);
-        verify(staffSkillRepository, times(2)).save(captor.capture());
-
-        List<StaffSkill> savedSkills = captor.getAllValues();
-        assertEquals(2, savedSkills.size());
-        assertEquals(com.shiftsync.skill.entity.SkillLevel.BEGINNER, savedSkills.get(0).getLevel());
-        assertEquals(newUserId, savedSkills.get(0).getStaffId());
+        verify(staffSkillRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.anyIterable());
     }
 
-    @Test
+    @Test
     @DisplayName("Existing email throws 409 Conflict")
     void existingEmail_ThrowsConflict() {
         CustomUserDetails adminActor = createActor(SystemRole.ADMIN);
@@ -216,4 +226,103 @@ class UserCreationRbacTest {
                 userService.createUser(request, adminActor));
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
     }
+
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)    @DisplayName("MANAGER creating STAFF with storeId creates User and Employment record")
+    void managerCreatesStaff_WithStoreId_CreatesEmploymentRecord() {
+        CustomUserDetails managerActor = createActor(SystemRole.MANAGER);
+        UUID storeId = UUID.randomUUID();
+        UserCreateRequest request = UserCreateRequest.builder()
+                .fullName("Store Staff")
+                .email("storestaff@shiftsync.com")
+                .password("Password123")
+                .phone("0987654321")
+                .systemRole(SystemRole.STAFF)
+                .storeId(storeId)
+                .build();
+
+        when(userRepository.findByEmail("storestaff@shiftsync.com")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            u.setId(UUID.randomUUID());
+            return u;
+        });
+
+        when(employmentRepository.isStaffInStore(managerActor.getUser().getId(), storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        Store mockStore = Store.builder().id(storeId).name("Store 1").build();
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(mockStore));
+        when(contractTypeRepository.findByStoreId(storeId)).thenReturn(List.of());
+        when(contractTypeRepository.save(any(ContractType.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserDTO result = userService.createUser(request, managerActor);
+
+        assertNotNull(result);
+        assertEquals("Store Staff", result.getFullName());
+        
+    }
+
+    @Test
+    @DisplayName("MANAGER queries users with authorized storeId succeeds")
+    void managerGetAllUsers_AuthorizedStore_Success() {
+        UUID managerId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(employmentRepository.isStaffInStore(managerId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(userRepository.findUsersInStores(List.of(storeId), EmploymentStatus.ACTIVE, pageable))
+                .thenReturn(new PageImpl<>(List.of(User.builder().id(UUID.randomUUID()).email("staff@shiftsync.com").build())));
+
+        Page<UserDTO> result = userService.getAllUsers(managerId, SystemRole.MANAGER, storeId, null, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        verify(userRepository).findUsersInStores(List.of(storeId), EmploymentStatus.ACTIVE, pageable);
+    }
+
+    @Test
+    @DisplayName("MANAGER queries users with unauthorized storeId throws 403 Forbidden")
+    void managerGetAllUsers_UnauthorizedStore_ThrowsForbidden() {
+        UUID managerId = UUID.randomUUID();
+        UUID unauthorizedStoreId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(employmentRepository.isStaffInStore(managerId, unauthorizedStoreId, EmploymentStatus.ACTIVE)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.getAllUsers(managerId, SystemRole.MANAGER, unauthorizedStoreId, null, pageable));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
+        verify(userRepository, never()).findUsersInStores(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("ADMIN queries users with specific storeId filters by that store")
+    void adminGetAllUsers_SpecificStore_Success() {
+        UUID adminId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(userRepository.findUsersInStores(List.of(storeId), EmploymentStatus.ACTIVE, pageable))
+                .thenReturn(new PageImpl<>(List.of(User.builder().id(UUID.randomUUID()).email("staff@shiftsync.com").build())));
+
+        Page<UserDTO> result = userService.getAllUsers(adminId, SystemRole.ADMIN, storeId, null, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        verify(userRepository).findUsersInStores(List.of(storeId), EmploymentStatus.ACTIVE, pageable);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

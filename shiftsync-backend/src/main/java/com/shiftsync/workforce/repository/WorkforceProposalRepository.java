@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface WorkforceProposalRepository extends JpaRepository<WorkforceProposal, UUID> {
     List<WorkforceProposal> findByStaffIdOrderByCreatedAtDesc(UUID staffId);
+    long countByWorkforceRequestIdAndStatus(UUID workforceRequestId, com.shiftsync.workforce.enums.WorkforceProposalStatus status);
 }

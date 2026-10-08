@@ -1,0 +1,154 @@
+@startuml UC-08_Dashboard_Notification
+' ==============================================================================
+' Diagram: UC-08 - Phân hệ Bảng điều khiển & Thông báo đẩy (Dashboard & Notification)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 3 Tầng: Dashboard KPI -> Hạ tầng Thông báo FCM/WebSocket -> Hộp thư cá nhân
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý / Admin\n(Manager / Admin)" as Manager
+actor "Firebase Cloud\nMessaging (FCM)" as FCM <<system>>
+actor "WebSocket STOMP\nBroker" as WS <<system>>
+actor "Nhân viên\n(Staff)" as Staff
+
+Manager -[hidden]right- FCM
+FCM -[hidden]right- WS
+WS -[hidden]right- Staff
+
+' ==============================================================================
+' KHỐI USE CASE
+' ==============================================================================
+package "Phân hệ Bảng điều khiển & Thông báo đẩy (UC-08)" as NotiDashboardPkg {
+
+    ' Tầng 1: Dashboard Vận hành & Giám sát Thời gian thực
+    package "1. Bảng điều khiển & Giám sát Vận hành Cửa hàng" as DashboardPkg {
+        usecase "UC-08.1: Xem chỉ số vận hành cửa hàng\n(KPI Dashboard: Tỷ lệ phủ ca, Chi phí lương, Giờ công)" as UC_KPI
+        usecase "UC-08.2: Theo dõi thẻ trạng thái nhân sự\n(Realtime Attendance Cards: Đang trực, Đi trễ, Vắng)" as UC_StatusCards
+        usecase "UC-08.4: Nhận cập nhật thời gian thực trên Web\n(STOMP over SockJS: /topic/shifts, /topic/attendance)" as UC_LiveUpdates
+    }
+
+    ' Tầng 2: Động cơ Thông báo Đẩy Đa kênh
+    package "2. Hạ tầng Thông báo Đẩy & Đa kênh (Notification Engine)" as PushPkg {
+        usecase "<b>UC-08.3: Gửi thông báo đẩy đến di động</b>\n(FCM Push: Lịch mới, Đổi ca, Phép duyệt, Nhắc chấm công)" as UC_SendPush <<focal>>
+        usecase "UC-08.7: Đăng ký mã thiết bị di động\n(Register Device FCM Token khi khởi chạy app)" as UC_RegisterDevice
+    }
+
+    ' Tầng 3: Tra cứu & Quản lý Hộp thư cá nhân
+    package "3. Hộp thư Thông báo & Tùy chọn Cá nhân" as InboxPkg {
+        usecase "UC-08.5: Cấu hình tùy chọn nhận thông báo\n(Preferences: Bật/Tắt push, Âm thanh, Lọc danh mục)" as UC_Preferences
+        usecase "UC-08.6: Tra cứu & Đánh dấu đã đọc thông báo\n(Notification Inbox & Mark as Read)" as UC_ViewInbox
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_KPI .> UC_LiveUpdates : <<include>>\n(Tự động đồng bộ số liệu)
+UC_StatusCards .> UC_LiveUpdates : <<include>>\n(Cập nhật thẻ chấm công)
+UC_SendPush .> UC_RegisterDevice : <<include>>\n(Cần device token hợp lệ)
+UC_ViewInbox .> UC_SendPush : <<extend>>\n(Lưu lịch sử thông báo vào DB)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_KPI
+Manager --> UC_StatusCards
+Manager --> UC_ViewInbox
+Manager --> UC_Preferences
+
+Staff --> UC_ViewInbox
+Staff --> UC_Preferences
+Staff --> UC_RegisterDevice
+
+UC_SendPush ..> FCM : Gửi gói tin Push Notification
+UC_LiveUpdates ..> WS : Lắng nghe tin nhắn WebSocket
+
+note bottom of UC_SendPush
+  **Các kịch bản gửi Push FCM tự động:**
+  - Khi lịch tuần được **Xuất bản** (`PUBLISHED`)
+  - Khi đồng nghiệp gửi yêu cầu **Đổi ca** (`SWAP_REQUEST`)
+  - Khi đơn **Nghỉ phép** được Quản lý phê duyệt/từ chối
+  - Nhắc nhở chấm công trước giờ vào ca 15 phút
+end note
+
+note bottom of UC_LiveUpdates
+  **Kênh truyền STOMP thời gian thực:**
+  - `/topic/stores/{storeId}/shifts`
+  - `/topic/stores/{storeId}/attendance`
+  - Giúp Dashboard cập nhật ngay lập tức
+    mà không cần tải lại trang (Zero Polling).
+end note
+
+@enduml

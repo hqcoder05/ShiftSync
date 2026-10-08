@@ -96,7 +96,7 @@ class HeadcountQuotaDemandRemediationTest {
         when(skillRepository.findById(baristaSkill.getId())).thenReturn(Optional.of(baristaSkill));
         when(skillRepository.findById(cashierSkill.getId())).thenReturn(Optional.of(cashierSkill));
         when(skillRepository.findById(waiterSkill.getId())).thenReturn(Optional.of(waiterSkill));
-        when(skillRepository.findByIdAndStoreId(baristaSkill.getId(), storeId)).thenReturn(Optional.of(baristaSkill));
+        when(skillRepository.findByIdAndStoreId(baristaSkill.getId(), storeId)).thenReturn(Optional.of(baristaSkill)); when(skillRepository.findAllById(org.mockito.ArgumentMatchers.anyIterable())).thenAnswer(inv -> { java.util.List<com.shiftsync.skill.entity.Skill> list = new java.util.ArrayList<>(); for(Object id: (Iterable)inv.getArgument(0)) { if (id.equals(baristaSkill.getId())) list.add(baristaSkill); if (id.equals(cashierSkill.getId())) list.add(cashierSkill); if (id.equals(waiterSkill.getId())) list.add(waiterSkill); } return list; });
     }
 
     @Test
@@ -567,3 +567,5 @@ class HeadcountQuotaDemandRemediationTest {
         assertEquals(0, shift.getRequirements().get(0).getRequiredCount());
     }
 }
+
+

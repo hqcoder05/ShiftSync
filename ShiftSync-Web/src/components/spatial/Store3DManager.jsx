@@ -344,6 +344,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
           zones={zones}
           staff={[]}
           storeName={storeName}
+          storeId={storeId}
         />
       </div>
 

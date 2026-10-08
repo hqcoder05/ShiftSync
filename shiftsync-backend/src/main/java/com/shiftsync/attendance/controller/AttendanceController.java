@@ -9,6 +9,7 @@ import com.shiftsync.shared.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -45,7 +46,7 @@ public class AttendanceController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody QrScanRequestDTO request) {
         Attendance attendance = attendanceService.scanQr(userDetails.getId(), request);
-        return ResponseEntity.ok(toDTO(attendance));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
     }
 
     @PostMapping(value = "/attendance/selfie", consumes = "multipart/form-data")
@@ -54,10 +55,11 @@ public class AttendanceController {
             @RequestParam UUID shiftId,
             @RequestParam double latitude,
             @RequestParam double longitude,
-            @RequestPart("photo") MultipartFile photo) throws java.io.IOException {
+            @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
+        byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
         Attendance attendance = attendanceService.submitSelfie(
-                userDetails.getId(), shiftId, latitude, longitude, photo.getBytes());
-        return ResponseEntity.ok(toDTO(attendance));
+                userDetails.getId(), shiftId, latitude, longitude, photoBytes);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
     }
 
     @GetMapping("/attendance/me")

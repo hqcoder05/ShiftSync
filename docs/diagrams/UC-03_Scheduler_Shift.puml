@@ -1,0 +1,154 @@
+@startuml UC-03_Scheduler_Shift
+' ==============================================================================
+' Diagram: UC-03 - Phân hệ Lập kế hoạch & Xếp ca tự động (Shift Scheduling)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 3 Tầng dọc: Thiết lập -> Động cơ CSP -> Xuất bản lịch tuần
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý cửa hàng\n(Manager)" as Manager
+actor "Động cơ Xếp ca CSP\n(AutoScheduleService)" as Engine <<system>>
+actor "Nhân viên\n(Staff)" as Staff
+
+Manager -[hidden]right- Engine
+Engine -[hidden]right- Staff
+
+' ==============================================================================
+' KHỐI USE CASE
+' ==============================================================================
+package "Phân hệ Lập kế hoạch & Xếp ca tự động (UC-03)" as SchedPkg {
+
+    ' Tầng 1: Thiết lập & Tạo ca làm
+    package "1. Lập Kế hoạch Nhu cầu & Tạo Ca mẫu" as PlanningPkg {
+        usecase "UC-03.1: Quản lý ca mẫu\n(Shift Templates CRUD & Yêu cầu kỹ năng)" as UC_Template
+        usecase "UC-03.2: Tạo ca làm việc theo tuần\n(Khởi tạo danh sách ca DRAFT)" as UC_CreateShifts
+    }
+
+    ' Tầng 2: Động cơ Xếp ca Tự động
+    package "2. Động cơ Phân công Thông minh (CSP Solver)" as AutoSchedPkg {
+        usecase "<b>UC-03.3: Tự động xếp ca làm việc</b>\n(CSP + Hàm chấm điểm đa tiêu chí)" as UC_AutoSched <<focal>>
+        usecase "UC-03.4: Kiểm tra 5 ràng buộc cứng\n(HC-01..HC-05: Skill, Avail, No-Overlap, Rest)" as UC_ValidateHC
+        usecase "UC-03.5: Cân bằng công bằng & độ phủ\n(Fairness & Preferred Hours Scoring)" as UC_Score
+    }
+
+    ' Tầng 3: Điều chỉnh & Xuất bản
+    package "3. Điều chỉnh, Đánh giá & Xuất bản Lịch" as PublishPkg {
+        usecase "UC-03.6: Điều chỉnh phân công thủ công\n(Manual Override & Xử lý ca thiếu người)" as UC_ManualAssign
+        usecase "UC-03.7: Xuất bản lịch làm việc chính thức\n(Publish Schedule: DRAFT -> PUBLISHED)" as UC_Publish
+        usecase "UC-03.8: Tra cứu lịch làm việc tuần\n(Xem lịch toàn chi nhánh / Lịch cá nhân)" as UC_ViewSchedule
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_CreateShifts .> UC_Template : <<include>>\n(Kế thừa khung giờ & kỹ năng)
+UC_AutoSched .> UC_ValidateHC : <<include>>\n(Lọc ứng viên hợp lệ)
+UC_AutoSched .> UC_Score : <<include>>\n(Chọn ứng viên tối ưu)
+UC_AutoSched .> UC_ManualAssign : <<extend>>\n(Khi có ca thiếu người)
+UC_Publish .> UC_ViewSchedule : <<include>>\n(Hiển thị lịch công khai)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_Template
+Manager --> UC_CreateShifts
+Manager --> UC_AutoSched
+Manager --> UC_ManualAssign
+Manager --> UC_Publish
+Manager --> UC_ViewSchedule
+
+Engine --> UC_ValidateHC
+Engine --> UC_Score
+
+Staff --> UC_ViewSchedule
+
+note right of UC_ValidateHC
+  **5 Ràng buộc cứng (Hard Constraints):**
+  - **HC-01:** Đúng kỹ năng và chứng chỉ còn hạn
+  - **HC-02:** Nằm trọn trong khung giờ rảnh (Availability)
+  - **HC-03:** Không trùng lặp ca làm việc cùng ngày
+  - **HC-04:** Không vượt quá giờ làm tuần (Contract Max)
+  - **HC-05:** Đảm bảo tối thiểu 11h nghỉ ngơi giữa 2 ca
+end note
+
+note right of UC_Publish
+  Khi Quản lý bấm **Xuất bản lịch**:
+  - Trạng thái ca: `DRAFT` -> `PUBLISHED`
+  - Kích hoạt sự kiện gửi thông báo Push
+    qua Firebase FCM đến toàn bộ nhân viên
+end note
+
+@enduml

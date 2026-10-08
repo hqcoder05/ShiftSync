@@ -256,6 +256,7 @@ public class LeaveRequestServiceTest {
                 .id(leaveId)
                 .store(store)
                 .staff(staff)
+                .startDate(LocalDate.now().plusDays(2))
                 .status(LeaveStatus.PENDING)
                 .build();
 
@@ -339,5 +340,33 @@ public class LeaveRequestServiceTest {
 
         verify(leaveBalanceService).reverseAnnualLeave(eq(storeId), eq(staffId), eq(startDate.getYear()), eq(2));
         verify(leaveRequestRepository).delete(leaveRequest);
+    }
+
+    @Test
+    void testCancelLeaveRequest_ExceptionNotSwallowed() {
+        UUID storeId = UUID.randomUUID();
+        UUID leaveId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        User staff = User.builder().id(staffId).build();
+        com.shiftsync.store.entity.Store storeObj = new com.shiftsync.store.entity.Store();
+        storeObj.setId(storeId);
+        LeaveRequest leaveReq = LeaveRequest.builder()
+                .id(leaveId)
+                .store(storeObj)
+                .staff(staff)
+                .status(LeaveStatus.APPROVED)
+                .startDate(java.time.LocalDate.now().plusDays(1)) // Ensure it is not in the past
+                .endDate(java.time.LocalDate.now().plusDays(2))
+                .build();
+
+
+        when(leaveRequestRepository.findById(leaveId)).thenReturn(Optional.of(leaveReq));
+        org.mockito.Mockito.doThrow(new RuntimeException("Database error"))
+                .when(blackoutDateRepository).deleteByLeaveRequestId(leaveId);
+
+        RuntimeException ex = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () ->
+                leaveRequestService.cancelLeaveRequest(storeId, leaveId, staffId));
+
+        org.junit.jupiter.api.Assertions.assertEquals("Database error", ex.getMessage());
     }
 }

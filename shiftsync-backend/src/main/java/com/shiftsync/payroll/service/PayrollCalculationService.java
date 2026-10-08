@@ -59,7 +59,18 @@ public class PayrollCalculationService {
         }
 
         
-        java.util.Optional<PayrollPeriod> existingOpt = payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(storeId, startDate, endDate);
+        java.util.List<PayrollPeriod> overlaps = payrollPeriodRepository.findOverlappingPeriods(storeId, startDate, endDate);
+        java.util.Optional<PayrollPeriod> existingOpt = java.util.Optional.empty();
+
+        for (PayrollPeriod overlap : overlaps) {
+            if (overlap.getStartDate().equals(startDate) && overlap.getEndDate().equals(endDate)) {
+                existingOpt = java.util.Optional.of(overlap);
+            } else {
+                throw new BusinessException(String.format("Requested period (%s to %s) overlaps with existing period (%s to %s).",
+                        startDate, endDate, overlap.getStartDate(), overlap.getEndDate()), HttpStatus.CONFLICT);
+            }
+        }
+
         if (existingOpt.isPresent()) {
             com.shiftsync.payroll.enums.PayrollPeriodStatus currentStatus = existingOpt.get().getStatus();
             if (currentStatus == com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID) {
@@ -101,9 +112,7 @@ public class PayrollCalculationService {
                 .stream().collect(Collectors.toMap(com.shiftsync.skill.entity.Skill::getId, s -> s));
 
         // 3. Fetch employments (Active STAFF only - managers do not receive shift-based hourly payroll)
-        List<Employment> employments = employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE).stream()
-                .filter(e -> e.getUser().getSystemRole() == com.shiftsync.shared.security.SystemRole.STAFF)
-                .toList();
+        List<Employment> employments = employmentRepository.findByStoreIdAndStatusAndUserSystemRole(storeId, EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF);
         
         // 4. Bulk Fetch ShiftAssignments and Attendances to avoid N+1
         List<ShiftAssignment> allAssignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
@@ -349,14 +358,9 @@ public class PayrollCalculationService {
                         totalAcc.addSegment(day2Hours, day2, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
                     }
                 } else if (assignment.getShift() != null) {
-                    // Fallback to scheduled shift hours ONLY IF this date was not an approved leave date
-                    day1 = assignment.getShift().getShiftDate();
-                    if (!allApprovedLeaveDates.contains(day1)) {
-                        java.time.LocalTime st = assignment.getShift().getStartTime();
-                        java.time.LocalTime et = assignment.getShift().getEndTime();
-                        durationHours = (et.isAfter(st) ? Duration.between(st, et) : Duration.between(st, et.plusHours(24))).toMinutes() / 60.0;
-                        totalAcc.addSegment(durationHours, day1, maxWeeklyHours, shiftHourlyRate, holidayMap, emp.getContractType().getOtMultiplier());
-                    }
+                    // Fallback to scheduled shift hours is REMOVED to prevent no-show employees from receiving pay.
+                    // If Attendance is missing or incomplete (missing check-out), and it is not an approved leave date,
+                    // the employee receives 0 worked hours. Approved paid leave is already handled separately above.
                 }
             }
         }

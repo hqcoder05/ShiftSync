@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
 import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
+import { requestFcmToken } from '../config/firebase';
+import { registerFcmToken } from '../services/notificationService';
 import './LoginPage.css';
 
 const LogoIcon = ({ size = 36, color = '#16A34A' }) => (
@@ -82,11 +84,19 @@ export default function LoginPage() {
       const token = res.accessToken;
       localStorage.setItem('token', token);
       localStorage.setItem('accessToken', token);
+      if (res.refreshToken) localStorage.setItem('refreshToken', res.refreshToken);
       if (res.role) localStorage.setItem('userRole', res.role);
       if (res.email) localStorage.setItem('userEmail', res.email);
       localStorage.removeItem('selectedStoreId');
 
       setMascotStatus('success');
+      // Xin quyền và lấy FCM Token gửi lên Backend ngầm
+      requestFcmToken().then((fcmToken) => {
+        if (fcmToken) {
+          registerFcmToken(fcmToken).catch((e) => console.log('[FCM Web Register Error]:', e));
+        }
+      }).catch((e) => console.log('[FCM Web Permission Error]:', e));
+
       setTimeout(() => {
         navigate('/');
       }, 1000);
@@ -233,17 +243,17 @@ export default function LoginPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
               <button
                 type="button"
-                onClick={() => handleQuickFill('manager@shiftsync.com')}
+                onClick={() => handleQuickFill('manager.pvd@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                🏢 <strong>QL Chi nhánh 1</strong><br /><span style={{ color: '#64748b' }}>manager@shiftsync.com</span>
+                🏢 <strong>QL Phạm Văn Đồng</strong><br /><span style={{ color: '#64748b' }}>manager.pvd@...</span>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('manager.store2@shiftsync.com')}
+                onClick={() => handleQuickFill('manager.lm81@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                🏬 <strong>QL Chi nhánh 2</strong><br /><span style={{ color: '#64748b' }}>manager.store2@...</span>
+                🏬 <strong>QL Landmark 81</strong><br /><span style={{ color: '#64748b' }}>manager.lm81@...</span>
               </button>
               <button
                 type="button"
@@ -254,17 +264,24 @@ export default function LoginPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('emp01@shiftsync.com')}
+                onClick={() => handleQuickFill('pvd.staff01@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                👤 <strong>Nhân viên</strong><br /><span style={{ color: '#64748b' }}>emp01@shiftsync.com</span>
+                👤 <strong>Nhân viên PVD</strong><br /><span style={{ color: '#64748b' }}>pvd.staff01@...</span>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickFill('emp30@shiftsync.com')}
+                onClick={() => handleQuickFill('lm81.staff01@shiftsync.com')}
+                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
+              >
+                👤 <strong>Nhân viên LM81</strong><br /><span style={{ color: '#64748b' }}>lm81.staff01@...</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('pvd.staff02@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', textAlign: 'left' }}
               >
-                🆕 <strong>NV (Chưa đ/k rảnh)</strong><br /><span style={{ color: '#92400e' }}>emp30@shiftsync.com</span>
+                🆕 <strong>NV Thu ngân</strong><br /><span style={{ color: '#92400e' }}>pvd.staff02@...</span>
               </button>
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '6px' }}>

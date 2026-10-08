@@ -592,6 +592,36 @@
   text-decoration: underline;
 }
 
+.adm-store-mgr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.adm-store-mgr-add-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--adm-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0 0;
+  text-decoration: none;
+}
+
+.adm-store-mgr-add-link:hover {
+  text-decoration: underline;
+}
+
+.adm-table-mgr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .adm-store-mgr-card {
   display: flex;
   align-items: center;

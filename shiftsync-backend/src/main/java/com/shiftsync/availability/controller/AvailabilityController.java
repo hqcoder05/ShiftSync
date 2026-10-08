@@ -64,8 +64,8 @@ public class AvailabilityController {
     }
 
     @GetMapping("/users/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
-    @Operation(summary = "Get staff availability by user ID (Manager/Admin)", description = "Fetches all declared free time slots for a specific staff member.")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canManagerAccessUser(authentication, #userId)) or (hasRole('STAFF') and authentication.principal.id == #userId)")
+    @Operation(summary = "Get staff availability by user ID", description = "Fetches all declared free time slots for a specific staff member.")
     @ApiResponse(responseCode = "200", description = "List retrieved successfully")
     public ResponseEntity<List<AvailabilityResponse>> getStaffAvailability(@PathVariable UUID userId) {
         List<AvailabilityResponse> responses = availabilityService.getStaffAvailability(userId);

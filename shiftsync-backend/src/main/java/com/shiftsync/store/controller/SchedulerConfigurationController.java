@@ -28,7 +28,7 @@ public class SchedulerConfigurationController {
     private final SchedulerConfigurationRepository repository;
 
     @Operation(summary = "Get scheduler configuration weights for store")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping
     public ResponseEntity<SchedulerConfigurationDTO> getConfig(@PathVariable UUID storeId) {
         SchedulerConfiguration config = repository.findByStoreId(storeId)
@@ -55,7 +55,7 @@ public class SchedulerConfigurationController {
     }
 
     @Operation(summary = "Update scheduler configuration weights")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PutMapping
     public ResponseEntity<SchedulerConfigurationDTO> updateConfig(
             @PathVariable UUID storeId,

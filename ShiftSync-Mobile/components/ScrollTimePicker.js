@@ -53,7 +53,7 @@ export default function ScrollTimePicker({ value, onChange, onDone }) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.highlightBand} pointerEvents="none" />
+      <View style={styles.highlightBand} />
       <View style={styles.columns}>
         <Column data={hours} selectedValue={hh} onChange={setHour} />
         <Text style={styles.colon}>:</Text>
@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     height: ITEM_HEIGHT,
     backgroundColor: '#F0EFEF',
     borderRadius: 8,
+    pointerEvents: 'none',
   },
   colon: { fontSize: 20, fontWeight: '600', color: '#333', marginHorizontal: 4 },
   itemBox: { height: ITEM_HEIGHT, width: 60, alignItems: 'center', justifyContent: 'center' },

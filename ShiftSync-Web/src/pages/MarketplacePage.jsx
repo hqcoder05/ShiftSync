@@ -151,6 +151,12 @@ export default function MarketplacePage() {
   const [claimLoadingId, setClaimLoadingId] = useState(null);
   const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [search, setSearch] = useState('');
+  const [showCreateSwapModal, setShowCreateSwapModal] = useState(false);
+  const [swapMyShiftId, setSwapMyShiftId] = useState('');
+  const [swapTargetStaffId, setSwapTargetStaffId] = useState('');
+  const [swapTargetShiftId, setSwapTargetShiftId] = useState('');
+  const [swapReason, setSwapReason] = useState('');
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [toast, setToast] = useState('');
 
   // URL Tab parsing & synchronization
@@ -235,6 +241,7 @@ export default function MarketplacePage() {
   };
 
   const userRole = (localStorage.getItem('userRole') || 'MANAGER').toUpperCase();
+  const myProfile = { id: localStorage.getItem('userId') };
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
 
   // 1. Fetch Stores
@@ -296,11 +303,11 @@ export default function MarketplacePage() {
       }),
       getStaffByStore(storeId, 0, 100).catch(() => ({ data: [] })),
       getRequests().catch(() => []),
-      getPositions(storeId).catch(() => []),
-      getStoreSwapRequests(storeId).catch(() => ({ data: [] })),
-      getStoreAdjustmentRequests(storeId).catch(() => ({ data: [] })),
-      getIncomingWorkforceRequests(storeId).catch(() => ({ data: [] })),
-      getOutgoingWorkforceRequests(storeId).catch(() => ({ data: [] })),
+      isManager ? getPositions(storeId).catch(() => []) : Promise.resolve([]),
+      isManager ? getStoreSwapRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      isManager ? getStoreAdjustmentRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      isManager ? getIncomingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      isManager ? getOutgoingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ])
       .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes, adjRes, incWfRes, outWfRes]) => {
         const mpList = Array.isArray(mpRes.data) ? mpRes.data : (mpRes.data?.content || []);
@@ -726,6 +733,40 @@ export default function MarketplacePage() {
   };
 
   // 15. Real Swap Actions (Approve & Reject)
+  const handleCreateSwapSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!swapMyShiftId || !swapTargetStaffId || !swapTargetShiftId) {
+      showToast('Vui lòng chọn ca của bạn, đồng nghiệp, và ca của đồng nghiệp.', 'Thiếu thông tin', 'warning');
+      return;
+    }
+    setSwapSubmitting(true);
+    try {
+      const targetColleague = employees.find(
+        (emp) => String(emp.id || emp.staffId) === String(swapTargetStaffId)
+      );
+      await createSwapRequest({
+        fromShiftId: swapMyShiftId,
+        toStaffId: swapTargetStaffId,
+        toShiftId: swapTargetShiftId,
+        reason: swapReason || `Đề xuất đổi ca làm việc với ${targetColleague?.fullName || 'đồng nghiệp'}`,
+      });
+
+      showToast(`Đã gửi yêu cầu đổi ca tới bạn ${targetColleague?.fullName || 'đồng nghiệp'}!`, 'Gửi yêu cầu thành công', 'success');
+      setShowCreateSwapModal(false);
+      setSwapMyShiftId('');
+      setSwapTargetStaffId('');
+      setSwapTargetShiftId('');
+      setSwapReason('');
+      await loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      console.error(err);
+      showToast(`Lỗi gửi yêu cầu đổi ca: ${err.response?.data?.message || err.message}`, 'Lỗi', 'error');
+    } finally {
+      setSwapSubmitting(false);
+    }
+  };
+
   const handleApproveSwap = async (req) => {
     if (!req?.id) return;
     if (req.isShiftSwap && !req.employeeAccepted) {
@@ -1607,6 +1648,25 @@ export default function MarketplacePage() {
 
           {/* Tab 2: Yêu Cầu Hoán Đổi Ca Chờ Duyệt (100% Dynamic từ Backend) */}
           {activeTab === 'SWAP' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Danh sách yêu cầu đổi ca</h3>
+                <button
+                  type="button"
+                  className="mp-btn-urgent-primary"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onClick={() => setShowCreateSwapModal(true)}
+                >
+                  <span>⇄</span> Tạo yêu cầu đổi ca
+                </button>
+              </div>
             <div className="mp-table-card">
               {allSwapRequests.length === 0 ? (
                 <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
@@ -1746,7 +1806,8 @@ export default function MarketplacePage() {
                 </table>
               )}
             </div>
-          )}
+          </>
+            )}
 
           {/* Tab 3: Mượn Nhân Sự Liên Chi Nhánh (/workforce-requests) */}
           {activeTab === 'WORKFORCE' && (
@@ -2400,6 +2461,67 @@ export default function MarketplacePage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Swap Modal */}
+      {showCreateSwapModal && (
+        <div className="mp-modal-backdrop" onClick={() => setShowCreateSwapModal(false)}>
+          <div className="mp-modal-card" style={{ maxWidth: '580px', width: '92%', borderRadius: '18px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="mp-modal-header">
+              <div>
+                <h3 className="mp-modal-title">Tạo yêu cầu hoán đổi ca làm (Shift Swap)</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>Gửi đề xuất hoán đổi ca làm việc trực tiếp tới đồng nghiệp trong chi nhánh</p>
+              </div>
+              <button type="button" className="mp-modal-close-btn" onClick={() => setShowCreateSwapModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateSwapSubmit}>
+              <div className="mp-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>1. Chọn ca làm việc của bạn cần đổi <span style={{ color: '#ef4444' }}>*</span></label>
+                  <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapMyShiftId} onChange={(e) => setSwapMyShiftId(e.target.value)} required>
+                    <option value="">-- Chọn ca làm việc của bạn --</option>
+                    {storeShifts.filter(s => s.shiftAssignments?.some(a => String(a.staffId) === String(myProfile?.id || myProfile?.staffId))).map((s) => (
+                      <option key={s.id} value={s.id}>{s.shiftDate} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}) - {s.primarySkill}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2. Chọn đồng nghiệp đề xuất đổi ca <span style={{ color: '#ef4444' }}>*</span></label>
+                  <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetStaffId} onChange={(e) => setSwapTargetStaffId(e.target.value)} required>
+                    <option value="">-- Chọn đồng nghiệp --</option>
+                    {employees.filter(e => !myProfile || String(e.staffId || e.id) !== String(myProfile.id || myProfile.staffId)).map((e) => (
+                      <option key={e.id} value={e.staffId}>{e.staffFullName || e.fullName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {swapTargetStaffId && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2.5 Chọn ca của đồng nghiệp để đổi <span style={{ color: '#ef4444' }}>*</span></label>
+                    <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetShiftId} onChange={(e) => setSwapTargetShiftId(e.target.value)} required>
+                      <option value="">-- Chọn ca của đồng nghiệp --</option>
+                      {storeShifts.filter(s => s.shiftAssignments?.some(a => String(a.staffId) === String(swapTargetStaffId))).map((s) => (
+                        <option key={s.id} value={s.id}>{s.shiftDate} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}) - {s.primarySkill}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>3. Lý do đổi ca (Tùy chọn)</label>
+                  <textarea className="mp-input" rows={3} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px', resize: 'vertical' }} value={swapReason} onChange={(e) => setSwapReason(e.target.value)} placeholder="Nhập lý do đổi ca..." />
+                </div>
+
+              </div>
+              <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 24px', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '10px', borderBottomLeftRadius: '18px', borderBottomRightRadius: '18px' }}>
+                <button type="button" className="mp-btn-action-reject" style={{ padding: '9px 18px', borderRadius: '8px' }} onClick={() => setShowCreateSwapModal(false)} disabled={swapSubmitting}>Hủy bỏ</button>
+                <button type="submit" className="mp-btn-action-approve" style={{ padding: '9px 18px', borderRadius: '8px', background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 600 }} disabled={swapSubmitting || !swapMyShiftId || !swapTargetStaffId || !swapTargetShiftId}>{swapSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu đổi ca'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

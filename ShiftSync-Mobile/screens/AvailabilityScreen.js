@@ -3,6 +3,7 @@ import {
   View, Text, Switch, ScrollView, TouchableOpacity,
   StyleSheet, Alert, SafeAreaView,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import {
   getMyAvailability,
   createAvailability,
@@ -103,7 +104,7 @@ export default function AvailabilityScreen({ navigation }) {
   };
 
   const handleDeleteSlot = (slot) => {
-    Alert.alert(
+    showAlert(
       'Xác nhận xóa',
       'Bạn có chắc muốn xóa khung giờ rảnh này không?',
       [
@@ -118,10 +119,10 @@ export default function AvailabilityScreen({ navigation }) {
               if (editingSlot?.id === slot.id) {
                 handleCancelEdit();
               }
-              Alert.alert('Thành công', 'Đã xóa lịch rảnh thành công.');
+              showAlert('Thành công', 'Đã xóa lịch rảnh thành công.');
               loadAvailability();
             } catch (err) {
-              Alert.alert('Lỗi', err.response?.data?.message || 'Không thể xóa lịch rảnh.');
+              showAlert('Lỗi', err.response?.data?.message || 'Không thể xóa lịch rảnh.');
             } finally {
               setLoading(false);
             }
@@ -139,11 +140,11 @@ export default function AvailabilityScreen({ navigation }) {
 
       if (editingSlot) {
         await updateAvailability(editingSlot.id, selectedDay, finalStart, finalEnd);
-        Alert.alert('Thành công! 🎉', 'Đã cập nhật khung giờ rảnh. Lịch trên web cũng đã được đồng bộ!');
+        showAlert('Thành công! 🎉', 'Đã cập nhật khung giờ rảnh. Lịch trên web cũng đã được đồng bộ!');
         handleCancelEdit();
       } else {
         await createAvailability(selectedDay, finalStart, finalEnd);
-        Alert.alert(
+        showAlert(
           'Đăng ký thành công! 🎉',
           'Khung giờ rảnh của bạn đã được gửi đến Quản lý. Khi Quản lý duyệt và phân công ca, ca làm việc sẽ hiển thị ngay trên ứng dụng của bạn.',
           [
@@ -157,7 +158,7 @@ export default function AvailabilityScreen({ navigation }) {
       const status = err.response?.status;
       const msg = err.response?.data?.message
         || (status === 401 || status === 403 ? 'Chưa đăng nhập hoặc phiên đăng nhập hết hạn' : 'Thao tác thất bại');
-      Alert.alert('Lỗi', msg);
+      showAlert('Lỗi', msg);
       console.log('Chi tiết lỗi:', status, err.response?.data);
     } finally {
       setLoading(false);
@@ -369,7 +370,7 @@ export default function AvailabilityScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingBottom: 60 },
+  content: { padding: 20, paddingBottom: 110 },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,0 +1,181 @@
+@startuml UC-05_Attendance_Leave
+' ==============================================================================
+' Diagram: UC-05 - Phân hệ Chấm công & Quản lý Nghỉ phép (ShiftSync)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu chèn file Word/Báo cáo A4
+' Cấu trúc 2 cột song song (Left: Staff | Right: Manager), luồng từ trên xuống
+' => ĐẢM BẢO TUYỆT ĐỐI KHÔNG CHỒNG CHÉO ĐƯỜNG NỐI (Zero Line Crossings)
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Background & Global Canvas
+skinparam backgroundColor #FFFFFF
+
+' Packages & Boundaries
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors (Top Left & Top Right)
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case (Điểm nhấn theo diagram-design)
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10.5
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN (ACTORS) - XẾP NGANG ĐỈNH BẢNG
+' ==============================================================================
+actor "Nhân viên\n(Staff)" as Staff
+actor "Quản lý\n(Manager)" as Manager
+actor "Hệ thống Thiết bị\n(GPS & Camera)" as Device <<system>>
+actor "Firebase Cloud\nMessaging" as FCM <<system>>
+
+' Khóa vị trí hàng trên cùng: Staff (trái) -> Device -> FCM -> Manager (phải)
+Staff -[hidden]right- Device
+Device -[hidden]right- FCM
+FCM -[hidden]right- Manager
+
+' ==============================================================================
+' KHỐI 1 (TRÊN): PHÂN HỆ CHẤM CÔNG (ATTENDANCE)
+' ==============================================================================
+package "1. Phân hệ Chấm công (Attendance Management)" as PkgAttendance {
+    ' Cột trái: Nghiệp vụ Nhân viên
+    usecase "<b>UC-05.1: Điểm danh vào ca</b>\n(Live Selfie + GPS Haversine)" as UC_051 <<focal>>
+    usecase "UC-05.2: Điểm danh ra ca\n(Check-out)" as UC_052
+    usecase "UC-05.3: Tra cứu lịch sử\nchấm công cá nhân" as UC_053
+
+    ' Cột phải: Nghiệp vụ Quản lý
+    usecase "UC-05.4: Giám sát bảng chấm công\ncửa hàng theo ngày/kỳ" as UC_054
+    usecase "UC-05.5: Hiệu chỉnh & xóa\nbản ghi chấm công" as UC_055
+
+    ' Định hình 2 cột thẳng đứng không giao nhau
+    UC_051 -[hidden]down-> UC_052
+    UC_052 -[hidden]down-> UC_053
+    UC_054 -[hidden]down-> UC_055
+    UC_051 -[hidden]right- UC_054
+}
+
+' ==============================================================================
+' KHỐI 2 (DƯỚI): PHÂN HỆ NGHỈ PHÉP (LEAVE MANAGEMENT)
+' ==============================================================================
+package "2. Phân hệ Quản lý Nghỉ phép (Leave Management)" as PkgLeave {
+    ' Cột trái: Nghiệp vụ Nhân viên
+    usecase "<b>UC-05.6: Nộp đơn xin nghỉ phép</b>\n(SICK, ANNUAL, UNPAID...)" as UC_056 <<focal>>
+    usecase "UC-05.7: Quản lý đơn nghỉ cá nhân\n(Theo dõi trạng thái / Hủy đơn)" as UC_057
+    usecase "UC-05.8: Tra cứu quỹ phép năm\ncòn lại (Leave Balance)" as UC_058
+
+    ' Cột phải: Nghiệp vụ Quản lý
+    usecase "UC-05.9: Giám sát danh sách đơn nghỉ\ntoàn bộ cửa hàng" as UC_059
+    usecase "UC-05.10: Phê duyệt & từ chối đơn\n(Tự động trừ quỹ phép năm)" as UC_0510
+    usecase "UC-05.11: Đánh giá tác động nghỉ\nlên lịch ca (Leave Impact)" as UC_0511
+
+    ' Định hình 2 cột thẳng đứng không giao nhau
+    UC_056 -[hidden]down-> UC_057
+    UC_057 -[hidden]down-> UC_058
+    UC_059 -[hidden]down-> UC_0510
+    UC_0510 -[hidden]down-> UC_0511
+    UC_056 -[hidden]right- UC_059
+}
+
+' Cố định gói Chấm công ở TRÊN, gói Nghỉ phép ở DƯỚI
+PkgAttendance -[hidden]down-> PkgLeave
+
+' ==============================================================================
+' LIÊN KẾT ĐƯỜNG NỐI (ZERO CROSSINGS)
+' ==============================================================================
+
+' --- 1. Nhánh Nhân viên (Chạy hoàn toàn bên mép TRÁI) ---
+Staff --> UC_051
+Staff --> UC_052
+Staff --> UC_053
+Staff --> UC_056
+Staff --> UC_057
+Staff --> UC_058
+
+' --- 2. Nhánh Quản lý (Chạy hoàn toàn bên mép PHẢI) ---
+Manager --> UC_054
+Manager --> UC_055
+Manager --> UC_059
+Manager --> UC_0510
+Manager --> UC_0511
+
+' --- 3. Quan hệ phụ thuộc nội bộ ---
+UC_051 .down.> UC_052 : <<extend>>
+UC_0510 .down.> UC_0511 : <<include>>
+
+' --- 4. Tác nhân hệ thống kỹ thuật ngoại vi ---
+UC_051 ..> Device : <<uses>> GPS & Camera
+UC_056 ..> FCM : <<notify>>
+UC_0510 ..> FCM : <<notify>>
+
+' ==============================================================================
+' GHI CHÚ NGHIỆP VỤ (ĐẶT GỌN GÀNG ĐÁY TRANG)
+' ==============================================================================
+note left of UC_051
+  <b>Xác thực chấm công (UC-05.1):</b>
+  • Camera trước chụp ảnh Live Selfie
+  • Haversine GPS: d ≤ Bán kính (50-100m)
+  • Ghi nhận trạng thái ON_TIME / LATE
+end note
+
+note right of UC_0510
+  <b>Phê duyệt nghỉ phép (UC-05.10):</b>
+  • Kiểm tra Leave Impact (xung đột ca)
+  • Tự động trừ quỹ phép trong <i>leave_balance</i>
+  • Bắn thông báo kết quả qua FCM
+end note
+
+@enduml

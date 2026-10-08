@@ -20,6 +20,9 @@ public class WorkforceRequestResponseDTO {
     private java.time.LocalDate shiftDate;
     private java.time.LocalTime shiftStartTime;
     private java.time.LocalTime shiftEndTime;
+    private UUID skillId;
+    private String skillName;
+    private Integer neededCount;
     private WorkforceRequestStatus status;
     private UUID createdBy;
     private String creatorName;

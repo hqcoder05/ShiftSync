@@ -1012,6 +1012,7 @@ public class HeadcountQuotaService {
             }
         }
 
+        java.util.Map<java.util.UUID, com.shiftsync.skill.entity.Skill> posSkillMap = skillRepository.findAllById(positions.stream().map(PositionDTO::getId).collect(java.util.stream.Collectors.toList())).stream().collect(java.util.stream.Collectors.toMap(com.shiftsync.skill.entity.Skill::getId, s -> s));
         for (LocalDate d : dates) {
             boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
 
@@ -1024,7 +1025,7 @@ public class HeadcountQuotaService {
                 }
                 boolean isMorning = s.getStartTime().isBefore(mid);
                 for (PositionDTO pos : positions) {
-                    Skill skill = skillRepository.findById(pos.getId()).orElse(null);
+                    Skill skill = posSkillMap.get(pos.getId());
                     if (skill == null) continue;
 
                     int targetCount = pos.getDefaultTarget();
@@ -1107,6 +1108,7 @@ public class HeadcountQuotaService {
             curr = curr.plusDays(1);
         }
 
+        java.util.Map<java.util.UUID, com.shiftsync.skill.entity.Skill> posSkillMap2 = skillRepository.findAllById(positions.stream().map(PositionDTO::getId).collect(java.util.stream.Collectors.toList())).stream().collect(java.util.stream.Collectors.toMap(com.shiftsync.skill.entity.Skill::getId, s -> s));
         for (LocalDate d : dates) {
             boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
 
@@ -1128,7 +1130,7 @@ public class HeadcountQuotaService {
 
                 boolean modified = false;
                 for (PositionDTO pos : positions) {
-                    Skill skill = skillRepository.findById(pos.getId()).orElse(null);
+                    Skill skill = posSkillMap2.get(pos.getId());
                     if (skill == null) continue;
 
                     if (!existingReqs.containsKey(skill.getId())) {
@@ -1189,3 +1191,4 @@ public class HeadcountQuotaService {
         }
     }
 }
+

@@ -63,7 +63,7 @@ public class AttendanceAdjustmentControllerTest {
 
         ResponseEntity<AdjustmentResponseDTO> response = controller.createRequest(storeId, request, staffUser);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(staffUser.getId(), response.getBody().getStaffId());
     }
 
@@ -79,7 +79,7 @@ public class AttendanceAdjustmentControllerTest {
 
         ResponseEntity<AdjustmentResponseDTO> response = controller.createRequest(storeId, request, managerUser);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(managerUser.getId(), response.getBody().getStaffId());
     }
 
@@ -123,3 +123,4 @@ public class AttendanceAdjustmentControllerTest {
         verify(service, times(1)).rejectRequest(storeId, requestId, managerUser.getId());
     }
 }
+

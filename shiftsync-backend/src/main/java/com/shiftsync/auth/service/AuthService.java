@@ -72,6 +72,10 @@ public class AuthService {
 
             // Store refresh token in Redis with a TTL of 7 days
             redisTemplate.opsForValue().set("refresh_token:" + refreshToken, user.getEmail(), java.time.Duration.ofDays(7));
+            
+            // Track initial refresh token in user's active tokens set (AUTH-003 fix)
+            redisTemplate.opsForSet().add("user_refresh_tokens:" + user.getEmail(), refreshToken);
+            redisTemplate.expire("user_refresh_tokens:" + user.getEmail(), java.time.Duration.ofDays(7));
 
             return AuthResponse.builder()
                     .accessToken(accessToken)
@@ -86,18 +90,20 @@ public class AuthService {
 
     public AuthResponse refresh(RefreshRequest request) {
         String refreshTokenKey = "refresh_token:" + request.getRefreshToken();
-        Object emailObj = redisTemplate.opsForValue().get(refreshTokenKey);
+        // Atomic get-and-delete to prevent token rotation race conditions (AUTH-004)
+        Object emailObj = redisTemplate.opsForValue().getAndDelete(refreshTokenKey);
 
         if (emailObj == null) {
             throw new BusinessException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
         }
 
         String email = emailObj.toString();
+        
+        // Remove from user's active tokens set
+        redisTemplate.opsForSet().remove("user_refresh_tokens:" + email, request.getRefreshToken());
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException("User associated with token not found", HttpStatus.UNAUTHORIZED));
-
-        // Revoke the old refresh token (Token Rotation)
-        redisTemplate.delete(refreshTokenKey);
 
         // Generate new token pair
         String newAccessToken = jwtTokenProvider.generateToken(user.getEmail(), user.getSystemRole().name());
@@ -105,6 +111,8 @@ public class AuthService {
 
         // Store new refresh token in Redis
         redisTemplate.opsForValue().set("refresh_token:" + newRefreshToken, user.getEmail(), java.time.Duration.ofDays(7));
+        redisTemplate.opsForSet().add("user_refresh_tokens:" + user.getEmail(), newRefreshToken);
+        redisTemplate.expire("user_refresh_tokens:" + user.getEmail(), java.time.Duration.ofDays(7));
 
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
@@ -127,7 +135,23 @@ public class AuthService {
         }
 
         if (refreshToken != null) {
-            redisTemplate.delete("refresh_token:" + refreshToken);
+            String refreshTokenKey = "refresh_token:" + refreshToken;
+            Object emailObj = redisTemplate.opsForValue().getAndDelete(refreshTokenKey);
+            if (emailObj != null) {
+                redisTemplate.opsForSet().remove("user_refresh_tokens:" + emailObj.toString(), refreshToken);
+            }
         }
+    }
+    
+    public void revokeAllRefreshTokens(String email) {
+        String setKey = "user_refresh_tokens:" + email;
+        java.util.Set<Object> tokens = redisTemplate.opsForSet().members(setKey);
+        if (tokens != null && !tokens.isEmpty()) {
+            java.util.List<String> keysToDelete = tokens.stream()
+                    .map(t -> "refresh_token:" + t)
+                    .collect(java.util.stream.Collectors.toList());
+            redisTemplate.delete(keysToDelete);
+        }
+        redisTemplate.delete(setKey);
     }
 }

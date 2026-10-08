@@ -11,6 +11,7 @@ import { getBaseUrl } from '../services/api';
 
 import LazyScreen from './LazyScreen';
 import IOSDiagnosticScreen from '../screens/IOSDiagnosticScreen';
+import { registerForPushNotificationsAsync } from '../services/pushNotificationHelper';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -25,6 +26,7 @@ const loadAvailability = () => import('../screens/AvailabilityScreen');
 const loadProfile = () => import('../screens/ProfileScreenApi');
 const loadApiTestHub = () => import('../screens/ApiTestHubScreen');
 const loadMarketplace = () => import('../screens/MarketplaceScreen');
+const loadNotification = () => import('../screens/NotificationScreen');
 
 const lazy = (loader) => (props) => <LazyScreen loader={loader} {...props} />;
 const LoginRoute = lazy(loadLogin);
@@ -37,11 +39,19 @@ const AvailabilityRoute = lazy(loadAvailability);
 const ProfileRoute = lazy(loadProfile);
 const ApiTestHubRoute = lazy(loadApiTestHub);
 const MarketplaceRoute = lazy(loadMarketplace);
+const NotificationRoute = lazy(loadNotification);
 
 // 5-tab stack (chỉ hiển thị sau khi Login)
 function MainTabs() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { display: 'none' } }}>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { display: 'none' },
+        lazy: true,
+        detachInactiveScreens: true,
+      }}
+    >
       <Tab.Screen name="Dashboard" component={DashboardRoute} />
       <Tab.Screen name="Schedule" component={ScheduleRoute} />
       <Tab.Screen name="Attendance" component={AttendanceRoute} />
@@ -98,6 +108,7 @@ export default function AppNavigator() {
 
           // Nếu có token nhưng mất mạng hoặc server chậm, vẫn giữ đăng nhập
           setInitialRoute('MainTabs');
+          registerForPushNotificationsAsync().catch((e) => console.log('[Push Auto-login Error]:', e));
         } else {
           setInitialRoute('Login');
         }
@@ -128,6 +139,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Availability" component={AvailabilityRoute} />
         <Stack.Screen name="Profile" component={ProfileRoute} />
         <Stack.Screen name="Marketplace" component={MarketplaceRoute} />
+        <Stack.Screen name="Notification" component={NotificationRoute} />
         <Stack.Screen name="ApiTestHub" component={ApiTestHubRoute} />
         <Stack.Screen name="Diagnostics" component={IOSDiagnosticScreen} />
       </Stack.Navigator>

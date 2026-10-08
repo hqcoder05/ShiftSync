@@ -107,9 +107,9 @@ class PayrollCalculationServiceTest {
     @Test
     void testStandardShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
 
         // Mock Holiday
         when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
@@ -158,9 +158,9 @@ class PayrollCalculationServiceTest {
     @Test
     void testHolidayShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
         
         // Mock Holiday (Rate: 3.0)
         Holiday holiday = new Holiday();
@@ -212,9 +212,9 @@ class PayrollCalculationServiceTest {
     @Test
     void testOvertimeShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
         
         // Mock Holiday
         when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
@@ -282,9 +282,11 @@ class PayrollCalculationServiceTest {
     void testGeneratePayroll_WhenPeriodIsLocked() {
         PayrollPeriod lockedPeriod = new PayrollPeriod();
         lockedPeriod.setStatus(PayrollPeriodStatus.CONFIRMED);
+        lockedPeriod.setStartDate(startDate);
+        lockedPeriod.setEndDate(endDate);
         
-        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate))
-                .thenReturn(Optional.of(lockedPeriod));
+        when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate))
+                .thenReturn(java.util.List.of(lockedPeriod));
                 
         com.shiftsync.shared.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.shiftsync.shared.exception.BusinessException.class, 
@@ -296,9 +298,9 @@ class PayrollCalculationServiceTest {
     @Test
     void testHolidayOvernightShift() {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
-        when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
+        when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)).thenReturn(List.of(employment));
+        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
         
         // Day 1: Holiday (Rate 3.0), Day 2: Normal (Rate 1.0)
         Holiday holiday = new Holiday();
@@ -377,3 +379,5 @@ class PayrollCalculationServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 }
+
+

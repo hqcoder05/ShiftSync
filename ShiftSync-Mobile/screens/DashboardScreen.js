@@ -25,12 +25,15 @@ import dangKyIcon from '../assets/dangky.png';
 import luongIcon from '../assets/luong.png';
 import yeuCauIcon from '../assets/yeucau.png';
 import lichLamIcon from '../assets/lichlam.png';
+import marketIcon from '../assets/icon-kinh.png';
+
+import { getUnreadNotificationCount } from '../services/notificationService';
 
 const actions = [
   ['Đăng ký lịch làm', dangKyIcon, '#EAF8E6', 'Availability'],
-  ['Phiếu lương', luongIcon, '#FFF6DE', 'Payroll'],
+  ['Lịch làm việc', lichLamIcon, '#F7E8F0', 'Schedule'],
+  ['Chợ ca mở', marketIcon, '#F2EAFF', 'Marketplace'],
   ['Yêu cầu', yeuCauIcon, '#E7F7FA', 'Request'],
-  ['Lịch làm', lichLamIcon, '#F7E8F0', 'Schedule'],
 ];
 
 const nav = (navigation, destination) => {
@@ -40,6 +43,8 @@ const nav = (navigation, destination) => {
     navigation.getParent?.()?.navigate('Profile') || navigation.navigate('Profile');
   } else if (destination === 'Marketplace') {
     navigation.getParent?.()?.navigate('Marketplace') || navigation.navigate('Marketplace');
+  } else if (destination === 'Notification') {
+    navigation.getParent?.()?.navigate('Notification') || navigation.navigate('Notification');
   } else {
     navigation.navigate(destination);
   }
@@ -125,6 +130,7 @@ export default function DashboardScreen({ navigation }) {
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
   const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const isFetchingRef = useRef(false);
 
   const todayText = getVietnameseDateString(new Date());
@@ -137,6 +143,7 @@ export default function DashboardScreen({ navigation }) {
       const todayIso = localDateISO();
       getMyShifts().then((res) => setAssignedShifts(res.data || [])).catch(() => setAssignedShifts([]));
       getMyPayslips().then((res) => setLatestPayslip(res.data?.[0] || null)).catch(() => setLatestPayslip(null));
+      getUnreadNotificationCount().then((res) => setUnreadNotifCount(Number(res.data?.unreadCount || 0))).catch(() => {});
       getMyAttendance().then((res) => {
         const records = res.data || [];
         setAttendanceRecords(records);
@@ -308,17 +315,39 @@ export default function DashboardScreen({ navigation }) {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* ═══ HERO SECTION ═══ */}
         <View style={s.hero}>
-          <Pressable
-            onPress={() => nav(navigation, 'Profile')}
-            hitSlop={12}
-            style={({ pressed }) => [pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] }]}
-            accessibilityRole="button"
-            accessibilityLabel="Mở hồ sơ cá nhân"
-          >
-            <View style={s.avatar}>
-              <Avatar3D size={82} {...getAvatar3DProps(selectedAvatarId)} />
-            </View>
-          </Pressable>
+          <View style={s.heroTopRow}>
+            <Pressable
+              onPress={() => nav(navigation, 'Profile')}
+              hitSlop={12}
+              style={({ pressed }) => [pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] }]}
+              accessibilityRole="button"
+              accessibilityLabel="Mở hồ sơ cá nhân"
+            >
+              <View style={s.avatar}>
+                <Avatar3D size={82} {...getAvatar3DProps(selectedAvatarId)} />
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => nav(navigation, 'Notification')}
+              hitSlop={12}
+              style={({ pressed }) => [
+                s.notifBtn,
+                pressed && { opacity: 0.8, transform: [{ scale: 0.94 }] },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Xem thông báo"
+            >
+              <Text style={s.notifBtnIcon}>🔔</Text>
+              {unreadNotifCount > 0 && (
+                <View style={s.notifBadge}>
+                  <Text style={s.notifBadgeText}>
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
           <Text style={s.today}>{todayText}</Text>
           <Text style={s.greeting}>Chào buổi sáng,{'\n'}{userName || 'Bạn'}</Text>
           <Text style={s.headline}>
@@ -442,10 +471,52 @@ const s = StyleSheet.create({
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  notifBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    position: 'relative',
+  },
+  notifBtnIcon: {
+    fontSize: 20,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   avatar: {
     width: 82,
     height: 82,
-    marginBottom: 16,
+    marginBottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',

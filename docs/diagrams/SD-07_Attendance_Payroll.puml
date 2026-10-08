@@ -1,0 +1,102 @@
+@startuml SD-07_Attendance_LiveSelfie
+' ==============================================================================
+' Diagram: SD-07 - Biểu đồ tuần tự luồng chấm công Live Selfie & GPS Haversine
+' Design System: diagram-design (Orthogonal, Clear LifeLines, No Shadows)
+' ==============================================================================
+
+!theme plain
+autonumber "<b>[00]</b>"
+
+skinparam {
+    shadowing false
+    roundcorner 6
+    defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+    defaultFontSize 11
+    defaultFontColor #1E293B
+    dpi 200
+    backgroundColor #FFFFFF
+
+    ' Participant styling
+    participantBorderColor #2563EB
+    participantBackgroundColor #EFF6FF
+    participantFontColor #0F172A
+    participantFontStyle bold
+
+    ' Database & External
+    databaseBorderColor #475569
+    databaseBackgroundColor #F8FAFC
+    databaseFontColor #0F172A
+
+    ' Message arrows
+    arrowColor #334155
+    arrowThickness 1.2
+    arrowFontColor #475569
+    arrowFontSize 10.5
+
+    ' Activation boxes
+    boxPadding 10
+    activationBorderColor #2563EB
+    activationBackgroundColor #DBEAFE
+}
+
+actor "Nhân viên\n(Staff)" as Staff
+participant "ShiftSync Mobile\n(Expo React Native)" as Mobile
+participant "AttendanceController\n(REST API)" as Controller
+participant "AttendanceService\n(Core Engine)" as Service
+database "PostgreSQL\n(staff, shift, attendance)" as DB
+participant "Cloud/Local\nStorage" as Storage
+
+== 1. GIAO DIỆN & THU THẬP TÍN HIỆU THỰC ĐỊA ==
+Staff -> Mobile : Mở màn hình Chấm công Live
+activate Mobile
+Mobile -> Mobile : Kích hoạt Camera trước (Live Camera)
+Mobile -> Mobile : Lấy tọa độ GPS thiết bị (lat, lng)
+Staff -> Mobile : Bấm chụp ảnh Selfie vào ca
+Mobile -> Mobile : Tạo payload Multipart/Form-Data\n(photo, shiftId, lat, lng)
+
+== 2. XÁC THỰC VỊ TRÍ & TÍNH KHOẢNG CÁCH HAVERSINE ==
+Mobile -> Controller : POST /api/attendance/selfie
+activate Controller
+Controller -> Service : submitSelfie(userId, shiftId, lat, lng, photoBytes)
+activate Service
+
+Service -> DB : Tìm ShiftAssignment & Store theo shiftId & userId
+activate DB
+DB --> Service : Thông tin ca làm & Tọa độ Store (latStore, lngStore, radius)
+deactivate DB
+
+Service -> Service : Tính khoảng cách d = Haversine(lat, lng, latStore, lngStore)
+
+alt d > storeRadius (Khoảng cách vượt bán kính 50-100m)
+    Service --> Controller : throw BusinessException("Vượt bán kính cho phép", 400)
+    Controller --> Mobile : 400 Bad Request
+    Mobile --> Staff : Báo lỗi: "Bạn đang ở ngoài phạm vi cửa hàng!"
+else d <= storeRadius (Vị trí hợp lệ)
+    Service -> Service : Đối chiếu thời gian thực tế với Shift.startTime
+    note over Service
+        now <= startTime + gracePeriod: PRESENT (Đúng giờ)
+        now > startTime + gracePeriod: LATE (Đi muộn)
+    end note
+
+    == 3. LƯU TRỮ HÌNH ẢNH & GHI NHẬN CƠ SỞ DỮ LIỆU ==
+    Service -> Storage : Lưu file ảnh selfie (photoBytes)
+    activate Storage
+    Storage --> Service : Trả về imageUrl / avatarId
+    deactivate Storage
+
+    Service -> DB : INSERT / UPDATE bảng attendance\n(check_in_time, check_in_lat, check_in_lng, check_in_image_url, status)
+    activate DB
+    DB --> Service : Bản ghi Attendance đã lưu
+    deactivate DB
+
+    Service --> Controller : AttendanceDTO (id, status, checkInTime, lateMinutes)
+    deactivate Service
+
+    Controller --> Mobile : 200 OK (AttendanceDTO)
+    deactivate Controller
+
+    Mobile --> Staff : Hiển thị màn hình thành công:\n"Chấm công thành công - Trạng thái: Đúng giờ / Muộn"
+    deactivate Mobile
+end
+
+@enduml
