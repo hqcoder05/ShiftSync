@@ -9,3 +9,4 @@ export const createStore = (data) => api.post('/stores', data);
 export const updateStore = (id, data) => api.patch(`/stores/${id}`, data);
 export const deleteStore = (id) => api.delete(`/stores/${id}`);
 export const getStoreDirectory = () => api.get('/stores/directory');
+export const getStoreOverview = () => api.get('/stores/overview');
