@@ -45,9 +45,10 @@ jobs:
         java-version: '21'
         distribution: 'oracle'
         cache: 'maven'
+        cache-dependency-path: 'shiftsync-backend/pom.xml'
 
     - name: Run Maven Tests
-      run: mvn clean test
+      run: mvn -B --no-transfer-progress clean test
       working-directory: shiftsync-backend
       env:
         DB_HOST: localhost
