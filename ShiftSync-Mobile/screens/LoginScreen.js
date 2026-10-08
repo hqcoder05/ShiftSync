@@ -5,6 +5,7 @@ import { login } from '../services/authService';
 import { getBaseUrl } from '../services/api';
 import { validateLoginForm } from '../utils/validators';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerForPushNotificationsAsync } from '../services/pushNotificationHelper';
 
 let LoginMascot3D = null;
 if (Platform.OS === 'web') {
@@ -55,6 +56,8 @@ export default function LoginScreen({ navigation }) {
         ['userEmail', userEmail || ''],
       ]);
       setMascotStatus('success');
+      // Đăng ký FCM Push Token ngầm không làm chậm chuyển trang
+      registerForPushNotificationsAsync().catch((e) => console.log('[Push Init Error]:', e));
       setTimeout(() => {
         navigation.replace('MainTabs');
       }, 1000);
