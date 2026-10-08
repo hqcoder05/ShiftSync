@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,14 +19,14 @@ import java.util.UUID;
 @RequestMapping("/api/stores/{storeId}/contract-types")
 @RequiredArgsConstructor
 @Tag(name = "Contract Type API", description = "Manage contract types for a store")
-@PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
+@PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
 public class ContractTypeController {
 
     private final ContractTypeService contractTypeService;
 
     @Operation(summary = "Get all contract types for a store")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or hasRole('STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or ((hasRole('MANAGER') or hasRole('STAFF')) and @storeAccessService.canAccessStore(authentication, #storeId))")
     public ResponseEntity<List<ContractTypeDTO>> getContractTypes(@PathVariable UUID storeId) {
         return ResponseEntity.ok(contractTypeService.getContractTypes(storeId));
     }
@@ -35,7 +36,7 @@ public class ContractTypeController {
     public ResponseEntity<ContractTypeDTO> createContractType(
             @PathVariable UUID storeId,
             @Valid @RequestBody ContractTypeCreateRequest request) {
-        return ResponseEntity.ok(contractTypeService.createContractType(storeId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(contractTypeService.createContractType(storeId, request));
     }
 
     @Operation(summary = "Update an existing contract type")
