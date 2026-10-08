@@ -69,6 +69,8 @@ export default function Header() {
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
 
   const fetchNotifications = useCallback(async () => {
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
     try {
       const [notifsRes, unreadRes] = await Promise.allSettled([
         getMyNotifications(),
@@ -90,7 +92,8 @@ export default function Header() {
   }, []);
 
   const fetchHeaderCounts = useCallback(async () => {
-    if (!selectedStoreId) return;
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token || !selectedStoreId) return;
     try {
       if (isManager) {
         const [leaveRes, swapRes, adjRes, wfRes, reqRes, mktRes] = await Promise.allSettled([
