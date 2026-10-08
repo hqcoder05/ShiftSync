@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AD-07: Luồng Điểm Danh Live Selfie &amp; Tính Lương — ShiftSync</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:       #f5f5f5;
+      --color-paper-card:  #ffffff;
+      --color-ink:         #2d3142;
+      --color-muted:       #4f5d75;
+      --color-soft:        #7a8399;
+      --color-accent:      #eb6c36;
+      --color-accent-tint: rgba(235, 108, 54, 0.08);
+      --color-success:     #166534;
+      --color-success-bg:  #dcfce7;
+      --color-error:       #991b1b;
+      --color-error-bg:    #fee2e2;
+      --color-rule:        rgba(45, 49, 66, 0.12);
+      --font-sans:         'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:        'Instrument Serif', serif;
+      --font-mono:         'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 1.5rem;
+    }
+
+    .frame {
+      max-width: 1040px;
+      width: 100%;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.8rem, 2.8vw + 0.8rem, 2.4rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: var(--color-muted);
+      margin-bottom: 1.75rem;
+      line-height: 1.5;
+    }
+
+    .diagram-container {
+      background: var(--color-paper);
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 2rem;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-width: 960px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .card {
+      background: var(--color-paper-card);
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.25rem;
+    }
+
+    .card-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .card p {
+      font-size: 0.85rem;
+      line-height: 1.45;
+      color: var(--color-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Activity Diagram · AD-07</p>
+    <h1>AD-07: Luồng Điểm danh Chấm công Live Selfie &amp; Tính Lương</h1>
+    <p class="subtitle">Quy trình xác thực người thật - việc thật bằng Live Camera kết hợp GPS Haversine, xử lý khiếu nại công và tính lương tuân thủ Bộ luật Lao động.</p>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1000 1880" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ad07-title ad07-desc">
+        <title id="ad07-title">AD-07: Luồng Điểm danh Chấm công Live Selfie và Tính lương</title>
+        <desc id="ad07-desc">Sơ đồ hoạt động AD-07 chi tiết hóa quy trình chấm công thực chứng bằng ảnh Live Selfie, kiểm tra bán kính GPS Haversine dưới 100 mét, xử lý đơn giải trình công và cỗ máy tính lương tự động trong hệ thống ShiftSync.</desc>
+
+        <defs>
+          <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.9" fill="rgba(45,49,66,0.08)"/>
+          </pattern>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+          </marker>
+          <marker id="arrow-error" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#991b1b"/>
+          </marker>
+        </defs>
+
+        <!-- Background -->
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <rect width="100%" height="100%" fill="url(#dots)" opacity="0.6"/>
+
+        <!-- ====================================================================== -->
+        <!-- REGION 1: CHẤM CÔNG THỰC CHỨNG (LIVE SELFIE & GPS)                      -->
+        <!-- ====================================================================== -->
+        <rect x="40" y="30" width="920" height="740" rx="8" fill="#ffffff" stroke="rgba(45,49,66,0.14)" stroke-width="1.2"/>
+        <rect x="56" y="44" width="370" height="22" rx="4" fill="rgba(45,49,66,0.06)"/>
+        <text x="66" y="59" fill="#2d3142" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" letter-spacing="0.08em">1. CHẤM CÔNG THỰC CHỨNG (LIVE SELFIE &amp; GPS)</text>
+
+        <!-- ====================================================================== -->
+        <!-- REGION 2: XỬ LÝ NGOẠI LỆ & GIẢI TRÌNH CÔNG                              -->
+        <!-- ====================================================================== -->
+        <rect x="40" y="790" width="920" height="420" rx="8" fill="#ffffff" stroke="rgba(45,49,66,0.14)" stroke-width="1.2"/>
+        <rect x="56" y="804" width="370" height="22" rx="4" fill="rgba(45,49,66,0.06)"/>
+        <text x="66" y="819" fill="#2d3142" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" letter-spacing="0.08em">2. XỬ LÝ NGOẠI LỆ &amp; GIẢI TRÌNH (ADJUSTMENT)</text>
+
+        <!-- ====================================================================== -->
+        <!-- REGION 3: TỔNG HỢP & TÍNH TOÁN LƯƠNG KỲ                                 -->
+        <!-- ====================================================================== -->
+        <rect x="40" y="1230" width="920" height="540" rx="8" fill="#ffffff" stroke="rgba(45,49,66,0.14)" stroke-width="1.2"/>
+        <rect x="56" y="1244" width="370" height="22" rx="4" fill="rgba(45,49,66,0.06)"/>
+        <text x="66" y="1259" fill="#2d3142" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" letter-spacing="0.08em">3. TỔNG HỢP &amp; TÍNH TOÁN LƯƠNG (PAYROLL ENGINE)</text>
+
+        <!-- ====================================================================== -->
+        <!-- CONNECTORS (DRAWN FIRST TO SIT BEHIND NODES)                           -->
+        <!-- ====================================================================== -->
+        <!-- Start -> Step 1 -->
+        <line x1="500" y1="88" x2="500" y2="108" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Step 1 -> Step 2 -->
+        <line x1="500" y1="148" x2="500" y2="168" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Step 2 -> Diamond 1 (GPS) -->
+        <line x1="500" y1="212" x2="500" y2="236" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Diamond 1 -> Error 1 (NO: GPS > 100m) -->
+        <path d="M 580 264 Q 588 264, 596 264 L 720 264" fill="none" stroke="#991b1b" stroke-width="1.2" marker-end="url(#arrow-error)"/>
+        <!-- Diamond 1 -> Step 3 (YES: GPS <= 100m) -->
+        <line x1="500" y1="292" x2="500" y2="324" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- Step 3 -> Diamond 2 (Valid Shift?) -->
+        <line x1="500" y1="364" x2="500" y2="388" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Diamond 2 -> Error 2 (NO: Không có ca) -->
+        <path d="M 575 416 Q 583 416, 591 416 L 720 416" fill="none" stroke="#991b1b" stroke-width="1.2" marker-end="url(#arrow-error)"/>
+        <!-- Diamond 2 -> Step 4 (YES: Gán ca hợp lệ) -->
+        <line x1="500" y1="444" x2="500" y2="476" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- Step 4 -> Step 5 -->
+        <line x1="500" y1="524" x2="500" y2="548" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Step 5 -> Step 6 -->
+        <line x1="500" y1="588" x2="500" y2="612" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Step 6 -> Step 7 -->
+        <line x1="500" y1="656" x2="500" y2="680" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Error 1 & Error 2 -> Error Join -> Bypass Line -->
+        <line x1="820" y1="288" x2="820" y2="416" stroke="#991b1b" stroke-width="1.2"/>
+        <line x1="820" y1="440" x2="820" y2="736" stroke="#991b1b" stroke-width="1.2"/>
+        <!-- Error Merge into Region 1 Exit -->
+        <path d="M 820 736 Q 820 748, 808 748 L 520 748" fill="none" stroke="#991b1b" stroke-width="1.2" stroke-dasharray="4,3"/>
+
+        <!-- Step 7 -> Merge Point 1 -->
+        <line x1="500" y1="720" x2="500" y2="742" stroke="#4f5d75" stroke-width="1.2"/>
+
+        <!-- Merge Point 1 -> Region 2 (Diamond 3: Sai lệch?) -->
+        <line x1="500" y1="754" x2="500" y2="836" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Diamond 3 (Sai lệch?) -> Branch NO (Giữ nguyên) -->
+        <path d="M 590 864 Q 598 864, 606 864 L 720 864" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Diamond 3 (Sai lệch?) -> Branch YES (Giải trình) -->
+        <line x1="500" y1="892" x2="500" y2="920" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- Step 8 -> Step 9 -->
+        <line x1="500" y1="964" x2="500" y2="988" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <!-- Step 9 -> Diamond 4 (Hợp lệ?) -->
+        <line x1="500" y1="1032" x2="500" y2="1056" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Diamond 4 -> NO (Từ chối) -->
+        <path d="M 580 1084 Q 588 1084, 596 1084 L 720 1084" fill="none" stroke="#991b1b" stroke-width="1.2" marker-end="url(#arrow-error)"/>
+        <!-- Diamond 4 -> YES (Cập nhật) -->
+        <line x1="500" y1="1112" x2="500" y2="1136" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- Step 10 & Refuse -> Merge Point 2 -->
+        <line x1="500" y1="1176" x2="500" y2="1194" stroke="#4f5d75" stroke-width="1.2"/>
+        <path d="M 820 1108 Q 820 1198, 808 1198 L 520 1198" fill="none" stroke="#991b1b" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <path d="M 820 888 Q 820 1198, 808 1198 L 520 1198" fill="none" stroke="#4f5d75" stroke-width="1.2"/>
+
+        <!-- Merge Point 2 -> Region 3 (Step 11: Tổng hợp Payroll) -->
+        <line x1="500" y1="1204" x2="500" y2="1280" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Region 3 Linear Chain -->
+        <line x1="500" y1="1324" x2="500" y2="1348" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="500" y1="1392" x2="500" y2="1416" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="500" y1="1460" x2="500" y2="1484" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="500" y1="1528" x2="500" y2="1552" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="500" y1="1596" x2="500" y2="1620" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Diamond 5 (Manager Duyệt?) -> NO (Điều chỉnh) -->
+        <path d="M 585 1648 Q 593 1648, 601 1648 L 710 1648" fill="none" stroke="#991b1b" stroke-width="1.2" marker-end="url(#arrow-error)"/>
+        <!-- Loopback: Điều chỉnh -> Step 12 -->
+        <path d="M 810 1624 L 810 1438 Q 810 1438, 800 1438 L 650 1438" fill="none" stroke="#991b1b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-error)"/>
+
+        <!-- Diamond 5 -> YES (Phê duyệt) -->
+        <line x1="500" y1="1676" x2="500" y2="1708" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+        <!-- Step 16 -> End -->
+        <line x1="500" y1="1756" x2="500" y2="1784" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- ====================================================================== -->
+        <!-- ARROW LABELS (WITH OPAQUE MASK RECTS TO PREVENT BLEED)                  -->
+        <!-- ====================================================================== -->
+        <!-- GPS Decision Labels -->
+        <rect x="626" y="248" width="52" height="14" rx="2" fill="#ffffff"/>
+        <text x="652" y="259" fill="#991b1b" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">&gt; 100M</text>
+
+        <rect x="506" y="300" width="60" height="14" rx="2" fill="#ffffff"/>
+        <text x="536" y="311" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">≤ 100M</text>
+
+        <!-- Shift Check Labels -->
+        <rect x="620" y="400" width="64" height="14" rx="2" fill="#ffffff"/>
+        <text x="652" y="411" fill="#991b1b" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">KHÔNG CÓ</text>
+
+        <rect x="506" y="450" width="52" height="14" rx="2" fill="#ffffff"/>
+        <text x="532" y="461" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">HỢP LỆ</text>
+
+        <!-- Discrepancy Labels -->
+        <rect x="624" y="848" width="58" height="14" rx="2" fill="#ffffff"/>
+        <text x="653" y="859" fill="#4f5d75" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">CHUẨN</text>
+
+        <rect x="506" y="896" width="68" height="14" rx="2" fill="#ffffff"/>
+        <text x="540" y="907" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">SAI LỆCH</text>
+
+        <!-- Adjustment Review Labels -->
+        <rect x="624" y="1068" width="56" height="14" rx="2" fill="#ffffff"/>
+        <text x="652" y="1079" fill="#991b1b" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">TỪ CHỐI</text>
+
+        <rect x="506" y="1116" width="48" height="14" rx="2" fill="#ffffff"/>
+        <text x="530" y="1127" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">DUYỆT</text>
+
+        <!-- Payroll Approval Labels -->
+        <rect x="620" y="1632" width="64" height="14" rx="2" fill="#ffffff"/>
+        <text x="652" y="1643" fill="#991b1b" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">YÊU CẦU SỬA</text>
+
+        <rect x="506" y="1684" width="48" height="14" rx="2" fill="#ffffff"/>
+        <text x="530" y="1695" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">DUYỆT</text>
+
+
+        <!-- ====================================================================== -->
+        <!-- NODES (BOXES & DECISION DIAMONDS)                                      -->
+        <!-- ====================================================================== -->
+
+        <!-- START NODE -->
+        <ellipse cx="500" cy="74" rx="38" ry="14" fill="#2d3142"/>
+        <text x="500" y="78" fill="#ffffff" font-family="'Geist', sans-serif" font-size="10" font-weight="600" text-anchor="middle">Bắt đầu</text>
+
+        <!-- STEP 1: Mở App -->
+        <rect x="390" y="108" width="220" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="132" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Nhân viên mở ShiftSync Mobile</text>
+
+        <!-- STEP 2: Live Selfie & GPS -->
+        <rect x="350" y="168" width="300" height="44" rx="6" fill="#ffffff" stroke="#eb6c36" stroke-width="1.5"/>
+        <rect x="358" y="174" width="56" height="12" rx="2" fill="rgba(235,108,54,0.12)"/>
+        <text x="386" y="183" fill="#eb6c36" font-family="'Geist Mono', monospace" font-size="7.5" font-weight="600" text-anchor="middle">CLIENT</text>
+        <text x="500" y="196" fill="#2d3142" font-family="'Geist', sans-serif" font-size="12" font-weight="600" text-anchor="middle">Chụp Live Selfie &amp; Lấy GPS thiết bị</text>
+
+        <!-- DIAMOND 1: GPS Haversine -->
+        <polygon points="500,236 580,264 500,292 420,264" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="261" fill="#2d3142" font-family="'Geist', sans-serif" font-size="10" font-weight="600" text-anchor="middle">Bán kính Haversine</text>
+        <text x="500" y="274" fill="#eb6c36" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" text-anchor="middle">d ≤ 100 mét?</text>
+
+        <!-- ERROR 1: Ngoài bán kính -->
+        <rect x="720" y="242" width="200" height="46" rx="6" fill="#fee2e2" stroke="#991b1b" stroke-width="1.2"/>
+        <text x="820" y="262" fill="#991b1b" font-family="'Geist', sans-serif" font-size="11" font-weight="600" text-anchor="middle">Từ chối Chấm công</text>
+        <text x="820" y="277" fill="#7f1d1d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">HTTP 400: Out of Geofence</text>
+
+        <!-- STEP 3: Kiểm tra ca làm -->
+        <rect x="370" y="324" width="260" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="348" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Kiểm tra ca (ShiftAssignment)</text>
+
+        <!-- DIAMOND 2: Ca hợp lệ? -->
+        <polygon points="500,388 575,416 500,444 425,416" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="413" fill="#2d3142" font-family="'Geist', sans-serif" font-size="10.5" font-weight="600" text-anchor="middle">Có ca làm</text>
+        <text x="500" y="426" fill="#4f5d75" font-family="'Geist', sans-serif" font-size="10" text-anchor="middle">hợp lệ hôm nay?</text>
+
+        <!-- ERROR 2: Không có ca -->
+        <rect x="720" y="394" width="200" height="46" rx="6" fill="#fee2e2" stroke="#991b1b" stroke-width="1.2"/>
+        <text x="820" y="414" fill="#991b1b" font-family="'Geist', sans-serif" font-size="11" font-weight="600" text-anchor="middle">Từ chối: Chưa gán ca</text>
+        <text x="820" y="429" fill="#7f1d1d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Không tìm thấy phân công</text>
+
+        <!-- STEP 4: Lưu Check-in & Ảnh Selfie (Focal Node 1) -->
+        <rect x="340" y="476" width="320" height="48" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.5"/>
+        <rect x="348" y="482" width="66" height="12" rx="2" fill="#eb6c36"/>
+        <text x="381" y="491" fill="#ffffff" font-family="'Geist Mono', monospace" font-size="7.5" font-weight="600" text-anchor="middle">DATABASE</text>
+        <text x="500" y="504" fill="#2d3142" font-family="'Geist', sans-serif" font-size="12" font-weight="600" text-anchor="middle">Lưu Attendance &amp; Ảnh Selfie (BYTEA)</text>
+        <text x="500" y="517" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Status: ON_TIME hoặc LATE (+lateMinutes)</text>
+
+        <!-- STEP 5: Thực hiện ca -->
+        <rect x="380" y="548" width="240" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="572" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Nhân viên thực hiện ca làm việc</text>
+
+        <!-- STEP 6: Check-out Selfie -->
+        <rect x="350" y="612" width="300" height="44" rx="6" fill="#ffffff" stroke="#eb6c36" stroke-width="1.5"/>
+        <rect x="358" y="618" width="56" height="12" rx="2" fill="rgba(235,108,54,0.12)"/>
+        <text x="386" y="627" fill="#eb6c36" font-family="'Geist Mono', monospace" font-size="7.5" font-weight="600" text-anchor="middle">CLIENT</text>
+        <text x="500" y="640" fill="#2d3142" font-family="'Geist', sans-serif" font-size="12" font-weight="600" text-anchor="middle">Chụp Live Selfie Check-out &amp; Ghi nhận giờ</text>
+
+        <!-- STEP 7: Tính thời lượng ca -->
+        <rect x="370" y="680" width="260" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="704" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Tính thời lượng làm việc thực tế</text>
+
+        <!-- Merge Point 1 -->
+        <circle cx="500" cy="748" r="5" fill="#2d3142"/>
+
+        <!-- ==================== REGION 2 NODES ==================== -->
+        <!-- DIAMOND 3: Có sai lệch? -->
+        <polygon points="500,836 590,864 500,892 410,864" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="861" fill="#2d3142" font-family="'Geist', sans-serif" font-size="10.5" font-weight="600" text-anchor="middle">Có sai lệch /</text>
+        <text x="500" y="874" fill="#4f5d75" font-family="'Geist', sans-serif" font-size="10" text-anchor="middle">quên check-out?</text>
+
+        <!-- STEP NO: Giữ nguyên Attendance -->
+        <rect x="720" y="842" width="200" height="44" rx="6" fill="#f8fafc" stroke="#4f5d75" stroke-width="1.2"/>
+        <text x="820" y="864" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11" font-weight="500" text-anchor="middle">Giữ nguyên Attendance gốc</text>
+        <text x="820" y="877" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8" text-anchor="middle">Không phát sinh khiếu nại</text>
+
+        <!-- STEP 8: Gửi giải trình -->
+        <rect x="360" y="920" width="280" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="942" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Gửi Đơn giải trình điều chỉnh công</text>
+        <text x="500" y="955" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Kèm lý do &amp; mốc giờ thực tế</text>
+
+        <!-- STEP 9: Manager thẩm định -->
+        <rect x="350" y="988" width="300" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1010" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Manager đối soát ảnh Live Selfie &amp; Ca</text>
+        <text x="500" y="1023" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Thẩm tra bằng chứng giải trình</text>
+
+        <!-- DIAMOND 4: Giải trình hợp lệ? -->
+        <polygon points="500,1056 580,1084 500,1112 420,1084" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1081" fill="#2d3142" font-family="'Geist', sans-serif" font-size="10.5" font-weight="600" text-anchor="middle">Đơn giải trình</text>
+        <text x="500" y="1094" fill="#4f5d75" font-family="'Geist', sans-serif" font-size="10" text-anchor="middle">hợp lệ?</text>
+
+        <!-- REFUSE ADJUSTMENT -->
+        <rect x="720" y="1062" width="200" height="44" rx="6" fill="#fee2e2" stroke="#991b1b" stroke-width="1.2"/>
+        <text x="820" y="1084" fill="#991b1b" font-family="'Geist', sans-serif" font-size="11" font-weight="600" text-anchor="middle">Từ chối điều chỉnh</text>
+        <text x="820" y="1097" fill="#7f1d1d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Giữ nguyên dữ liệu cũ</text>
+
+        <!-- STEP 10: Cập nhật công & Audit Log -->
+        <rect x="360" y="1136" width="280" height="40" rx="6" fill="#dcfce7" stroke="#166534" stroke-width="1.2"/>
+        <text x="500" y="1156" fill="#166534" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">Cập nhật công &amp; Ghi AuditLog</text>
+        <text x="500" y="1169" fill="#14532d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Lưu vết thay đổi minh bạch</text>
+
+        <!-- Merge Point 2 -->
+        <circle cx="500" cy="1198" r="5" fill="#2d3142"/>
+
+        <!-- ==================== REGION 3 NODES ==================== -->
+        <!-- STEP 11: Tổng hợp Attendance -->
+        <rect x="350" y="1280" width="300" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1302" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Tổng hợp Attendance đã duyệt trong kỳ</text>
+        <text x="500" y="1315" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Tải Employment &amp; Mức lương vị trí</text>
+
+        <!-- STEP 12: Tách ca đêm -->
+        <rect x="340" y="1348" width="320" height="44" rx="6" fill="#ffffff" stroke="#eb6c36" stroke-width="1.4"/>
+        <text x="500" y="1370" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">Tách ca xuyên đêm 00:00:00</text>
+        <text x="500" y="1383" fill="#eb6c36" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Tính phụ cấp đêm +30% (Khung 22h-06h)</text>
+
+        <!-- STEP 13: OT & Holiday -->
+        <rect x="340" y="1416" width="320" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1438" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">Tính OT tuần ISO &amp; Ngày Lễ</text>
+        <text x="500" y="1451" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">OT: +150%..200% | Lễ Tết: 300% (Điều 98)</text>
+
+        <!-- STEP 14: Double Payment Protection -->
+        <rect x="340" y="1484" width="320" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1506" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">Chống chi trả kép (Leave Protection)</text>
+        <text x="500" y="1519" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Không trả trùng lương phép và lương ca</text>
+
+        <!-- STEP 15: Tạo bảng lương -->
+        <rect x="360" y="1552" width="280" height="44" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1574" fill="#2d3142" font-family="'Geist', sans-serif" font-size="11.5" font-weight="500" text-anchor="middle">Tạo bản ghi Payroll (Trạng thái DRAFT)</text>
+        <text x="500" y="1587" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Tự động tổng hợp Base, OT, Holiday</text>
+
+        <!-- DIAMOND 5: Manager Duyệt Payroll? -->
+        <polygon points="500,1620 585,1648 500,1676 415,1648" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="500" y="1645" fill="#2d3142" font-family="'Geist', sans-serif" font-size="10.5" font-weight="600" text-anchor="middle">Manager / Admin</text>
+        <text x="500" y="1658" fill="#4f5d75" font-family="'Geist', sans-serif" font-size="10" text-anchor="middle">phê duyệt bảng lương?</text>
+
+        <!-- RE-CALCULATE NOTICE -->
+        <rect x="710" y="1626" width="200" height="44" rx="6" fill="#fee2e2" stroke="#991b1b" stroke-width="1.2"/>
+        <text x="810" y="1648" fill="#991b1b" font-family="'Geist', sans-serif" font-size="11" font-weight="600" text-anchor="middle">Yêu cầu điều chỉnh</text>
+        <text x="810" y="1661" fill="#7f1d1d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Sửa giờ công / Tái tính toán</text>
+
+        <!-- STEP 16: Hoàn tất & Xuất Payslip (Focal Node 2) -->
+        <rect x="340" y="1708" width="320" height="48" rx="6" fill="#dcfce7" stroke="#166534" stroke-width="1.5"/>
+        <rect x="348" y="1714" width="70" height="12" rx="2" fill="#166534"/>
+        <text x="383" y="1723" fill="#ffffff" font-family="'Geist Mono', monospace" font-size="7.5" font-weight="600" text-anchor="middle">CONFIRMED</text>
+        <text x="500" y="1736" fill="#166534" font-family="'Geist', sans-serif" font-size="12" font-weight="600" text-anchor="middle">Khóa bảng lương &amp; Xuất Payslip PDF/Excel</text>
+        <text x="500" y="1749" fill="#14532d" font-family="'Geist Mono', monospace" font-size="8.5" text-anchor="middle">Bắn WebSocket &amp; Notification đến nhân viên</text>
+
+        <!-- END NODE -->
+        <ellipse cx="500" cy="1804" rx="42" ry="16" fill="#2d3142"/>
+        <text x="500" y="1809" fill="#ffffff" font-family="'Geist', sans-serif" font-size="11" font-weight="600" text-anchor="middle">Hoàn tất</text>
+
+        <!-- ====================================================================== -->
+        <!-- LEGEND STRIP AT BOTTOM                                                 -->
+        <!-- ====================================================================== -->
+        <line x1="60" y1="1836" x2="940" y2="1836" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+        <text x="60" y="1855" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">QUY ƯỚC:</text>
+        
+        <!-- Legend Item 1 -->
+        <rect x="130" y="1846" width="12" height="12" rx="2" fill="rgba(235,108,54,0.12)" stroke="#eb6c36" stroke-width="1"/>
+        <text x="148" y="1855" fill="#2d3142" font-size="9" font-family="'Geist', sans-serif">Hành động cốt lõi (Live Selfie/Core)</text>
+
+        <!-- Legend Item 2 -->
+        <rect x="360" y="1846" width="12" height="12" rx="2" fill="#dcfce7" stroke="#166534" stroke-width="1"/>
+        <text x="378" y="1855" fill="#2d3142" font-size="9" font-family="'Geist', sans-serif">Trạng thái thành công / Đã duyệt</text>
+
+        <!-- Legend Item 3 -->
+        <rect x="580" y="1846" width="12" height="12" rx="2" fill="#fee2e2" stroke="#991b1b" stroke-width="1"/>
+        <text x="598" y="1855" fill="#2d3142" font-size="9" font-family="'Geist', sans-serif">Từ chối / Vi phạm quy định</text>
+
+        <!-- Legend Item 4 -->
+        <line x1="770" y1="1852" x2="800" y2="1852" stroke="#991b1b" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="806" y="1855" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Nhánh ngoại lệ / Hoàn trả</text>
+      </svg>
+    </div>
+
+    <!-- SUMMARY CARDS PATTERN (3 CARDS VARIANT WIDTHS) -->
+    <div class="cards-grid">
+      <div class="card">
+        <p class="card-eyebrow">CHỐNG GIAN LẬN THỰC ĐỊA</p>
+        <h3>Live Selfie &amp; Haversine GPS</h3>
+        <p>Bắt buộc chụp ảnh trực tiếp tại thời điểm vào ca và kiểm tra bán kính dưới 100m bằng công thức Haversine, loại bỏ hoàn toàn việc điểm danh hộ hay fake vị trí.</p>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">XỬ LÝ KHIẾU NẠI</p>
+        <h3>Adjustment &amp; Audit Trail</h3>
+        <p>Mọi trường hợp quên check-out được giải quyết qua luồng giải trình có đối soát ảnh Live Selfie và ghi vết kiểm toán minh bạch trong AuditLog.</p>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">CHUẨN BỘ LUẬT LAO ĐỘNG</p>
+        <h3>Tách Ca Đêm &amp; Chi Trả Kép</h3>
+        <p>Ca xuyên đêm tự động tách đôi tại 00:00:00 để áp phụ cấp đêm 30%, tính tăng ca tuần ISO và ngăn chi trả 2 lần khi nghỉ phép hưởng lương.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
