@@ -19,9 +19,13 @@ public class WorkforceProposalController {
 
     private final WorkforceRequestService workforceRequestService;
 
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<List<WorkforceProposalResponseDTO>> getMyProposals(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.ok(List.of());
+        }
         return ResponseEntity.ok(workforceRequestService.getMyProposals(userDetails.getId()));
     }
 
@@ -31,7 +35,7 @@ public class WorkforceProposalController {
             @RequestBody RespondRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         workforceRequestService.respondToProposal(id, request.isAccepted(), userDetails.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Data
