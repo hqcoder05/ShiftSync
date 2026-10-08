@@ -11,6 +11,7 @@ import com.shiftsync.store.repository.StoreRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.shiftsync.shift.service.ShiftTemplateService;
+import jakarta.persistence.EntityManager;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +24,13 @@ public class StoreService {
     private final AuditLogService auditLogService;
     private final StoreRepository storeRepository;
     private final ShiftTemplateService shiftTemplateService;
+    private final EntityManager entityManager;
 
-    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService) {
+    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService, EntityManager entityManager) {
         this.storeRepository = storeRepository;
         this.auditLogService = auditLogService;
         this.shiftTemplateService = shiftTemplateService;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -81,6 +84,13 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
+    public com.shiftsync.store.dto.StoreOverviewDTO getStoreOverview() {
+        return com.shiftsync.store.dto.StoreOverviewDTO.builder()
+                .totalStores(storeRepository.count())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
     public StoreDTO getStoreById(UUID id) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Store not found with id: " + id, HttpStatus.NOT_FOUND));
@@ -122,6 +132,34 @@ public class StoreService {
             throw new BusinessException("Cannot delete Store: Store has future published shifts.", HttpStatus.CONFLICT);
         }
 
+        entityManager.createNativeQuery("UPDATE employment SET status = 'INACTIVE' WHERE store_id = :storeId")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE shift SET status = 'CANCELLED' WHERE store_id = :storeId")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE attendance SET deleted = true WHERE shift_assignment_id IN (SELECT id FROM shift_assignment WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId))")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE shift_assignment SET deleted = true WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId)")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE leave_request SET status = 'REJECTED' WHERE store_id = :storeId AND status IN ('PENDING', 'APPROVED')")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE workforce_request SET status = 'CANCELLED' WHERE requesting_store_id = :storeId OR target_store_id = :storeId")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE shift_swap_request SET status = 'CANCELLED' WHERE from_shift_id IN (SELECT id FROM shift WHERE store_id = :storeId)")
+                .setParameter("storeId", id)
+                .executeUpdate();
+
         storeRepository.delete(store);
         auditLogService.log(actorId, "SOFT_DELETE", "Store", id, 
                 java.util.Map.of("name", store.getName(), "address", store.getAddress()), 
@@ -153,3 +191,4 @@ public class StoreService {
         }
     }
 }
+
