@@ -39,6 +39,6 @@ public class StoreTemplateController {
     @PostMapping("/stores/{storeId}/apply-template/{templateId}")
     public ResponseEntity<Void> applyTemplate(@PathVariable UUID storeId, @PathVariable UUID templateId) {
         storeTemplateService.applyTemplateToStore(storeId, templateId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }
