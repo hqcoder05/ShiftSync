@@ -34,6 +34,10 @@ build/
 
 ###  ENV ###
 .env
+*.token
+
+### Logs ###
+*.log
 
 ### Backups & SQL Dumps ###
 *.sql
