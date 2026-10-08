@@ -115,6 +115,63 @@ export const getMyRequests = async (storeId) => {
     console.log('Error fetching staff requests from backend:', err.message);
   }
 
+  // 3. Fetch Real Shift Swap Requests from /api/users/me/swaps
+  try {
+    const swapRes = await api.get('/users/me/swaps');
+    if (swapRes.data && Array.isArray(swapRes.data)) {
+      swapRes.data.forEach((s) => {
+        let statusLabel = 'Chờ đồng nghiệp duyệt';
+        if (s.status === 'APPROVED') {
+          statusLabel = 'Đã duyệt';
+        } else if (s.status === 'REJECTED') {
+          statusLabel = 'Từ chối';
+        } else if (s.status === 'CANCELLED') {
+          statusLabel = 'Đã huỷ';
+        } else if (s.employeeAccepted) {
+          statusLabel = 'Chờ Quản lý duyệt';
+        }
+
+        const fromTime = `${String(s.fromShiftStartTime || '').slice(0, 5)} - ${String(s.fromShiftEndTime || '').slice(0, 5)}`;
+        const toTime = `${String(s.toShiftStartTime || '').slice(0, 5)} - ${String(s.toShiftEndTime || '').slice(0, 5)}`;
+
+        allRequests.push({
+          id: s.id,
+          rawId: s.id,
+          type: 'SWAP',
+          typeCategory: 'swap',
+          requestType: 'Yêu cầu đổi ca',
+          typeLabel: 'Yêu cầu đổi ca',
+          status: s.status || 'PENDING',
+          employeeAccepted: !!s.employeeAccepted,
+          statusLabel,
+          fromStaffId: s.fromStaffId,
+          fromStaffName: s.fromStaffName || 'Đồng nghiệp',
+          toStaffId: s.toStaffId,
+          toStaffName: s.toStaffName || 'Đồng nghiệp',
+          fromShiftId: s.fromShiftId,
+          fromShiftDate: s.fromShiftDate,
+          fromShiftStartTime: s.fromShiftStartTime,
+          fromShiftEndTime: s.fromShiftEndTime,
+          toShiftId: s.toShiftId,
+          toShiftDate: s.toShiftDate,
+          toShiftStartTime: s.toShiftStartTime,
+          toShiftEndTime: s.toShiftEndTime,
+          date: s.fromShiftDate ? `${s.fromShiftDate} (${fromTime})` : '',
+          requesterName: s.fromStaffName || 'Nhân viên',
+          targetStaffName: s.toStaffName || '',
+          shiftInfo: `Ca: ${s.fromShiftDate} (${fromTime}) ⇄ ${s.toShiftDate} (${toTime})`,
+          content: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
+          description: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
+          reason: 'Hoán đổi ca làm việc giữa 2 nhân sự',
+          createdAt: s.createdAt || new Date().toISOString(),
+          isRealSwap: true,
+        });
+      });
+    }
+  } catch (err) {
+    console.log('Error fetching swap requests from backend:', err.message);
+  }
+
   return allRequests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 };
 
@@ -132,6 +189,16 @@ export const createStaffRequest = async (requestData, storeId) => {
       startDate: isoStart,
       endDate: isoEnd,
       reason: requestData.reason || requestData.content || '',
+    });
+    return res.data;
+  }
+
+  // 2. Real Swap Request via /api/users/me/swaps
+  if ((requestData.type === 'SWAP' || requestData.typeCategory === 'swap') && requestData.fromShiftId && requestData.toStaffId && requestData.toShiftId) {
+    const res = await api.post('/users/me/swaps', {
+      fromShiftId: requestData.fromShiftId,
+      toStaffId: requestData.toStaffId,
+      toShiftId: requestData.toShiftId,
     });
     return res.data;
   }
