@@ -56,10 +56,18 @@ public class TX001StoreCascadeIntegrationTest {
                 .setParameter("email", "test" + staffId + "@test.com")
                 .executeUpdate();
 
+            // Insert ContractType for the store (required for employment on fresh database)
+            UUID contractTypeId = UUID.randomUUID();
+            entityManager.createNativeQuery("INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (:ctId, :storeId, 'FULL_TIME', 40, 1.5, 25000)")
+                .setParameter("ctId", contractTypeId)
+                .setParameter("storeId", store.getId())
+                .executeUpdate();
+
             // Insert Employment (status = SUSPENDED so it doesn't block deletion, but should be updated to INACTIVE)
-            entityManager.createNativeQuery("INSERT INTO employment (id, store_id, staff_id, contract_type_id, hourly_rate, joined_date, status) VALUES (gen_random_uuid(), :storeId, :staffId, (SELECT id FROM contract_type LIMIT 1), 25000, CURRENT_DATE, 'SUSPENDED')")
+            entityManager.createNativeQuery("INSERT INTO employment (id, store_id, staff_id, contract_type_id, hourly_rate, joined_date, status) VALUES (gen_random_uuid(), :storeId, :staffId, :ctId, 25000, CURRENT_DATE, 'SUSPENDED')")
                 .setParameter("storeId", store.getId())
                 .setParameter("staffId", staffId)
+                .setParameter("ctId", contractTypeId)
                 .executeUpdate();
                 
             // Insert Shift (status = DRAFT, future, so it doesn't block, but should be CANCELLED)
@@ -139,10 +147,18 @@ public class TX001StoreCascadeIntegrationTest {
                 .setParameter("email", "test" + staffId + "@test.com")
                 .executeUpdate();
 
+            // Insert ContractType for the store (required for employment on fresh database)
+            UUID contractTypeId = UUID.randomUUID();
+            entityManager.createNativeQuery("INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate) VALUES (:ctId, :storeId, 'FULL_TIME', 40, 1.5, 25000)")
+                .setParameter("ctId", contractTypeId)
+                .setParameter("storeId", store.getId())
+                .executeUpdate();
+
             // Insert Employment (status = SUSPENDED)
-            entityManager.createNativeQuery("INSERT INTO employment (id, store_id, staff_id, contract_type_id, hourly_rate, joined_date, status) VALUES (gen_random_uuid(), :storeId, :staffId, (SELECT id FROM contract_type LIMIT 1), 25000, CURRENT_DATE, 'SUSPENDED')")
+            entityManager.createNativeQuery("INSERT INTO employment (id, store_id, staff_id, contract_type_id, hourly_rate, joined_date, status) VALUES (gen_random_uuid(), :storeId, :staffId, :ctId, 25000, CURRENT_DATE, 'SUSPENDED')")
                 .setParameter("storeId", store.getId())
                 .setParameter("staffId", staffId)
+                .setParameter("ctId", contractTypeId)
                 .executeUpdate();
                 
             return store.getId();
