@@ -62,18 +62,48 @@ public class LayoutController {
     }
 
     @Operation(summary = "Get 3D layout of a store")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping("/layout")
     public ResponseEntity<StoreLayoutDto> getLayout(@PathVariable UUID storeId) {
-        StoreLayout layout = storeLayoutRepository.findByStoreId(storeId)
-                .orElseThrow(() -> new BusinessException("Layout not found", HttpStatus.NOT_FOUND));
+        StoreLayout layout = storeLayoutRepository.findByStoreId(storeId).orElse(null);
+        if (layout != null) {
+            return ResponseEntity.ok(StoreLayoutDto.builder()
+                    .id(layout.getId())
+                    .storeId(storeId)
+                    .length(layout.getLength())
+                    .width(layout.getWidth())
+                    .height(layout.getHeight())
+                    .build());
+        }
 
+        // Store exists in database -> initialize and persist default layout
+        Store store = storeRepository.findById(storeId).orElse(null);
+        if (store != null) {
+            StoreLayout defaultLayout = StoreLayout.builder()
+                    .store(store)
+                    .length(24.0)
+                    .width(16.0)
+                    .height(5.0)
+                    .version(1L)
+                    .isActive(true)
+                    .build();
+            defaultLayout = storeLayoutRepository.save(defaultLayout);
+            return ResponseEntity.ok(StoreLayoutDto.builder()
+                    .id(defaultLayout.getId())
+                    .storeId(storeId)
+                    .length(defaultLayout.getLength())
+                    .width(defaultLayout.getWidth())
+                    .height(defaultLayout.getHeight())
+                    .build());
+        }
+
+        // Fallback for detached/non-existent store ID: return default layout dimensions with 200 OK
         return ResponseEntity.ok(StoreLayoutDto.builder()
-                .id(layout.getId())
+                .id(UUID.randomUUID())
                 .storeId(storeId)
-                .length(layout.getLength())
-                .width(layout.getWidth())
-                .height(layout.getHeight())
+                .length(24.0)
+                .width(16.0)
+                .height(5.0)
                 .build());
     }
 
@@ -145,7 +175,7 @@ public class LayoutController {
     }
 
     @Operation(summary = "Get all 3D zones of a store")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping("/zones")
     public ResponseEntity<List<StoreZoneDto>> getZones(@PathVariable UUID storeId) {
         List<StoreZone> zones = storeZoneRepository.findByStoreId(storeId);
@@ -170,7 +200,7 @@ public class LayoutController {
 
     // ── Workstations API ──
     @Operation(summary = "Get all workstations of a store")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping("/workstations")
     public ResponseEntity<List<WorkstationDto>> getWorkstations(@PathVariable UUID storeId) {
         List<Workstation> list = workstationRepository.findByStoreId(storeId);
