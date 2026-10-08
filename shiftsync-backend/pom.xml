@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<lombok.version>1.18.34</lombok.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -110,7 +111,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -177,12 +178,6 @@
 				<!-- Mặc định loại bỏ các class benchmark CP-SAT để CI/Docker không cần OR-Tools native libs.
 				     Kích hoạt profile cpsat-benchmark để biên dịch đầy đủ: mvn test -P cpsat-benchmark -->
 				<configuration>
-					<annotationProcessorPaths>
-						<path>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</path>
-					</annotationProcessorPaths>
 					<testExcludes>
 						<testExclude>**/CpSat*</testExclude>
 						<testExclude>**/ScheduleComparisonBenchmark*</testExclude>
