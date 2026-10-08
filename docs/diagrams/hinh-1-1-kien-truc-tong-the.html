@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ đồ kiến trúc tổng thể ba thành phần (ShiftSync)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #f5f5f5;
+      --color-ink: #2d3142;
+      --color-muted: #4f5d75;
+      --color-soft: #7a8399;
+      --color-rule: rgba(45, 49, 66, 0.12);
+      --color-accent: #eb6c36;
+      --color-accent-tint: rgba(235, 108, 54, 0.08);
+      --color-link: #2e5aa8;
+      --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin: 0;
+    }
+    .diagram-frame {
+      width: 100%;
+      margin: 0 auto;
+      padding: 0;
+    }
+    svg {
+      width: 100%;
+      display: block;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="diagram-frame">
+    <svg viewBox="0 0 5800 2525" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="shiftsync-arch-title shiftsync-arch-desc">
+      <title id="shiftsync-arch-title">Sơ đồ kiến trúc tổng thể ba thành phần (ShiftSync)</title>
+      <desc id="shiftsync-arch-desc">Sơ đồ kiến trúc phóng to gấp 5 lần cực đại, siêu sắc nét cho Word: Client Tier, Backend Core Engine, Data &amp; Cloud Tier.</desc>
+      
+      <defs>
+        <marker id="arrow" markerWidth="40" markerHeight="30" refX="35" refY="15" orient="auto">
+          <polygon points="0 0, 40 15, 0 30" fill="#4f5d75"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="40" markerHeight="30" refX="35" refY="15" orient="auto">
+          <polygon points="0 0, 40 15, 0 30" fill="#eb6c36"/>
+        </marker>
+        <marker id="arrow-link" markerWidth="40" markerHeight="30" refX="35" refY="15" orient="auto">
+          <polygon points="0 0, 40 15, 0 30" fill="#2e5aa8"/>
+        </marker>
+      </defs>
+
+      <!-- Background -->
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ==================== ZONES (Tier Boundaries) ==================== -->
+      <!-- Zone 1: Client Tier -->
+      <rect x="50" y="40" width="1450" height="2220" rx="30"
+            fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+      <rect x="375" y="50" width="800" height="75" rx="10" fill="#f5f5f5"/>
+      <text x="775" y="105" fill="rgba(45,49,66,0.60)" font-size="48px" font-family="'Geist Mono', monospace"
+            font-weight="600" text-anchor="middle" letter-spacing="0.14em">CLIENT TIER · NGƯỜI DÙNG</text>
+
+      <!-- Zone 2: Backend Tier -->
+      <rect x="1600" y="40" width="2250" height="2220" rx="30"
+            fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+      <rect x="2275" y="50" width="900" height="75" rx="10" fill="#f5f5f5"/>
+      <text x="2725" y="105" fill="rgba(45,49,66,0.60)" font-size="48px" font-family="'Geist Mono', monospace"
+            font-weight="600" text-anchor="middle" letter-spacing="0.14em">BACKEND TIER · LÕI XỬ LÝ</text>
+
+      <!-- Zone 3: Data & Cloud Tier -->
+      <rect x="3950" y="40" width="1800" height="2220" rx="30"
+            fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+      <rect x="4350" y="50" width="1000" height="75" rx="10" fill="#f5f5f5"/>
+      <text x="4850" y="105" fill="rgba(45,49,66,0.60)" font-size="48px" font-family="'Geist Mono', monospace"
+            font-weight="600" text-anchor="middle" letter-spacing="0.14em">DATA &amp; CLOUD TIER · DỮ LIỆU</text>
+
+      <!-- ==================== CONNECTORS ==================== -->
+      <!-- 1. Web -> Gateway -->
+      <line x1="1450" y1="500" x2="1675" y2="500" stroke="#2e5aa8" stroke-width="8" marker-end="url(#arrow-link)"/>
+      <rect x="1480" y="410" width="170" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="1565" y="457" fill="#2e5aa8" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REST</text>
+
+      <!-- 2. Mobile -> Gateway [Right+Up Elbow] -->
+      <path d="M 1450,1550 H 1540 Q 1570,1550 1570,1520 V 650 Q 1570,620 1600,620 H 1675"
+            fill="none" stroke="#2e5aa8" stroke-width="8" marker-end="url(#arrow-link)"/>
+      <rect x="1460" y="1050" width="220" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="1570" y="1097" fill="#2e5aa8" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HTTPS</text>
+
+      <!-- 3. Gateway -> Core Engine -->
+      <line x1="2725" y1="850" x2="2725" y2="950" stroke="#eb6c36" stroke-width="9" marker-end="url(#arrow-accent)"/>
+      <rect x="2525" y="860" width="400" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="2725" y="907" fill="#eb6c36" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DISPATCH</text>
+
+      <!-- 4. Core Engine -> PostgreSQL [Right+Up Elbow] -->
+      <path d="M 3775,1200 H 3870 Q 3900,1200 3900,1170 V 510 Q 3900,480 3930,480 H 4025"
+            fill="none" stroke="#4f5d75" stroke-width="8" marker-end="url(#arrow)"/>
+      <rect x="3800" y="810" width="200" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="3900" y="857" fill="#4f5d75" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">JPA</text>
+
+      <!-- 5. Core Engine -> Redis [Right+Up Elbow, offset x=3960] -->
+      <path d="M 3775,1450 H 3930 Q 3960,1450 3960,1420 V 1200 Q 3960,1170 3990,1170 H 4025"
+            fill="none" stroke="#4f5d75" stroke-width="8" marker-end="url(#arrow)"/>
+      <rect x="3775" y="1370" width="170" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="3860" y="1417" fill="#4f5d75" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LOCK</text>
+
+      <!-- 6. Core Engine -> Firebase FCM -->
+      <line x1="3775" y1="1850" x2="4025" y2="1850" stroke="#4f5d75" stroke-width="7" stroke-dasharray="20,15" marker-end="url(#arrow)"/>
+      <rect x="3800" y="1770" width="200" height="65" rx="10" fill="#f5f5f5"/>
+      <text x="3900" y="1817" fill="#4f5d75" font-size="40px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FCM</text>
+
+      <!-- ==================== NODES (Scaled 5x) ==================== -->
+      
+      <!-- Node 1: Web Client -->
+      <g id="node-web">
+        <rect x="100" y="170" width="1350" height="960" rx="30" fill="#f5f5f5"/>
+        <rect x="100" y="170" width="1350" height="960" rx="30" fill="#ffffff" stroke="#2d3142" stroke-width="7"/>
+        <rect x="140" y="210" width="210" height="90" rx="10" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="4"/>
+        <text x="245" y="275" fill="#2d3142" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+        <text x="825" y="270" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Web Admin &amp; Manager</text>
+        <text x="775" y="365" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">React 19 · Vite 8 · Three.js 3D</text>
+        <line x1="140" y1="415" x2="1410" y2="415" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="150" y="540" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Quản lý cửa hàng, nhân sự &amp; kỹ năng</text>
+        <text x="150" y="680" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• AutoSchedule &amp; Mặt bằng 3D/2D</text>
+        <text x="150" y="820" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Hoạch định nhu cầu (Demand planning)</text>
+        <text x="150" y="960" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Giám sát chấm công &amp; Phê duyệt lương</text>
+      </g>
+
+      <!-- Node 2: Mobile Client -->
+      <g id="node-mobile">
+        <rect x="100" y="1200" width="1350" height="960" rx="30" fill="#f5f5f5"/>
+        <rect x="100" y="1200" width="1350" height="960" rx="30" fill="#ffffff" stroke="#2d3142" stroke-width="7"/>
+        <rect x="140" y="1240" width="270" height="90" rx="10" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="4"/>
+        <text x="275" y="1305" fill="#2d3142" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOBILE</text>
+        <text x="860" y="1300" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mobile Staff App</text>
+        <text x="775" y="1395" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">Expo SDK 57 · React Native 0.86</text>
+        <line x1="140" y1="1445" x2="1410" y2="1445" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="150" y="1570" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Xem lịch phân ca &amp; Khai báo lịch rảnh</text>
+        <text x="150" y="1710" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Chấm công Live Selfie &amp; Định vị GPS</text>
+        <text x="150" y="1850" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Nhận ca mở Marketplace &amp; Đổi ca</text>
+        <text x="150" y="1990" fill="#4f5d75" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Gửi đơn xin nghỉ &amp; Xem phiếu lương</text>
+      </g>
+
+      <!-- Node 3: API Gateway -->
+      <g id="node-gateway">
+        <rect x="1675" y="170" width="2100" height="680" rx="30" fill="#f5f5f5"/>
+        <rect x="1675" y="170" width="2100" height="680" rx="30" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="7"/>
+        <rect x="1725" y="210" width="320" height="90" rx="10" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="4"/>
+        <text x="1885" y="275" fill="#4f5d75" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">GATEWAY</text>
+        <text x="2800" y="270" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">API &amp; Security Gateway</text>
+        <text x="2800" y="365" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">Spring Security · JJWT · STOMP WebSocket</text>
+        <line x1="1725" y1="415" x2="3725" y2="415" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="1740" y="540" fill="#4f5d75" font-size="62px" font-family="'Geist', sans-serif">• Xác thực JWT Access / Refresh Token &amp; Phân quyền RBAC</text>
+        <text x="1740" y="680" fill="#4f5d75" font-size="62px" font-family="'Geist', sans-serif">• StoreAccessService: Phân lập và bảo vệ dữ liệu cấp Store</text>
+      </g>
+
+      <!-- Node 4: Core Backend Engine (Focal Node - Coral) -->
+      <g id="node-core">
+        <rect x="1675" y="950" width="2100" height="1210" rx="30" fill="#f5f5f5"/>
+        <rect x="1675" y="950" width="2100" height="1210" rx="30" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="8"/>
+        <rect x="1725" y="990" width="230" height="90" rx="10" fill="transparent" stroke="rgba(235,108,54,0.60)" stroke-width="4"/>
+        <text x="1840" y="1055" fill="#eb6c36" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+        <text x="2800" y="1050" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ShiftSync Core Engine &amp; Services</text>
+        <text x="2800" y="1145" fill="#eb6c36" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">Spring Boot 4.1.1 · Java 21 · Spring Data JPA</text>
+        <line x1="1725" y1="1195" x2="3725" y2="1195" stroke="rgba(235,108,54,0.30)" stroke-width="4"/>
+        <text x="1740" y="1310" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Thuật toán AutoSchedule (Lọc ràng buộc cứng &amp; Tối ưu)</text>
+        <text x="1740" y="1440" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• SpatialAllocationService (Gán vị trí mặt bằng 2D/3D)</text>
+        <text x="1740" y="1570" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Attendance &amp; Payroll Engine (Xác thực Live Selfie/GPS &amp; Tính lương)</text>
+        <text x="1740" y="1700" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Marketplace &amp; ShiftSwap (Khóa tranh chấp &amp; Xử lý đồng thời)</text>
+        <text x="1740" y="1830" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Quota &amp; Workforce Sharing (Chia sẻ nhân lực liên cửa hàng)</text>
+        <text x="1740" y="1960" fill="#2d3142" font-size="62px" font-weight="500" font-family="'Geist', sans-serif">• Audit Log &amp; System Event Tracking (Lưu vết kiểm toán)</text>
+      </g>
+
+      <!-- Node 5: PostgreSQL Database -->
+      <g id="node-postgres">
+        <rect x="4025" y="170" width="1650" height="620" rx="30" fill="#f5f5f5"/>
+        <rect x="4025" y="170" width="1650" height="620" rx="30" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="7"/>
+        <rect x="4075" y="210" width="260" height="90" rx="10" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="4"/>
+        <text x="4205" y="275" fill="#4f5d75" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RDBMS</text>
+        <text x="4900" y="270" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PostgreSQL Database</text>
+        <text x="4900" y="365" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">Flyway Migrations V1..V40 · Port 5432</text>
+        <line x1="4075" y1="415" x2="5625" y2="415" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="4090" y="540" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Single Source of Truth cho toàn bộ nghiệp vụ</text>
+        <text x="4090" y="660" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Lưu trữ User, Shift, Store, Layout &amp; Audit Logs</text>
+      </g>
+
+      <!-- Node 6: Redis & Redisson -->
+      <g id="node-redis">
+        <rect x="4025" y="860" width="1650" height="620" rx="30" fill="#f5f5f5"/>
+        <rect x="4025" y="860" width="1650" height="620" rx="30" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="7"/>
+        <rect x="4075" y="900" width="240" height="90" rx="10" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="4"/>
+        <text x="4195" y="965" fill="#4f5d75" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CACHE</text>
+        <text x="4900" y="960" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Redis &amp; Redisson</text>
+        <text x="4900" y="1055" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">In-Memory Store &amp; Lock · Port 6379</text>
+        <line x1="4075" y1="1105" x2="5625" y2="1105" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="4090" y="1230" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Redisson Lock: Khóa chống tranh chấp nhận ca</text>
+        <text x="4090" y="1350" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Quản lý JWT Blacklist &amp; Bộ nhớ đệm danh mục</text>
+      </g>
+
+      <!-- Node 7: Firebase FCM -->
+      <g id="node-firebase">
+        <rect x="4025" y="1550" width="1650" height="610" rx="30" fill="#f5f5f5"/>
+        <rect x="4025" y="1550" width="1650" height="610" rx="30" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="7"/>
+        <rect x="4075" y="1590" width="270" height="90" rx="10" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="4"/>
+        <text x="4210" y="1655" fill="#4f5d75" font-size="45px" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NOTIFY</text>
+        <text x="4900" y="1650" fill="#2d3142" font-size="78px" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Firebase Cloud Messaging</text>
+        <text x="4900" y="1745" fill="#4f5d75" font-size="58px" font-family="'Geist Mono', monospace" text-anchor="middle">Firebase Admin SDK · Google Cloud</text>
+        <line x1="4075" y1="1795" x2="5625" y2="1795" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+        <text x="4090" y="1920" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Push Notification ca mới, duyệt nghỉ &amp; swap</text>
+        <text x="4090" y="2040" fill="#4f5d75" font-size="60px" font-family="'Geist', sans-serif">• Nhắc nhở chấm công theo thời gian thực</text>
+      </g>
+
+      <!-- ==================== LEGEND STRIP ==================== -->
+      <line x1="50" y1="2320" x2="5750" y2="2320" stroke="rgba(45,49,66,0.12)" stroke-width="4"/>
+      <text x="50" y="2440" fill="#4f5d75" font-size="50px" font-family="'Geist Mono', monospace" font-weight="600" letter-spacing="0.14em">CHÚ THÍCH</text>
+
+      <rect x="600" y="2390" width="80" height="60" rx="10" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="7"/>
+      <text x="720" y="2440" fill="#4f5d75" font-size="58px" font-family="'Geist', sans-serif">Lõi xử lý trung tâm (Core Engine)</text>
+
+      <rect x="1900" y="2390" width="80" height="60" rx="10" fill="#ffffff" stroke="#2d3142" stroke-width="6"/>
+      <text x="2020" y="2440" fill="#4f5d75" font-size="58px" font-family="'Geist', sans-serif">Giao diện người dùng &amp; Gateway (Web / Mobile / API)</text>
+
+      <rect x="3550" y="2390" width="80" height="60" rx="10" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="6"/>
+      <text x="3670" y="2440" fill="#4f5d75" font-size="58px" font-family="'Geist', sans-serif">Cơ sở dữ liệu &amp; Bộ nhớ đệm (PostgreSQL, Redis)</text>
+
+      <rect x="5000" y="2390" width="80" height="60" rx="10" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="6"/>
+      <text x="5120" y="2440" fill="#4f5d75" font-size="58px" font-family="'Geist', sans-serif">Dịch vụ Cloud ngoài (Firebase FCM)</text>
+    </svg>
+  </div>
+</body>
+</html>
