@@ -60,7 +60,7 @@ public class ShiftSwapController {
             @Valid @RequestBody SwapRespondRequest request) {
         
         shiftSwapService.respondToSwapRequest(requestId, userDetails.getId(), request.getAccept());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Manager approves swap request")
@@ -71,7 +71,7 @@ public class ShiftSwapController {
             @AuthenticationPrincipal CustomUserDetails manager) {
         
         shiftSwapService.managerApproveSwapRequest(requestId, manager.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Manager rejects swap request")
@@ -82,7 +82,7 @@ public class ShiftSwapController {
             @AuthenticationPrincipal CustomUserDetails manager) {
         
         shiftSwapService.managerRejectSwapRequest(requestId, manager.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Cancel swap request")
@@ -93,11 +93,11 @@ public class ShiftSwapController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         
         shiftSwapService.cancelSwapRequest(requestId, userDetails.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Get my swap requests (Staff)")
-    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @Operation(summary = "Get my swap requests (Staff/Manager/Admin)")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')")
     @GetMapping("/users/me/swaps")
     public ResponseEntity<java.util.List<ShiftSwapRequestDTO>> getMySwapRequests(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
