@@ -17,6 +17,8 @@ import { getMyRequests, createStaffRequest, toIsoDate } from '../services/reques
 import { getLeaveTypes, getMyLeaveBalance } from '../services/leaveService';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
+import { respondToSwapRequest } from '../services/swapService';
+import { showAlert } from '../utils/alert';
 import BottomNavbar from '../components/BottomNavbar';
 import PaperPlane3D from '../components/PaperPlane3D';
 
@@ -65,9 +67,11 @@ const EMPTY_SHIFT = {
 export default function RequestScreen({ navigation, route }) {
   const [requests, setRequests] = useState([]);
   const [availableShifts, setAvailableShifts] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('');
   const [currentUserAvatarId, setCurrentUserAvatarId] = useState(null);
   const [storeColleagues, setStoreColleagues] = useState([]);
+  const [respondingSwapId, setRespondingSwapId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
@@ -223,6 +227,7 @@ export default function RequestScreen({ navigation, route }) {
         setCurrentUserName(userFullName);
         setCurrentUserAvatarId(profileRes.value.data.avatarId || null);
         activeUserId = profileRes.value.data.id;
+        setCurrentUserId(activeUserId);
 
         try {
           const storesRes = await getMyStores(activeUserId).catch(() => null);
@@ -280,22 +285,42 @@ export default function RequestScreen({ navigation, route }) {
           if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
             const colleaguesMap = new Map();
             storeShiftsRes.data.forEach((s) => {
-              const staffName = s.assignedStaffName || s.staffName || '';
-              const role = s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
-              if (staffName && staffName !== 'Chưa phân công' && staffName !== userFullName) {
-                if (!colleaguesMap.has(staffName)) {
-                  colleaguesMap.set(staffName, {
-                    name: staffName,
-                    role,
+              const assignments = Array.isArray(s.shiftAssignments) && s.shiftAssignments.length > 0
+                ? s.shiftAssignments
+                : (s.staffId || s.assignedStaffId ? [{
+                    staffId: s.staffId || s.assignedStaffId,
+                    staffName: s.staffName || s.assignedStaffName,
                     avatarId: s.avatarId,
-                  });
+                    skillName: s.skillName,
+                  }] : []);
+
+              assignments.forEach((assign) => {
+                const staffId = assign.staffId;
+                const staffName = assign.staffName || '';
+                const role = assign.skillName || s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
+                if (staffName && staffId && String(staffId) !== String(activeUserId) && staffName !== 'Chưa phân công' && staffName !== userFullName) {
+                  if (!colleaguesMap.has(staffId)) {
+                    colleaguesMap.set(staffId, {
+                      id: staffId,
+                      staffId: staffId,
+                      name: staffName,
+                      role,
+                      avatarId: assign.avatarId || s.avatarId,
+                      shiftId: s.id,
+                      shiftDate: s.shiftDate,
+                      timeRange: `${String(s.startTime || '').slice(0, 5)} - ${String(s.endTime || '').slice(0, 5)}`,
+                    });
+                  }
                 }
-              }
+              });
             });
             const colleaguesList = Array.from(colleaguesMap.values());
             setStoreColleagues(colleaguesList);
             if (colleaguesList.length > 0) {
-              setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
+              setSelectedSwapStaff((prev) => {
+                if (prev && typeof prev === 'object') return prev;
+                return colleaguesList[0];
+              });
             }
           }
         } catch (e) {
@@ -397,31 +422,56 @@ export default function RequestScreen({ navigation, route }) {
       return;
     }
 
-    try {
-      setLoading(true);
-      await createStaffRequest({
-        type: 'SWAP',
-        typeCategory: 'swap',
-        requestType: 'Yêu cầu đổi ca',
-        requesterName: currentUserName || 'Nhân viên',
-        targetStaffName: selectedSwapStaff,
-        shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
-        reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
-        content: `Đề xuất đổi ca làm việc: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
-      });
-      setSwapModalVisible(false);
-      setSwapError(null);
-      showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff}`);
-      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
-      triggerLaunchPlane();
-      loadRequests();
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
-      setSwapError(errMsg);
-      showToast('Thất bại', errMsg, 'error');
-    } finally {
-      setLoading(false);
-    }
+    const targetColleague = typeof selectedSwapStaff === 'object'
+      ? selectedSwapStaff
+      : storeColleagues.find((c) => c.name === selectedSwapStaff || c.staffId === selectedSwapStaff);
+
+    const colleagueName = targetColleague?.name || (typeof selectedSwapStaff === 'string' ? selectedSwapStaff : 'Đồng nghiệp');
+    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
+    const toStaffId = targetColleague?.staffId || targetColleague?.id;
+    const toShiftId = targetColleague?.shiftId;
+
+    showAlert(
+      'Xác nhận gửi yêu cầu đổi ca',
+      `Bạn có chắc chắn muốn gửi đề xuất hoán đổi ca làm ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}?\n\nĐồng nghiệp sẽ nhận được thông báo để xác nhận trước khi Quản lý duyệt chính thức.`,
+      [
+        { text: 'Kiểm tra lại', style: 'cancel' },
+        {
+          text: 'Xác nhận gửi ngay',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await createStaffRequest({
+                type: 'SWAP',
+                typeCategory: 'swap',
+                requestType: 'Yêu cầu đổi ca',
+                requesterName: currentUserName || 'Nhân viên',
+                targetStaffName: colleagueName,
+                fromShiftId: fromShiftId,
+                toStaffId: toStaffId,
+                toShiftId: toShiftId,
+                shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
+                reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
+                content: `Đề xuất đổi ca làm việc: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
+              }, activeStoreId);
+              setSwapModalVisible(false);
+              setSwapError(null);
+              showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName}`);
+              // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+              triggerLaunchPlane();
+              loadRequests();
+            } catch (err) {
+              const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
+              setSwapError(errMsg);
+              showToast('Thất bại', errMsg, 'error');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // ── Submit Xin vắng (Image 4) ──
@@ -470,6 +520,49 @@ export default function RequestScreen({ navigation, route }) {
   const filteredRequests = filterStatus
     ? requests.filter(r => r.status === filterStatus)
     : requests;
+
+  const incomingSwaps = requests.filter((r) => {
+    if (!r.isRealSwap || r.status !== 'PENDING' || r.employeeAccepted) return false;
+    const isTargetUser =
+      (currentUserId && String(r.toStaffId) === String(currentUserId)) ||
+      (currentUserName && r.toStaffName && r.toStaffName.trim().toLowerCase() === currentUserName.trim().toLowerCase());
+    return isTargetUser;
+  });
+
+  const handleRespondSwap = async (swapItem, accept) => {
+    showAlert(
+      accept ? 'Xác nhận đồng ý nhận ca đổi' : 'Từ chối yêu cầu đổi ca',
+      accept
+        ? `Bạn có chắc chắn đồng ý nhận ca (${swapItem.fromShiftDate} ${swapItem.fromShiftStartTime?.slice(0, 5)} - ${swapItem.fromShiftEndTime?.slice(0, 5)}) và nhượng ca của bạn cho ${swapItem.fromStaffName}?\n\nYêu cầu sẽ được gửi tới Quản lý để phê duyệt chính thức.`
+        : `Bạn có chắc chắn muốn từ chối yêu cầu đổi ca từ ${swapItem.fromStaffName}?`,
+      [
+        { text: 'Hủy bỏ', style: 'cancel' },
+        {
+          text: accept ? 'Đồng ý nhận ca' : 'Từ chối',
+          style: accept ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              setRespondingSwapId(swapItem.id);
+              await respondToSwapRequest(swapItem.id, { accept });
+              if (accept) {
+                showToast('Thành công', `Bạn đã đồng ý đổi ca với ${swapItem.fromStaffName}. Đang chờ Quản lý phê duyệt.`);
+                triggerLaunchPlane();
+              } else {
+                showToast('Đã từ chối', `Bạn đã từ chối yêu cầu đổi ca của ${swapItem.fromStaffName}.`);
+              }
+              setDetailModalVisible(false);
+              loadRequests();
+            } catch (err) {
+              const msg = err.response?.data?.message || err.message || 'Không thể phản hồi yêu cầu đổi ca';
+              showToast('Lỗi', msg, 'error');
+            } finally {
+              setRespondingSwapId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const renderToast = () => {
     if (!toastMessage) return null;
@@ -550,6 +643,101 @@ export default function RequestScreen({ navigation, route }) {
         </TouchableOpacity>
 
         <View style={styles.headerDivider} />
+
+        {/* ── ⚡ YÊU CẦU ĐỔI CA GỬI ĐẾN BẠN (GIAO DIỆN NHẬN CA ĐỔI) ── */}
+        {incomingSwaps.length > 0 && (
+          <View style={styles.incomingSwapSection}>
+            <View style={styles.incomingSectionHeader}>
+              <View style={styles.incomingBadge}>
+                <Text style={styles.incomingBadgeText}>⚡ CẦN BẠN PHẢN HỒI ({incomingSwaps.length})</Text>
+              </View>
+              <Text style={styles.incomingSectionTitle}>Yêu cầu đổi ca gửi đến bạn</Text>
+              <Text style={styles.incomingSectionSub}>
+                Đồng nghiệp muốn đổi ca làm việc. Vui lòng kiểm tra và xác nhận đồng ý hoặc từ chối.
+              </Text>
+            </View>
+
+            {incomingSwaps.map((swap) => {
+              const fromTime = `${String(swap.fromShiftStartTime || '').slice(0, 5)} - ${String(swap.fromShiftEndTime || '').slice(0, 5)}`;
+              const toTime = `${String(swap.toShiftStartTime || '').slice(0, 5)} - ${String(swap.toShiftEndTime || '').slice(0, 5)}`;
+              const isResponding = respondingSwapId === swap.id;
+
+              return (
+                <View key={swap.id} style={styles.incomingSwapCard}>
+                  {/* Header: Người gửi */}
+                  <View style={styles.incomingCardTop}>
+                    <Image
+                      source={getStaffAvatarSource(swap.fromStaffName)}
+                      style={styles.incomingSenderAvatar}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.incomingSenderName}>{swap.fromStaffName}</Text>
+                      <Text style={styles.incomingSenderRole}>Đồng nghiệp đề xuất đổi ca</Text>
+                    </View>
+                    <View style={styles.pendingActionPill}>
+                      <Text style={styles.pendingActionText}>Chờ bạn duyệt</Text>
+                    </View>
+                  </View>
+
+                  {/* Chi tiết ca hoán đổi */}
+                  <View style={styles.swapComparisonBox}>
+                    <View style={styles.swapShiftRow}>
+                      <View style={[styles.swapShiftDot, { backgroundColor: '#F59E0B' }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.swapShiftLabel}>Ca của bạn (sẽ nhượng lại):</Text>
+                        <Text style={styles.swapShiftValue}>
+                          {swap.toShiftDate} • {toTime}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.swapArrowWrap}>
+                      <Text style={styles.swapArrowText}>⇅</Text>
+                    </View>
+
+                    <View style={styles.swapShiftRow}>
+                      <View style={[styles.swapShiftDot, { backgroundColor: '#10B981' }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.swapShiftLabel}>Ca bạn sẽ nhận thay:</Text>
+                        <Text style={[styles.swapShiftValue, { color: '#065F46', fontWeight: '700' }]}>
+                          {swap.fromShiftDate} • {fromTime}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Nút hành động Đồng ý / Từ chối */}
+                  <View style={styles.incomingActionsRow}>
+                    <TouchableOpacity
+                      style={styles.declineBtn}
+                      onPress={() => handleRespondSwap(swap, false)}
+                      disabled={isResponding}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.declineBtnText}>Từ chối</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.acceptBtn}
+                      onPress={() => handleRespondSwap(swap, true)}
+                      disabled={isResponding}
+                      activeOpacity={0.85}
+                    >
+                      {isResponding ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Text style={styles.acceptBtnIcon}>✓</Text>
+                          <Text style={styles.acceptBtnText}>Đồng ý nhận ca</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* ── 2. Top 3 Filter Cards: Đã duyệt / Chờ duyệt / Từ chối ── */}
         <View style={styles.filterCardsRow}>
@@ -1015,26 +1203,70 @@ export default function RequestScreen({ navigation, route }) {
                 </View>
               ) : (
                 storeColleagues.map((staff, idx) => {
-                  const isSelected = selectedSwapStaff === staff.name;
+                  const isSelected = (selectedSwapStaff && typeof selectedSwapStaff === 'object' && selectedSwapStaff.staffId === staff.staffId) || selectedSwapStaff === staff.name;
 
                   return (
                     <TouchableOpacity
                       key={idx}
                       style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
-                      onPress={() => setSelectedSwapStaff(staff.name)}
+                      onPress={() => {
+                        setSelectedSwapStaff(staff);
+                        showToast('Đã chọn đồng nghiệp', `${staff.name} • ${staff.role}`, 'info');
+                      }}
                       activeOpacity={0.7}
                     >
                       <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
                       <View style={styles.suggestInfo}>
                         <Text style={styles.suggestName}>{staff.name}</Text>
-                        <Text style={styles.suggestRole}>{staff.role}</Text>
+                        <Text style={styles.suggestRole}>{staff.role}{staff.timeRange ? ` • ${staff.timeRange}` : ''}</Text>
                       </View>
-                      {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
+                      {isSelected && (
+                        <View style={styles.suggestCheckBadge}>
+                          <Text style={styles.suggestCheckmark}>✓</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })
               )}
             </View>
+
+            {selectedSwapStaff ? (
+              <View style={styles.selectedColleagueCard}>
+                <View style={styles.sccHeader}>
+                  <View style={styles.sccBadge}>
+                    <Text style={styles.sccBadgeText}>✓ ĐÃ CHỌN ĐỒNG NGHIỆP ĐỔI CA</Text>
+                  </View>
+                  <Text style={styles.sccName}>
+                    {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff}
+                  </Text>
+                </View>
+                <View style={styles.sccExchangeRow}>
+                  <View style={styles.sccBox}>
+                    <Text style={styles.sccBoxLabel}>Ca của bạn (nhượng lại)</Text>
+                    <Text style={styles.sccBoxTime}>{selectedSwapShift.dayLabel}</Text>
+                    <Text style={styles.sccBoxSub}>{selectedSwapShift.timeRange}</Text>
+                  </View>
+                  <View style={styles.sccArrowWrap}>
+                    <Text style={styles.sccArrowText}>⇄</Text>
+                  </View>
+                  <View style={styles.sccBox}>
+                    <Text style={styles.sccBoxLabel}>Ca đồng nghiệp (bạn nhận)</Text>
+                    <Text style={styles.sccBoxTime}>
+                      {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff}
+                    </Text>
+                    <Text style={[styles.sccBoxSub, { color: '#065F46', fontWeight: '600' }]}>
+                      {typeof selectedSwapStaff === 'object' && selectedSwapStaff.timeRange
+                        ? `${selectedSwapStaff.shiftDate ? selectedSwapStaff.shiftDate + ' • ' : ''}${selectedSwapStaff.timeRange}`
+                        : 'Cần đồng nghiệp duyệt'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.sccNoticeText}>
+                  ℹ️ Trạng thái: Sau khi gửi, yêu cầu sẽ là "Chờ đồng nghiệp đồng ý". Sau khi {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff} chấp thuận, Quản lý mới duyệt chính thức.
+                </Text>
+              </View>
+            ) : null}
 
             {swapError && (
               <View style={styles.modalErrorBox}>
@@ -1268,6 +1500,39 @@ export default function RequestScreen({ navigation, route }) {
                 {selectedRequest?.status === 'APPROVED' ? 'Trạng thái: Đã duyệt' : selectedRequest?.status === 'REJECTED' ? 'Trạng thái: Từ chối' : 'Trạng thái: Đang chờ duyệt'}
               </Text>
             </View>
+
+            {/* Nếu là yêu cầu đổi ca gửi đến bạn đang chờ phản hồi */}
+            {selectedRequest?.isRealSwap &&
+              selectedRequest?.status === 'PENDING' &&
+              !selectedRequest?.employeeAccepted &&
+              ((currentUserId && String(selectedRequest.toStaffId) === String(currentUserId)) ||
+                (currentUserName &&
+                  selectedRequest.toStaffName &&
+                  selectedRequest.toStaffName.trim().toLowerCase() === currentUserName.trim().toLowerCase())) && (
+                <View style={styles.detailModalActionsRow}>
+                  <TouchableOpacity
+                    style={styles.detailDeclineBtn}
+                    onPress={() => handleRespondSwap(selectedRequest, false)}
+                    disabled={respondingSwapId === selectedRequest.id}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.detailDeclineBtnText}>Từ chối</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.detailAcceptBtn}
+                    onPress={() => handleRespondSwap(selectedRequest, true)}
+                    disabled={respondingSwapId === selectedRequest.id}
+                    activeOpacity={0.85}
+                  >
+                    {respondingSwapId === selectedRequest.id ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.detailAcceptBtnText}>✓ Đồng ý nhận ca</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
           </View>
         </View>
       </Modal>
@@ -1857,14 +2122,25 @@ const styles = StyleSheet.create({
   suggestItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(240, 236, 236, 0.7)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   suggestItemSelected: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
   suggestAvatar: {
     width: 44,
@@ -1878,17 +2154,120 @@ const styles = StyleSheet.create({
   suggestName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#222222',
+    color: '#0F172A',
   },
   suggestRole: {
-    fontSize: 13,
-    color: '#666666',
+    fontSize: 12.5,
+    color: '#64748B',
     marginTop: 2,
   },
+  suggestCheckBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   suggestCheckmark: {
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // ── Selected Colleague Preview Card ──
+  selectedColleagueCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  sccHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 8,
+  },
+  sccBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  sccBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    letterSpacing: 0.3,
+  },
+  sccName: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#51A33D',
+    color: '#1E293B',
+  },
+  sccExchangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sccBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  sccBoxLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  sccBoxTime: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  sccBoxSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  sccArrowWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 6,
+  },
+  sccArrowText: {
+    fontSize: 18,
+    color: '#2563EB',
+    fontWeight: '800',
+  },
+  sccNoticeText: {
+    fontSize: 11.5,
+    color: '#475569',
+    lineHeight: 16,
+    marginTop: 10,
+    fontStyle: 'italic',
   },
 
   // ── Warning Note ──
@@ -2221,5 +2600,213 @@ const styles = StyleSheet.create({
   detailRejectionText: {
     fontSize: 13,
     color: '#B91C1C',
+  },
+
+  // ── ⚡ INCOMING SWAP REQUEST SECTION ──
+  incomingSwapSection: {
+    marginBottom: 20,
+  },
+  incomingSectionHeader: {
+    marginBottom: 12,
+  },
+  incomingBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  incomingBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 0.5,
+  },
+  incomingSectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  incomingSectionSub: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  incomingSwapCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    marginBottom: 12,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  incomingCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  incomingSenderAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+  },
+  incomingSenderName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  incomingSenderRole: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  pendingActionPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pendingActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  swapComparisonBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    gap: 8,
+  },
+  swapShiftRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  swapShiftDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 6,
+  },
+  swapShiftLabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  swapShiftValue: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  swapArrowWrap: {
+    alignItems: 'center',
+    marginVertical: -2,
+  },
+  swapArrowText: {
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: 'bold',
+  },
+  incomingActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  declineBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  acceptBtn: {
+    flex: 1.5,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#51A33D',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    shadowColor: '#51A33D',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  acceptBtnIcon: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  acceptBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // ── DETAIL MODAL ACTIONS ──
+  detailModalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  detailDeclineBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailDeclineBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  detailAcceptBtn: {
+    flex: 1.6,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: '#51A33D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#51A33D',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  detailAcceptBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
