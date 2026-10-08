@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     List<Attendance> findByShiftAssignment_Staff_IdAndShiftAssignment_Shift_IdIn(UUID staffId, List<UUID> shiftIds);
     Optional<Attendance> findByShiftAssignmentId(UUID shiftAssignmentId);
+    boolean existsByShiftAssignmentId(UUID shiftAssignmentId);
+    boolean existsByShiftAssignment_Shift_Id(UUID shiftId);
     
     List<Attendance> findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate);
 
