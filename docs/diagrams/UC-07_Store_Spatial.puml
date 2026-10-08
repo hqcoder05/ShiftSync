@@ -1,0 +1,149 @@
+@startuml UC-07_Store_Spatial
+' ==============================================================================
+' Diagram: UC-07 - Phân hệ Không gian 3D & Phân bổ Trạm làm việc (Spatial Allocation)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 3 Tầng: Thiết lập mặt bằng -> Thuật toán Max-Min -> Mô phỏng trực quan 3D
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý cửa hàng\n(Manager)" as Manager
+actor "Thuật toán Phân bổ 3D\n(SpatialAllocationService)" as Engine <<system>>
+actor "Nhân viên\n(Staff)" as Staff
+
+Manager -[hidden]right- Engine
+Engine -[hidden]right- Staff
+
+' ==============================================================================
+' KHỐI USE CASE
+' ==============================================================================
+package "Phân hệ Không gian 3D & Phân bổ Trạm làm việc (UC-07)" as SpatialPkg {
+
+    ' Tầng 1: Cấu hình Mặt bằng & Khu vực
+    package "1. Cấu trúc Mặt bằng & Khu vực chức năng" as LayoutPkg {
+        usecase "UC-07.1: Thiết lập cấu hình sơ đồ mặt bằng 3D\n(Store Layout CRUD: Kích thước, Tường, Cửa)" as UC_Layout
+        usecase "UC-07.2: Quản lý khu vực chức năng cửa hàng\n(Store Zones: Quầy pha chế, Thu ngân, Bàn ăn)" as UC_Zones
+        usecase "UC-07.3: Quản lý vị trí các trạm làm việc\n(Workstations CRUD: Tọa độ x, y, z, Thiết bị)" as UC_Workstations
+    }
+
+    ' Tầng 2: Thuật toán Phân bổ Không gian
+    package "2. Động cơ Phân bổ Trạm làm việc Tối ưu" as AllocationPkg {
+        usecase "<b>UC-07.4: Phân bổ nhân sự vào trạm làm việc</b>\n(Thuật toán Heuristic Max-Min Dispersion)" as UC_Allocate <<focal>>
+    }
+
+    ' Tầng 3: Trực quan hóa & Giám sát vận hành 3D
+    package "3. Trực quan hóa & Tương tác Không gian 3D" as VisualizationPkg {
+        usecase "UC-07.5: Mô phỏng không gian 3D tương tác\n(Three.js / React Three Fiber / BabylonJS)" as UC_Simulate3D
+        usecase "UC-07.6: Tra cứu vị trí trạm làm việc phân công\n(Xem sơ đồ trạm trực cá nhân trên Mobile)" as UC_ViewWorkstation
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_Zones .> UC_Layout : <<include>>\n(Định vị trong mặt bằng)
+UC_Workstations .> UC_Zones : <<include>>\n(Gán thuộc khu vực)
+UC_Allocate .> UC_Workstations : <<include>>\n(Gán nhân sự vào trạm)
+UC_Simulate3D .> UC_Allocate : <<include>>\n(Hiển thị Avatar tại trạm)
+UC_ViewWorkstation .> UC_Allocate : <<include>>\n(Đọc kết quả phân bổ)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_Layout
+Manager --> UC_Zones
+Manager --> UC_Workstations
+Manager --> UC_Allocate
+Manager --> UC_Simulate3D
+
+Engine --> UC_Allocate
+
+Staff --> UC_ViewWorkstation
+
+note right of UC_Allocate
+  **Bài toán tối ưu phân tán vị trí (p-dispersion):**
+  - Tối đa hóa khoảng cách nhỏ nhất giữa các nhân sự:
+    $$\max \min_{i \neq j} d(w_i, w_j)$$
+  - Đảm bảo độ phủ dịch vụ đồng đều trong cửa hàng
+  - Kiểm soát mật độ an toàn và tránh tập trung cục bộ
+end note
+
+note right of UC_Simulate3D
+  **Công nghệ hiển thị trực quan:**
+  - **Three.js & React Three Fiber:** Dựng hình 3D
+  - Hỗ trợ xoay góc nhìn OrbitControls, zoom,
+    chọn trạm làm việc và xem thông tin nhân sự
+end note
+
+@enduml
