@@ -1,0 +1,110 @@
+@startuml AD-07_Attendance_LiveSelfie
+title **AD-07: LUỒNG ĐIỂM DANH CHẤM CÔNG LIVE SELFIE & TÍNH LƯƠNG**\n//Quy trình xác thực người thật - việc thật bằng Live Camera, GPS Haversine, xử lý khiếu nại và tính lương//
+
+skinparam {
+    shadowing false
+    roundcorner 8
+    defaultFontName "Segoe UI", "Arial", sans-serif
+    defaultFontSize 12
+    defaultFontColor #2D3142
+    backgroundColor #FFFFFF
+    
+    activityBorderColor #4F5D75
+    activityBackgroundColor #FFFFFF
+    activityBorderThickness 1.2
+    
+    diamondBorderColor #EB6C36
+    diamondBackgroundColor #FFF7ED
+    diamondFontColor #2D3142
+    diamondFontStyle bold
+    
+    arrowColor #4F5D75
+    arrowThickness 1.2
+    arrowFontSize 11
+    arrowFontColor #4F5D75
+    
+    partitionBorderColor #94A3B8
+    partitionBackgroundColor #F8FAFC
+    partitionFontStyle bold
+    partitionFontSize 13
+}
+
+start
+
+' ==============================================================================
+' 1. CHẤM CÔNG THỰC CHỨNG (LIVE SELFIE & GPS)
+' ==============================================================================
+partition "**1. CHẤM CÔNG THỰC CHỨNG (LIVE SELFIE & GPS)**" {
+    :Nhân viên mở ứng dụng ShiftSync Mobile;
+
+    #FFF7ED:[CLIENT]\nChụp Live Selfie & Lấy tọa độ GPS thiết bị;
+
+    if (Khoảng cách Haversine\n**d <= 100 mét?**) then (<= 100m)
+        :Hệ thống kiểm tra ca làm việc\n(ShiftAssignment theo userId & thời gian);
+        
+        if (Có ca làm hợp lệ\ntrong khung giờ hôm nay?) then (Hợp lệ)
+            #FFF7ED:[DATABASE]\nLưu Attendance & Ảnh Selfie (BYTEA)\n//Ghi nhận trạng thái: ON_TIME hoặc LATE (+lateMinutes)//;
+            
+            :Nhân viên thực hiện ca làm việc;
+            
+            #FFF7ED:[CLIENT]\nChụp Live Selfie Check-out & Ghi nhận giờ;
+            
+            :Tính thời lượng làm việc thực tế\n//duration = checkOutTime - checkInTime//;
+        else (Không có)
+            #FEE2E2:[TỪ CHỐI]\nChưa được gán ca làm việc\n//Không tìm thấy phân công hợp lệ//;
+            detach
+        endif
+    else (> 100m)
+        #FEE2E2:[TỪ CHỐI CHẤM CÔNG]\nVi phạm bán kính Geofence\n//HTTP 400: Out of Geofence (>100m)//;
+        detach
+    endif
+}
+
+' ==============================================================================
+' 2. XỬ LÝ NGOẠI LỆ & GIẢI TRÌNH (ADJUSTMENT)
+' ==============================================================================
+partition "**2. XỬ LÝ NGOẠI LỆ & GIẢI TRÌNH (ADJUSTMENT)**" {
+    if (Có sai lệch hoặc\nquên check-out?) then (Sai lệch)
+        :Gửi đơn giải trình điều chỉnh công\n//Kèm lý do thực tế & mốc giờ đề xuất//;
+        
+        :Manager đối soát ảnh Live Selfie & lịch ca\n//Thẩm tra bằng chứng giải trình//;
+        
+        if (Đơn giải trình hợp lệ?) then (Duyệt)
+            #DCFCE7:[DUYỆT]\nCập nhật công thực tế & Ghi vết AuditLog\n//Lưu lịch sử điều chỉnh minh bạch//;
+        else (Từ chối)
+            #FEE2E2:[TỪ CHỐI ĐIỀU CHỈNH]\nGiữ nguyên dữ liệu chấm công cũ;
+        endif
+    else (Chuẩn)
+        :Giữ nguyên Attendance gốc ban đầu\n//Không phát sinh khiếu nại//;
+    endif
+}
+
+' ==============================================================================
+' 3. TỔNG HỢP & TÍNH TOÁN LƯƠNG (PAYROLL ENGINE)
+' ==============================================================================
+partition "**3. TỔNG HỢP & TÍNH TOÁN LƯƠNG KỲ (PAYROLL ENGINE)**" {
+    :Tổng hợp danh sách Attendance đã duyệt trong kỳ\n//Tải thông tin Employment & Mức lương theo vị trí//;
+
+    #FFF7ED:[BỘ LUẬT LAO ĐỘNG]\nTách ca xuyên đêm tại mốc 00:00:00\n//Áp dụng phụ cấp đêm +30% cho khung giờ 22:00 - 06:00//;
+
+    :Tính hệ số làm thêm giờ (OT) và Ngày lễ\n//OT ngày: 150%, nghỉ tuần: 200%, Lễ Tết: 300% (Điều 98)//;
+
+    :Kiểm tra chống chi trả kép (Leave Protection)\n//Không tính trùng lương ngày nghỉ phép đã hưởng 100%//;
+
+    :Tạo bản ghi Payroll (Trạng thái: DRAFT)\n//Tự động tổng hợp Base Pay, OT, Night Diff, Holiday//;
+
+    if (Manager / Admin\nphê duyệt bảng lương?) then (Duyệt)
+        #DCFCE7:[CONFIRMED]\nKhóa bảng lương & Xuất Payslip (PDF / Excel)\n//Bắn WebSocket & Notification đến từng nhân viên//;
+    else (Yêu cầu sửa)
+        #FEE2E2:[YÊU CẦU ĐIỀU CHỈNH]\nSửa đổi dữ liệu công & Tái tính toán kỳ lương;
+        detach
+    endif
+}
+
+stop
+
+footer
+//ShiftSync - Enterprise Shift Scheduling System | Graduation Thesis//
+endfooter
+
+@enduml
