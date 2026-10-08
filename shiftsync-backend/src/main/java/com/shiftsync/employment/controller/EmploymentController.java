@@ -61,7 +61,7 @@ public class EmploymentController {
 
     @GetMapping("/stores/{storeId}/staff")
     @Operation(summary = "Get staff for a store")
-    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)")
     public ResponseEntity<Page<EmploymentDTO>> getStaffByStore(
             @PathVariable UUID storeId,
             Pageable pageable) {
