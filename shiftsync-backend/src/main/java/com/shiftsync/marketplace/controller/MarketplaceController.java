@@ -30,7 +30,7 @@ public class MarketplaceController {
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId) {
         marketplaceService.publishToMarketplace(storeId, shiftId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Unpublish a shift from the Marketplace")
@@ -40,7 +40,7 @@ public class MarketplaceController {
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId) {
         marketplaceService.unpublishFromMarketplace(storeId, shiftId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Get list of active Open Shifts in a store")
@@ -61,6 +61,6 @@ public class MarketplaceController {
             @PathVariable UUID shiftId,
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
         marketplaceService.claimOpenShift(storeId, shiftId, userDetails.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

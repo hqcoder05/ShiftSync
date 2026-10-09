@@ -1301,7 +1301,7 @@ public class AutoScheduleService {
             case BEGINNER: return 0.25;
             default:
                 log.warn("Invalid skill level found: '{}' for staff: {}", level, empData.getEmployment().getUser().getId());
-                throw new IllegalStateException("Unknown skill level: " + level);
+                throw new BusinessException("Unknown skill level: " + level, HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -1362,7 +1362,7 @@ public class AutoScheduleService {
     double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
         if (empData.getMaxWeeklyHours() <= 0) {
             log.warn("Invalid MaxWeeklyHours: {} for staff: {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
-            throw new IllegalStateException("Max weekly hours must be strictly positive to avoid division by zero.");
+            throw new BusinessException("Max weekly hours must be strictly positive to avoid division by zero.", HttpStatus.BAD_REQUEST);
         }
 
         double skillScore = getSkillScore(empData, slot.getSkillId());

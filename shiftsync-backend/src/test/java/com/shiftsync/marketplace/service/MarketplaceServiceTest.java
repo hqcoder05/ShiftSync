@@ -107,6 +107,7 @@ public class MarketplaceServiceTest {
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
         when(shiftAssignmentRepository.countByShiftId(shiftId)).thenReturn(0L);
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)).thenReturn(true);
 
         marketplaceService.claimOpenShift(storeId, shiftId, staffId);
 

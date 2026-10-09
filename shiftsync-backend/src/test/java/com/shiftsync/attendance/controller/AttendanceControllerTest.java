@@ -94,10 +94,11 @@ public class AttendanceControllerTest {
 
         ResponseEntity<AttendanceDTO> response = controller.submitSelfie(userDetails, shiftId, latitude, longitude, photo);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(shiftId, response.getBody().getShiftId());
         verify(attendanceService).submitSelfie(
                 eq(staffId), eq(shiftId), eq(latitude), eq(longitude), argThat(bytes -> bytes.length == 2 * 1024 * 1024));
     }
 }
+

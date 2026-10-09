@@ -23,6 +23,7 @@ import { createAttendanceAdjustment, getMyAttendanceAdjustments } from '../servi
 import { getMyShifts } from '../services/shiftService';
 import BottomNavbar from '../components/BottomNavbar';
 import { Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 
 let AttendanceBadge3D = null;
 if (Platform.OS === 'web') {
@@ -126,7 +127,7 @@ export default function AttendanceScreenLive({ navigation }) {
       }
     } catch (error) {
       if (isInitial) {
-        Alert.alert('Lỗi dữ liệu', 'Không thể kết nối máy chủ để tải lịch làm việc.');
+        showAlert('Lỗi dữ liệu', 'Không thể kết nối máy chủ để tải lịch làm việc.');
       }
     } finally {
       if (isInitial) setLoading(false);
@@ -154,7 +155,7 @@ export default function AttendanceScreenLive({ navigation }) {
 
   const submitExplanation = async () => {
     if (!shift?.storeId || !shift?.id || !todayAttendance?.id || !explanationReason.trim()) {
-      return Alert.alert('Thiếu thông tin', 'Vui lòng nhập lý do giải trình.');
+      return showAlert('Thiếu thông tin', 'Vui lòng nhập lý do giải trình.');
     }
     setExplanationSubmitting(true);
     try {
@@ -170,9 +171,9 @@ export default function AttendanceScreenLive({ navigation }) {
       setRequestedCheckIn('');
       setRequestedCheckOut('');
       await loadData();
-      Alert.alert('Đã gửi giải trình', 'Giải trình đang chờ quản lý duyệt.');
+      showAlert('Đã gửi giải trình', 'Giải trình đang chờ quản lý duyệt.');
     } catch (error) {
-      Alert.alert('Gửi giải trình thất bại', error.response?.data?.message || error.message || 'Vui lòng thử lại.');
+      showAlert('Gửi giải trình thất bại', error.response?.data?.message || error.message || 'Vui lòng thử lại.');
     } finally {
       setExplanationSubmitting(false);
     }
@@ -181,17 +182,17 @@ export default function AttendanceScreenLive({ navigation }) {
   // Mở camera chụp ảnh check-in hoặc check-out
   const openCamera = async (mode) => {
     if (!shift) {
-      return Alert.alert('Chưa có ca làm', 'Bạn chưa được phân công ca làm việc để chấm công.');
+      return showAlert('Chưa có ca làm', 'Bạn chưa được phân công ca làm việc để chấm công.');
     }
     if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission();
       if (!permission.granted) {
-        return Alert.alert('Quyền Camera', 'Vui lòng cấp quyền truy cập Camera để chụp ảnh xác nhận.');
+        return showAlert('Quyền Camera', 'Vui lòng cấp quyền truy cập Camera để chụp ảnh xác nhận.');
       }
     }
     const locationPermission = await Location.requestForegroundPermissionsAsync();
     if (locationPermission.status !== 'granted') {
-      Alert.alert('Quyền Vị trí', 'Vui lòng cho phép quyền vị trí để ghi nhận tọa độ ca làm.');
+      showAlert('Quyền Vị trí', 'Vui lòng cho phép quyền vị trí để ghi nhận tọa độ ca làm.');
     }
     setCameraMode(mode);
     setCameraVisible(true);
@@ -220,18 +221,18 @@ export default function AttendanceScreenLive({ navigation }) {
         const isLate = response.data.status === 'LATE';
         if (isLate) {
           const lateMinutes = Number(response.data.lateMinutes);
-          Alert.alert(
+          showAlert(
             'Check In thành công',
             `Ghi nhận vào ca lúc ${formatTime(response.data.checkInTime)}. Trạng thái: Đi trễ${lateMinutes > 0 ? ` ${lateMinutes} phút` : ''}.`
           );
         } else {
-          Alert.alert(
+          showAlert(
             'Check In thành công',
             `Ghi nhận vào ca lúc ${formatTime(response.data.checkInTime)}. Trạng thái: Đúng giờ.`
           );
         }
       } else {
-        Alert.alert(
+        showAlert(
           'Check Out thành công',
           `Ghi nhận ra ca lúc ${formatTime(response.data.checkOutTime)}. Đã hoàn thành ca làm việc!`
         );
@@ -239,7 +240,7 @@ export default function AttendanceScreenLive({ navigation }) {
 
       loadData();
     } catch (error) {
-      Alert.alert('Chấm công không thành công', error.response?.data?.message || error.message || 'Vui lòng thử lại.');
+      showAlert('Chấm công không thành công', error.response?.data?.message || error.message || 'Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }

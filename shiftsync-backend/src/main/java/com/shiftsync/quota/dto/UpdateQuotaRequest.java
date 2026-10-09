@@ -7,12 +7,14 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import jakarta.validation.constraints.NotNull;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpdateQuotaRequest {
+    @NotNull(message = "Branch ID is required")
     private UUID branchId;
     private LocalDate date;
     private String shiftType; // "morning" or "afternoon" or specific shift ID
@@ -22,3 +24,4 @@ public class UpdateQuotaRequest {
     private Integer target;
     private Integer max;
 }
+

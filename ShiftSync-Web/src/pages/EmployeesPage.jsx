@@ -27,6 +27,7 @@ export default function EmployeesPage() {
 
   const [employees, setEmployees] = useState([]);
   const [stores, setStores] = useState([]);
+  const [selectedStoreId, setSelectedStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
@@ -54,13 +55,14 @@ export default function EmployeesPage() {
     setLoading(true); 
     setError('');
     try {
-      const res = await getEmployees(page, 20, search);
+      const activeStoreId = selectedStoreId || null;
+      const res = await getEmployees(page, 20, search, activeStoreId);
       const list = res.data?.content || res.data || [];
       setEmployees(Array.isArray(list) ? list : []);
       setTotalPages(res.data?.totalPages || 1);
     } catch (err) {
       if (err.response?.status === 403) {
-        setError('Hết phiên đăng nhập (Lỗi 403). Vui lòng Đăng xuất và Đăng nhập lại!');
+        setError('Hết phiên đăng nhập hoặc không có quyền truy cập cửa hàng này (Lỗi 403).');
       } else {
         setError(err.response?.data?.message || 'Không tải được danh sách nhân viên');
       }
@@ -81,7 +83,17 @@ export default function EmployeesPage() {
     }
   };
 
-  useEffect(() => { fetchEmployees(); }, [page, search]);
+  useEffect(() => {
+    const handleStoreChange = (e) => {
+      const newStoreId = e.detail?.storeId ?? (localStorage.getItem('selectedStoreId') || '');
+      setSelectedStoreId(newStoreId);
+      setPage(0);
+    };
+    window.addEventListener('storeChanged', handleStoreChange);
+    return () => window.removeEventListener('storeChanged', handleStoreChange);
+  }, []);
+
+  useEffect(() => { fetchEmployees(); }, [page, search, selectedStoreId]);
   useEffect(() => { fetchStores(); }, []);
 
   const openCreate = () => {
@@ -106,6 +118,20 @@ export default function EmployeesPage() {
   if (currentTab === 'payroll') {
     return <PayrollPage />;
   }
+
+  const subSelect = stores && stores.length > 0 ? {
+    value: selectedStoreId,
+    options: [
+      { value: '', label: 'Tất cả cửa hàng' },
+      ...stores.map(s => ({ value: s.id, label: s.name }))
+    ],
+    onChange: (val) => {
+      setSelectedStoreId(val);
+      localStorage.setItem('selectedStoreId', val);
+      window.dispatchEvent(new CustomEvent('storeChanged', { detail: { storeId: val } }));
+      setPage(0);
+    }
+  } : null;
 
   return (
     <EmployeeModuleLayout
@@ -145,6 +171,7 @@ export default function EmployeesPage() {
       <div className="emp-layout-row">
         <Sidebar
           search={{ value: search, onChange: setSearch, placeholder: 'Tìm theo tên hoặc email...' }}
+          subSelect={subSelect}
         />
 
         <main className="emp-layout-main">
@@ -301,7 +328,7 @@ export default function EmployeesPage() {
     <AddUserModal
       isOpen={showAddUserModal}
       onClose={() => setShowAddUserModal(false)}
-      storeId={localStorage.getItem('selectedStoreId') || ''}
+      storeId={selectedStoreId || localStorage.getItem('selectedStoreId') || ''}
       onSuccess={(newUser) => {
         showToast(`Đã tạo nhân sự mới: ${newUser?.fullName || 'Nhân viên'}`);
         fetchEmployees();

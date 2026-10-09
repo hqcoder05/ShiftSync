@@ -390,6 +390,22 @@ export default function StoresPage() {
                       <p className="store-hours">
                         {s.openTime?.slice(0, 5)} – {s.closeTime?.slice(0, 5)}
                       </p>
+                      <div style={{ marginTop: 6, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        {s.managers && s.managers.length > 0 ? (
+                          <span style={{ color: '#0f766e', fontWeight: 600, background: '#f0fdfa', padding: '2px 8px', borderRadius: 6, border: '1px solid #ccfbf1' }}>
+                            👤 Quản lý: {s.managers.map((m) => m.fullName).join(', ')}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#d97706', fontWeight: 500, background: '#fef3c7', padding: '2px 8px', borderRadius: 6, border: '1px solid #fde68a' }}>
+                            ⚠️ Chưa có Quản lý
+                          </span>
+                        )}
+                        {typeof s.staffCount === 'number' && (
+                          <span style={{ color: '#64748b', fontSize: 12 }}>
+                            &bull; {s.staffCount} nhân sự
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="store-card-actions">
                       <button

@@ -10,7 +10,6 @@ import com.shiftsync.skill.entity.Skill;
 import com.shiftsync.skill.entity.StaffSkill;
 import com.shiftsync.skill.repository.SkillRepository;
 import com.shiftsync.skill.repository.StaffSkillRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -189,7 +188,7 @@ public class ShiftAssignmentValidator {
             int currentAssignedCount = (int) shiftAssignmentRepository.countByShiftId(shift.getId());
             int maxSlots = shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
             
-            if (currentAssignedCount >= maxSlots) {
+            if (currentAssignedCount >= maxSlots && !overrideAvailability) {
                 throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
             }
 
@@ -227,7 +226,7 @@ public class ShiftAssignmentValidator {
                         
                         if (staffSkill.getExpirationDate() == null || !staffSkill.getExpirationDate().isBefore(shift.getShiftDate())) {
                             hasValidUnexpiredSkill = true; // Level 2 passed
-                            if (reqHasCapacity) {
+                            if (reqHasCapacity || overrideAvailability) {
                                 hasAvailableMatchingRequirement = true; // Level 3: per-skill capacity passed
                             }
                         }
@@ -235,15 +234,15 @@ public class ShiftAssignmentValidator {
                 }
             }
 
-            if (!hasAnyRequiredSkill) {
+            if (!hasAnyRequiredSkill && !overrideAvailability) {
                 throw new BusinessException("Staff does not have required skill for this shift", HttpStatus.BAD_REQUEST);
             }
             
-            if (!hasValidUnexpiredSkill) {
+            if (!hasValidUnexpiredSkill && !overrideAvailability) {
                 throw new BusinessException("Staff's required skill has expired", HttpStatus.BAD_REQUEST);
             }
 
-            if (!hasAvailableMatchingRequirement) {
+            if (!hasAvailableMatchingRequirement && !overrideAvailability) {
                 throw new BusinessException("Slot full: Shift requirement capacity reached for matching skill", HttpStatus.BAD_REQUEST);
             }
         }

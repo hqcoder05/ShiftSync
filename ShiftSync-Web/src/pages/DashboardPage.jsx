@@ -145,16 +145,19 @@ export default function DashboardPage() {
         setSelectedStoreId('');
       }
 
-      try {
-        const empRes = await getEmployees();
-        const empList = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.content || []);
-        if (empList && empList.length > 0) {
-          setEmployees(empList);
-        } else {
-          setEmployees([]);
+      const currentRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+      if (currentRole === 'MANAGER' || currentRole === 'ADMIN') {
+        try {
+          const empRes = await getEmployees();
+          const empList = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.content || []);
+          if (empList && empList.length > 0) {
+            setEmployees(empList);
+          } else {
+            setEmployees([]);
+          }
+        } catch (err) {
+          console.warn('Error loading employees:', err);
         }
-      } catch (err) {
-        console.warn('Error loading employees:', err);
       }
     }
 
@@ -167,6 +170,7 @@ export default function DashboardPage() {
 
     async function loadStoreLiveData() {
       setLoading(true);
+      const currentRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
 
       // Load shifts
       try {
@@ -174,17 +178,21 @@ export default function DashboardPage() {
         const shiftData = Array.isArray(shiftRes.data) ? shiftRes.data : (shiftRes.data?.content || []);
         setShifts(shiftData);
       } catch (e) {
-        console.info('Backend getShiftsForStore API offline, using empty shifts:', e.message);
+        console.warn('Error loading shifts for store:', e.message);
         setShifts([]);
       }
 
-      // Load attendance
-      try {
-        const attRes = await getStoreAttendance(selectedStoreId);
-        const attData = Array.isArray(attRes.data) ? attRes.data : (attRes.data?.content || []);
-        setAttendanceList(attData);
-      } catch (e) {
-        console.info('Backend getStoreAttendance API offline, using empty attendance:', e.message);
+      // Load attendance (Manager/Admin only)
+      if (currentRole === 'MANAGER' || currentRole === 'ADMIN') {
+        try {
+          const attRes = await getStoreAttendance(selectedStoreId);
+          const attData = Array.isArray(attRes.data) ? attRes.data : (attRes.data?.content || []);
+          setAttendanceList(attData);
+        } catch (e) {
+          console.warn('Error loading store attendance:', e.message);
+          setAttendanceList([]);
+        }
+      } else {
         setAttendanceList([]);
       }
 

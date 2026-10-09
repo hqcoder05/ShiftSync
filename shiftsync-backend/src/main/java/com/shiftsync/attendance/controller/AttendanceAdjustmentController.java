@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -28,18 +29,18 @@ public class AttendanceAdjustmentController {
     private final AttendanceAdjustmentService service;
 
     @PostMapping
-    @Operation(summary = "Submit an attendance adjustment request (Staff/Manager)")
-    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER')")
+    @Operation(summary = "Submit an attendance adjustment request (Staff/Manager/Admin)")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'ADMIN')")
     public ResponseEntity<AdjustmentResponseDTO> createRequest(
             @PathVariable UUID storeId,
             @Valid @RequestBody AdjustmentCreateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(service.createRequest(userDetails.getId(), request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createRequest(userDetails.getId(), request));
     }
 
     @GetMapping("/me")
-    @Operation(summary = "Get my adjustment requests (Staff)")
-    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @Operation(summary = "Get my adjustment requests (Staff/Manager/Admin)")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'ADMIN')")
     public ResponseEntity<List<AdjustmentResponseDTO>> getMyRequests(
             @PathVariable UUID storeId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {

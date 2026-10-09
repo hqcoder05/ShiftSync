@@ -72,6 +72,13 @@ public class StoreController {
         return ResponseEntity.ok(storeService.getStoreDirectory());
     }
 
+    @GetMapping("/overview")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get system-wide stores and manager assignment overview", description = "Returns high-level statistics for Admin dashboard: total stores, assigned/unassigned stores, and managers.")
+    public ResponseEntity<com.shiftsync.store.dto.StoreOverviewDTO> getStoreOverview() {
+        return ResponseEntity.ok(storeService.getStoreOverview());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #id)")
     @Operation(summary = "Get store details by ID", description = "Fetches details of a specific store branch by its UUID.")

@@ -54,7 +54,7 @@ public class WorkforceRequestController {
             @PathVariable UUID id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         workforceRequestService.cancelRequest(storeId, id, userDetails.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/reject")
@@ -64,7 +64,7 @@ public class WorkforceRequestController {
             @PathVariable UUID id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         workforceRequestService.rejectRequest(storeId, id, userDetails.getId());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/proposals")

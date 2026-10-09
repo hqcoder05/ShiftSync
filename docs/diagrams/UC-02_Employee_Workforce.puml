@@ -1,0 +1,135 @@
+@startuml UC-02_Employee_Workforce
+' ==============================================================================
+' Diagram: UC-02 - Phân hệ Quản lý Nhân sự & Hồ sơ Năng lực (Workforce Management)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 2 Cột song song: Trái (Manager/Admin) | Phải (Staff), luồng từ trên xuống
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý / Admin\n(Manager / Admin)" as Manager
+actor "Nhân viên\n(Staff)" as Staff
+
+Manager -[hidden]right- Staff
+
+' ==============================================================================
+' KHỐI USE CASE CHÍNH
+' ==============================================================================
+package "Phân hệ Quản lý Nhân sự & Hồ sơ Năng lực (UC-02)" as WorkforcePkg {
+
+    ' Nhóm 1: Quản trị Hồ sơ & Hợp đồng (Manager / Admin)
+    package "1. Quản lý Hồ sơ & Hợp đồng Lao động" as ProfilePkg {
+        usecase "UC-02.1: Quản lý hồ sơ nhân viên\n(CRUD Staff, Email, Chi nhánh)" as UC_StaffCRUD
+        usecase "UC-02.2: Thiết lập hợp đồng lao động\n(Full/Part-time, Lương, Giờ chuẩn tuần)" as UC_Contract
+    }
+
+    ' Nhóm 2: Quản lý Kỹ năng & Đánh giá năng lực
+    package "2. Quản lý Danh mục Kỹ năng & Đánh giá" as SkillPkg {
+        usecase "UC-02.3: Thiết lập danh mục kỹ năng\n(Barista, Cashier, Service, Kitchen...)" as UC_SkillCatalog
+        usecase "<b>UC-02.4: Đánh giá & Cấp chứng chỉ kỹ năng</b>\n(Gán Skill Level & Hạn hiệu lực)" as UC_AssignSkill <<focal>>
+    }
+
+    ' Nhóm 3: Khai báo Lịch rảnh & Sẵn sàng làm việc (Staff)
+    package "3. Khai báo Lịch rảnh & Ngày bận cá nhân" as AvailabilityPkg {
+        usecase "UC-02.5: Đăng ký khung giờ rảnh hàng tuần\n(Weekly Availability: Khung giờ/Thứ)" as UC_Avail
+        usecase "UC-02.6: Khai báo ngày bận đột xuất\n(Blackout Dates & Lý do bận)" as UC_Blackout
+        usecase "UC-02.7: Tra cứu hồ sơ & kỹ năng cá nhân\n(View Profile, Skills & Active Contract)" as UC_ViewProfile
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_StaffCRUD .> UC_Contract : <<include>>\n(Hợp đồng bắt buộc)
+UC_AssignSkill .> UC_SkillCatalog : <<include>>\n(Chọn từ danh mục)
+UC_StaffCRUD .> UC_AssignSkill : <<extend>>\n(Cấp kỹ năng theo hồ sơ)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_StaffCRUD
+Manager --> UC_Contract
+Manager --> UC_SkillCatalog
+Manager --> UC_AssignSkill
+
+Staff --> UC_Avail
+Staff --> UC_Blackout
+Staff --> UC_ViewProfile
+
+note bottom of UC_AssignSkill
+  **Điều kiện thỏa mãn HC-01 (Kỹ năng):**
+  Nhân viên phải đạt cấp độ yêu cầu
+  và chứng chỉ còn hạn hiệu lực
+  tại thời điểm ca làm việc diễn ra.
+end note
+
+note bottom of UC_Avail
+  **Điều kiện thỏa mãn HC-02 (Lịch rảnh):**
+  Ca làm phải nằm trọn vẹn trong khung giờ
+  rảnh và không trùng ngày Blackout.
+end note
+
+@enduml

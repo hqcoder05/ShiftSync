@@ -21,6 +21,35 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingServletRequestParameter(
+            org.springframework.web.bind.MissingServletRequestParameterException ex) {
+        String message = String.format("Required request parameter '%s' for method parameter type %s is not present", 
+            ex.getParameterName(), ex.getParameterType());
+        return new ResponseEntity<>(
+            buildResponse("BAD_REQUEST", message, null), 
+            HttpStatus.BAD_REQUEST
+        );
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpRequestMethodNotSupported(
+            org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        String message = String.format("Request method '%s' not supported", ex.getMethod());
+        return new ResponseEntity<>(
+            buildResponse("METHOD_NOT_ALLOWED", message, null), 
+            HttpStatus.METHOD_NOT_ALLOWED
+        );
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.NoHandlerFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoHandlerFoundException(
+            org.springframework.web.servlet.NoHandlerFoundException ex) {
+        return new ResponseEntity<>(
+            buildResponse("NOT_FOUND", "Resource not found: " + ex.getRequestURL(), null), 
+            HttpStatus.NOT_FOUND
+        );
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -157,3 +186,4 @@ public class GlobalExceptionHandler {
         );
     }
 }
+

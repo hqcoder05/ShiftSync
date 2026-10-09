@@ -64,12 +64,14 @@ public class UserController {
         @ApiResponse(responseCode = "403", description = "Access forbidden")
     })
     public ResponseEntity<Page<UserDTO>> getAllUsers(
+            @RequestParam(required = false) UUID storeId,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Page<UserDTO> users = userService.getAllUsers(
                 userDetails != null ? userDetails.getId() : null,
                 userDetails != null && userDetails.getUser() != null ? userDetails.getUser().getSystemRole() : null,
+                storeId,
                 search, pageable);
         return ResponseEntity.ok(users);
     }
@@ -79,7 +81,7 @@ public class UserController {
     @Operation(summary = "Get the current user's profile")
     public ResponseEntity<UserDTO> getMyProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(userService.getUserById(userDetails.getId()));
+        return ResponseEntity.ok(userService.getUserById(userDetails.getId(), userDetails));
     }
 
     @PutMapping("/me")
@@ -88,7 +90,7 @@ public class UserController {
     public ResponseEntity<UserDTO> updateMyProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody UserUpdateRequest request) {
-        UserDTO userDTO = userService.updateUser(userDetails.getId(), request);
+        UserDTO userDTO = userService.updateUser(userDetails.getId(), request, userDetails);
         return ResponseEntity.ok(userDTO);
     }
 
@@ -103,6 +105,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @Operation(summary = "Get user details by ID", description = "Fetches a specific user profile by its UUID.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "User found and details retrieved"),
@@ -110,8 +113,10 @@ public class UserController {
         @ApiResponse(responseCode = "403", description = "Access forbidden"),
         @ApiResponse(responseCode = "404", description = "User not found")
     })
-    public ResponseEntity<UserDTO> getUserById(@PathVariable UUID id) {
-        UserDTO userDTO = userService.getUserById(id);
+    public ResponseEntity<UserDTO> getUserById(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UserDTO userDTO = userService.getUserById(id, userDetails);
         return ResponseEntity.ok(userDTO);
     }
 
@@ -127,8 +132,9 @@ public class UserController {
     })
     public ResponseEntity<UserDTO> updateUser(
             @PathVariable UUID id,
-            @Valid @RequestBody UserUpdateRequest request) {
-        UserDTO userDTO = userService.updateUser(id, request);
+            @Valid @RequestBody UserUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UserDTO userDTO = userService.updateUser(id, request, userDetails);
         return ResponseEntity.ok(userDTO);
     }
 

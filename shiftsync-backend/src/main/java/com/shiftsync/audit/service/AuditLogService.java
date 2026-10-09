@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import java.util.concurrent.CompletableFuture;
 
 import java.util.UUID;
 
@@ -19,8 +22,22 @@ public class AuditLogService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
 
-    @Async
     public void log(UUID actorId, String action, String entityType, UUID entityId, Object beforeData, Object afterData) {
+        Runnable task = () -> executeLog(actorId, action, entityType, entityId, beforeData, afterData);
+        
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    CompletableFuture.runAsync(task);
+                }
+            });
+        } else {
+            CompletableFuture.runAsync(task);
+        }
+    }
+
+    private void executeLog(UUID actorId, String action, String entityType, UUID entityId, Object beforeData, Object afterData) {
         try {
             JsonNode beforeNode = beforeData != null ? objectMapper.valueToTree(beforeData) : null;
             JsonNode afterNode = afterData != null ? objectMapper.valueToTree(afterData) : null;

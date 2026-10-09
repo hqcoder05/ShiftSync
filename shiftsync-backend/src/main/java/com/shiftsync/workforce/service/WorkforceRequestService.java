@@ -49,6 +49,7 @@ public class WorkforceRequestService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final com.shiftsync.skill.repository.SkillRepository skillRepository;
 
     @Transactional
     public WorkforceRequestResponseDTO createRequest(UUID requestingStoreId, WorkforceRequestCreateDTO dto, UUID creatorId) {
@@ -65,6 +66,15 @@ public class WorkforceRequestService {
         Shift shift = shiftRepository.findByIdAndStoreId(dto.getShiftId(), requestingStoreId)
                 .orElseThrow(() -> new BusinessException("Shift not found in requesting store", HttpStatus.NOT_FOUND));
 
+        com.shiftsync.skill.entity.Skill skill = null;
+        if (dto.getSkillId() != null) {
+            skill = skillRepository.findById(dto.getSkillId())
+                    .orElseThrow(() -> new BusinessException("Skill not found", HttpStatus.NOT_FOUND));
+            if (!skill.getStore().getId().equals(requestingStoreId)) {
+                throw new BusinessException("Skill does not belong to requesting store", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
@@ -72,6 +82,8 @@ public class WorkforceRequestService {
                 .requestingStore(requestingStore)
                 .targetStore(targetStore)
                 .shift(shift)
+                .skill(skill)
+                .neededCount(dto.getNeededCount() != null ? dto.getNeededCount() : 1)
                 .status(WorkforceRequestStatus.PENDING)
                 .createdBy(creator)
                 .build();
@@ -135,7 +147,8 @@ public class WorkforceRequestService {
         User staff = userRepository.findById(dto.getStaffId())
                 .orElseThrow(() -> new BusinessException("Staff not found", HttpStatus.NOT_FOUND));
 
-        User actor = userRepository.findById(actorId).orElseThrow();
+        User actor = userRepository.findById(actorId)
+                .orElseThrow(() -> new BusinessException("Actor not found", HttpStatus.NOT_FOUND));
 
         boolean isActive = employmentRepository.existsByUserIdAndStoreIdAndStatus(staff.getId(), targetStoreId, EmploymentStatus.ACTIVE);
         if (!isActive) {
@@ -188,7 +201,8 @@ public class WorkforceRequestService {
             throw new BusinessException("Proposal is already responded", HttpStatus.BAD_REQUEST);
         }
 
-        WorkforceRequest request = proposal.getWorkforceRequest();
+        WorkforceRequest request = workforceRequestRepository.findByIdForUpdate(proposal.getWorkforceRequest().getId())
+            .orElseThrow(() -> new BusinessException("Workforce request not found", HttpStatus.NOT_FOUND));
         
         if (request.getStatus() == WorkforceRequestStatus.COMPLETED || request.getStatus() == WorkforceRequestStatus.CANCELLED) {
             throw new BusinessException("Workforce request is no longer open", HttpStatus.BAD_REQUEST);
@@ -197,6 +211,11 @@ public class WorkforceRequestService {
         WorkforceProposalResponseDTO beforeProposal = mapProposalToDTO(proposal);
 
         if (isAccepted) {
+            long acceptedCount = workforceProposalRepository.countByWorkforceRequestIdAndStatus(request.getId(), WorkforceProposalStatus.ACCEPTED);
+            if (acceptedCount >= request.getNeededCount()) {
+                throw new BusinessException("Workforce request is already fully fulfilled", HttpStatus.BAD_REQUEST);
+            }
+
             shiftAssignmentValidator.validateEligibility(request.getShift(), staffId);
 
             proposal.setStatus(WorkforceProposalStatus.ACCEPTED);
@@ -204,7 +223,10 @@ public class WorkforceRequestService {
             workforceProposalRepository.save(proposal);
 
             WorkforceRequestResponseDTO beforeRequest = mapToDTO(request);
-            request.setStatus(WorkforceRequestStatus.COMPLETED);
+            long newAcceptedCount = workforceProposalRepository.countByWorkforceRequestIdAndStatus(request.getId(), WorkforceProposalStatus.ACCEPTED);
+            if (newAcceptedCount >= request.getNeededCount()) {
+                request.setStatus(WorkforceRequestStatus.COMPLETED);
+            }
             workforceRequestRepository.save(request);
 
             ShiftAssignment assignment = ShiftAssignment.builder()
@@ -315,6 +337,9 @@ public class WorkforceRequestService {
                 .shiftDate(request.getShift().getShiftDate())
                 .shiftStartTime(request.getShift().getStartTime())
                 .shiftEndTime(request.getShift().getEndTime())
+                .skillId(request.getSkill() != null ? request.getSkill().getId() : null)
+                .skillName(request.getSkill() != null ? request.getSkill().getName() : null)
+                .neededCount(request.getNeededCount())
                 .status(request.getStatus())
                 .createdBy(request.getCreatedBy().getId())
                 .creatorName(request.getCreatedBy().getFullName())

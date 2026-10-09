@@ -2,6 +2,7 @@ package com.shiftsync.shift.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -34,6 +35,7 @@ public class ShiftCreateRequest {
     private UUID staffId;
 
     @Schema(description = "Shift Note (Optional)")
+    @Size(max = 500, message = "Note must not exceed 500 characters")
     private String note;
 
     @Schema(description = "Shift Color (Optional)")

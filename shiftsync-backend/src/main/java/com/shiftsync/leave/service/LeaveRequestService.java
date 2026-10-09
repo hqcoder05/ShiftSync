@@ -120,14 +120,16 @@ public class LeaveRequestService {
             throw new BusinessException("You can only cancel your own leave requests", HttpStatus.FORBIDDEN);
         }
 
+        if (leaveRequest.getStartDate().isBefore(java.time.LocalDate.now())) {
+            throw new BusinessException("Cannot cancel a leave request that has already started or occurred in the past.", HttpStatus.BAD_REQUEST);
+        }
+
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
             int requestedDays = (int) java.time.temporal.ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
             if (leaveRequest.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
                 leaveBalanceService.reverseAnnualLeave(storeId, leaveRequest.getStaff().getId(), leaveRequest.getStartDate().getYear(), requestedDays);
             }
-            try {
-                blackoutDateRepository.deleteByLeaveRequestId(leaveId);
-            } catch (Exception ignored) {}
+            blackoutDateRepository.deleteByLeaveRequestId(leaveId);
         } else if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new BusinessException("Only pending or approved leave requests can be cancelled", HttpStatus.BAD_REQUEST);
         }
@@ -188,11 +190,11 @@ public class LeaveRequestService {
                 leaveRequest.getEndDate()
         );
 
-        int unassignedCount = 0;
+        int unassignedCount = conflictingAssignments.size();
+        shiftAssignmentRepository.deleteAll(conflictingAssignments);
+
         for (com.shiftsync.shift.entity.ShiftAssignment sa : conflictingAssignments) {
             com.shiftsync.shift.entity.Shift shift = sa.getShift();
-            shiftAssignmentRepository.delete(sa);
-            unassignedCount++;
 
             if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
                 shift.setOpen(true);
@@ -277,12 +279,16 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    public LeaveRequestDTO updateLeaveReason(UUID storeId, UUID leaveId, UUID userId, String newReason) {
+    public LeaveRequestDTO updateLeaveReason(UUID storeId, UUID leaveId, UUID userId, String newReason, com.shiftsync.shared.security.SystemRole role) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
 
         if (!leaveRequest.getStore().getId().equals(storeId)) {
             throw new BusinessException("Leave request does not belong to this store", HttpStatus.FORBIDDEN);
+        }
+
+        if (role == com.shiftsync.shared.security.SystemRole.STAFF && !leaveRequest.getStaff().getId().equals(userId)) {
+            throw new BusinessException("Cannot update another user's leave request", HttpStatus.FORBIDDEN);
         }
 
         leaveRequest.setReason(newReason);

@@ -32,4 +32,16 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
            "WHERE e.user.id = :staffId AND e.store.id = :storeId " +
            "AND e.status = :status")
     boolean isStaffInStore(@Param("staffId") UUID staffId, @Param("storeId") UUID storeId, @Param("status") EmploymentStatus status);
+    @Query("SELECT COUNT(e1) FROM Employment e1 INNER JOIN Employment e2 ON e1.store.id = e2.store.id WHERE e1.user.id = :user1Id AND e1.status = :status AND e2.user.id = :user2Id AND e2.status = :status")
+    long countSharedStores(@Param("user1Id") UUID user1Id, @Param("user2Id") UUID user2Id, @Param("status") EmploymentStatus status);
+    @Query("SELECT e FROM Employment e JOIN FETCH e.user u JOIN FETCH e.store s WHERE e.status = :status AND u.systemRole = :role")
+    List<Employment> findByStatusAndUserSystemRole(@Param("status") EmploymentStatus status, @Param("role") com.shiftsync.shared.security.SystemRole role);
+
+    @Query("SELECT e FROM Employment e JOIN FETCH e.user u WHERE e.store.id = :storeId AND e.status = :status AND u.systemRole = :role")
+    List<Employment> findByStoreIdAndStatusAndUserSystemRole(@Param("storeId") UUID storeId, @Param("status") EmploymentStatus status, @Param("role") com.shiftsync.shared.security.SystemRole role);
+
+    @Query("SELECT e.store.id, COUNT(e) FROM Employment e WHERE e.status = :status GROUP BY e.store.id")
+    List<Object[]> countActiveStaffGroupByStore(@Param("status") EmploymentStatus status);
 }
+
+

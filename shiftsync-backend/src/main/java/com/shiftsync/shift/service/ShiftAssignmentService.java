@@ -16,6 +16,7 @@ import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.enums.AssignmentSource;
+import com.shiftsync.shift.enums.ShiftStatus;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.auth.repository.UserRepository;
@@ -34,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
+@Transactional
 public class ShiftAssignmentService {
 
     private final ShiftRepository shiftRepository;
@@ -47,6 +48,51 @@ public class ShiftAssignmentService {
     private final StaffSkillRepository staffSkillRepository;
     private final StoreZoneRepository storeZoneRepository;
     private final SkillRepository skillRepository;
+    private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ShiftAssignmentService(
+            ShiftRepository shiftRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            EmploymentRepository employmentRepository,
+            UserRepository userRepository,
+            PayrollPeriodRepository payrollPeriodRepository,
+            NotificationService notificationService,
+            ShiftAssignmentValidator shiftAssignmentValidator,
+            StaffSkillRepository staffSkillRepository,
+            StoreZoneRepository storeZoneRepository,
+            SkillRepository skillRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository
+    ) {
+        this.shiftRepository = shiftRepository;
+        this.shiftAssignmentRepository = shiftAssignmentRepository;
+        this.employmentRepository = employmentRepository;
+        this.userRepository = userRepository;
+        this.payrollPeriodRepository = payrollPeriodRepository;
+        this.notificationService = notificationService;
+        this.shiftAssignmentValidator = shiftAssignmentValidator;
+        this.staffSkillRepository = staffSkillRepository;
+        this.storeZoneRepository = storeZoneRepository;
+        this.skillRepository = skillRepository;
+        this.attendanceRepository = attendanceRepository;
+    }
+
+    public ShiftAssignmentService(
+            ShiftRepository shiftRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            EmploymentRepository employmentRepository,
+            UserRepository userRepository,
+            PayrollPeriodRepository payrollPeriodRepository,
+            NotificationService notificationService,
+            ShiftAssignmentValidator shiftAssignmentValidator,
+            StaffSkillRepository staffSkillRepository,
+            StoreZoneRepository storeZoneRepository,
+            SkillRepository skillRepository
+    ) {
+        this(shiftRepository, shiftAssignmentRepository, employmentRepository, userRepository,
+             payrollPeriodRepository, notificationService, shiftAssignmentValidator,
+             staffSkillRepository, storeZoneRepository, skillRepository, null);
+    }
 
     @Transactional
     
@@ -70,8 +116,16 @@ public class ShiftAssignmentService {
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
         checkDateNotLocked(storeId, shift.getShiftDate());
 
+        if (shift.getStatus() == ShiftStatus.COMPLETED || shift.getStatus() == ShiftStatus.CANCELLED) {
+            throw new BusinessException("Cannot assign staff to a " + shift.getStatus() + " shift", HttpStatus.BAD_REQUEST);
+        }
+
         User staff = userRepository.findById(staffId)
                 .orElseThrow(() -> new BusinessException("Staff not found", HttpStatus.NOT_FOUND));
+
+        if (staff.getSystemRole() != null && staff.getSystemRole() != com.shiftsync.shared.security.SystemRole.STAFF) {
+            throw new BusinessException("Only users with role STAFF can be assigned to shifts", HttpStatus.BAD_REQUEST);
+        }
 
         // BR-45: Check Employment is Active
         boolean isActive = employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE);
@@ -139,7 +193,7 @@ public class ShiftAssignmentService {
                     currentAssigned = existingAssignments.size();
                 }
 
-                if (currentAssigned < req.getRequiredCount()) {
+                if (currentAssigned < req.getRequiredCount() || force) {
                     candidateReqs.add(req);
                 }
             }
@@ -162,10 +216,20 @@ public class ShiftAssignmentService {
             }
         }
 
-        // 2. Semantic matching from store zones based on employee skills
+        if (matchedSkillId == null && requestedZoneId != null && shift.getRequirements() != null) {
+            matchedSkillId = shift.getRequirements().stream()
+                    .filter(r -> r.getZone() != null && requestedZoneId.equals(r.getZone().getId()) && r.getSkill() != null)
+                    .map(r -> r.getSkill().getId())
+                    .findFirst()
+                    .orElse(null);
+        }
+
+                // 2. Semantic matching from store zones based on employee skills
         if (assignedZone == null && !staffSkills.isEmpty() && !storeZones.isEmpty()) {
+            java.util.List<UUID> skillIds = staffSkills.stream().map(StaffSkill::getSkillId).collect(java.util.stream.Collectors.toList());
+            java.util.Map<UUID, Skill> skillMap = skillRepository.findAllById(skillIds).stream().collect(java.util.stream.Collectors.toMap(Skill::getId, s -> s));
             for (StaffSkill ss : staffSkills) {
-                Skill sk = skillRepository.findById(ss.getSkillId()).orElse(null);
+                Skill sk = skillMap.get(ss.getSkillId());
                 if (sk != null) {
                     String sName = sk.getName().toLowerCase();
                     StoreZone matched = storeZones.stream()
@@ -233,17 +297,30 @@ public class ShiftAssignmentService {
                 .build();
     }
 
+    @Transactional
     public void unassignStaffFromShift(UUID storeId, UUID shiftId, UUID staffId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
         checkDateNotLocked(storeId, shift.getShiftDate());
+
+        if (shift.getStatus() == ShiftStatus.COMPLETED) {
+            throw new BusinessException("Cannot unassign staff from a completed shift", HttpStatus.BAD_REQUEST);
+        }
         
         ShiftAssignment assignment = shiftAssignmentRepository.findByShiftId(shiftId).stream()
                 .filter(a -> a.getStaff().getId().equals(staffId))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("Staff is not assigned to this shift", HttpStatus.NOT_FOUND));
+
+        if (attendanceRepository != null && attendanceRepository.existsByShiftAssignmentId(assignment.getId())) {
+            throw new BusinessException("Cannot unassign staff from a shift with existing attendance records", HttpStatus.BAD_REQUEST);
+        }
                 
+        if (shift.getAssignments() != null) {
+            shift.getAssignments().remove(assignment);
+        }
         shiftAssignmentRepository.delete(assignment);
+        shiftAssignmentRepository.flush();
     }
 
     public java.util.List<ShiftAssignmentResponseDTO> getAssignmentsByShiftId(UUID storeId, UUID shiftId) {
@@ -290,4 +367,5 @@ public class ShiftAssignmentService {
         return false;
     }
 }
+
 

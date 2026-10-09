@@ -41,4 +41,16 @@ public class StoreDTO {
 
     @Schema(description = "Store creation date-time", example = "2026-08-04T10:00:00+07:00")
     private OffsetDateTime createdAt;
+
+    @Schema(description = "List of managers currently managing this store")
+    @Builder.Default
+    private java.util.List<ManagerSummaryDTO> managers = new java.util.ArrayList<>();
+
+    @Schema(description = "Number of active managers managing this store", example = "1")
+    @Builder.Default
+    private Integer managerCount = 0;
+
+    @Schema(description = "Total number of active staff assigned to this store", example = "15")
+    @Builder.Default
+    private Integer staffCount = 0;
 }
