@@ -20,4 +20,7 @@ public class SkillDTO {
 
     @Schema(description = "Skill Description", example = "Makes coffee")
     private String description;
+
+    @Schema(description = "Hourly pay rate in VND", example = "26000.00")
+    private java.math.BigDecimal hourlyRate;
 }

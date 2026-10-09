@@ -14,11 +14,16 @@ public class AttendanceDTO {
     private OffsetDateTime checkInTime;
     private OffsetDateTime checkOutTime;
     private AttendanceStatus status;
+    private Long lateMinutes;
     private UUID shiftId;
     private UUID storeId;
     private String storeName;
     private String staffId;
     private String staffName;
+    private UUID zoneId;
+    private String zoneName;
+    private UUID workstationId;
+    private String workstationName;
     private java.time.LocalDate shiftDate;
     private java.time.LocalTime scheduledStart;
     private java.time.LocalTime scheduledEnd;

@@ -91,7 +91,7 @@ public class ShiftController {
             @Valid @RequestBody ShiftPublishRequest request, 
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
         shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Auto-schedule shifts for a specific date range")
@@ -110,7 +110,7 @@ public class ShiftController {
     public ResponseEntity<ShiftDTO> updateShift(
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId,
-            @RequestBody ShiftCreateRequest request) {
+            @Valid @RequestBody ShiftCreateRequest request) {
         return ResponseEntity.ok(shiftService.updateShift(storeId, shiftId, request));
     }
 

@@ -4,8 +4,7 @@ import { NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { resetToLogin } from '../navigation/navigationRef';
 
-// IP Wi-Fi hiện tại của máy tính chạy backend (ipconfig: 192.168.1.6):
-const CURRENT_LAN_IP = '192.168.1.6';
+const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
 
 // Tự động trích xuất IP host mà Expo Go đang kết nối, hoặc dùng fallback CURRENT_LAN_IP
 export const getHostIp = () => {
@@ -32,10 +31,16 @@ export const getHostIp = () => {
     }
   }
 
-  return CURRENT_LAN_IP;
+  return 'localhost';
 };
 
 export const getBaseUrl = () => {
+  if (CONFIGURED_API_URL) {
+    return CONFIGURED_API_URL.endsWith('/api')
+      ? CONFIGURED_API_URL
+      : `${CONFIGURED_API_URL}/api`;
+  }
+
   const host = getHostIp();
   return `http://${host}:8080/api`;
 };

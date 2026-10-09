@@ -88,6 +88,7 @@ public class AttendanceAdjustmentServiceTest {
 
         when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
         when(shiftRepository.findById(shift.getId())).thenReturn(Optional.of(shift));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staff.getId())).thenReturn(Optional.of(assignment));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
         
         AttendanceAdjustmentRequest savedRequest = AttendanceAdjustmentRequest.builder()

@@ -9,6 +9,7 @@ import com.shiftsync.shared.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 import java.util.List;
 import java.time.LocalDate;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,14 +46,7 @@ public class AttendanceController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody QrScanRequestDTO request) {
         Attendance attendance = attendanceService.scanQr(userDetails.getId(), request);
-        AttendanceDTO dto = AttendanceDTO.builder()
-                .id(attendance.getId())
-                .shiftAssignmentId(attendance.getShiftAssignment().getId())
-                .checkInTime(attendance.getCheckInTime())
-                .checkOutTime(attendance.getCheckOutTime())
-                .status(attendance.getStatus())
-                .build();
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
     }
 
     @PostMapping(value = "/attendance/selfie", consumes = "multipart/form-data")
@@ -59,10 +55,11 @@ public class AttendanceController {
             @RequestParam UUID shiftId,
             @RequestParam double latitude,
             @RequestParam double longitude,
-            @RequestPart("photo") MultipartFile photo) throws java.io.IOException {
+            @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
+        byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
         Attendance attendance = attendanceService.submitSelfie(
-                userDetails.getId(), shiftId, latitude, longitude, photo.getBytes());
-        return ResponseEntity.ok(toDTO(attendance));
+                userDetails.getId(), shiftId, latitude, longitude, photoBytes);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
     }
 
     @GetMapping("/attendance/me")
@@ -102,12 +99,35 @@ public class AttendanceController {
 
 
     private AttendanceDTO toDTO(Attendance attendance) {
+        Long lateMinutes = null;
+        if (attendance.getStatus() == com.shiftsync.attendance.enums.AttendanceStatus.LATE
+                && attendance.getCheckInTime() != null
+                && attendance.getShiftAssignment().getShift().getShiftDate() != null
+                && attendance.getShiftAssignment().getShift().getStartTime() != null) {
+            LocalDateTime shiftStart = LocalDateTime.of(
+                    attendance.getShiftAssignment().getShift().getShiftDate(),
+                    attendance.getShiftAssignment().getShift().getStartTime());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+        }
         return AttendanceDTO.builder()
                 .id(attendance.getId())
                 .shiftAssignmentId(attendance.getShiftAssignment().getId())
                 .checkInTime(attendance.getCheckInTime())
                 .checkOutTime(attendance.getCheckOutTime())
                 .status(attendance.getStatus())
+                .lateMinutes(lateMinutes)
+                .shiftId(attendance.getShiftAssignment().getShift().getId())
+                .storeId(attendance.getShiftAssignment().getShift().getStore().getId())
+                .storeName(attendance.getShiftAssignment().getShift().getStore().getName())
+                .staffId(attendance.getShiftAssignment().getStaff().getId().toString())
+                .staffName(attendance.getShiftAssignment().getStaff().getFullName())
+                .zoneId(attendance.getShiftAssignment().getZone() != null ? attendance.getShiftAssignment().getZone().getId() : null)
+                .zoneName(attendance.getShiftAssignment().getZone() != null ? attendance.getShiftAssignment().getZone().getName() : null)
+                .workstationId(attendance.getShiftAssignment().getWorkstation() != null ? attendance.getShiftAssignment().getWorkstation().getId() : null)
+                .workstationName(attendance.getShiftAssignment().getWorkstation() != null ? attendance.getShiftAssignment().getWorkstation().getName() : null)
+                .shiftDate(attendance.getShiftAssignment().getShift().getShiftDate())
+                .scheduledStart(attendance.getShiftAssignment().getShift().getStartTime())
+                .scheduledEnd(attendance.getShiftAssignment().getShift().getEndTime())
                 .build();
     }
 }

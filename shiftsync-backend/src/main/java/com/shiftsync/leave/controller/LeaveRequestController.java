@@ -68,7 +68,7 @@ public class LeaveRequestController {
         return ResponseEntity.ok(leaveRequestService.getLeaveRequests(storeId, status));
     }
 
-    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')")
     @GetMapping("/my")
     public ResponseEntity<List<LeaveRequestDTO>> getMyLeaveRequests(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -76,7 +76,7 @@ public class LeaveRequestController {
         return ResponseEntity.ok(leaveRequestService.getMyLeaveRequests(userDetails.getId()));
     }
 
-    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER')")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancelLeaveRequest(
             @PathVariable UUID storeId,
@@ -117,7 +117,7 @@ public class LeaveRequestController {
             @Valid @RequestBody com.shiftsync.leave.dto.LeaveUpdateReasonRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         
-        return ResponseEntity.ok(leaveRequestService.updateLeaveReason(storeId, id, userDetails.getId(), request.getReason()));
+        return ResponseEntity.ok(leaveRequestService.updateLeaveReason(storeId, id, userDetails.getId(), request.getReason(), userDetails.getUser().getSystemRole()));
     }
 
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")

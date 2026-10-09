@@ -48,6 +48,7 @@ services:
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET:-shiftsync-dev-secret-key-change-in-production-min-32-chars!!}
       - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS:-86400000}
+      - TZ=Asia/Ho_Chi_Minh
     depends_on:
       postgres:
         condition: service_healthy

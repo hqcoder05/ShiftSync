@@ -79,10 +79,12 @@ public class SkillService {
             throw new BusinessException("Skill name already exists in this store", HttpStatus.CONFLICT);
         }
 
+        java.math.BigDecimal rate = request.getHourlyRate() != null ? request.getHourlyRate() : java.math.BigDecimal.valueOf(23000);
         Skill skill = Skill.builder()
                 .store(store)
                 .name(request.getName())
                 .description(request.getDescription())
+                .hourlyRate(rate)
                 .build();
 
         return mapToDTO(skillRepository.save(skill));
@@ -99,6 +101,9 @@ public class SkillService {
 
         skill.setName(request.getName());
         skill.setDescription(request.getDescription());
+        if (request.getHourlyRate() != null) {
+            skill.setHourlyRate(request.getHourlyRate());
+        }
 
         return mapToDTO(skillRepository.save(skill));
     }
@@ -149,6 +154,7 @@ public class SkillService {
                 .storeId(entity.getStore().getId())
                 .name(entity.getName())
                 .description(entity.getDescription())
+                .hourlyRate(entity.getHourlyRate())
                 .build();
     }
 }

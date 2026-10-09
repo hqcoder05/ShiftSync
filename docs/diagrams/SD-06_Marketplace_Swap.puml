@@ -1,0 +1,108 @@
+@startuml SD-06_Marketplace_Claim
+' ==============================================================================
+' Diagram: SD-06 - Biểu đồ tuần tự nhận ca mở với khóa phân tán Redisson
+' Design System: diagram-design (Orthogonal, Accurate Lock Semantics)
+' ==============================================================================
+
+!theme plain
+autonumber "<b>[00]</b>"
+
+skinparam {
+    shadowing false
+    roundcorner 6
+    defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+    defaultFontSize 11
+    defaultFontColor #1E293B
+    dpi 200
+    backgroundColor #FFFFFF
+
+    participantBorderColor #2563EB
+    participantBackgroundColor #EFF6FF
+    participantFontColor #0F172A
+    participantFontStyle bold
+
+    databaseBorderColor #475569
+    databaseBackgroundColor #F8FAFC
+    databaseFontColor #0F172A
+
+    arrowColor #334155
+    arrowThickness 1.2
+    arrowFontColor #475569
+    arrowFontSize 10.5
+
+    activationBorderColor #2563EB
+    activationBackgroundColor #DBEAFE
+}
+
+actor "Nhân viên\n(Staff)" as Staff
+participant "ShiftSync Mobile / Web" as Client
+participant "MarketplaceController" as Controller
+participant "MarketplaceService" as Service
+database "Redis\n(Redisson Distributed Lock)" as Redis
+database "PostgreSQL\n(shift, shift_assignment)" as DB
+participant "NotificationService\n(Firebase FCM)" as FCM
+
+Staff -> Client : Bấm "Nhận ca mở" trên Marketplace
+activate Client
+Client -> Controller : POST /api/stores/{storeId}/marketplace/shifts/{id}/claim
+activate Controller
+Controller -> Service : claimOpenShift(storeId, shiftId, staffId)
+activate Service
+
+== 1. THU THẬP & KHÓA PHÂN TÁN REDISSON ==
+Service -> Redis : getLock("shift_claim_lock:" + shiftId)
+Service -> Redis : tryLock(waitTime=5s, leaseTime=10s)
+activate Redis
+
+alt Không lấy được khóa (Lock Timeout > 5s do có người thao tác)
+    Redis --> Service : false
+    Service --> Controller : throw BusinessException("Hệ thống đang xử lý, vui lòng thử lại sau", 429)
+    Controller --> Client : 429 Too Many Requests
+    Client --> Staff : Báo bận: "Ca đang được xử lý, vui lòng thử lại!"
+else Lấy khóa thành công (Acquired Lock)
+    Redis --> Service : true
+
+    == 2. KIỂM TRA TRẠNG THÁI & ĐIỀU KIỆN RÀNG BUỘC (TRANSACTION) ==
+    Service -> DB : Tìm Shift theo shiftId & storeId
+    activate DB
+    DB --> Service : Thông tin Shift (isOpen, status, requirements)
+
+    alt Ca đã đóng hoặc hết hạn nhận
+        Service --> Controller : throw BusinessException("Ca đã hết hạn hoặc không còn mở", 400)
+        Controller --> Client : 400 Bad Request
+    else Nhân viên đã có trong ca
+        Service --> Controller : throw BusinessException("Bạn đã được phân công ca này rồi", 409)
+        Controller --> Client : 409 Conflict
+    else Ca đã đủ số lượng người (assignedCount >= requiredCount)
+        Service --> Controller : throw BusinessException("Ca này đã có người nhanh tay nhận mất!", 409)
+        Controller --> Client : 409 Conflict
+        Client --> Staff : Báo chậm chân: "Ca đã có người nhận mất!"
+    else Đủ điều kiện nhận ca (Eligible)
+        Service -> Service : validateEligibility(shift, staffId)\n(Kiểm tra kỹ năng, không trùng ca, không quá giờ tuần)
+
+        == 3. GHI NHẬN PHÂN CÔNG & XUẤT BẢN THÔNG BÁO ==
+        Service -> DB : INSERT ShiftAssignment(shiftId, staffId, matchedSkillId)
+        Service -> DB : UPDATE Shift set status = 'FILLED' (nếu đủ người)
+        DB --> Service : Bản ghi đã lưu thành công
+        deactivate DB
+
+        Service -> FCM : sendNotification(staffId, "Nhận ca thành công", ca làm)
+        activate FCM
+        FCM --> Service : Ack
+        deactivate FCM
+
+        Service -> Redis : unlock()
+        deactivate Redis
+
+        Service --> Controller : void (Hoàn tất)
+        deactivate Service
+
+        Controller --> Client : 200 OK
+        deactivate Controller
+
+        Client --> Staff : Thông báo: "Chúc mừng! Bạn đã nhận ca thành công"
+        deactivate Client
+    end
+end
+
+@enduml

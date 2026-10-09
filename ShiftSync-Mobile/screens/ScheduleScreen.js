@@ -528,12 +528,17 @@ export default function ScheduleScreen({ navigation }) {
               const assignmentDetails = resolveAssignmentDetails(s, assignment);
               const staffName = assignment?.staffName || s.assignedStaffName || s.staffName || 'Nhân viên';
 
+              const staffId = assignment?.staffId || s.staffId || s.assignedStaffId;
               if (staffName && staffName !== 'Chưa phân công' && (!currentUser?.fullName || staffName !== currentUser.fullName)) {
                 if (!colleaguesMap.has(staffName)) {
                   colleaguesMap.set(staffName, {
+                    staffId,
                     name: staffName,
                     role: assignmentDetails.position,
                     avatarId: assignment?.avatarId || s.avatarId,
+                    shiftId: s.id,
+                    shiftDate: s.shiftDate,
+                    timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
                   });
                 }
               }
@@ -634,6 +639,16 @@ export default function ScheduleScreen({ navigation }) {
       showToast('Lưu ý', msg, 'warning');
       return;
     }
+
+    const targetColleague = typeof selectedSwapStaff === 'object'
+      ? selectedSwapStaff
+      : storeColleagues.find((c) => c.name === selectedSwapStaff || c.staffId === selectedSwapStaff);
+
+    const colleagueName = targetColleague?.name || (typeof selectedSwapStaff === 'string' ? selectedSwapStaff : 'Đồng nghiệp');
+    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
+    const toStaffId = targetColleague?.staffId || targetColleague?.id;
+    const toShiftId = targetColleague?.shiftId;
+
     try {
       setLoading(true);
       await createStaffRequest({
@@ -641,14 +656,17 @@ export default function ScheduleScreen({ navigation }) {
         typeCategory: 'swap',
         requestType: 'Yêu cầu đổi ca',
         requesterName: currentUserProfile?.fullName || 'Nhân viên',
-        targetStaffName: selectedSwapStaff,
+        targetStaffName: colleagueName,
+        fromShiftId: fromShiftId,
+        toStaffId: toStaffId,
+        toShiftId: toShiftId,
         shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
-        reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
-        content: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${selectedSwapStaff}.`,
-      });
+        reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
+        content: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
+      }, activeStoreId);
       setSwapModalVisible(false);
       setSwapError(null);
-      showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${selectedSwapStaff} tới Quản lý`);
+      showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName} tới Quản lý`);
       // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
       triggerLaunchPlane();
     } catch (e) {
@@ -1577,7 +1595,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 95,
+    paddingBottom: 115,
   },
 
   // ── Custom Toast ──

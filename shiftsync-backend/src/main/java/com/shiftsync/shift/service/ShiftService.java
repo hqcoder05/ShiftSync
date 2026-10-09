@@ -17,7 +17,6 @@ import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.entity.ShiftTemplate;
-import com.shiftsync.shift.enums.AssignmentSource;
 import com.shiftsync.shift.enums.ShiftStatus;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
@@ -28,14 +27,12 @@ import com.shiftsync.layout.entity.StoreZone;
 import com.shiftsync.layout.repository.StoreZoneRepository;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +57,7 @@ public class ShiftService {
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final ShiftAssignmentValidator shiftAssignmentValidator;
     private final ShiftAssignmentService shiftAssignmentService;
+    private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftService(
@@ -77,7 +75,8 @@ public class ShiftService {
             com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository,
             com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
             ShiftAssignmentValidator shiftAssignmentValidator,
-            ShiftAssignmentService shiftAssignmentService
+            ShiftAssignmentService shiftAssignmentService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository
     ) {
         this.auditLogService = auditLogService;
         this.shiftRepository = shiftRepository;
@@ -94,6 +93,27 @@ public class ShiftService {
         this.employmentRepository = employmentRepository;
         this.shiftAssignmentValidator = shiftAssignmentValidator;
         this.shiftAssignmentService = shiftAssignmentService;
+        this.attendanceRepository = attendanceRepository;
+    }
+
+    public ShiftService(
+            AuditLogService auditLogService,
+            ShiftRepository shiftRepository,
+            StoreRepository storeRepository,
+            com.shiftsync.store.repository.StoreConfigurationRepository storeConfigRepository,
+            ShiftTemplateRepository shiftTemplateRepository,
+            SkillRepository skillRepository,
+            ShiftAssignmentRepository shiftAssignmentRepository,
+            UserRepository userRepository,
+            PayrollPeriodRepository payrollPeriodRepository,
+            com.shiftsync.notification.service.NotificationService notificationService,
+            StoreZoneRepository storeZoneRepository,
+            com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository,
+            com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
+            ShiftAssignmentValidator shiftAssignmentValidator,
+            ShiftAssignmentService shiftAssignmentService
+    ) {
+        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, employmentRepository, shiftAssignmentValidator, shiftAssignmentService, null);
     }
 
     public ShiftService(
@@ -110,7 +130,7 @@ public class ShiftService {
             StoreZoneRepository storeZoneRepository,
             com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository
     ) {
-        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, null, null, null);
+        this(auditLogService, shiftRepository, storeRepository, storeConfigRepository, shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository, payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository, null, null, null, null);
     }
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
@@ -153,6 +173,10 @@ public class ShiftService {
 
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
+        }
+
+        if (shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, request.getShiftDate(), request.getStartTime(), request.getEndTime()).isPresent()) {
+            throw new BusinessException("A shift with identical date and time already exists for this store", HttpStatus.CONFLICT);
         }
 
         if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
@@ -463,9 +487,31 @@ public class ShiftService {
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+
+        if (shift.getStatus() == ShiftStatus.COMPLETED || shift.getStatus() == ShiftStatus.CANCELLED) {
+            throw new BusinessException("Cannot modify a " + shift.getStatus() + " shift", HttpStatus.BAD_REQUEST);
+        }
+
         checkDateNotLocked(storeId, shift.getShiftDate());
         if (request.getShiftDate() != null && !request.getShiftDate().equals(shift.getShiftDate())) {
             checkDateNotLocked(storeId, request.getShiftDate());
+        }
+
+        java.time.LocalDate newDate = request.getShiftDate() != null ? request.getShiftDate() : shift.getShiftDate();
+        java.time.LocalTime newStart = request.getStartTime() != null ? request.getStartTime() : shift.getStartTime();
+        java.time.LocalTime newEnd = request.getEndTime() != null ? request.getEndTime() : shift.getEndTime();
+        boolean dateTimeChanged = !newDate.equals(shift.getShiftDate()) || !newStart.equals(shift.getStartTime()) || !newEnd.equals(shift.getEndTime());
+
+        if (dateTimeChanged) {
+            shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, newDate, newStart, newEnd)
+                    .filter(existing -> !existing.getId().equals(shiftId))
+                    .ifPresent(existing -> {
+                        throw new BusinessException("A shift with identical date and time already exists for this store", HttpStatus.CONFLICT);
+                    });
+
+            if (attendanceRepository != null && attendanceRepository.existsByShiftAssignment_Shift_Id(shiftId)) {
+                throw new BusinessException("Cannot modify date or time of a shift with existing attendance records", HttpStatus.BAD_REQUEST);
+            }
         }
 
         if (request.getStartTime() != null && request.getEndTime() != null) {
@@ -493,6 +539,12 @@ public class ShiftService {
         if (request.getAvailabilityDeadline() != null) {
             shift.setAvailabilityDeadline(request.getAvailabilityDeadline());
         }
+        // The update DTO exposes the optional note field and the Web edit form
+        // sends it. Persist it here so a direct edit survives reload instead of
+        // existing only in the Web local metadata cache.
+        if (request.getNote() != null) {
+            shift.setNote(request.getNote());
+        }
 
         Shift saved = shiftRepository.save(shift);
 
@@ -501,6 +553,13 @@ public class ShiftService {
             if (existing.isEmpty() || !existing.get(0).getStaff().getId().equals(request.getStaffId())) {
                 shiftAssignmentRepository.deleteAll(existing);
                 requireAssignmentService().assignStaffToShift(storeId, saved.getId(), request.getStaffId());
+            } else if (dateTimeChanged && shiftAssignmentValidator != null) {
+                shiftAssignmentValidator.validateEligibility(saved, request.getStaffId());
+            }
+        } else if (dateTimeChanged && shiftAssignmentValidator != null) {
+            List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
+            for (ShiftAssignment sa : existing) {
+                shiftAssignmentValidator.validateEligibility(saved, sa.getStaff().getId());
             }
         }
 
@@ -518,8 +577,35 @@ public class ShiftService {
     public void deleteShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+
+        if (shift.getStatus() == ShiftStatus.COMPLETED) {
+            throw new BusinessException("Cannot delete a completed shift", HttpStatus.BAD_REQUEST);
+        }
+
+        if (attendanceRepository != null && attendanceRepository.existsByShiftAssignment_Shift_Id(shiftId)) {
+            throw new BusinessException("Cannot delete shift with existing attendance records", HttpStatus.BAD_REQUEST);
+        }
+
         checkDateNotLocked(storeId, shift.getShiftDate());
         List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
+        
+        if (!assignments.isEmpty() && shift.getStatus() == ShiftStatus.PUBLISHED) {
+            shift.setStatus(ShiftStatus.CANCELLED);
+            shiftRepository.save(shift);
+            for (ShiftAssignment sa : assignments) {
+                try {
+                    notificationService.sendNotification(
+                            sa.getStaff().getId(),
+                            com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
+                            "Ca lam viec bi huy",
+                            "Ca lam viec cua ban vao ngay " + shift.getShiftDate() + " da bi quan ly huy.",
+                            java.util.Map.of("shiftId", shift.getId().toString())
+                    );
+                } catch (Exception ignored) {}
+            }
+            return;
+        }
+
         if (!assignments.isEmpty()) {
             shiftAssignmentRepository.deleteAll(assignments);
         }

@@ -40,5 +40,42 @@ public class GlobalExceptionHandlerTest {
         assertEquals("Invalid input value", response.getBody().get("message"));
     }
 
+    @Test
+    public void testMaxUploadSizeExceededExceptionReturns413() {
+        org.springframework.web.multipart.MaxUploadSizeExceededException ex =
+                new org.springframework.web.multipart.MaxUploadSizeExceededException(10485760);
+        ResponseEntity<Map<String, Object>> response = handler.handleMaxUploadSizeExceeded(ex);
+
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("PAYLOAD_TOO_LARGE", response.getBody().get("code"));
+        assertEquals("Uploaded file exceeds the maximum permitted size limit", response.getBody().get("message"));
+    }
+
+        @Test
+    public void testMissingServletRequestParameterReturns400() throws Exception {
+        org.springframework.web.bind.MissingServletRequestParameterException ex = 
+            new org.springframework.web.bind.MissingServletRequestParameterException("branchId", "UUID");
+        
+        ResponseEntity<Map<String, Object>> response = handler.handleMissingServletRequestParameter(ex);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("BAD_REQUEST", response.getBody().get("code"));
+        assertTrue(response.getBody().get("message").toString().contains("Required request parameter 'branchId'"));
+    }
+
+    @Test
+    public void testHttpRequestMethodNotSupportedReturns405() {
+        org.springframework.web.HttpRequestMethodNotSupportedException ex = 
+            new org.springframework.web.HttpRequestMethodNotSupportedException("POST");
+        
+        ResponseEntity<Map<String, Object>> response = handler.handleHttpRequestMethodNotSupported(ex);
+
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("METHOD_NOT_ALLOWED", response.getBody().get("code"));
+        assertEquals("Request method 'POST' not supported", response.getBody().get("message"));
+    }
     public void dummyMethod(Integer age) {}
 }

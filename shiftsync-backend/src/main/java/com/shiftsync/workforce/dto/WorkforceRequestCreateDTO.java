@@ -11,4 +11,9 @@ public class WorkforceRequestCreateDTO {
 
     @NotNull(message = "shiftId is required")
     private UUID shiftId;
+    
+    private UUID skillId;
+    
+    @jakarta.validation.constraints.Min(value = 1, message = "neededCount must be at least 1")
+    private Integer neededCount = 1;
 }

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biểu đồ Use Case Phân hệ Chấm công & Quản lý Nghỉ phép (UC-05)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #ffffff;
+      --canvas: #f8fafc;
+      --ink: #0f172a;
+      --muted: #475569;
+      --subtle: #64748b;
+      --border: #cbd5e1;
+      --accent: #ea580c;
+      --accent-bg: #fff7ed;
+      --blue: #1e40af;
+      --blue-bg: #eff6ff;
+    }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Geist', sans-serif;
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .diagram-container {
+      width: 1000px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="diagram-container">
+    <svg viewBox="0 0 940 1260" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+        </marker>
+        <marker id="arrow-coral" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#ea580c"/>
+        </marker>
+        <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#1e40af"/>
+        </marker>
+      </defs>
+
+      <!-- Background Canvas -->
+      <rect width="940" height="1260" rx="10" fill="#fafafa"/>
+
+      <!-- Title Header -->
+      <text x="470" y="38" text-anchor="middle" font-family="'Geist', sans-serif" font-size="18px" font-weight="700" fill="#0f172a">HỆ THỐNG SHIFTSYNC — PHÂN HỆ CHẤM CÔNG &amp; NGHỈ PHÉP (UC-05)</text>
+      <text x="470" y="60" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="11px" fill="#64748b">KHỔ DỌC (PORTRAIT) · 2 LÀN SONG SONG KHÔNG GIAO CẮT · LIVE SELFIE + GPS HAVERSINE</text>
+      <line x1="40" y1="75" x2="900" y2="75" stroke="#e2e8f0" stroke-width="1.2"/>
+
+      <!-- ==================== TOP ACTORS ==================== -->
+      <!-- Actor: Staff (Top Left) -->
+      <g transform="translate(60, 95)">
+        <rect width="140" height="75" rx="8" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+        <circle cx="70" cy="22" r="9" fill="none" stroke="#1e40af" stroke-width="1.8"/>
+        <line x1="70" y1="31" x2="70" y2="48" stroke="#1e40af" stroke-width="1.8"/>
+        <line x1="56" y1="38" x2="84" y2="38" stroke="#1e40af" stroke-width="1.8"/>
+        <text x="70" y="62" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12px" font-weight="700" fill="#0f172a">Nhân viên (Staff)</text>
+      </g>
+
+      <!-- Actor: GPS & Camera (Top Mid-Left) -->
+      <g transform="translate(290, 95)">
+        <rect width="170" height="75" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="85" y="32" text-anchor="middle" font-family="'Geist', sans-serif" font-size="11.5px" font-weight="600" fill="#1e293b">GPS &amp; Camera trước</text>
+        <text x="85" y="49" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#475569">«system» Live Selfie</text>
+        <text x="85" y="63" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9px" fill="#64748b">Haversine d ≤ 50m</text>
+      </g>
+
+      <!-- Actor: Firebase FCM (Top Mid-Right) -->
+      <g transform="translate(480, 95)">
+        <rect width="170" height="75" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="85" y="32" text-anchor="middle" font-family="'Geist', sans-serif" font-size="11.5px" font-weight="600" fill="#1e293b">Firebase FCM</text>
+        <text x="85" y="49" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#475569">«system» Push Service</text>
+        <text x="85" y="63" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9px" fill="#64748b">Thông báo tức thời</text>
+      </g>
+
+      <!-- Actor: Manager (Top Right) -->
+      <g transform="translate(740, 95)">
+        <rect width="140" height="75" rx="8" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+        <circle cx="70" cy="22" r="9" fill="none" stroke="#1e40af" stroke-width="1.8"/>
+        <line x1="70" y1="31" x2="70" y2="48" stroke="#1e40af" stroke-width="1.8"/>
+        <line x1="56" y1="38" x2="84" y2="38" stroke="#1e40af" stroke-width="1.8"/>
+        <text x="70" y="62" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12px" font-weight="700" fill="#0f172a">Quản lý (Manager)</text>
+      </g>
+
+      <!-- ==================== PACKAGE 1: CHẤM CÔNG ==================== -->
+      <rect x="40" y="200" width="860" height="420" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+      <rect x="55" y="200" width="310" height="26" fill="#f1f5f9" rx="4"/>
+      <text x="65" y="218" font-family="'Geist', sans-serif" font-size="12px" font-weight="700" fill="#1e293b">1. PHÂN HỆ CHẤM CÔNG (ATTENDANCE MANAGEMENT)</text>
+
+      <!-- Staff Column Divider Header -->
+      <text x="245" y="246" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10px" font-weight="600" fill="#1e40af">◄ LÀN NHÂN VIÊN (STAFF)</text>
+      <!-- Manager Column Divider Header -->
+      <text x="695" y="246" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10px" font-weight="600" fill="#1e40af">LÀN QUẢN LÝ (MANAGER) ►</text>
+      <line x1="470" y1="235" x2="470" y2="605" stroke="#f1f5f9" stroke-width="2" stroke-dasharray="6,4"/>
+
+      <!-- UC-05.1 (Focal Coral) -->
+      <g transform="translate(70, 265)">
+        <rect width="350" height="85" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8"/>
+        <text x="175" y="25" text-anchor="middle" font-family="'Geist', sans-serif" font-size="13px" font-weight="700" fill="#9a3412">UC-05.1: Điểm danh vào ca</text>
+        <text x="175" y="45" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="11px" font-weight="600" fill="#ea580c">Chụp ảnh Live Selfie + GPS Haversine</text>
+        <text x="175" y="65" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#475569">POST /api/attendance/selfie (Multipart)</text>
+      </g>
+
+      <!-- UC-05.2 -->
+      <g transform="translate(70, 380)">
+        <rect width="350" height="70" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="27" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.2: Điểm danh ra ca (Check-out)</text>
+        <text x="175" y="48" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">Cập nhật check_out_time &amp; tổng giờ công</text>
+      </g>
+
+      <!-- UC-05.3 -->
+      <g transform="translate(70, 480)">
+        <rect width="350" height="70" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="27" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.3: Tra cứu lịch sử chấm công</text>
+        <text x="175" y="48" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /api/attendance/me · Xem giờ đến &amp; trạng thái</text>
+      </g>
+
+      <!-- UC-05.4 (Manager) -->
+      <g transform="translate(520, 290)">
+        <rect width="350" height="75" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="28" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.4: Giám sát bảng chấm công cửa hàng</text>
+        <text x="175" y="50" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /api/stores/{id}/attendance?from=&amp;to=</text>
+      </g>
+
+      <!-- UC-05.5 (Manager) -->
+      <g transform="translate(520, 410)">
+        <rect width="350" height="75" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="28" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.5: Hiệu chỉnh &amp; xóa bản ghi chấm công</text>
+        <text x="175" y="50" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">PUT / DELETE /api/stores/{id}/attendance/{attId}</text>
+      </g>
+
+
+      <!-- ==================== PACKAGE 2: NGHỈ PHÉP ==================== -->
+      <rect x="40" y="650" width="860" height="470" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+      <rect x="55" y="650" width="310" height="26" fill="#f1f5f9" rx="4"/>
+      <text x="65" y="668" font-family="'Geist', sans-serif" font-size="12px" font-weight="700" fill="#1e293b">2. PHÂN HỆ QUẢN LÝ NGHỈ PHÉP (LEAVE MANAGEMENT)</text>
+
+      <text x="245" y="696" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10px" font-weight="600" fill="#1e40af">◄ LÀN NHÂN VIÊN (STAFF)</text>
+      <text x="695" y="696" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10px" font-weight="600" fill="#1e40af">LÀN QUẢN LÝ (MANAGER) ►</text>
+      <line x1="470" y1="685" x2="470" y2="1100" stroke="#f1f5f9" stroke-width="2" stroke-dasharray="6,4"/>
+
+      <!-- UC-05.6 (Focal Coral) -->
+      <g transform="translate(70, 715)">
+        <rect width="350" height="85" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8"/>
+        <text x="175" y="25" text-anchor="middle" font-family="'Geist', sans-serif" font-size="13px" font-weight="700" fill="#9a3412">UC-05.6: Nộp đơn xin nghỉ phép</text>
+        <text x="175" y="45" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10.5px" font-weight="600" fill="#ea580c">SICK · ANNUAL · EMERGENCY · UNPAID...</text>
+        <text x="175" y="65" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#475569">POST /api/stores/{id}/leave-requests</text>
+      </g>
+
+      <!-- UC-05.7 -->
+      <g transform="translate(70, 830)">
+        <rect width="350" height="70" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="27" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.7: Quản lý đơn nghỉ cá nhân</text>
+        <text x="175" y="48" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /my · DELETE /{id} (Hủy đơn khi chưa duyệt)</text>
+      </g>
+
+      <!-- UC-05.8 -->
+      <g transform="translate(70, 930)">
+        <rect width="350" height="70" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="27" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.8: Tra cứu số ngày phép còn lại</text>
+        <text x="175" y="48" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /leave-requests/balances/my (leave_balance)</text>
+      </g>
+
+      <!-- UC-05.9 (Manager) -->
+      <g transform="translate(520, 725)">
+        <rect width="350" height="75" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="28" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.9: Giám sát danh sách đơn nghỉ cửa hàng</text>
+        <text x="175" y="50" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /api/stores/{id}/leave-requests?status=PENDING</text>
+      </g>
+
+      <!-- UC-05.10 (Manager) -->
+      <g transform="translate(520, 830)">
+        <rect width="350" height="80" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="28" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.10: Phê duyệt &amp; từ chối đơn nghỉ</text>
+        <text x="175" y="48" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="10px" font-weight="600" fill="#1e40af">Tự động trừ quỹ phép năm (leave_balance)</text>
+        <text x="175" y="66" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9px" fill="#64748b">PUT /{id}/approve | PUT /{id}/reject (reason)</text>
+      </g>
+
+      <!-- UC-05.11 (Manager) -->
+      <g transform="translate(520, 940)">
+        <rect width="350" height="75" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.2"/>
+        <text x="175" y="28" text-anchor="middle" font-family="'Geist', sans-serif" font-size="12.5px" font-weight="600" fill="#0f172a">UC-05.11: Đánh giá tác động nghỉ lên lịch ca</text>
+        <text x="175" y="50" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9.5px" fill="#64748b">GET /{id}/impact · Phát hiện thiếu nhân sự ca PUBLISHED</text>
+      </g>
+
+      <!-- ==================== CONNECTORS ==================== -->
+      <!-- 1. Staff Left Bus -->
+      <path d="M 130,170 V 965 H 70" fill="none" stroke="#1e40af" stroke-width="1.8"/>
+      <!-- Staff horizontal branches -->
+      <path d="M 130,305 H 70" fill="none" stroke="#ea580c" stroke-width="1.8" marker-end="url(#arrow-coral)"/>
+      <path d="M 130,415 H 70" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 130,515 H 70" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 130,755 H 70" fill="none" stroke="#ea580c" stroke-width="1.8" marker-end="url(#arrow-coral)"/>
+      <path d="M 130,865 H 70" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 130,965 H 70" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+
+      <!-- 2. Manager Right Bus -->
+      <path d="M 810,170 V 975 H 870" fill="none" stroke="#1e40af" stroke-width="1.8"/>
+      <!-- Manager horizontal branches -->
+      <path d="M 810,325 H 870" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 810,445 H 870" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 810,760 H 870" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 810,870 H 870" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+      <path d="M 810,975 H 870" fill="none" stroke="#1e40af" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+
+      <!-- 3. System Links -->
+      <!-- Device to UC-05.1 -->
+      <path d="M 375,170 V 265" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="345" y="210" width="60" height="18" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="375" y="223" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="8.5px" fill="#475569">«uses»</text>
+
+      <!-- UC-05.6 to FCM -->
+      <path d="M 420,740 H 540 Q 560,740 560,700 V 170" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="530" y="650" width="60" height="18" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="560" y="663" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="8.5px" fill="#475569">«notify»</text>
+
+      <!-- UC-05.10 to UC-05.11 (include impact) -->
+      <path d="M 695,910 V 940" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="665" y="917" width="60" height="16" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="695" y="929" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="8px" fill="#475569">«include»</text>
+
+      <!-- ==================== FOOTER / NOTES ==================== -->
+      <rect x="40" y="1135" width="860" height="95" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/>
+      <text x="55" y="1158" font-family="'Geist', sans-serif" font-size="11.5px" font-weight="700" fill="#78350f">QUY TẮC NGHIỆP VỤ &amp; CƠ CHẾ XÁC THỰC LÕI:</text>
+      <text x="55" y="1180" font-family="'Geist', sans-serif" font-size="11px" fill="#92400e">• <b>Chấm công (UC-05.1):</b> Nhân viên mở camera trước trên Mobile chụp ảnh trực tiếp (Live Selfie), tọa độ GPS được kiểm tra qua công thức Haversine (d ≤ bán kính cửa hàng 50–100m). Phân loại ON_TIME hoặc LATE.</text>
+      <text x="55" y="1200" font-family="'Geist', sans-serif" font-size="11px" fill="#92400e">• <b>Phê duyệt nghỉ phép (UC-05.10):</b> Quản lý kiểm tra xung đột ca qua <i>Leave Impact</i>. Khi phê duyệt đơn ANNUAL, hệ thống tự động khấu trừ quỹ phép trong bảng <i>leave_balance</i> và gửi FCM Notification.</text>
+      <text x="55" y="1220" font-family="'Geist Mono', monospace" font-size="10px" fill="#b45309">• API Endpoint: POST /api/attendance/selfie | GET /leave-requests/balances/my | PUT /leave-requests/{id}/approve</text>
+    </svg>
+  </div>
+</body>
+</html>

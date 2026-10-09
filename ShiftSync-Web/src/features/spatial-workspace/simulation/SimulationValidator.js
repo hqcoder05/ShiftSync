@@ -10,15 +10,15 @@
  */
 
 export const ZONE_SKILL_KEYWORDS = {
-  barista: ['barista', 'pha chế', 'coffee', 'espresso'],
-  pos: ['pos', 'cashier', 'thu ngân', 'order', 'bán hàng', 'checkout', 'tiếp tân'],
-  kitchen: ['kitchen', 'bếp', 'cook', 'bakery', 'lò nướng', 'nấu'],
-  dining: ['waiter', 'phục vụ', 'dining', 'bàn', 'chăm sóc', 'phòng khách'],
-  sales: ['sales', 'bán hàng', 'tư vấn', 'giày', 'footwear', 'retail', 'thời trang'],
-  stylist: ['stylist', 'tạo mẫu', 'cắt tóc', 'hair', 'salon', 'gội đầu', 'beauty'],
-  stock: ['stock', 'kho', 'inventory', 'warehouse', 'giao nhận', 'tiếp liệu'],
-  leader: ['leader', 'supervisor', 'trưởng ca', 'quản lý', 'manager'],
-  security: ['security', 'bảo vệ', 'an ninh', 'giữ xe'],
+  barista: ['barista', 'pha chế', 'pha che', 'coffee', 'espresso'],
+  pos: ['pos', 'cashier', 'thu ngân', 'thu ngan', 'order', 'bán hàng', 'ban hang', 'checkout', 'tiếp tân', 'tiep tan'],
+  kitchen: ['kitchen', 'bếp', 'bep', 'cook', 'bakery', 'lò nướng', 'lo nuong', 'nấu', 'nau'],
+  dining: ['waiter', 'phục vụ', 'phuc vu', 'dining', 'bàn', 'ban', 'bàn khách', 'ban khach', 'khách', 'khach', 'chăm sóc', 'phòng khách'],
+  sales: ['sales', 'bán hàng', 'ban hang', 'tư vấn', 'tu van', 'giày', 'footwear', 'retail', 'thời trang', 'thoi trang'],
+  stylist: ['stylist', 'tạo mẫu', 'tao mau', 'cắt tóc', 'cat toc', 'hair', 'salon', 'gội đầu', 'goi dau', 'beauty'],
+  stock: ['stock', 'kho', 'inventory', 'warehouse', 'giao nhận', 'giao nhan', 'tiếp liệu', 'tiep lieu'],
+  leader: ['leader', 'supervisor', 'trưởng ca', 'truong ca', 'quản lý', 'quan ly', 'manager'],
+  security: ['security', 'bảo vệ', 'bao ve', 'an ninh', 'giữ xe', 'giu xe'],
 };
 
 /**
@@ -369,7 +369,7 @@ export function findReplacementCandidates(targetZone, allEmployees = [], current
     if (assignedRecord && String(currentZoneId) === String(targetZone.id)) return;
 
     // Check skill
-    const skillCheck = validateSkillForZone(emp, targetZone);
+    const skillCheck = validateSkillForZone(emp, targetZone, currentShift?.skillRequirements);
     if (skillCheck.valid) {
       const isCurrentlyAssigned = Boolean(assignedRecord);
       const hasAvailabilityMatch = isCurrentlyAssigned || checkStaffAvailabilityForShift(emp, currentShift);

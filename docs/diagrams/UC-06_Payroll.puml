@@ -1,0 +1,153 @@
+@startuml UC-06_Payroll
+' ==============================================================================
+' Diagram: UC-06 - Phân hệ Bảng lương & Xuất phiếu lương (Payroll Management)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 3 Tầng: Khởi tạo & Dữ liệu công -> Động cơ tính lương -> Khóa sổ & Xuất PDF
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý / Kế toán\n(Manager / Admin)" as Manager
+actor "Động cơ Tính lương\n(PayrollService)" as Engine <<system>>
+actor "Nhân viên\n(Staff)" as Staff
+
+Manager -[hidden]right- Engine
+Engine -[hidden]right- Staff
+
+' ==============================================================================
+' KHỐI USE CASE
+' ==============================================================================
+package "Phân hệ Bảng lương & Xuất phiếu lương (UC-06)" as PayrollPkg {
+
+    ' Tầng 1: Khởi tạo & Dữ liệu đầu vào
+    package "1. Khởi tạo Chu kỳ & Dữ liệu Công" as PeriodPkg {
+        usecase "UC-06.1: Khởi tạo chu kỳ tính lương\n(Payroll Period: Tuần / Tháng, DRAFT)" as UC_CreatePeriod
+        usecase "UC-06.2: Tổng hợp dữ liệu công thực tế\n(Giờ làm việc, Đi trễ, Vắng mặt, OT)" as UC_AggregateHours
+        usecase "UC-06.8: Quản lý danh mục ngày lễ tết\n(Holidays & Cấu hình hệ số lương)" as UC_Holidays
+    }
+
+    ' Tầng 2: Động cơ tính lương theo luật LĐ Việt Nam
+    package "2. Động cơ Tính toán & Điều chỉnh Lương" as CalculationPkg {
+        usecase "<b>UC-06.3: Tự động tính toán lương chi tiết</b>\n(Gross, Net, Hệ số ca đêm/lễ, Khấu trừ trễ)" as UC_Calculate <<focal>>
+        usecase "UC-06.4: Điều chỉnh thủ công phụ cấp & khấu trừ\n(Manual Adjustments: Thưởng, Phạt, Trách nhiệm)" as UC_Adjust
+    }
+
+    ' Tầng 3: Khóa sổ, Xuất báo cáo & Tra cứu
+    package "3. Chốt sổ, Xuất Báo cáo & Tra cứu Phiếu lương" as OutputPkg {
+        usecase "UC-06.5: Chốt và khóa bảng lương chu kỳ\n(Trạng thái chuyển sang COMPLETED)" as UC_LockPeriod
+        usecase "UC-06.6: Xuất phiếu lương PDF & Excel\n(OpenPDF Payslip & Apache POI Report)" as UC_Export
+        usecase "UC-06.7: Tra cứu phiếu lương cá nhân\n(Xem chi tiết thu nhập trên ứng dụng Mobile)" as UC_ViewPayslip
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_Calculate .> UC_AggregateHours : <<include>>\n(Đọc công thực tế)
+UC_Calculate .> UC_Holidays : <<include>>\n(Áp dụng hệ số ngày lễ)
+UC_Calculate .> UC_Adjust : <<extend>>\n(Bổ sung khoản phát sinh)
+UC_LockPeriod .> UC_Export : <<include>>\n(Kích hoạt xuất file)
+UC_LockPeriod .> UC_ViewPayslip : <<include>>\n(Mở quyền tra cứu Staff)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_CreatePeriod
+Manager --> UC_Holidays
+Manager --> UC_Calculate
+Manager --> UC_Adjust
+Manager --> UC_LockPeriod
+Manager --> UC_Export
+
+Engine --> UC_AggregateHours
+Engine --> UC_Calculate
+
+Staff --> UC_ViewPayslip
+
+note right of UC_Calculate
+  **Chuẩn hóa theo Luật Lao động VN:**
+  - Ca chuẩn ban ngày: x1.0
+  - Ca đêm (22:00 - 06:00): **x1.3**
+  - Ngày nghỉ hàng tuần: **x2.0**
+  - Ngày lễ, Tết chính thức: **x3.0**
+  - Khấu trừ phạt đi trễ theo phút quy đổi
+end note
+
+note right of UC_Export
+  **Công nghệ xuất bản tài liệu:**
+  - **OpenPDF 2.0.3:** Phiếu lương (Pay Slip PDF)
+  - **Apache POI 5.4.0:** Bảng lương chi nhánh Excel
+end note
+
+@enduml

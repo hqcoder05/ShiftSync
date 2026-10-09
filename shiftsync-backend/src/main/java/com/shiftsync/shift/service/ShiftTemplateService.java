@@ -82,19 +82,23 @@ public class ShiftTemplateService {
         shiftTemplateRepository.delete(template); // Soft delete is handled by @SQLDelete
     }
 
-    @Transactional
+        @Transactional
     public int deactivateOutOfBoundsTemplates(Store store) {
         if (store == null || store.getId() == null) return 0;
         List<ShiftTemplate> templates = shiftTemplateRepository.findByStoreId(store.getId());
+        List<ShiftTemplate> changed = new java.util.ArrayList<>();
         int count = 0;
         for (ShiftTemplate t : templates) {
             boolean outOfBounds = (store.getOpenTime() != null && t.getStartTime().isBefore(store.getOpenTime()))
                     || (store.getCloseTime() != null && t.getEndTime().isAfter(store.getCloseTime()));
             if (outOfBounds && t.isActive()) {
                 t.setActive(false);
-                shiftTemplateRepository.save(t);
+                changed.add(t);
                 count++;
             }
+        }
+        if (!changed.isEmpty()) {
+            shiftTemplateRepository.saveAll(changed);
         }
         return count;
     }
@@ -141,3 +145,5 @@ public class ShiftTemplateService {
                 .build();
     }
 }
+
+

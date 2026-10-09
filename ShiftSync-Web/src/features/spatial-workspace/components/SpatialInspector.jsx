@@ -66,6 +66,7 @@ export default function SpatialInspector({
   onAssignCandidate = null,
   isAssigningCandidate = false,
   onSimulateAddStaff = null,
+  onOpenAutoSchedule,
 }) {
   const [showReplacementPanel, setShowReplacementPanel] = useState(true);
   if (!isOpen) return null;
@@ -296,7 +297,11 @@ export default function SpatialInspector({
                 {selectedZone && (
                   <button
                     type="button"
-                    onClick={() => onFocusZone?.(selectedZone)}
+                    onClick={() => {
+                      onSelectStaff?.(null);
+                      onSelectZone?.(selectedZone);
+                      onFocusZone?.(selectedZone);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -793,7 +798,7 @@ export default function SpatialInspector({
           onFocusZone={onFocusZone}
           onRunAlgorithm={onRunAlgorithm}
           isAllocating={isAllocating}
-          onOpenAutoSchedule={onToggleSimulation}
+          onOpenAutoSchedule={onOpenAutoSchedule}
         />
       )}
     </aside>

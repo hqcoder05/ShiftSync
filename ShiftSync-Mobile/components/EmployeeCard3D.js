@@ -229,7 +229,7 @@ export default function EmployeeCard3D({
         ══════════════════════════════════════════════════════════ */}
         <Animated.View style={[styles.cardCommon, styles.cardFront, frontAnimatedStyle]}>
           {/* Lớp phản quang vệt sáng bóng kính (Gloss specular reflection) */}
-          <View pointerEvents="none" style={styles.glossySheenLayer} />
+          <View style={styles.glossySheenLayer} />
 
           {/* Lỗ khoét thẻ đeo (Lanyard slot punched cutout) */}
           <View style={styles.cardPunchHoleWrap}>
@@ -321,7 +321,7 @@ export default function EmployeeCard3D({
         ══════════════════════════════════════════════════════════ */}
         <Animated.View style={[styles.cardCommon, styles.cardBack, backAnimatedStyle]}>
           {/* Lớp phản quang vệt sáng bóng kính */}
-          <View pointerEvents="none" style={styles.glossySheenLayer} />
+          <View style={styles.glossySheenLayer} />
 
           {/* Lỗ khoét thẻ đeo */}
           <View style={styles.cardPunchHoleWrap}>
@@ -511,6 +511,7 @@ const styles = StyleSheet.create({
     height: 380,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     transform: [{ rotate: '25deg' }],
+    pointerEvents: 'none',
   },
 
   /* Lỗ khoét dập lỗ đeo thẻ (Punched slot) */

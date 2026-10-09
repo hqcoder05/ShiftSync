@@ -3,6 +3,7 @@ package com.shiftsync.store.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import lombok.*;
@@ -20,6 +21,7 @@ public class StoreCreateRequest {
 
     @NotBlank(message = "Store name is required")
     @Schema(description = "Name of the store branch", example = "Coffee Shop A")
+    @Size(max = 100, message = "Name must not exceed 100 characters")
     private String name;
     private com.shiftsync.store.enums.StoreCategory category;
     private String format;
@@ -48,3 +50,4 @@ public class StoreCreateRequest {
     @Schema(description = "Store branch daily closing time", example = "22:00:00")
     private LocalTime closeTime;
 }
+

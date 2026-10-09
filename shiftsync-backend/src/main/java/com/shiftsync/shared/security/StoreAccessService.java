@@ -16,6 +16,13 @@ public class StoreAccessService {
         this.employmentRepository = employmentRepository;
     }
 
+        public boolean canManagerAccessUser(Authentication auth, UUID targetUserId) {
+        if (auth == null || auth.getPrincipal() == null) { return false; }
+        CustomUserDetails details = (CustomUserDetails) auth.getPrincipal();
+        if (details.getUser().getSystemRole() == SystemRole.ADMIN) { return true; }
+        long count = employmentRepository.countSharedStores(details.getUser().getId(), targetUserId, EmploymentStatus.ACTIVE);
+        return count > 0;
+    }
     public boolean canAccessStore(Authentication auth, UUID storeId) {
         if (auth == null || auth.getPrincipal() == null) {
             return false;
@@ -32,3 +39,7 @@ public class StoreAccessService {
         return employmentRepository.isStaffInStore(details.getId(), storeId, EmploymentStatus.ACTIVE);
     }
 }
+
+
+
+

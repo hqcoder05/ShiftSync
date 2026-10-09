@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import StaffAvailabilityPage from './StaffAvailabilityPage';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
-import { getSkillsByStore } from '../services/skillService';
+import { getContractTypes } from '../services/contractTypeService';
+import { getSkillsByStore, getStaffSkills } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
 import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts, autoScheduleShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
@@ -355,6 +356,8 @@ export default function SchedulePage() {
     startDate: '',
     endDate: '',
   });
+  const [showAutoScheduleResultModal, setShowAutoScheduleResultModal] = useState(false);
+  const [autoScheduleResultData, setAutoScheduleResultData] = useState(null);
 
   /* -- navigation state -- */
   const [viewMode, setViewMode] = useState('Tuần');
@@ -692,7 +695,14 @@ export default function SchedulePage() {
   }, [current3DShift, employees, skills, storeZones]);
 
   const handleRunSpatialAllocation = async () => {
-    if (!current3DShift || !storeId) return;
+    if (!storeId) {
+      showToast('Thông báo', 'Vui lòng chọn chi nhánh cửa hàng trước khi phân bổ.');
+      return;
+    }
+    if (!current3DShift) {
+      showToast('Thông báo', 'Vui lòng chọn ca làm việc để thực hiện phân bổ vị trí nhân sự.');
+      return;
+    }
     setIsAllocating3D(true);
     try {
       const res = await allocateZonesForShift(storeId, current3DShift.id);
@@ -834,30 +844,46 @@ export default function SchedulePage() {
         });
         setEmployees(staff);
 
-        // Load staff availability to show triangle warning (!) badge ONLY if submitted
+        // Load staff availability & skills in parallel
         Promise.allSettled(
           staff.map((emp) =>
-            getStaffAvailability(emp.id).then((res) => ({
+            Promise.all([
+              getStaffAvailability(emp.id).catch(() => ({ data: [] })),
+              getStaffSkills(emp.id).catch(() => ({ data: [] })),
+            ]).then(([availRes, skillsRes]) => ({
               id: emp.id,
-              hasSlots: Array.isArray(res.data) && res.data.length > 0,
-              slots: Array.isArray(res.data) ? res.data : [],
+              hasSlots: Array.isArray(availRes.data) && availRes.data.length > 0,
+              slots: Array.isArray(availRes.data) ? availRes.data : [],
+              skillIds: Array.isArray(skillsRes.data) ? skillsRes.data : [],
             }))
           )
         ).then((results) => {
           const withAvail = new Set();
           const availMap = {};
+          const empSkillsMap = {};
           results.forEach((r) => {
-            if (r.status === 'fulfilled' && r.value.hasSlots) {
-              withAvail.add(r.value.id);
-              availMap[r.value.id] = r.value.slots;
+            if (r.status === 'fulfilled') {
+              if (r.value.hasSlots) {
+                withAvail.add(r.value.id);
+                availMap[r.value.id] = r.value.slots;
+              }
+              empSkillsMap[r.value.id] = r.value.skillIds;
             }
           });
           setStaffWithAvailability(withAvail);
           setEmployees((prev) =>
-            prev.map((emp) => ({
-              ...emp,
-              availabilitySlots: availMap[emp.id] || [],
-            }))
+            prev.map((emp) => {
+              const sIds = empSkillsMap[emp.id] || [];
+              const empSkillObjs = sIds.map((sid) => loadedSkills.find((sk) => sk.id === sid)).filter(Boolean);
+              const primarySkill = empSkillObjs[0]?.name || emp.position;
+              return {
+                ...emp,
+                availabilitySlots: availMap[emp.id] || [],
+                skills: empSkillObjs,
+                skillName: emp.position && emp.position !== 'Nhân viên' && emp.position !== 'Barista' ? emp.position : primarySkill,
+                position: emp.position && emp.position !== 'Nhân viên' && emp.position !== 'Barista' ? emp.position : primarySkill,
+              };
+            })
           );
         });
 
@@ -1002,7 +1028,7 @@ export default function SchedulePage() {
     setEditingShift(null);
 
     const defaults = getEmpDefaultSkillAndColor(empId);
-    const currentStore = stores.find((store) => store.id === storeId);
+    const currentStore = stores.find((store) => String(store.id) === String(storeId));
     const defaultStartTime = currentStore?.openTime?.slice(0, 5) || '08:00';
     const defaultEndTime = currentStore?.closeTime ? currentStore.closeTime.slice(0, 5) : '16:00';
 
@@ -1026,7 +1052,7 @@ export default function SchedulePage() {
   const openEditModal = (shift, empId) => {
     setModalMode('edit');
     setEditingShift(shift);
-    const currentStore = stores.find((store) => store.id === storeId);
+    const currentStore = stores.find((store) => String(store.id) === String(storeId));
     const fmtT = (t) => {
       if (!t) return currentStore?.openTime?.slice(0, 5) || '08:00';
       if (typeof t === 'string') return t.slice(0, 5);
@@ -1142,11 +1168,23 @@ export default function SchedulePage() {
       return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
     };
 
+    const currentStore = stores.find((store) => String(store.id) === String(storeId));
+    const openTime = currentStore?.openTime?.slice(0, 5);
+    const closeTime = currentStore?.closeTime?.slice(0, 5);
+    let sTime = fmtT(slot.startTime);
+    let eTime = fmtT(slot.endTime);
+    if (openTime && sTime < openTime) sTime = openTime;
+    if (closeTime && eTime > closeTime) eTime = closeTime;
+    if (sTime >= eTime) {
+      showToast('Khung giờ không hợp lệ', `Ca đăng ký rảnh (${fmtT(slot.startTime)} - ${fmtT(slot.endTime)}) nằm ngoài giờ mở cửa của chi nhánh (${openTime || '06:00'} - ${closeTime || '22:00'}).`);
+      return;
+    }
+
     const payload = {
       staffId: empId,
       shiftDate: targetDateIso,
-      startTime: fmtT(slot.startTime),
-      endTime: fmtT(slot.endTime),
+      startTime: sTime,
+      endTime: eTime,
       color: defaults.color || SHIFT_COLORS[0],
       skillId: defaults.location || null,
       note: `Phân công từ ca đăng ký rảnh (${DOW_VI[slot.dayOfWeek]})`,
@@ -1214,7 +1252,7 @@ export default function SchedulePage() {
     e.preventDefault();
     setError('');
 
-    const currentStore = stores.find((store) => store.id === storeId);
+    const currentStore = stores.find((store) => String(store.id) === String(storeId));
     const openTime = currentStore?.openTime?.slice(0, 5);
     const closeTime = currentStore?.closeTime?.slice(0, 5);
     if (openTime && registerForm.startTime < openTime) {
@@ -1334,6 +1372,23 @@ export default function SchedulePage() {
     e.preventDefault();
     if (!editingShift) return;
     setError('');
+
+    const currentStore = stores.find((store) => String(store.id) === String(storeId));
+    const openTime = currentStore?.openTime?.slice(0, 5);
+    const closeTime = currentStore?.closeTime?.slice(0, 5);
+    if (openTime && registerForm.startTime < openTime) {
+      setError(`Giờ bắt đầu phải từ ${openTime} trở đi (giờ mở cửa chi nhánh).`);
+      return;
+    }
+    if (closeTime && registerForm.endTime > closeTime) {
+      setError(`Giờ kết thúc phải trước hoặc bằng ${closeTime} (giờ đóng cửa chi nhánh).`);
+      return;
+    }
+    if (registerForm.startTime >= registerForm.endTime) {
+      setError('Giờ kết thúc phải sau giờ bắt đầu.');
+      return;
+    }
+
     try {
       const res = await updateShift(storeId, editingShift.id, {
         shiftDate: registerForm.shiftDate,
@@ -1385,8 +1440,12 @@ export default function SchedulePage() {
       setShowRegisterModal(false);
       setMenuFor(null);
       notifyShiftUpdates();
+      // Re-read the authoritative backend representation after a direct edit.
+      // The optimistic assignment update does not cover every server-derived
+      // field (requirements, assignment metadata and persisted note).
+      await loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Xóa ca làm việc thất bại');
+      setError(err.response?.data?.message || 'Cập nhật ca làm việc thất bại');
     }
   };
 
@@ -1530,12 +1589,25 @@ export default function SchedulePage() {
     setError('');
     if (!addUserForm.staffId) { setError('Chọn nhân viên'); return; }
     try {
+      let contractTypeId = null;
+      try {
+        const ctRes = await getContractTypes();
+        const cts = ctRes?.data || [];
+        const isFull = addUserForm.employmentType === 'FULL_TIME';
+        const matched = cts.find((c) => c.name?.toLowerCase().includes(isFull ? 'full' : 'part'));
+        contractTypeId = matched ? matched.id : cts[0]?.id;
+      } catch {}
+
+      if (!contractTypeId) {
+        setError('Không tìm thấy loại hợp đồng hợp lệ');
+        return;
+      }
+
       await assignStaffToStore(storeId, {
         staffId: addUserForm.staffId,
-        employmentType: addUserForm.employmentType,
+        contractTypeId,
         hourlyRate: Number(addUserForm.hourlyRate) || 25000,
         joinedDate: addUserForm.joinedDate || toISODate(new Date()),
-        skillId: addUserForm.skillId ? addUserForm.skillId : null,
       });
       // Lưu vị trí công việc vào localStorage để hiển thị ngay
       if (addUserForm.skillId) {
@@ -1580,12 +1652,13 @@ export default function SchedulePage() {
 
   const handleRunAutoSchedule = async () => {
     if (!storeId) return;
-    const dateFrom = toISODate(displayedDates[0]);
-    const dateTo = toISODate(displayedDates[displayedDates.length - 1]);
+    const dateFrom = toISODate(weekDatesFull[0]);
+    const dateTo = toISODate(weekDatesFull[weekDatesFull.length - 1]);
     try {
       showToast('Đang xếp lịch tự động', 'Hệ thống đang chạy thuật toán tối ưu 8 bước...');
-      await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
-      showToast('Xếp lịch tự động thành công! ', 'Đã phân bổ ca làm việc tối ưu cho tuần.');
+      const res = await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
+      setAutoScheduleResultData(res.data);
+      setShowAutoScheduleResultModal(true);
       loadData();
       notifyShiftUpdates();
     } catch (err) {
@@ -1729,8 +1802,8 @@ export default function SchedulePage() {
                 disabled={autoScheduling}
                 onClick={() => {
                   setAutoScheduleDates({
-                    startDate: toISODate(displayedDates[0]),
-                    endDate: toISODate(displayedDates[displayedDates.length - 1]),
+                    startDate: toISODate(weekDatesFull[0]),
+                    endDate: toISODate(weekDatesFull[weekDatesFull.length - 1]),
                   });
                   setShowAutoScheduleModal(true);
                 }}
@@ -3381,6 +3454,13 @@ export default function SchedulePage() {
                 className="sch-confirm-primary-btn"
                 disabled={autoScheduling}
                 onClick={async () => {
+                  const dStart = new Date(autoScheduleDates.startDate);
+                  const dEnd = new Date(autoScheduleDates.endDate);
+                  const diffDays = Math.round((dEnd - dStart) / (1000 * 60 * 60 * 24));
+                  if (diffDays < 0 || diffDays > 6) {
+                    showToast('Khoảng thời gian không hợp lệ', 'Thời gian xếp ca tự động tối đa là 7 ngày (1 tuần).');
+                    return;
+                  }
                   setShowAutoScheduleModal(false);
                   setAutoScheduling(true);
                   showToast(
@@ -3392,8 +3472,8 @@ export default function SchedulePage() {
                       startDate: autoScheduleDates.startDate,
                       endDate: autoScheduleDates.endDate,
                     });
-                    const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
-                    showToast('Thành Công! ', msg);
+                    setAutoScheduleResultData(res?.data);
+                    setShowAutoScheduleResultModal(true);
                     loadData();
                     notifyShiftUpdates();
                   } catch (err) {
@@ -3407,6 +3487,203 @@ export default function SchedulePage() {
               >
                 {autoScheduling ? 'Đang xếp...' : 'Bắt đầu tự động xếp ca'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Kết quả Tự động xếp ca (AI Scheduler Result & Diagnostics) ═══ */}
+      {showAutoScheduleResultModal && autoScheduleResultData && (
+        <div className="sch-modal-overlay" onClick={() => setShowAutoScheduleResultModal(false)}>
+          <div
+            className="sch-modal sch-auto-result-modal"
+            style={{ maxWidth: 840, maxHeight: '90vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sch-modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>✨</span>
+                <div>
+                  <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a', fontWeight: 700 }}>
+                    Kết Quả Tự Động Xếp Ca Bằng AI
+                  </h2>
+                  <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                    Báo cáo phân bổ ca và chẩn đoán năng lực đáp ứng định biên
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="sch-modal-close"
+                onClick={() => setShowAutoScheduleResultModal(false)}
+              >&times;</button>
+            </div>
+
+            <div style={{ padding: '16px 0' }}>
+              {/* Coverage Banner */}
+              {autoScheduleResultData.status === 'FULL_COVERAGE' ? (
+                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065f46', fontWeight: 700, fontSize: 14 }}>
+                    <span>🎉</span>
+                    <span>Phân công hoàn tất 100% — Toàn bộ nhu cầu định biên đã được lấp đầy!</span>
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#047857' }}>
+                    Tất cả {autoScheduleResultData.totalDemands} vị trí ca làm việc đã được phân bổ nhân sự tối ưu, tuân thủ mọi quy định hợp đồng và khả dụng.
+                  </p>
+                </div>
+              ) : autoScheduleResultData.status === 'PARTIALLY_COVERED' ? (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#92400e', fontWeight: 700, fontSize: 14 }}>
+                    <span>⚠️</span>
+                    <span>Phân công một phần: Đã xếp {autoScheduleResultData.newAssignmentsCreated}/{autoScheduleResultData.totalDemands} vị trí ({Math.round((autoScheduleResultData.newAssignmentsCreated / (autoScheduleResultData.totalDemands || 1)) * 100)}%)</span>
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b45309' }}>
+                    Hệ thống đã xếp tối đa vị trí hợp lệ. Phát hiện thiếu hụt {autoScheduleResultData.shortageSlots} vị trí do thiếu nhân sự khả dụng hoặc vi phạm hạn mức giờ làm việc.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991b1b', fontWeight: 700, fontSize: 14 }}>
+                    <span>❗</span>
+                    <span>Chưa thể xếp ca: 0/{autoScheduleResultData.totalDemands} vị trí được xếp</span>
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b91c1c' }}>
+                    Không có nhân sự nào đáp ứng được các ca làm này do trùng lịch, vượt quá giờ làm tối đa hoặc chưa đăng ký kỹ năng phù hợp.
+                  </p>
+                </div>
+              )}
+
+              {/* Stat Metrics Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Tổng Nhu Cầu</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
+                    {autoScheduleResultData.totalDemands || 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>vị trí ca</div>
+                </div>
+
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Đã Phân Bổ</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#15803d', marginTop: 4 }}>
+                    {autoScheduleResultData.newAssignmentsCreated || 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#16a34a' }}>vị trí thành công</div>
+                </div>
+
+                <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase' }}>Còn Thiếu Hụt</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#c2410c', marginTop: 4 }}>
+                    {autoScheduleResultData.shortageSlots || 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#ea580c' }}>vị trí chưa có người</div>
+                </div>
+
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Tỷ Lệ Đáp Ứng</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#0d9488', marginTop: 4 }}>
+                    {autoScheduleResultData.feasibility?.utilizationRate ?? Math.round(((autoScheduleResultData.newAssignmentsCreated || 0) / (autoScheduleResultData.totalDemands || 1)) * 100)}%
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>năng lực vận hành</div>
+                </div>
+              </div>
+
+              {/* Feasibility Details Box */}
+              {autoScheduleResultData.feasibility && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>📊</span>
+                    <span>Phân Tích Năng Lực Nhân Sự Chi Nhánh:</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.6 }}>
+                    Chi nhánh hiện có <strong>{autoScheduleResultData.feasibility.totalActiveStaff}</strong> nhân sự đang hoạt động với tổng hạn mức năng lực <strong>{autoScheduleResultData.feasibility.capacityHours} giờ</strong>.
+                    Kế hoạch định biên yêu cầu <strong>{autoScheduleResultData.feasibility.demandHours} giờ</strong> làm việc.
+                    {autoScheduleResultData.feasibility.deficitHours > 0 ? (
+                      <span style={{ color: '#dc2626' }}>
+                        {' '}(Thiếu hụt <strong>{autoScheduleResultData.feasibility.deficitHours} giờ</strong> công).
+                      </span>
+                    ) : (
+                      <span style={{ color: '#16a34a' }}>
+                        {' '}(Năng lực nhân sự đủ đáp ứng toàn bộ nhu cầu định biên).
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Shortages Breakdown Table */}
+              {Array.isArray(autoScheduleResultData.shortages) && autoScheduleResultData.shortages.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>📋</span>
+                    <span>Danh Sách Vị Trí Cần Bổ Sung Nhân Sự ({autoScheduleResultData.shortages.length} ca):</span>
+                  </div>
+                  <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ padding: '8px 12px' }}>Ngày</th>
+                          <th style={{ padding: '8px 12px' }}>Khung giờ</th>
+                          <th style={{ padding: '8px 12px' }}>Vị trí</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Cần / Đã có</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Thiếu</th>
+                          <th style={{ padding: '8px 12px' }}>Lý do chẩn đoán</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {autoScheduleResultData.shortages.map((s, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1e293b' }}>{s.shiftDate}</td>
+                            <td style={{ padding: '8px 12px', color: '#64748b' }}>{s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 4, fontWeight: 600, fontSize: 11.5 }}>
+                                {s.skillName || 'Nhân viên'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', color: '#334155' }}>
+                              {s.requiredCount} / {s.assignedCount}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', color: '#dc2626', fontWeight: 700 }}>
+                              -{s.shortageCount}
+                            </td>
+                            <td style={{ padding: '8px 12px', color: '#64748b', fontSize: 12 }}>
+                              {s.reason || 'Thiếu nhân sự khả dụng'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sch-modal-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                {autoScheduleResultData.shortageSlots > 0 && (
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn-secondary"
+                    style={{ fontSize: 12.5 }}
+                    onClick={() => {
+                      setShowAutoScheduleResultModal(false);
+                      navigate('/marketplace');
+                    }}
+                  >
+                    🏪 Mở Sàn Chuyển Ca (Marketplace)
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  className="sch-save-btn"
+                  style={{ background: '#0d9488', color: '#fff', padding: '8px 20px', borderRadius: 8, fontWeight: 600, fontSize: 13 }}
+                  onClick={() => setShowAutoScheduleResultModal(false)}
+                >
+                  Đóng &amp; Xem Bảng Ca
+                </button>
+              </div>
             </div>
           </div>
         </div>

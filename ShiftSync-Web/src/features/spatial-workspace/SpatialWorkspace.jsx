@@ -719,19 +719,19 @@ export default function SpatialWorkspace({
     }
 
     // If candidate is outside registered availability and not currently in this shift, prompt confirmation
-    let forceOverride = false;
+    let forceOverride = true;
     if (!candidate.isCurrentlyAssigned && !candidate.hasAvailabilityMatch) {
       const shiftTimeDesc = currentShift.startTime && currentShift.endTime ? ` (${currentShift.startTime} - ${currentShift.endTime})` : '';
       const confirmAssign = window.confirm(
         `Nhân sự ${candidate.name} chưa đăng ký lịch rảnh vào khung giờ này${shiftTimeDesc}.\n\nBạn có chắc chắn muốn chỉ định bổ sung vào ca làm việc này không?`
       );
       if (!confirmAssign) return;
-      forceOverride = true;
     }
 
     try {
       setAssigningStaffId(candidate.id);
       await assignStaffToShift(activeStoreId, shiftId, candidate.id, zone.id, forceOverride);
+      toast.success(`Đã phân công ${candidate.name} vào phân khu ${zone.name}!`);
       if (onApplyComplete) {
         await onApplyComplete();
       }
@@ -755,6 +755,18 @@ export default function SpatialWorkspace({
       setAssigningStaffId(null);
     }
   }, [isSimulating, currentShift, selectedStoreId, storeId, handleSimulateMoveStaff, handleSimulateAddStaff, onApplyComplete]);
+
+  const handlePublishSchedule = useCallback(async () => {
+    try {
+      if (onPublishSchedule) {
+        await onPublishSchedule();
+      }
+      toast.success('Đã lưu & xuất bản lịch làm việc thành công!');
+    } catch (err) {
+      console.error('Publish schedule error:', err);
+      toast.error('Lỗi khi xuất bản lịch làm việc');
+    }
+  }, [onPublishSchedule]);
 
   const handleRunAutoScheduleSimulation = useCallback(() => {
     const allocated = generateSimulationAutoSchedule(zones, storeSimulatedStaff, skills);
@@ -1420,7 +1432,7 @@ export default function SpatialWorkspace({
         isSimulating={isSimulating}
         onToggleSimulation={handleToggleSimulationMode}
         onOpenAutoSchedule={onOpenAutoSchedule}
-        onPublishSchedule={onPublishSchedule}
+        onPublishSchedule={handlePublishSchedule}
         isDrawerOpen={isDrawerOpen}
         onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
       />
@@ -1642,6 +1654,7 @@ export default function SpatialWorkspace({
         onAssignCandidate={handleAssignCandidate}
         isAssigningCandidate={assigningStaffId}
         onSimulateAddStaff={handleSimulateAddStaff}
+        onOpenAutoSchedule={onOpenAutoSchedule}
       />
         </div>
       </div>

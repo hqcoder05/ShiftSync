@@ -1,0 +1,149 @@
+@startuml UC-04_Marketplace_Swap
+' ==============================================================================
+' Diagram: UC-04 - Phân hệ Thị trường Ca mở & Đổi ca (Marketplace & Shift Swap)
+' Thiết kế theo chuẩn diagram-design: Khổ dọc (Portrait) tối ưu cho báo cáo A4
+' 2 Cột: Trái (Thị trường ca mở & Khóa Redisson) | Phải (Đổi ca P2P & Duyệt quản lý)
+' Zero Crossings với skinparam linetype ortho
+' ==============================================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Segoe UI", "Geist", "Helvetica Neue", sans-serif
+skinparam defaultFontSize 11
+skinparam dpi 200
+
+' Canvas & Background
+skinparam backgroundColor #FFFFFF
+
+' Packages
+skinparam package {
+    BorderColor #94A3B8
+    BackgroundColor #F8FAFC
+    FontColor #0F172A
+    FontStyle bold
+    FontSize 12
+}
+
+' Human Actors
+skinparam actor {
+    BorderColor #1E40AF
+    BackgroundColor #EFF6FF
+    FontColor #0F172A
+    FontStyle bold
+}
+
+' System Actors
+skinparam actor<<system>> {
+    BorderColor #475569
+    BackgroundColor #F1F5F9
+    FontColor #334155
+    FontStyle normal
+}
+
+' Standard Use Cases
+skinparam usecase {
+    BorderColor #64748B
+    BackgroundColor #FFFFFF
+    BorderThickness 1.2
+    FontColor #1E293B
+    FontSize 11
+}
+
+' Focal Use Case
+skinparam usecase<<focal>> {
+    BorderColor #EA580C
+    BackgroundColor #FFF7ED
+    FontColor #9A3412
+    BorderThickness 1.8
+}
+
+' Connectors
+skinparam arrow {
+    Color #475569
+    Thickness 1.2
+    FontColor #64748B
+    FontSize 10
+}
+
+' Notes
+skinparam note {
+    BorderColor #D97706
+    BackgroundColor #FFFBEB
+    FontColor #78350F
+    FontSize 10
+}
+
+' ==============================================================================
+' TOP ROW: TÁC NHÂN
+' ==============================================================================
+actor "Quản lý cửa hàng\n(Manager)" as Manager
+actor "Nhân viên\n(Staff)" as Staff
+actor "Máy chủ Redis\n(Redisson Lock)" as Redis <<system>>
+
+Manager -[hidden]right- Staff
+Staff -[hidden]right- Redis
+
+' ==============================================================================
+' KHỐI USE CASE
+' ==============================================================================
+package "Phân hệ Thị trường Ca mở & Đổi ca (UC-04)" as MarketplacePkg {
+
+    ' Khối 1: Thị trường Ca mở (Open Shifts)
+    package "1. Thị trường Ca làm việc Mở (Open Shifts)" as OpenShiftPkg {
+        usecase "UC-04.1: Đăng ca làm việc mở\n(Chuyển trạng thái ca sang OPEN)" as UC_PublishOpen
+        usecase "<b>UC-04.2: Nhận ca làm việc mở</b>\n(Claim Open Shift với Khóa Redisson)" as UC_ClaimShift <<focal>>
+        usecase "UC-04.7: Tra cứu danh sách ca mở\n(Lọc theo kỹ năng & chi nhánh)" as UC_ViewOpenShifts
+    }
+
+    ' Khối 2: Đổi ca trực tiếp giữa nhân viên (Shift Swap)
+    package "2. Quy trình Đổi ca Trực tiếp (Peer-to-Peer)" as SwapPkg {
+        usecase "UC-04.3: Tạo yêu cầu đổi ca trực tiếp\n(Gửi đề xuất tới đồng nghiệp)" as UC_RequestSwap
+        usecase "UC-04.4: Phản hồi yêu cầu đổi ca\n(Đồng nghiệp chấp thuận / từ chối)" as UC_RespondSwap
+        usecase "UC-04.5: Phê duyệt yêu cầu đổi ca\n(Quản lý duyệt / từ chối đơn)" as UC_ApproveSwap
+    }
+
+    ' Khối 3: Mượn nhân sự liên chi nhánh (Cross-Store)
+    package "3. Điều phối Nhân sự Liên chi nhánh" as CrossStorePkg {
+        usecase "UC-04.6: Yêu cầu & Điều phối mượn nhân sự\n(Cross-Store Workforce Borrowing)" as UC_BorrowStaff
+    }
+}
+
+' ==============================================================================
+' QUAN HỆ USE CASE
+' ==============================================================================
+UC_ClaimShift .> UC_ViewOpenShifts : <<include>>\n(Chọn ca từ danh sách)
+UC_RequestSwap .> UC_RespondSwap : <<include>>\n(Chờ đồng nghiệp đồng thuận)
+UC_RespondSwap .> UC_ApproveSwap : <<include>>\n(Chuyển Quản lý phê duyệt)
+
+' ==============================================================================
+' LIÊN KẾT TÁC NHÂN
+' ==============================================================================
+Manager --> UC_PublishOpen
+Manager --> UC_ApproveSwap
+Manager --> UC_BorrowStaff
+
+Staff --> UC_ViewOpenShifts
+Staff --> UC_ClaimShift
+Staff --> UC_RequestSwap
+Staff --> UC_RespondSwap
+
+UC_ClaimShift ..> Redis : Khóa phân tán RLock\n(Wait 5s, Lease 10s)
+
+note bottom of UC_ClaimShift
+  **Cơ chế chống Race Condition:**
+  Khóa Redisson: `shift_claim_lock:{id}`
+  - Ngăn chặn triệt để 2 nhân viên cùng nhận 1 ca
+  - Kiểm tra điều kiện: Đúng kỹ năng, không trùng giờ,
+    không vượt giới hạn giờ làm tuần
+end note
+
+note bottom of UC_ApproveSwap
+  **Quy trình đổi ca 2 bước:**
+  1. Đồng nghiệp chấp thuận (P2P Consent)
+  2. Quản lý cửa hàng phê duyệt (Manager Approval)
+  => Cập nhật `ShiftAssignment` và gửi thông báo.
+end note
+
+@enduml

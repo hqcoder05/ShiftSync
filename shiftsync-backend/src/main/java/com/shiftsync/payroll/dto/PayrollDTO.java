@@ -18,6 +18,7 @@ public class PayrollDTO {
     private LocalDate periodEndDate;
     private String periodStatus;
     private BigDecimal totalHours;
+    private BigDecimal payableHours;
     private BigDecimal otHours;
     private BigDecimal holidayHours;
     private BigDecimal baseAmount;

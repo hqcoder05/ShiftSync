@@ -10,12 +10,14 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  Platform,
 } from 'react-native';
 import { getActiveShifts, claimShift } from '../services/marketplaceService';
 import { getMyProposals, respondProposal } from '../services/workforceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getMyShifts } from '../services/shiftService';
 import BottomNavbar from '../components/BottomNavbar';
+import { showAlert } from '../utils/alert';
 
 // ── Palette matching Figma Pastel Tokens & ScheduleScreen ────────────────────
 export const ROLE_THEMES = {
@@ -145,6 +147,19 @@ const calcShiftDuration = (start, end) => {
   }
 };
 
+const calcShiftDurationHours = (start, end) => {
+  if (!start || !end) return 0;
+  try {
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    let diff = h2 * 60 + m2 - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60;
+    return diff / 60;
+  } catch {
+    return 0;
+  }
+};
+
 export default function MarketplaceScreen({ navigation }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [myShifts, setMyShifts] = useState([]);
@@ -152,6 +167,7 @@ export default function MarketplaceScreen({ navigation }) {
   const [selectedStoreIndex, setSelectedStoreIndex] = useState(0);
   const [openShifts, setOpenShifts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [claimingId, setClaimingId] = useState(null);
   const [proposals, setProposals] = useState([]);
@@ -165,6 +181,7 @@ export default function MarketplaceScreen({ navigation }) {
   }, [stores, selectedStoreIndex]);
 
   const loadData = useCallback(async () => {
+    setLoadError(null);
     try {
       // 1. Fetch user profile
       const { data: user } = await getMyProfile();
@@ -205,6 +222,8 @@ export default function MarketplaceScreen({ navigation }) {
       }
     } catch (err) {
       console.log('Lỗi khi tải dữ liệu Sàn ca:', err);
+      setOpenShifts([]);
+      setLoadError(err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -221,7 +240,7 @@ export default function MarketplaceScreen({ navigation }) {
   };
 
   const handleProposalResponse = (proposal, accepted) => {
-    Alert.alert(
+    showAlert(
       accepted ? 'Nhận đề xuất?' : 'Từ chối đề xuất?',
       accepted ? 'Bạn sẽ được phân công vào yêu cầu hỗ trợ này nếu đủ điều kiện.' : 'Bạn có chắc muốn từ chối đề xuất này?',
       [
@@ -234,9 +253,9 @@ export default function MarketplaceScreen({ navigation }) {
               setRespondingProposalId(proposal.id);
               await respondProposal(proposal.id, { accepted });
               await loadData();
-              Alert.alert('Thành công', accepted ? 'Đã nhận đề xuất hỗ trợ.' : 'Đã từ chối đề xuất.');
+              showAlert('Thành công', accepted ? 'Đã nhận đề xuất hỗ trợ.' : 'Đã từ chối đề xuất.');
             } catch (error) {
-              Alert.alert('Không thể phản hồi', proposalErrorMessage(error));
+              showAlert('Không thể phản hồi', proposalErrorMessage(error));
             } finally {
               setRespondingProposalId(null);
             }
@@ -259,17 +278,32 @@ export default function MarketplaceScreen({ navigation }) {
     loadData();
   };
 
-  const handleClaim = (shift) => {
+  const marketplaceErrorMessage = (error) => {
+    const status = error?.response?.status;
+    if (status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    if (status === 403) return 'Bạn không có quyền xem ca mở tại chi nhánh này.';
+    if (status >= 500) return 'Máy chủ đang gặp lỗi. Vui lòng thử lại sau.';
+    return 'Không thể tải ca mở. Vui lòng kiểm tra kết nối và thử lại.';
+  };
+
+  const handleClaim = (shift, weeklyHoursStatus) => {
+    if (weeklyHoursStatus?.exceeds) {
+      showAlert(
+        'Vượt định mức tuần',
+        `Hợp đồng của bạn tại chi nhánh quy định tối đa ${weeklyHoursStatus.maxWeeklyHours} giờ/tuần. Bạn đã có ${weeklyHoursStatus.currentWeekHours} giờ và ca này ${weeklyHoursStatus.shiftHours} giờ. Vui lòng chọn ca khác phù hợp hơn.`
+      );
+      return;
+    }
     const dateStr = fmtDateVN(shift.shiftDate);
     const timeStr = `${shift.startTime?.slice(0, 5)} - ${shift.endTime?.slice(0, 5)}`;
     const storeId = currentStore?.storeId || currentStore?.id;
 
     if (!storeId) {
-      Alert.alert('Thông báo', 'Không tìm thấy thông tin chi nhánh làm việc.');
+      showAlert('Thông báo', 'Không tìm thấy thông tin chi nhánh làm việc.');
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Xác nhận nhận ca',
       `Bạn có chắc chắn muốn đăng ký nhận ca làm việc ngày ${dateStr} (${timeStr}) không?`,
       [
@@ -285,7 +319,7 @@ export default function MarketplaceScreen({ navigation }) {
               // Refresh immediately so the card reflects the authoritative state
               // without requiring a second user action.
               await loadData();
-              Alert.alert(
+              showAlert(
                 'Đăng ký thành công',
                 'Bạn đã nhận ca thành công! Ca làm việc đã được cập nhật trực tiếp vào Lịch làm của bạn.',
                 [
@@ -309,7 +343,7 @@ export default function MarketplaceScreen({ navigation }) {
               } else if (!msg) {
                 msg = 'Không thể nhận ca. Vui lòng kiểm tra lại xung đột lịch làm hoặc kỹ năng.';
               }
-              Alert.alert('Không thể nhận ca', msg);
+              showAlert('Không thể nhận ca', msg);
             } finally {
               setClaimingId(null);
             }
@@ -465,6 +499,14 @@ export default function MarketplaceScreen({ navigation }) {
             <ActivityIndicator size="small" color="#27272a" />
             <Text style={styles.loadingText}>Đang tải danh sách ca mở...</Text>
           </View>
+        ) : loadError ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Không tải được ca mở</Text>
+            <Text style={styles.emptySubtitle}>{marketplaceErrorMessage(loadError)}</Text>
+            <TouchableOpacity onPress={onRefresh} style={styles.reloadEmptyBtn}>
+              <Text style={styles.reloadEmptyText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
         ) : openShifts.length > 0 ? (
           openShifts.map((shift) => {
             const isClaimingThis = claimingId === shift.id;
@@ -489,6 +531,40 @@ export default function MarketplaceScreen({ navigation }) {
               const e2 = ms.endTime?.slice(0, 5) || '23:59';
               return s1 < e2 && e1 > s2;
             });
+
+            // Kiểm tra định mức giờ làm việc theo tuần (theo hợp đồng tại chi nhánh)
+            const maxWeeklyHours = currentStore?.contractType?.maxWeeklyHours || 40;
+            let weeklyHoursStatus = { exceeds: false, currentWeekHours: 0, shiftHours: 0, maxWeeklyHours };
+            try {
+              const shiftDate = new Date(shift.shiftDate);
+              const day = shiftDate.getDay();
+              const diffToMonday = shiftDate.getDate() - day + (day === 0 ? -6 : 1);
+              const monday = new Date(shiftDate);
+              monday.setDate(diffToMonday);
+              monday.setHours(0, 0, 0, 0);
+              const sunday = new Date(monday);
+              sunday.setDate(monday.getDate() + 6);
+              sunday.setHours(23, 59, 59, 999);
+
+              let currentWeekHours = 0;
+              myShifts.forEach((s) => {
+                const d = new Date(s.shiftDate);
+                if (d >= monday && d <= sunday) {
+                  currentWeekHours += calcShiftDurationHours(s.startTime, s.endTime);
+                }
+              });
+
+              const shiftHours = calcShiftDurationHours(shift.startTime, shift.endTime);
+              const exceeds = currentWeekHours + shiftHours > maxWeeklyHours;
+              weeklyHoursStatus = {
+                exceeds,
+                currentWeekHours: Math.round(currentWeekHours * 10) / 10,
+                shiftHours: Math.round(shiftHours * 10) / 10,
+                maxWeeklyHours,
+              };
+            } catch (e) {
+              // ignore
+            }
 
             return (
               <View key={shift.id} style={styles.shiftCard}>
@@ -516,7 +592,7 @@ export default function MarketplaceScreen({ navigation }) {
                     </View>
                   </View>
 
-                  {/* Cảnh báo trạng thái cá nhân: Đã tham gia hoặc Trùng ca */}
+                  {/* Cảnh báo trạng thái cá nhân: Đã tham gia hoặc Trùng ca hoặc Vượt mức tuần */}
                   {isAlreadyInShift ? (
                     <View style={styles.alertBoxSuccess}>
                       <View style={styles.alertDotSuccess} />
@@ -529,6 +605,13 @@ export default function MarketplaceScreen({ navigation }) {
                       <View style={styles.alertDotConflict} />
                       <Text style={styles.alertTextConflict}>
                         Trùng giờ ca làm khác ({conflictingShift.startTime?.slice(0, 5)} - {conflictingShift.endTime?.slice(0, 5)})
+                      </Text>
+                    </View>
+                  ) : weeklyHoursStatus.exceeds ? (
+                    <View style={styles.alertBoxWarning}>
+                      <View style={styles.alertDotWarning} />
+                      <Text style={styles.alertTextWarning}>
+                        Vượt định mức tuần ({weeklyHoursStatus.currentWeekHours}h/{weeklyHoursStatus.maxWeeklyHours}h - ca này {weeklyHoursStatus.shiftHours}h)
                       </Text>
                     </View>
                   ) : null}
@@ -586,6 +669,8 @@ export default function MarketplaceScreen({ navigation }) {
                         ? 'Ca này bạn đã có lịch'
                         : conflictingShift
                         ? 'Trùng giờ với ca khác'
+                        : weeklyHoursStatus.exceeds
+                        ? `Vượt mức tuần (${weeklyHoursStatus.currentWeekHours}h/${weeklyHoursStatus.maxWeeklyHours}h)`
                         : 'Bấm nhận ca để đăng ký ngay'}
                     </Text>
 
@@ -597,7 +682,7 @@ export default function MarketplaceScreen({ navigation }) {
                       <TouchableOpacity
                         style={styles.conflictBtn}
                         onPress={() => {
-                          Alert.alert(
+                          showAlert(
                             'Trùng lịch làm việc',
                             `Bạn đã có ca làm ngày ${fmtDateVN(shift.shiftDate)} từ ${conflictingShift.startTime?.slice(0, 5)} đến ${conflictingShift.endTime?.slice(0, 5)} nên không thể nhận ca này.`
                           );
@@ -606,10 +691,23 @@ export default function MarketplaceScreen({ navigation }) {
                       >
                         <Text style={styles.conflictBtnText}>Trùng lịch</Text>
                       </TouchableOpacity>
+                    ) : weeklyHoursStatus.exceeds ? (
+                      <TouchableOpacity
+                        style={styles.overHoursBtn}
+                        onPress={() => {
+                          showAlert(
+                            'Vượt định mức tuần',
+                            `Hợp đồng của bạn tại chi nhánh tối đa ${weeklyHoursStatus.maxWeeklyHours} giờ/tuần. Bạn đã có ${weeklyHoursStatus.currentWeekHours} giờ trong tuần này. Ca này kéo dài ${weeklyHoursStatus.shiftHours} giờ nên nếu nhận sẽ vượt giới hạn quy định.`
+                          );
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.overHoursBtnText}>Quá giờ tuần</Text>
+                      </TouchableOpacity>
                     ) : (
                       <TouchableOpacity
                         style={[styles.claimButton, isClaimingThis && styles.claimButtonDisabled]}
-                        onPress={() => handleClaim(shift)}
+                        onPress={() => handleClaim(shift, weeklyHoursStatus)}
                         disabled={isClaimingThis}
                         activeOpacity={0.8}
                       >
@@ -735,7 +833,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   bannerCard: {
     backgroundColor: '#FFFFFF',
@@ -986,6 +1084,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#B45309',
   },
+  alertBoxWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 8,
+  },
+  alertDotWarning: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EA580C',
+    marginRight: 6,
+  },
+  alertTextWarning: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#C2410C',
+  },
   joinedBadge: {
     backgroundColor: '#F4F4F5',
     paddingHorizontal: 12,
@@ -1011,6 +1132,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#B45309',
+  },
+  overHoursBtn: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  overHoursBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#C2410C',
   },
   emptyCard: {
     backgroundColor: '#FFFFFF',

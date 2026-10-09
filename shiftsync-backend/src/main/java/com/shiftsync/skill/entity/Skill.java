@@ -28,4 +28,8 @@ public class Skill {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "hourly_rate", nullable = false)
+    @Builder.Default
+    private java.math.BigDecimal hourlyRate = java.math.BigDecimal.valueOf(23000);
 }

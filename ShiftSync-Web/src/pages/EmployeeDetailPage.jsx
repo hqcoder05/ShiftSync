@@ -3,12 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getEmployeeById, getEmployees, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import { getStoresByStaff, assignStaffToStore } from '../services/employmentService';
+import { getContractTypes } from '../services/contractTypeService';
 import { getShiftsForStore } from '../services/shiftService';
 import { getAllSkills, getSkillsByStore, getStaffSkills, updateStaffSkills } from '../services/skillService';
 import { getStoreAttendance } from '../services/attendanceService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
+import { Plus, Search } from 'lucide-react';
+import './EmployeeDetailPage.css';
 
 const getEmployeeAvatarId = (emp) => {
   if (!emp) return 'dilan';
@@ -540,15 +543,28 @@ export default function EmployeeDetailPage() {
 
       // 2. Update store assignment if storeId provided
       if (editForm.storeId) {
-        try {
-          await assignStaffToStore(editForm.storeId, {
-            staffId: employee.id,
-            employmentType: editForm.status === 'ACTIVE' ? 'FULL_TIME' : 'PART_TIME',
-            hourlyRate: hourlyRateNum,
-            joinedDate: activeEmployment?.joinedDate || new Date().toISOString().slice(0, 10)
-          });
-        } catch (err) {
-          console.warn('Store assignment sync warning:', err.message);
+        const isAlreadyInStore = assignedStores.some(
+          (a) => String(a.storeId) === String(editForm.storeId) && a.status === 'ACTIVE'
+        );
+        if (!isAlreadyInStore) {
+          try {
+            let contractTypeId = activeEmployment?.contractTypeId || activeEmployment?.contractType?.id;
+            if (!contractTypeId) {
+              const ctRes = await getContractTypes();
+              const cts = ctRes?.data || [];
+              contractTypeId = cts[0]?.id;
+            }
+            if (contractTypeId) {
+              await assignStaffToStore(editForm.storeId, {
+                staffId: employee.id,
+                contractTypeId,
+                hourlyRate: hourlyRateNum || 28000,
+                joinedDate: activeEmployment?.joinedDate || new Date().toISOString().slice(0, 10),
+              });
+            }
+          } catch (err) {
+            console.warn('Store assignment sync warning:', err.message);
+          }
         }
       }
 

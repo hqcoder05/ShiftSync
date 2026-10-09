@@ -70,6 +70,11 @@ public class AttendanceAdjustmentService {
             if (!attendance.getShiftAssignment().getShift().getId().equals(shift.getId())) {
                 throw new BusinessException("Attendance does not belong to the specified shift", HttpStatus.BAD_REQUEST);
             }
+            if (!attendance.getShiftAssignment().getStaff().getId().equals(staffId)) {
+                throw new BusinessException("You can only explain your own attendance", HttpStatus.FORBIDDEN);
+            }
+        } else if (shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staffId).isEmpty()) {
+            throw new BusinessException("You are not assigned to this shift", HttpStatus.FORBIDDEN);
         }
 
         AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()

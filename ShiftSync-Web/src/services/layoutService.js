@@ -8,7 +8,21 @@ import api from './api';
 // Lấy thông số kích thước 3D của cửa hàng (length, width, height)
 export const getStoreLayout = async (storeId) => {
   if (!storeId) return null;
-  return api.get(`/stores/${storeId}/layout`);
+  try {
+    return await api.get(`/stores/${storeId}/layout`);
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return {
+        data: {
+          storeId,
+          length: 24.0,
+          width: 16.0,
+          height: 5.0,
+        },
+      };
+    }
+    throw err;
+  }
 };
 
 // Cập nhật hoặc khởi tạo kích thước 3D cửa hàng

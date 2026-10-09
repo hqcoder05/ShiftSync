@@ -102,29 +102,38 @@ public class UserService {
         // Atomic Skill Assignment if role is STAFF and skillIds provided
         if (request.getSystemRole() == SystemRole.STAFF && request.getSkillIds() != null && !request.getSkillIds().isEmpty()) {
             if (skillRepository != null && staffSkillRepository != null) {
-                for (UUID skillId : request.getSkillIds()) {
-                    if (!skillRepository.existsById(skillId)) {
-                        throw new BusinessException("Kỹ năng không tồn tại trong hệ thống: " + skillId, HttpStatus.BAD_REQUEST);
-                    }
-                    StaffSkill staffSkill = StaffSkill.builder()
-                            .staffId(savedUser.getId())
-                            .skillId(skillId)
-                            .level(com.shiftsync.skill.entity.SkillLevel.BEGINNER)
-                            .build();
-                    staffSkillRepository.save(staffSkill);
+                long foundCount = skillRepository.findAllById(request.getSkillIds()).size();
+                if (foundCount != request.getSkillIds().size()) {
+                    throw new BusinessException("Kỹ năng không tồn tại trong hệ thống", HttpStatus.BAD_REQUEST);
                 }
+                java.util.List<StaffSkill> skillsToSave = request.getSkillIds().stream().map(skillId ->
+                        StaffSkill.builder()
+                                .staffId(savedUser.getId())
+                                .skillId(skillId)
+                                .level(com.shiftsync.skill.entity.SkillLevel.BEGINNER)
+                                .build()
+                ).toList();
+                staffSkillRepository.saveAll(skillsToSave);
             }
         }
 
         return UserMapper.toDTO(savedUser);
     }
 
-    @Transactional(readOnly = true)
-    public Page<UserDTO> getAllUsers(String search, Pageable pageable) {
-        if (search == null || search.trim().isEmpty()) {
-            return userRepository.findAll(pageable).map(UserMapper::toDTO);
+        @Transactional(readOnly = true)
+    public Page<UserDTO> getAllUsers(java.util.UUID actorId, com.shiftsync.shared.security.SystemRole actorRole, java.util.UUID storeId, String search, org.springframework.data.domain.Pageable pageable) {
+        if (storeId != null) {
+            if (actorRole == com.shiftsync.shared.security.SystemRole.MANAGER) {
+                if (employmentRepository == null || !employmentRepository.isStaffInStore(actorId, storeId, EmploymentStatus.ACTIVE)) {
+                    throw new BusinessException("Forbidden", org.springframework.http.HttpStatus.FORBIDDEN);
+                }
+            }
+            if (search == null || search.trim().isEmpty()) {
+                return userRepository.findUsersInStores(java.util.List.of(storeId), EmploymentStatus.ACTIVE, pageable).map(com.shiftsync.auth.mapper.UserMapper::toDTO);
+            }
+            return userRepository.searchUsersInStores(java.util.List.of(storeId), search.trim(), pageable).map(com.shiftsync.auth.mapper.UserMapper::toDTO);
         }
-        return userRepository.searchUsers(search.trim(), pageable).map(UserMapper::toDTO);
+        return getAllUsers(actorId, actorRole, search, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -208,4 +217,21 @@ public class UserService {
                 java.util.Map.of("deleted", true));
 
     }
+
+    public UserDTO getUserById(java.util.UUID id, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        return getUserById(id);
+    }
+
+    public UserDTO updateUser(java.util.UUID id, com.shiftsync.auth.dto.UserUpdateRequest request, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        return updateUser(id, request);
+    }
+
+    public org.springframework.data.domain.Page<com.shiftsync.auth.dto.UserDTO> getAllUsers(String search, org.springframework.data.domain.Pageable pageable) {
+        if (search == null || search.trim().isEmpty()) {
+            return userRepository.findAll(pageable).map(com.shiftsync.auth.mapper.UserMapper::toDTO);
+        }
+        return userRepository.searchUsers(search.trim(), pageable).map(com.shiftsync.auth.mapper.UserMapper::toDTO);
+    }
 }
+
+

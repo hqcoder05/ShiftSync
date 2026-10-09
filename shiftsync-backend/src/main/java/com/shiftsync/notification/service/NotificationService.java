@@ -35,9 +35,27 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final SseEmitterService sseEmitterService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
+    private final @org.springframework.beans.factory.annotation.Qualifier("notificationExecutor") java.util.concurrent.Executor notificationExecutor;
 
-    @Async
+    // Removed @Async so this executes in caller's thread, allowing transaction sync.
     public void sendNotification(UUID userId, NotificationType type, String title, String body, Map<String, String> data) {
+        Runnable task = () -> executeSendNotification(userId, type, title, body, data);
+
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        java.util.concurrent.CompletableFuture.runAsync(task, notificationExecutor);
+                    }
+                }
+            );
+        } else {
+            java.util.concurrent.CompletableFuture.runAsync(task, notificationExecutor);
+        }
+    }
+    
+    private void executeSendNotification(UUID userId, NotificationType type, String title, String body, Map<String, String> data) {
         try {
             // Save in-app notification record
             try {
@@ -191,3 +209,5 @@ public class NotificationService {
                 .build();
     }
 }
+
+

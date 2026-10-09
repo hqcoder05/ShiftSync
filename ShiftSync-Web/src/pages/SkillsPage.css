@@ -1,20 +1,168 @@
-.skill-page { display: flex; font-family: var(--ss-font); }
-.skill-main { flex: 1; }
-.skill-main h1 { font-size: 28px; font-weight: 600; margin-bottom: 16px; }
-.skill-error { color: #c0392b; }
-.skill-table-card { background: #fff; border: 1px solid var(--ss-border); border-radius: 10px; overflow: hidden; }
-.skill-table-header { padding: 16px 24px; background: rgba(240,236,236,0.7); font-weight: 500; }
-.skill-row { display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--ss-border); }
-.skill-dot { width: 24px; height: 24px; border-radius: 50%; }
-.skill-row span:nth-child(2) { flex: 1; }
-.skill-delete { border: none; background: none; color: #c0392b; cursor: pointer; }
-.skill-add-btn { width: 100%; padding: 16px 24px; border: none; background: none; color: var(--ss-accent); text-align: left; cursor: pointer; }
-.skill-add-btn:hover { background: var(--ss-accent-bg); }
+/* ============================================================
+   ShiftSync Skills & Pay Rate Page Styling
+   ============================================================ */
 
+.skill-page {
+  display: flex;
+  font-family: var(--ss-font);
+  gap: 24px;
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.skill-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Page Header */
+.skill-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.skill-header-row h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+}
+
+.skill-header-subtitle {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+.skill-btn-primary {
+  padding: 10px 18px;
+  background: var(--ss-accent, #51A33D);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.skill-btn-primary:hover {
+  background: #388E3C;
+}
+
+.skill-btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* Table Card */
+.skill-table-card {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.skill-table-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid #F1F5F9;
+  transition: background-color 0.15s ease;
+}
+
+.skill-row:hover {
+  background-color: #F8FAFC;
+}
+
+.skill-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+
+.skill-cell-name {
+  font-size: 14.5px;
+}
+
+.skill-cell-rate {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #16A34A;
+}
+
+.skill-cell-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.skill-edit-btn {
+  padding: 6px 14px;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  color: #334155;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.skill-edit-btn:hover {
+  border-color: #51A33D;
+  color: #51A33D;
+  background: #F0FDF4;
+}
+
+.skill-delete {
+  padding: 6px 14px;
+  border: 1px solid #FECACA;
+  background: #FFFFFF;
+  color: #DC2626;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.skill-delete:hover {
+  background: #FEF2F2;
+  border-color: #DC2626;
+}
+
+/* Modal */
 .skill-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -22,20 +170,114 @@
   z-index: 1050;
   padding: 20px;
 }
-.skill-modal { background: #fff; border-radius: 10px; width: 460px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
-.skill-modal-header { display: flex; justify-content: space-between; align-items: center; }
-.skill-modal-header h2 { font-size: 22px; font-weight: 700; color: #222; margin: 0; }
+
+.skill-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+
+.skill-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.skill-modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
 .skill-modal-close {
-  width: 32px; height: 32px; border: 1.5px solid var(--ss-border); border-radius: 6px;
-  background: #fff; color: #333; cursor: pointer; font-size: 14px;
-  display: flex; align-items: center; justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #64748B;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
-.skill-modal-close:hover { border-color: var(--ss-accent); color: var(--ss-accent); }
-.skill-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #a67c73; }
-.skill-modal input { border: 1.5px solid var(--ss-border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #333; }
+
+.skill-modal-close:hover {
+  border-color: #94A3B8;
+  color: #0F172A;
+}
+
+.skill-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.skill-modal input[type="text"],
+.skill-modal input[type="number"],
+.skill-modal input:not([type="color"]) {
+  border: 1.5px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #1E293B;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.skill-modal input:focus {
+  border-color: #51A33D;
+  box-shadow: 0 0 0 3px rgba(81, 163, 61, 0.15);
+}
+
+.skill-modal-btn-cancel {
+  padding: 9px 18px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #475569;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.skill-modal-btn-cancel:hover {
+  background: #F8FAFC;
+}
+
 .skill-save-btn {
-  align-self: flex-end; padding: 10px 28px; border-radius: 10px;
-  border: 2px solid var(--ss-accent); background: var(--ss-accent-bg);
-  font-weight: 700; cursor: pointer; margin-top: 8px;
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: none;
+  background: #51A33D;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
-.skill-save-btn:hover { background: var(--ss-accent); color: #fff; }
+
+.skill-save-btn:hover {
+  background: #388E3C;
+}
+
+.skill-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

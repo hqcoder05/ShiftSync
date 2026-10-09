@@ -1,0 +1,150 @@
+/* ============================================================
+   ShiftSync Employee Shared Module Layout
+   ============================================================ */
+
+.emp-module-wrapper {
+  width: 100%;
+  min-height: calc(100vh - 70px);
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  font-family: var(--ss-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}
+
+/* ─── Horizontal Tab Navigation Bar ──────────────────────── */
+.emp-module-tabs-bar {
+  width: 100%;
+  background: #ffffff;
+  border-bottom: 1.5px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.emp-module-tabs-track {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.emp-module-tabs-track::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.emp-module-tab-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+  font-family: inherit;
+  border-radius: 6px 6px 0 0;
+}
+
+.emp-module-tab-item:hover {
+  color: #1e293b;
+  background-color: #f8fafc;
+}
+
+.emp-module-tab-item.active {
+  color: var(--ss-accent, #51A33D);
+  font-weight: 600;
+  border-bottom: 2.5px solid var(--ss-accent, #51A33D);
+  background-color: var(--ss-accent-bg, rgba(81, 163, 61, 0.08));
+}
+
+/* ─── Main Module Container ──────────────────────────────── */
+.emp-module-container {
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  flex: 1;
+}
+
+/* ─── Shared Header ──────────────────────────────────────── */
+.emp-module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.emp-module-header-text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.emp-module-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+}
+
+.emp-module-subtitle {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.emp-module-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ─── Content Body ───────────────────────────────────────── */
+.emp-module-body {
+  width: 100%;
+}
+
+/* ─── Two-Column Layout with Sidebar ────────────────────── */
+.emp-layout-row {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.emp-layout-main {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .emp-module-container {
+    padding: 16px;
+  }
+  .emp-module-tabs-track {
+    padding: 0 16px;
+  }
+  .emp-module-tab-item {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .emp-layout-row {
+    flex-direction: column;
+  }
+}

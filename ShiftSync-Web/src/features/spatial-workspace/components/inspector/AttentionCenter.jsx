@@ -333,30 +333,63 @@ export default function AttentionCenter({
           </div>
         </div>
 
-        {/* Spatial Algorithm 1-Click Action */}
-        <button
-          type="button"
-          onClick={onRunAlgorithm}
-          disabled={isAllocating}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            border: '1px solid #3B82F6',
-            backgroundColor: isAllocating ? '#94A3B8' : '#EFF6FF',
-            color: '#1D4ED8',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: isAllocating ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            boxShadow: '0 2px 6px rgba(59, 130, 246, 0.15)',
-          }}
-        >
-          <Zap size={14} color="#2563EB" />
-          <span>{isAllocating ? 'Đang tính toán phân bổ...' : 'Chạy phân bổ tối ưu (Max-Min Dispersion)'}</span>
-        </button>
+        {/* Spatial Algorithm & Auto-Schedule Actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            type="button"
+            id="btn-run-spatial-allocation"
+            onClick={onRunAlgorithm}
+            disabled={isAllocating}
+            style={{
+              padding: '9px 12px',
+              borderRadius: 8,
+              border: '1px solid #3B82F6',
+              backgroundColor: isAllocating ? '#94A3B8' : '#EFF6FF',
+              color: '#1D4ED8',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: isAllocating ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.12)',
+              transition: 'all 0.15s ease',
+            }}
+            title="Tự động phân bổ nhân sự vào các phân khu theo thuật toán Max-Min Dispersion"
+          >
+            <Zap size={14} color="#2563EB" />
+            <span>{isAllocating ? 'Đang phân bổ...' : 'Phân bổ tối ưu (Max-Min Dispersion)'}</span>
+          </button>
+
+          {onOpenAutoSchedule && (
+            <button
+              type="button"
+              id="btn-trigger-auto-schedule"
+              onClick={onOpenAutoSchedule}
+              style={{
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: '1px solid #10B981',
+                backgroundColor: '#ECFDF5',
+                color: '#047857',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Khởi chạy thuật toán Xếp lịch tự động thông minh (Auto-Schedule AI)"
+            >
+              <Sparkles size={14} color="#059669" />
+              <span>Tự động xếp lịch AI (Auto-Schedule)</span>
+            </button>
+          )}
+        </div>
 
         {/* Zone Directory */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -114,17 +114,25 @@ const calcScheduledHours = (row) => {
   return Number(dur.toFixed(1));
 };
 
-const statusLabel = (val, lateMins) => {
-  if (val === 'LATE') {
-    return lateMins && lateMins > 0 ? `Đi trễ (${lateMins}p)` : 'Đi trễ';
+const getAttendanceStatus = (row) => {
+  const value = String(row?.status || '').toUpperCase();
+  if (value === 'LATE') {
+    const lateMins = Number(row?.lateMinutes);
+    return {
+      key: 'late',
+      label: lateMins > 0 ? `Đi trễ (${lateMins}p)` : 'Đi trễ',
+    };
   }
-  const map = {
-    PRESENT: 'Đúng giờ',
-    LATE: 'Đi trễ',
-    EARLY_LEAVE: 'Về sớm',
-    ABSENT: 'Vắng',
-  };
-  return map[val] || val || '—';
+  if (value === 'PRESENT' || value === 'ON_TIME') {
+    return { key: 'present', label: 'Đúng giờ' };
+  }
+  if (value === 'ABSENT' || value === 'NOT_CHECKED_IN' || (!value && !row?.checkInTime)) {
+    return { key: 'absent', label: 'Chưa chấm công' };
+  }
+  if (value === 'EARLY_LEAVE') {
+    return { key: 'early_leave', label: 'Về sớm' };
+  }
+  return { key: 'unknown', label: 'Không xác định' };
 };
 
 export default function AttendancePageLive() {
@@ -646,12 +654,23 @@ export default function AttendancePageLive() {
     }
     setActionLoading(true);
     try {
-      const inTime = adjForm.actualCheckIn ? `${adjForm.date}T${adjForm.actualCheckIn}:00` : null;
-      const outTime = adjForm.actualCheckOut ? `${adjForm.date}T${adjForm.actualCheckOut}:00` : null;
+      const inTime = adjForm.actualCheckIn ? `${adjForm.date}T${adjForm.actualCheckIn}:00+07:00` : null;
+      const outTime = adjForm.actualCheckOut ? `${adjForm.date}T${adjForm.actualCheckOut}:00+07:00` : null;
+      
+      const matchingRow = rows.find(r => (r.shiftDate === adjForm.date) && (r.shiftId || r.shiftAssignment?.shift?.id));
+      if (!matchingRow) {
+          toast.error('Không tìm thấy ca làm việc cho ngày này trong danh sách hiển thị!');
+          setActionLoading(false);
+          return;
+      }
+      
+      const shiftId = matchingRow.shiftId || matchingRow.shiftAssignment?.shift?.id;
+
       await createAdjustmentRequest(sId, {
-        date: adjForm.date,
-        checkInTime: inTime,
-        checkOutTime: outTime,
+        shiftId: shiftId,
+        attendanceId: matchingRow.id || null,
+        requestedCheckIn: inTime,
+        requestedCheckOut: outTime,
         reason: adjForm.reason,
       });
       toast.success('Đã gửi giải trình chấm công thành công.');
@@ -807,7 +826,7 @@ export default function AttendancePageLive() {
       fmtTimeAMPM(r.checkOutTime),
       r.scheduledStart ? `${r.scheduledStart} - ${r.scheduledEnd}` : '',
       calcHours(r) ? `${calcHours(r)} giờ` : '',
-      statusLabel(r.status),
+      getAttendanceStatus(r).label,
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -1194,12 +1213,15 @@ export default function AttendancePageLive() {
                   <tr>
                     <th>Nhân viên</th>
                     <th>Ngày</th>
+                    <th>Vị trí</th>
                     <th>In</th>
                     <th>Out</th>
                     <th>Lịch</th>
                     <th>Khác</th>
                     <th>Tổng</th>
                     <th>Trạng thái</th>
+                    <th>Trễ</th>
+                    <th>Giải trình</th>
                     <th>Ảnh / GPS</th>
                     <th>Thao tác</th>
                   </tr>
@@ -1210,6 +1232,10 @@ export default function AttendancePageLive() {
                     const schedHours = calcScheduledHours(row);
                     const diffHours = (hoursWorked && schedHours) ? Number((hoursWorked - schedHours).toFixed(1)) : null;
                     const isIrregular = flagged(row);
+                    const attendanceStatus = getAttendanceStatus(row);
+                    const rowAdjustment = adjustments.find((item) =>
+                      (row.id && item.attendanceId === row.id) || (row.shiftId && item.shiftId === row.shiftId)
+                    );
 
                     return (
                       <tr key={row.id}>
@@ -1240,6 +1266,12 @@ export default function AttendancePageLive() {
                         {/* Ngày */}
                         <td>
                           <span className="att-date-text">{fmtShortDate(row.shiftDate)}</span>
+                        </td>
+
+                        {/* In */}
+                        <td>
+                          <div>{row.zoneName || '—'}</div>
+                          <small className="att-muted">{row.workstationName || ''}</small>
                         </td>
 
                         {/* In */}
@@ -1281,9 +1313,29 @@ export default function AttendancePageLive() {
 
                         {/* Trạng thái */}
                         <td>
-                          <span className={`att-status-pill ${row.status?.toLowerCase() || 'present'}`}>
-                            {statusLabel(row.status, row.lateMinutes)}
+                          <span className={`att-status-pill ${attendanceStatus.key}`}>
+                            {attendanceStatus.label}
                           </span>
+                        </td>
+
+                        {/* Số phút trễ từ backend */}
+                        <td>
+                          {Number(row.lateMinutes) > 0 ? `${row.lateMinutes} phút` : <span className="att-muted">—</span>}
+                        </td>
+
+                        {/* Trạng thái giải trình độc lập với attendance */}
+                        <td>
+                          {rowAdjustment ? (
+                            <span className={`tw-status-pill ${String(rowAdjustment.status || '').toLowerCase()}`}>
+                              {rowAdjustment.status === 'APPROVED'
+                                ? 'Đã duyệt'
+                                : rowAdjustment.status === 'REJECTED'
+                                  ? 'Từ chối'
+                                  : 'Chờ duyệt'}
+                            </span>
+                          ) : (
+                            <span className="att-muted">—</span>
+                          )}
                         </td>
 
                         {/* Ảnh / GPS */}

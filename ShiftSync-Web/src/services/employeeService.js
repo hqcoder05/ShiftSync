@@ -1,15 +1,18 @@
 import api from './api';
 
-// GET /api/users?page=&size=&search=  — tránh gửi search rỗng gây lỗi
-export const getEmployees = (page = 0, size = 20, search = '') => {
+// GET /api/users?page=&size=&storeId=&search=  — tránh gửi search rỗng gây lỗi
+export const getEmployees = (page = 0, size = 20, search = '', storeId = null) => {
   let url = `/users?page=${page}&size=${size}`;
+  if (storeId) {
+    url += `&storeId=${encodeURIComponent(storeId)}`;
+  }
   if (search && search.trim() !== '') {
     url += `&search=${encodeURIComponent(search)}`;
   }
   return api.get(url);
 };
 
-// POST /api/users — payload phải khớp UserCreateRequest: fullName, email, password, phone, systemRole, skillIds
+// POST /api/users — payload phải khớp UserCreateRequest: fullName, email, password, phone, systemRole, storeId, skillIds
 export const createEmployee = (data) => {
   const payload = {
     fullName: data.fullName,
@@ -18,6 +21,9 @@ export const createEmployee = (data) => {
     phone: data.phone,
     systemRole: data.systemRole || data.role, // đúng tên field backend yêu cầu (SystemRole enum: ADMIN/MANAGER/STAFF)
   };
+  if (data.storeId) {
+    payload.storeId = data.storeId;
+  }
   if (Array.isArray(data.skillIds) && data.skillIds.length > 0) {
     payload.skillIds = data.skillIds;
   }

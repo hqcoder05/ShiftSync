@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "59874071137",
+    "project_id": "shiftsync-app-93f17",
+    "storage_bucket": "shiftsync-app-93f17.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:59874071137:android:492c3866a4c3e1a119d020",
+        "android_client_info": {
+          "package_name": "com.shiftsync.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDX39DcfaF2AILmKb33VJX5hVVNWKpXTSM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
