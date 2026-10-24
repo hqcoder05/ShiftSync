@@ -14,6 +14,7 @@ public class EmploymentMapper {
                 .id(employment.getId())
                 .staffId(employment.getUser() != null ? employment.getUser().getId() : null)
                 .staffFullName(employment.getUser() != null ? employment.getUser().getFullName() : null)
+                .gender(employment.getUser() != null ? employment.getUser().getGender() : "MALE")
                 .staffEmail(employment.getUser() != null ? employment.getUser().getEmail() : null)
                 .storeId(employment.getStore() != null ? employment.getStore().getId() : null)
                 .storeName(employment.getStore() != null ? employment.getStore().getName() : null)

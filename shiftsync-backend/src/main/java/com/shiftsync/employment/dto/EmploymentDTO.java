@@ -14,6 +14,7 @@ public class EmploymentDTO {
     private UUID id;
     private UUID staffId;
     private String staffFullName;
+    private String gender;
     private String staffEmail;
     private UUID storeId;
     private String storeName;

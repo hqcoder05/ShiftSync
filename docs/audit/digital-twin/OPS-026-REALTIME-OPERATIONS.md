@@ -1,0 +1,5 @@
+
+## OPS-026 — Vận hành realtime (21/10/2026)
+Tái sử dụng PHASE-2B/PHASE-2C/EXPLORER-013. Header 3D có connection và thời điểm nhận event; attendance/shift/marketplace refresh theo store, reconnect resync, loại ca CANCELLED. Backend thêm event assignment create/move/remove/zone-swap, marketplace publish/unpublish/claim và cancel/delete. Publisher chỉ phát store event sau commit; rollback không phát.
+Kiểm chứng: web build PASS (cảnh báo chunk), Node3/3, Maven25/25; Edge155 1920×1080 xác nhận event khác store bị bỏ qua, attendance/marketplace/reconnect REST refresh, không tràn ngang; Planner regression20 PASS. Browser dùng REST fixtures/DOM event injection; backend8080 offline, chưa STOMP end-to-end giữa thiết bị. Chưa bổ sung event cho swap-request service ngoài swapStaffZones. Git diff check có whitespace cũ ngoài scope. Chưa deploy backend.
+Contract: /ws/websocket; /topic/store/{storeId}/{shifts|attendance|marketplace|requests}; envelope storeId/domain/action/data/timestamp. Attendance legacy dùng data.action. Stale khi thay publisher, topics, shift/attendance DTO hoặc workspace data flow.

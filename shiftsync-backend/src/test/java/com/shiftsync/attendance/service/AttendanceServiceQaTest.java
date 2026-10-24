@@ -65,4 +65,24 @@ class AttendanceServiceQaTest {
             attendanceService.updateAttendance(storeId, attendanceId, updateRequest);
         }, "Updating attendance with CheckOut < CheckIn MUST throw an exception!");
     }
+
+    @Test
+    void attendanceListMarksPhotoAvailabilityWithoutEmbeddingBase64() {
+        UUID storeId = UUID.randomUUID();
+        UUID attendanceId = UUID.randomUUID();
+        User staff = User.builder().id(UUID.randomUUID()).fullName("Nhân viên").build();
+        Store store = Store.builder().id(storeId).name("Store").build();
+        Shift shift = Shift.builder().id(UUID.randomUUID()).store(store)
+                .shiftDate(LocalDate.of(2026, 10, 24)).startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(16, 0)).build();
+        Attendance attendance = Attendance.builder().id(attendanceId)
+                .shiftAssignment(ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(staff).build())
+                .checkInPhoto(new byte[] {1, 2, 3}).build();
+        when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(eq(storeId), any(), any()))
+                .thenReturn(java.util.List.of(attendance));
+
+        var result = attendanceService.getStoreAttendance(storeId, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
+
+        assertTrue(result.getFirst().isHasCheckInPhoto());
+        assertFalse(result.getFirst().isHasCheckOutPhoto());
+    }
 }

@@ -62,6 +62,9 @@ public class Shift {
     @Column(name = "note", length = 500)
     private String note;
 
+    @Column(name = "color", length = 32)
+    private String color;
+
     @Version
     private Long version;
 

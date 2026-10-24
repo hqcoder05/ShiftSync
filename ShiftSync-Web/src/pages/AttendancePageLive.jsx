@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
-import { getStoreAttendance, updateAttendanceRecord, getMyAttendance } from '../services/attendanceService';
+import { getStoreAttendance, updateAttendanceRecord, getMyAttendance, getAttendancePhoto } from '../services/attendanceService';
 import {
   createAdjustmentRequest,
   getMyAdjustmentRequests,
@@ -158,11 +158,13 @@ export default function AttendancePageLive() {
   const [calYear, setCalYear] = useState(new Date().getFullYear());
 
   // Subtab State (URL synced)
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const rawTab = searchParams.get('tab');
   const validTabs = ['attendance', 'adjustments', 'leave'];
-  const activeTab = validTabs.includes(rawTab) ? rawTab : 'attendance';
-  const handleTabChange = (tab) => setSearchParams({ tab });
+  const activeTab = validTabs.includes(rawTab) ? rawTab : location.pathname.endsWith('/leave') ? 'leave' : location.pathname.endsWith('/explain') ? 'adjustments' : 'attendance';
+  const handleTabChange = (tab) => navigate(tab === 'leave' ? '/attendance/leave' : tab === 'adjustments' ? '/attendance/explain' : '/attendance');
 
   // Leave Management State
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -201,6 +203,22 @@ export default function AttendancePageLive() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
+
+  const handlePreviewAttendancePhoto = useCallback(async (row, kind) => {
+    try {
+      const response = await getAttendancePhoto(row.id, kind, {
+        storeId,
+        mine: isStaff,
+      });
+      const uri = URL.createObjectURL(response.data);
+      setPreviewPhoto({
+        uri,
+        title: `Ảnh ${kind === 'check-in' ? 'Check-In' : 'Check-Out'} (${row.staffName || 'Nhân viên'})`,
+      });
+    } catch (photoError) {
+      toast.error(photoError.response?.data?.message || 'Không thể tải ảnh xác thực.');
+    }
+  }, [isStaff, storeId]);
 
   // Edit attendance state (Quản lý chỉnh sửa giờ chấm công & Giải trình)
   const [editingRow, setEditingRow] = useState(null);
@@ -302,6 +320,43 @@ export default function AttendancePageLive() {
   const displayedDates = viewMode === 'Ngày' ? [today] : weekDatesFull;
   const fromDate = toISODate(displayedDates[0]);
   const toDate = toISODate(displayedDates[displayedDates.length - 1]);
+
+  const modalOpen = Boolean(editingRow || showLeaveModal || showAdjModal || showImpactModal);
+  useEffect(() => {
+    if (!modalOpen) return;
+    const dialog = document.querySelector('.att-page [role="dialog"]');
+    if (!dialog) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => [...dialog.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+      .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length > 0);
+    dialog.tabIndex = -1;
+    (focusable()[0] || dialog).focus();
+    const handleKey = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dialog.querySelector('.att-modal-close:not(:disabled)')?.click();
+      }
+      if (event.key === 'Tab') {
+        const elements = focusable();
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (!first) { event.preventDefault(); dialog.focus(); return; }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [modalOpen]);
 
   // Load stores & employees
   useEffect(() => {
@@ -839,9 +894,47 @@ export default function AttendancePageLive() {
   };
 
   return (
-    <div className="att-page">
+    <div className="att-page" data-att-tab={activeTab}>
+        {/* ═══ TIME & WORKFORCE DOMAIN TABS ═══ */}
+        <div className="tw-header-container">
+          <div className="tw-header-title-area">
+            <h1 className="tw-page-title">Chấm công &amp; Phép</h1>
+          </div>
+          <div className="tw-domain-tabs">
+            <button
+              type="button"
+              className={`tw-domain-tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
+              aria-pressed={activeTab === 'attendance'}
+              onClick={() => handleTabChange('attendance')}
+            >
+              Chấm công trực tiếp
+            </button>
+            <button
+              type="button"
+              className={`tw-domain-tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`}
+              aria-pressed={activeTab === 'adjustments'}
+              onClick={() => handleTabChange('adjustments')}
+            >
+              Giải trình chấm công
+              {pendingAdjCount > 0 && <span className="tw-tab-badge amber">{pendingAdjCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`tw-domain-tab-btn ${activeTab === 'leave' ? 'active' : ''}`}
+              aria-pressed={activeTab === 'leave'}
+              onClick={() => handleTabChange('leave')}
+            >
+              Đơn xin nghỉ phép
+              {pendingLeaveCount > 0 && <span className="tw-tab-badge indigo">{pendingLeaveCount}</span>}
+            </button>
+          </div>
+        </div>
+
+
+      <button type="button" className="att-mobile-filters" aria-expanded={filtersOpen} aria-controls="attendance-filters" onClick={() => setFiltersOpen(value => !value)}>Bộ lọc chi nhánh &amp; nhân viên <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span></button>
+
       {/* ═══ SIDEBAR (Bộ lọc y hệt bên trang Schedule) ═══ */}
-      <aside className="att-sidebar">
+      <aside id="attendance-filters" className={`att-sidebar ${filtersOpen ? 'is-open' : ''}`}>
         {/* Day-mode header shown at top of sidebar */}
         {viewMode === 'Ngày' && (
           <div className="att-sidebar-day-header">
@@ -857,20 +950,21 @@ export default function AttendancePageLive() {
 
           {/* ── Chi nhánh (Box 1) ── */}
           <div className="att-filter-box" ref={storeFilterRef}>
-            <div
+            <button type="button"
               className="att-filter-box-header clickable"
+              aria-expanded={showStoreList}
               onClick={() => setShowStoreList((v) => !v)}
             >
               <span className="att-filter-label">Chi nhánh</span>
               <span className={`att-filter-arrow${showStoreList ? ' open' : ''}`}></span>
-            </div>
+            </button>
 
             {/* List các chi nhánh xổ xuống */}
             <div className={`att-filter-collapse${showStoreList ? ' expanded' : ''}`}>
               {stores.map((s) => {
                 const isSelected = storeId === s.id;
                 return (
-                  <div
+                  <button type="button"
                     key={s.id}
                     className={`att-user-list-item${isSelected ? ' active' : ''}`}
                     onClick={() => {
@@ -882,7 +976,7 @@ export default function AttendancePageLive() {
                   >
                     <span style={{ flex: 1 }}>{s.name}</span>
                     {isSelected && <span style={{ color: '#256b1f', fontWeight: 'bold' }}>[x]</span>}
-                  </div>
+                  </button>
                 );
               })}
               {stores.length === 0 && (
@@ -905,26 +999,26 @@ export default function AttendancePageLive() {
 
           {/* ── Người dùng (Box 2: Collapsible y hệt trang Schedule) ── */}
           <div className="att-filter-box">
-            <div
+            <button type="button"
               className="att-filter-box-header clickable"
               onClick={() => setShowUserList((v) => !v)}
             >
               <span className="att-filter-label">Người dùng</span>
               <span className={`att-filter-arrow${showUserList ? ' open' : ''}`}></span>
-            </div>
+            </button>
             <div className={`att-filter-collapse${showUserList ? ' expanded' : ''}`}>
-              <div
+              <button type="button"
                 className={`att-user-list-item${userFilter === 'All' ? ' active' : ''}`}
                 onClick={() => setUserFilter('All')}
               >
                 Tất cả
-              </div>
+              </button>
               {employees.map((emp) => {
                 const name = emp.staffFullName || emp.fullName || '';
                 const empId = emp.staffId || emp.id;
                 const isSelected = userFilter === name;
                 return (
-                  <div
+                  <button type="button"
                     key={empId}
                     className={`att-user-list-item${isSelected ? ' active' : ''}`}
                     onClick={() => setUserFilter(isSelected ? 'All' : name)}
@@ -936,7 +1030,7 @@ export default function AttendancePageLive() {
                       className="att-filter-avatar"
                     />
                     <span style={{ flex: 1 }}>{name}</span>
-                  </div>
+                  </button>
                 );
               })}
               {employees.length === 0 && (
@@ -951,39 +1045,10 @@ export default function AttendancePageLive() {
 
       {/* ═══ MAIN CONTENT ═══ */}
       <main className="att-main">
-        {/* ═══ TIME & WORKFORCE DOMAIN TABS ═══ */}
-        <div className="tw-header-container">
-          <div className="tw-header-title-area">
-            <h1 className="tw-page-title">TIME & WORKFORCE</h1>
-            <p className="tw-page-subtitle">Quản lý toàn diện thời gian làm việc & trạng thái nhân sự (Chấm công • Giải trình • Nghỉ phép)</p>
-          </div>
-          <div className="tw-domain-tabs">
-            <button
-              type="button"
-              className={`tw-domain-tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
-              onClick={() => handleTabChange('attendance')}
-            >
-              Chấm công trực tiếp
-            </button>
-            <button
-              type="button"
-              className={`tw-domain-tab-btn ${activeTab === 'adjustments' ? 'active' : ''}`}
-              onClick={() => handleTabChange('adjustments')}
-            >
-              Giải trình chấm công
-              {pendingAdjCount > 0 && <span className="tw-tab-badge amber">{pendingAdjCount}</span>}
-            </button>
-            <button
-              type="button"
-              className={`tw-domain-tab-btn ${activeTab === 'leave' ? 'active' : ''}`}
-              onClick={() => handleTabChange('leave')}
-            >
-              Đơn xin nghỉ phép
-              {pendingLeaveCount > 0 && <span className="tw-tab-badge indigo">{pendingLeaveCount}</span>}
-            </button>
-          </div>
+        <div className="att-workspace-title">
+          <div><h2>{activeTab === 'attendance' ? 'Bảng chấm công' : activeTab === 'adjustments' ? 'Giải trình chấm công' : 'Đơn nghỉ phép'}</h2></div>
+          {activeTab !== 'attendance' && <span className="att-pending-summary">{activeTab === 'leave' ? pendingLeaveCount : pendingAdjCount} yêu cầu chờ duyệt</span>}
         </div>
-
         {/* ═══ TAB 1: CHẤM CÔNG TRỰC TIẾP (ATTENDANCE) ═══ */}
         {activeTab === 'attendance' && (
           <>
@@ -995,14 +1060,14 @@ export default function AttendancePageLive() {
                   className={`att-toggle-btn ${viewMode === 'Ngày' ? 'active' : ''}`}
                   onClick={() => setViewMode('Ngày')}
                 >
-                  Day
+                  Ngày
                 </button>
                 <button
                   type="button"
                   className={`att-toggle-btn ${viewMode === 'Tuần' ? 'active' : ''}`}
                   onClick={() => setViewMode('Tuần')}
                 >
-                  Week
+                  Tuần
                 </button>
               </div>
 
@@ -1207,7 +1272,7 @@ export default function AttendancePageLive() {
               <p>Chưa có bản ghi chấm công nào trong khoảng thời gian đã chọn.</p>
             </div>
           ) : (
-            <div className="att-table-responsive">
+            <div className="att-table-responsive" role="region" aria-label="Bảng chấm công" tabIndex={0}>
               <table className="att-table">
                 <thead>
                   <tr>
@@ -1342,36 +1407,17 @@ export default function AttendancePageLive() {
                         <td>
                           <div className="att-proof-cell">
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              {row.checkInPhotoBase64 && (
-                                <img
-                                  src={`data:image/jpeg;base64,${row.checkInPhotoBase64}`}
-                                  alt="In"
-                                  className="att-proof-thumb"
-                                  onClick={() =>
-                                    setPreviewPhoto({
-                                      uri: `data:image/jpeg;base64,${row.checkInPhotoBase64}`,
-                                      title: `Ảnh Check-In (${row.staffName || 'Nhân viên'})`,
-                                    })
-                                  }
-                                  title="Bấm để xem ảnh Check-in"
-                                />
+                              {row.hasCheckInPhoto && (
+                                <button type="button" className="att-edit-btn" onClick={() => handlePreviewAttendancePhoto(row, 'check-in')}>
+                                  Ảnh vào
+                                </button>
                               )}
-                              {row.checkOutPhotoBase64 && (
-                                <img
-                                  src={`data:image/jpeg;base64,${row.checkOutPhotoBase64}`}
-                                  alt="Out"
-                                  className="att-proof-thumb"
-                                  style={{ borderColor: '#F59E0B' }}
-                                  onClick={() =>
-                                    setPreviewPhoto({
-                                      uri: `data:image/jpeg;base64,${row.checkOutPhotoBase64}`,
-                                      title: `Ảnh Check-Out (${row.staffName || 'Nhân viên'})`,
-                                    })
-                                  }
-                                  title="Bấm để xem ảnh Check-out"
-                                />
+                              {row.hasCheckOutPhoto && (
+                                <button type="button" className="att-edit-btn" onClick={() => handlePreviewAttendancePhoto(row, 'check-out')}>
+                                  Ảnh ra
+                                </button>
                               )}
-                              {!row.checkInPhotoBase64 && !row.checkOutPhotoBase64 && (
+                              {!row.hasCheckInPhoto && !row.hasCheckOutPhoto && (
                                 <span className="att-muted">—</span>
                               )}
                             </div>
@@ -1431,6 +1477,7 @@ export default function AttendancePageLive() {
                     type="text"
                     className="att-time-input"
                     style={{ height: '34px', padding: '4px 10px', fontSize: '13px' }}
+                    aria-label="Tìm theo tên hoặc lý do"
                     placeholder="Tìm theo tên hoặc lý do..."
                     value={adjSearch}
                     onChange={(e) => setAdjSearch(e.target.value)}
@@ -1471,7 +1518,7 @@ export default function AttendancePageLive() {
               )}
             </div>
 
-            <div className="tw-table-card">
+            <div className="tw-table-card" role="region" aria-label="Danh sách yêu cầu" tabIndex={0}>
               <table className="tw-data-table">
                 <thead>
                   <tr>
@@ -1563,6 +1610,7 @@ export default function AttendancePageLive() {
                     type="text"
                     className="att-time-input"
                     style={{ height: '34px', padding: '4px 10px', fontSize: '13px' }}
+                    aria-label="Tìm theo tên hoặc lý do"
                     placeholder="Tìm theo tên hoặc lý do..."
                     value={leaveSearch}
                     onChange={(e) => setLeaveSearch(e.target.value)}
@@ -1603,7 +1651,7 @@ export default function AttendancePageLive() {
               )}
             </div>
 
-            <div className="tw-table-card">
+            <div className="tw-table-card" role="region" aria-label="Danh sách yêu cầu" tabIndex={0}>
               <table className="tw-data-table">
                 <thead>
                   <tr>
@@ -1753,12 +1801,12 @@ export default function AttendancePageLive() {
       {/* ═══ MODAL CHỈNH SỬA CHẤM CÔNG (DÀNH CHO QUẢN LÝ) ═══ */}
       {editingRow && (
         <div className="att-modal-overlay" onClick={() => !isSaving && setEditingRow(null)}>
-          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-label="Chỉnh sửa chấm công" onClick={(e) => e.stopPropagation()}>
             <div className="att-modal-header">
               <h3>Điều chỉnh giờ chấm công</h3>
               <button
                 type="button"
-                className="att-modal-close"
+                className="att-modal-close" aria-label="Đóng biểu mẫu"
                 onClick={() => setEditingRow(null)}
                 disabled={isSaving}
               >&times;</button>
@@ -1856,7 +1904,7 @@ export default function AttendancePageLive() {
       {/* ═══ STAFFING IMPACT CONFIRMATION MODAL (LEAVE APPROVAL) ═══ */}
       {showImpactModal && selectedLeaveImpact && (
         <div className="att-modal-overlay" onClick={() => !actionLoading && setShowImpactModal(false)}>
-          <div className="tw-impact-modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="tw-impact-modal-card" role="dialog" aria-modal="true" aria-label="Đánh giá tác động nghỉ phép" onClick={(e) => e.stopPropagation()}>
             <div className="tw-impact-header">
               <div className="tw-impact-header-title">
                 
@@ -1864,7 +1912,7 @@ export default function AttendancePageLive() {
               </div>
               <button
                 type="button"
-                className="att-modal-close"
+                className="att-modal-close" aria-label="Đóng biểu mẫu"
                 onClick={() => setShowImpactModal(false)}
                 disabled={actionLoading}
               >&times;</button>
@@ -1955,12 +2003,12 @@ export default function AttendancePageLive() {
       {/* ═══ CREATE LEAVE MODAL ═══ */}
       {showLeaveModal && (
         <div className="att-modal-overlay" onClick={() => !actionLoading && setShowLeaveModal(false)}>
-          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-label="Đơn xin nghỉ phép" onClick={(e) => e.stopPropagation()}>
             <div className="att-modal-header">
               <h3>Nộp đơn xin nghỉ phép</h3>
               <button
                 type="button"
-                className="att-modal-close"
+                className="att-modal-close" aria-label="Đóng biểu mẫu"
                 onClick={() => setShowLeaveModal(false)}
                 disabled={actionLoading}
               >&times;</button>
@@ -1972,7 +2020,7 @@ export default function AttendancePageLive() {
                   <div style={{ fontSize: '13px', color: '#64748b', padding: '8px 0' }}>Đang tải danh mục loại nghỉ phép...</div>
                 ) : leaveTypesError ? (
                   <div style={{ fontSize: '13px', color: '#dc2626', padding: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>⚠️ {leaveTypesError}</span>
+                    <span> {leaveTypesError}</span>
                     <button
                       type="button"
                       onClick={() => fetchLeaves()}
@@ -2056,12 +2104,12 @@ export default function AttendancePageLive() {
       {/* ═══ CREATE ADJUSTMENT MODAL ═══ */}
       {showAdjModal && (
         <div className="att-modal-overlay" onClick={() => !actionLoading && setShowAdjModal(false)}>
-          <div className="att-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-label="Gửi giải trình chấm công" onClick={(e) => e.stopPropagation()}>
             <div className="att-modal-header">
               <h3>Gửi giải trình chấm công</h3>
               <button
                 type="button"
-                className="att-modal-close"
+                className="att-modal-close" aria-label="Đóng biểu mẫu"
                 onClick={() => setShowAdjModal(false)}
                 disabled={actionLoading}
               >&times;</button>

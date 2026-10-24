@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import './EmployeeModuleLayout.css';
 
 export const MODULE_TABS = [
@@ -9,6 +9,12 @@ export const MODULE_TABS = [
     isActive: (pathname, search) => pathname === '/employees' && !search.includes('tab=payroll'),
   },
   {
+    id: 'contracts',
+    label: 'Hợp đồng',
+    to: '/employees/contracts',
+    isActive: (pathname) => pathname === '/employees/contracts',
+  },
+  {
     id: 'payroll',
     label: 'Bảng lương (Payroll)',
     to: '/employees?tab=payroll',
@@ -16,9 +22,9 @@ export const MODULE_TABS = [
   },
   {
     id: 'skills',
-    label: 'Vị trí & Mức lương',
-    to: '/skills',
-    isActive: (pathname) => pathname === '/skills',
+    label: 'Vị trí & kỹ năng',
+    to: '/employees/skills',
+    isActive: (pathname) => pathname === '/skills' || pathname === '/employees/skills',
   },
   {
     id: 'stores',
@@ -30,48 +36,33 @@ export const MODULE_TABS = [
 
 export default function EmployeeModuleLayout({
   title,
-  subtitle,
   actions,
   children,
   headerExtra,
   containerClassName = '',
 }) {
   const location = useLocation();
-  const navigate = useNavigate();
 
   return (
     <div className={`emp-module-wrapper ${containerClassName}`}>
       {/* ═══ 1. MODULE TAB BAR (HORIZONTAL NAVIGATION) ═══ */}
       <div className="emp-module-tabs-bar">
-        <div className="emp-module-tabs-track" role="tablist">
+        <nav className="emp-module-tabs-track" aria-label="Phân hệ nhân sự">
           {MODULE_TABS.map((tab) => {
             const active = tab.isActive(location.pathname, location.search);
             return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                className={`emp-module-tab-item ${active ? 'active' : ''}`}
-                onClick={() => {
-                  if (!active) navigate(tab.to);
-                }}
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
-              >
-                {tab.label}
-              </button>
+              <Link key={tab.id} to={tab.to} className={`emp-module-tab-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}>{tab.label}</Link>
             );
           })}
-        </div>
+        </nav>
       </div>
 
       {/* ═══ 2. MODULE CONTAINER (HEADER + CONTENT) ═══ */}
       <div className="emp-module-container">
-        {(title || subtitle || actions) && (
+        {(title || actions) && (
           <div className="emp-module-header">
             <div className="emp-module-header-text">
               {title && <h1 className="emp-module-title">{title}</h1>}
-              {subtitle && <p className="emp-module-subtitle">{subtitle}</p>}
             </div>
             {actions && <div className="emp-module-actions">{actions}</div>}
           </div>

@@ -91,6 +91,7 @@ public class UserService {
 
         User user = User.builder()
                 .fullName(request.getFullName())
+                .gender(request.getGender() == null ? "MALE" : request.getGender())
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
@@ -175,6 +176,7 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
+        if (request.getGender() != null) user.setGender(request.getGender());
         if (request.getAvatarId() != null) {
             user.setAvatarId(request.getAvatarId());
         }

@@ -102,6 +102,30 @@ class CharacterMaterialPalette {
     }
     return this._roleMatCache.get(roleColorHex);
   }
+
+  isSharedMaterial(mat) {
+    if (!mat) return false;
+    if (this._roleMatCache.has(mat)) return true;
+    for (const cached of this._roleMatCache.values()) {
+      if (cached === mat) return true;
+    }
+    return Object.values(this).includes(mat);
+  }
+
+  getAllMaterials() {
+    const list = [];
+    for (const val of Object.values(this)) {
+      if (val && typeof val === 'object' && val.isMaterial) {
+        list.push(val);
+      }
+    }
+    for (const val of this._roleMatCache.values()) {
+      if (val && val.isMaterial) {
+        list.push(val);
+      }
+    }
+    return list;
+  }
 }
 
 export const characterMaterials = new CharacterMaterialPalette();

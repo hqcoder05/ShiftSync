@@ -1,0 +1,1509 @@
+{
+  "note": "Static inventory only. A route or annotation is not proof of runtime correctness or authorization.",
+  "routes": [
+    {
+      "path": "/login",
+      "declaration": "<Route path=\"/login\" element={<LoginPage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/",
+      "declaration": "<Route path=\"/\" element={<DashboardPage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/dashboard",
+      "declaration": "<Route path=\"/dashboard\" element={<DashboardPage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/dashboard/reports",
+      "declaration": "<Route path=\"/dashboard/reports\" element={<Navigate to=\"/attendance\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/dashboard/labor-cost",
+      "declaration": "<Route path=\"/dashboard/labor-cost\" element={<Navigate to=\"/employees?tab=payroll\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/schedule",
+      "declaration": "<Route path=\"/schedule\" element={<SchedulePage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/schedule/templates",
+      "declaration": "<Route path=\"/schedule/templates\" element={<ManagerRoute><ShiftTemplatesPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/schedule/auto",
+      "declaration": "<Route path=\"/schedule/auto\" element={<Navigate to=\"/schedule?action=auto\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/availability",
+      "declaration": "<Route path=\"/availability\" element={<Navigate to=\"/schedule?tab=availability\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/staff-availability",
+      "declaration": "<Route path=\"/staff-availability\" element={<Navigate to=\"/schedule?tab=availability\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/demand-planning",
+      "declaration": "<Route path=\"/demand-planning\" element={<ManagerRoute><DemandPlanningPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/attendance",
+      "declaration": "<Route path=\"/attendance\" element={<AttendancePage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/attendance/leave",
+      "declaration": "<Route path=\"/attendance/leave\" element={<AttendancePage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/attendance/explain",
+      "declaration": "<Route path=\"/attendance/explain\" element={<AttendancePage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/time-workforce",
+      "declaration": "<Route path=\"/time-workforce\" element={<LegacyRequestRedirect />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/marketplace",
+      "declaration": "<Route path=\"/marketplace\" element={<MarketplacePage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/marketplace/swaps",
+      "declaration": "<Route path=\"/marketplace/swaps\" element={<Navigate to=\"/marketplace?tab=SWAP\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/marketplace/history",
+      "declaration": "<Route path=\"/marketplace/history\" element={<Navigate to=\"/marketplace?tab=FILLED\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/payroll",
+      "declaration": "<Route path=\"/payroll\" element={<Navigate to=\"/employees?tab=payroll\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/reports",
+      "declaration": "<Route path=\"/reports\" element={<Navigate to=\"/attendance\" replace />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/request",
+      "declaration": "<Route path=\"/request\" element={<LegacyRequestRedirect />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/requests",
+      "declaration": "<Route path=\"/requests\" element={<LegacyRequestRedirect />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/notifications",
+      "declaration": "<Route path=\"/notifications\" element={<LegacyRequestRedirect />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employees",
+      "declaration": "<Route path=\"/employees\" element={<ManagerRoute><EmployeesPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employees/contracts",
+      "declaration": "<Route path=\"/employees/contracts\" element={<ManagerRoute><EmployeesPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employees/skills",
+      "declaration": "<Route path=\"/employees/skills\" element={<ManagerRoute><SkillsPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employees/:id",
+      "declaration": "<Route path=\"/employees/:id\" element={<ManagerRoute><EmployeeDetailPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employee/:id",
+      "declaration": "<Route path=\"/employee/:id\" element={<ManagerRoute><EmployeeDetailPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/employees/profile",
+      "declaration": "<Route path=\"/employees/profile\" element={<ManagerRoute><EmployeeDetailPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/stores",
+      "declaration": "<Route path=\"/stores\" element={<ManagerRoute><StoresPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/skills",
+      "declaration": "<Route path=\"/skills\" element={<ManagerRoute><SkillsPage /></ManagerRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/settings",
+      "declaration": "<Route path=\"/settings\" element={<SettingsPage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/config",
+      "declaration": "<Route path=\"/config\" element={<SettingsPage />} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/admin",
+      "declaration": "<Route path=\"/admin\" element={<AdminRoute><AdminPage /></AdminRoute>} />\r",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "path": "/avatar-studio",
+      "declaration": "<Route path=\"/avatar-studio\" element={<AvatarStudioPage />} />\r",
+      "status": "NOT_VERIFIED"
+    }
+  ],
+  "services": [
+    {
+      "file": "ShiftSync-Web/src/services/adjustmentService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/attendance-adjustments`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/attendance-adjustments/me`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/attendance-adjustments${q}`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/attendance-adjustments/${requestId}/approve`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/attendance-adjustments/${requestId}/reject`, data);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/adminService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/stores/overview');\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/allApisRegistry.js",
+      "calls": []
+    },
+    {
+      "file": "ShiftSync-Web/src/services/api.js",
+      "calls": []
+    },
+    {
+      "file": "ShiftSync-Web/src/services/attendanceService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/attendance`, { params: { from, to } });\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/attendance/${attendanceId}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/attendance/${attendanceId}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/attendance/selfie', formData);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/attendance/scan', data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/attendance/qr`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/attendance/me');\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/authService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "'/auth/login', { email, password });\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/auth/register', data);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/auth/refresh', { refreshToken: rt });\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/auth/logout', { refreshToken: rt });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/availabilityService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/availability');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/availability/users/${userId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/availability/stores/${storeId}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/availability', data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/availability/${id}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/availability/${id}`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/contractTypeService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/contract-types`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/contract-types`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/contract-types/${contractTypeId}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/contract-types/${contractTypeId}`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/dashboardService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/dashboard`, { params });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/dashboard/chart`, { params });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/employeeService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "url);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/users', payload);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/users/${id}`, payload);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/users/${id}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "'/users/me', data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/shifts');\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/users/${id}`);"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/employmentService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/staff`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/staff?page=${page}&size=${size}`);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/staff/${staffId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/users/${staffId}/stores`);"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/headcountQuotaService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/branches');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/positions', { params: { branchId } });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/headcount-quotas', { params: { branchId, date } });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/headcount-quotas/weekly', { params: { branchId, weekStart } });\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/headcount-quotas/${quotaId}`, updateData);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/headcount-quotas/auto-fill', payload);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/headcount-quotas/apply-to-scheduler', payload);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/headcount-quotas/summary', { params: { branchId, date, weekStart } });\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "'/headcount-quotas/budget', { branchId, monthlyBudget });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/holidayService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/holidays');\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/holidays', data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/holidays/${id}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/holidays/${id}`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/layoutService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/layout`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/layout`, {\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/zones`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/zones`, {\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/zones/${zoneId}`, zoneData);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/allocate-zones`);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/zones/${zoneId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/workstations`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/workstations`, workstationData);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/workstations/${workstationId}`, workstationData);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/workstations/${workstationId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/store-templates', { params });\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/apply-template/${templateId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/workstations/${workstationId}/equipment`, { signal });\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/workstations/${workstationId}/equipment`, payload);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/workstations/${workstationId}/equipment/${equipmentId}`, payload);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/leaveService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/leave-requests`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests${q}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests/my`);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/leave-requests/${id}`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/leave-requests/${id}/approve`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/leave-requests/${id}/reject`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/leave-requests/${id}/reason`, { reason });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests/${id}/impact`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests/types`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests/balances/my${q}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/leave-requests/balances${q}`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/marketplaceService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/marketplace/shifts`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/marketplace/shifts/${shiftId}/publish`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/marketplace/shifts/${shiftId}/unpublish`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/marketplace/shifts/${shiftId}/claim`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/notificationService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/users/me/notification-preferences');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "'/users/me/notification-preferences', data);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/users/me/fcm-token', { fcmToken: token, deviceType: 'WEB' });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/notifications');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/notifications/unread-count');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/users/me/notifications/${id}/read`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "'/users/me/notifications/read-all');\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/payrollService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/payroll`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/payroll/${periodId}/payslips`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/payroll/generate`, payload);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/payroll/${periodId}/status`, { status });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/payroll/${periodId}/export/excel`, { responseType: 'blob' });\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/payslips');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/users/me/payslips/${payrollId}/pdf`, { responseType: 'blob' });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/requestService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/requests');\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/requests', payload);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/requests/${id}/status`, { status: newStatus });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/roleService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "'/roles');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/permissions');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/roles/${roleId}/permissions`, { permissionIds });\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/shiftService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shifts${q}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/publish`, { startDate, endDate });\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/auto-schedule`, payload, {\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/requirements`, data);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/demand-planning`, payload);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shifts/my`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/assignments`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/assignments`, payload);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/assignments/${staffId}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/assignments/swap`, swapData);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shifts/${shiftId}/eligible-staff`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/skillService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/skills?storeId=${storeId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/skills');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/skills`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/skills`, data); // { name, description }\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/skills/${skillId}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/skills/${skillId}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/users/${userId}/skills`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/users/${userId}/skills`, skillIds);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/storeConfigService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/configuration`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/configuration`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/scheduler-config`, data);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/storeService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores?page=${page}&size=${size}${s}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${id}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "'/stores', data);\r"
+        },
+        {
+          "method": "PATCH",
+          "expression": "`/stores/${id}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${id}`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/stores/directory');\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/stores/overview');"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/swapService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "'/users/me/swaps', data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/swaps');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/users/me/swaps/${requestId}/respond`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/swaps${q}`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/swaps/${requestId}/approve`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/swaps/${requestId}/reject`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/swaps/${requestId}/cancel`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/templateService.js",
+      "calls": [
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/shift-templates`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/shift-templates`, data);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/shift-templates/${templateId}`, data);\r"
+        },
+        {
+          "method": "DELETE",
+          "expression": "`/stores/${storeId}/shift-templates/${templateId}`);\r"
+        }
+      ]
+    },
+    {
+      "file": "ShiftSync-Web/src/services/workforceService.js",
+      "calls": [
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/workforce-requests`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/workforce-requests/outgoing`);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/workforce-requests/incoming`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/workforce-requests/${id}/cancel`);\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/stores/${storeId}/workforce-requests/${id}/reject`);\r"
+        },
+        {
+          "method": "POST",
+          "expression": "`/stores/${storeId}/workforce-requests/${id}/proposals`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "'/users/me/workforce-proposals');\r"
+        },
+        {
+          "method": "PUT",
+          "expression": "`/users/me/workforce-proposals/${id}/respond`, data);\r"
+        },
+        {
+          "method": "GET",
+          "expression": "`/stores/${storeId}/workforce-requests/${id}/eligible-staff`);\r"
+        }
+      ]
+    }
+  ],
+  "controllers": [
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/attendance/controller/AttendanceAdjustmentController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/attendance-adjustments\")\r",
+        "@PostMapping\r",
+        "@GetMapping(\"/me\")\r",
+        "@GetMapping\r",
+        "@PutMapping(\"/{requestId}/approve\")\r",
+        "@PutMapping(\"/{requestId}/reject\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasAnyRole('STAFF', 'MANAGER', 'ADMIN')\")\r",
+        "@PreAuthorize(\"hasAnyRole('STAFF', 'MANAGER', 'ADMIN')\")\r",
+        "@PreAuthorize(\"hasAnyRole('MANAGER', 'ADMIN')\")\r",
+        "@PreAuthorize(\"hasAnyRole('MANAGER', 'ADMIN')\")\r",
+        "@PreAuthorize(\"hasAnyRole('MANAGER', 'ADMIN')\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/attendance/controller/AttendanceController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@GetMapping(\"/stores/{storeId}/shifts/{shiftId}/attendance/qr\")\r",
+        "@PostMapping(\"/attendance/scan\")\r",
+        "@PostMapping(value = \"/attendance/selfie\", consumes = \"multipart/form-data\")\r",
+        "@GetMapping(\"/attendance/me\")\r",
+        "@GetMapping(\"/stores/{storeId}/attendance\")\r",
+        "@PutMapping(\"/stores/{storeId}/attendance/{attendanceId}\")\r",
+        "@DeleteMapping(\"/stores/{storeId}/attendance/{attendanceId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasAnyRole('ADMIN', 'MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/auth/controller/AuthController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/auth\")\r",
+        "@PostMapping(\"/register\")\r",
+        "@PostMapping(\"/login\")\r",
+        "@PostMapping(\"/refresh\")\r",
+        "@PostMapping(\"/logout\")\r"
+      ],
+      "guards": []
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/auth/controller/UserController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/users\")\r",
+        "@PostMapping\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/me\")\r",
+        "@PutMapping(\"/me\")\r",
+        "@PutMapping(\"/me/avatar\")\r",
+        "@GetMapping(\"/{id}\")\r",
+        "@PutMapping(\"/{id}\")\r",
+        "@DeleteMapping(\"/{id}\")\r",
+        "@GetMapping(\"/me/shifts\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/availability/controller/AvailabilityController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/availability\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{id}\")\r",
+        "@GetMapping(\"/users/{userId}\")\r",
+        "@GetMapping(\"/stores/{storeId}\")\r",
+        "@DeleteMapping(\"/{id}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canManagerAccessUser(authentication, #userId)) or (hasRole('STAFF') and authentication.principal.id == #userId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/employment/controller/ContractTypeController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/contract-types\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{contractTypeId}\")\r",
+        "@DeleteMapping(\"/{contractTypeId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or ((hasRole('MANAGER') or hasRole('STAFF')) and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/employment/controller/EmploymentController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@PostMapping(\"/stores/{storeId}/staff\")\r",
+        "@PutMapping(\"/stores/{storeId}/staff/{staffId}\")\r",
+        "@DeleteMapping(\"/stores/{storeId}/staff/{staffId}\")\r",
+        "@GetMapping(\"/stores/{storeId}/staff\")\r",
+        "@GetMapping(\"/users/{staffId}/stores\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER') or (hasRole('STAFF') and authentication.principal.id == #staffId)\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/layout/controller/EquipmentController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/workstations/{workstationId}/equipment\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{equipmentId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/layout/controller/LayoutController.java",
+      "mappings": [
+        "@RequestMapping({\"/api/stores/{storeId}\", \"/api/locations/{storeId}\"})\r",
+        "@PostMapping(\"/layout\")\r",
+        "@GetMapping(\"/layout\")\r",
+        "@PostMapping(\"/zones\")\r",
+        "@PutMapping(\"/zones/{zoneId}\")\r",
+        "@GetMapping(\"/zones\")\r",
+        "@DeleteMapping(\"/zones/{zoneId}\")\r",
+        "@GetMapping(\"/workstations\")\r",
+        "@PostMapping(\"/workstations\")\r",
+        "@PutMapping(\"/workstations/{workstationId}\")\r",
+        "@DeleteMapping(\"/workstations/{workstationId}\")\r",
+        "@PostMapping(\"/shifts/{shiftId}/allocate-zones\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/layout/controller/StoreDesignController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/design\")\r",
+        "@GetMapping @PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@GetMapping(\"/versions\") @PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@GetMapping(\"/versions/{revision}\") @PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PutMapping @PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/leave/controller/LeaveRequestController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/leave-requests\")\r",
+        "@GetMapping({\"/types\", \"/leave-types\"})\r",
+        "@GetMapping({\"/balances/my\", \"/leave-balances/my\"})\r",
+        "@GetMapping({\"/balances\", \"/leave-balances\"})\r",
+        "@PostMapping\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/my\")\r",
+        "@DeleteMapping(\"/{id}\")\r",
+        "@PutMapping(\"/{id}/approve\")\r",
+        "@PutMapping(\"/{id}/reject\")\r",
+        "@PutMapping(\"/{id}/reason\")\r",
+        "@GetMapping(\"/{id}/impact\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)) or hasRole('STAFF')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/marketplace/controller/MarketplaceController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@PostMapping(\"/stores/{storeId}/marketplace/shifts/{shiftId}/publish\")\r",
+        "@PostMapping(\"/stores/{storeId}/marketplace/shifts/{shiftId}/unpublish\")\r",
+        "@GetMapping(\"/stores/{storeId}/marketplace/shifts\")\r",
+        "@PostMapping(\"/stores/{storeId}/marketplace/shifts/{shiftId}/claim\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or ((hasRole('STAFF') or hasRole('MANAGER')) and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('STAFF') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/notification/controller/NotificationController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@PostMapping(\"/users/me/fcm-token\")\r",
+        "@PostMapping(\"/notifications/test\")\r",
+        "@GetMapping(\"/users/me/notification-preferences\")\r",
+        "@PutMapping(\"/users/me/notification-preferences\")\r",
+        "@GetMapping(\"/users/me/notifications\")\r",
+        "@GetMapping(\"/users/me/notifications/unread-count\")\r",
+        "@PutMapping(\"/users/me/notifications/{id}/read\")\r",
+        "@PutMapping(\"/users/me/notifications/read-all\")\r",
+        "@GetMapping(value = \"/users/me/notifications/stream\", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/payroll/controller/HolidayController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/holidays\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{id}\")\r",
+        "@DeleteMapping(\"/{id}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasAnyRole('ADMIN', 'MANAGER')\")\r",
+        "@PreAuthorize(\"hasAnyRole('ADMIN', 'MANAGER')\")\r",
+        "@PreAuthorize(\"hasAnyRole('ADMIN', 'MANAGER')\")\r",
+        "@PreAuthorize(\"hasAnyRole('ADMIN', 'MANAGER')\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/payroll/controller/PayrollController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@PostMapping(\"/stores/{storeId}/payroll/generate\")\r",
+        "@GetMapping(\"/stores/{storeId}/payroll\")\r",
+        "@GetMapping(\"/stores/{storeId}/payroll/{periodId}/payslips\")\r",
+        "@GetMapping(\"/users/me/payslips\")\r",
+        "@GetMapping({\"/users/me/payslips/{payrollId}/pdf\", \"/payslips/{payrollId}/pdf\"})\r",
+        "@GetMapping({\"/stores/{storeId}/payroll/{periodId}/excel\", \"/stores/{storeId}/payroll/{periodId}/export/excel\"})\r",
+        "@PutMapping(\"/stores/{storeId}/payroll/{periodId}/status\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/quota/controller/HeadcountQuotaController.java",
+      "mappings": [
+        "@GetMapping(\"/api/branches\")\r",
+        "@GetMapping(\"/api/positions\")\r",
+        "@GetMapping(\"/api/headcount-quotas\")\r",
+        "@GetMapping(\"/api/headcount-quotas/weekly\")\r",
+        "@PutMapping(\"/api/headcount-quotas/{quotaId}\")\r",
+        "@PutMapping(\"/api/headcount-quotas/budget\")\r",
+        "@PostMapping(\"/api/headcount-quotas/auto-fill\")\r",
+        "@PostMapping(\"/api/headcount-quotas/apply-to-scheduler\")\r",
+        "@GetMapping(\"/api/headcount-quotas/summary\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #request.branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, T(java.util.UUID).fromString(#req['branchId'].toString())))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #request.branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #request.branchId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #branchId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/request/controller/StaffRequestController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/requests\")\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/{id}\")\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{id}/status\")\r"
+      ],
+      "guards": []
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shared/test/RedisTestController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/test/redis\")\r",
+        "@GetMapping(\"/set\")\r",
+        "@GetMapping(\"/get\")\r"
+      ],
+      "guards": []
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shared/test/SecurityTestController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/test/security\")\r",
+        "@GetMapping(\"/public\")\r",
+        "@GetMapping(\"/staff\")\r",
+        "@GetMapping(\"/manager\")\r",
+        "@GetMapping(\"/admin\")\r",
+        "@GetMapping(\"/generate-token\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('STAFF')\")\r",
+        "@PreAuthorize(\"hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN')\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shift/controller/ShiftAssignmentController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/shifts/{shiftId}/assignments\")\r",
+        "@PostMapping\r",
+        "@GetMapping\r",
+        "@DeleteMapping(\"/{staffId}\")\r",
+        "@PostMapping(\"/swap\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shift/controller/ShiftController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/shifts\")\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/my\")\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{shiftId}/requirements\")\r",
+        "@PostMapping(\"/demand-planning\")\r",
+        "@PostMapping(\"/publish\")\r",
+        "@PostMapping(\"/auto-schedule\")\r",
+        "@PutMapping(\"/{shiftId}\")\r",
+        "@DeleteMapping(\"/{shiftId}\")\r",
+        "@GetMapping(\"/{shiftId}/eligible-staff\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"@storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"@storeAccessService.canAccessStore(authentication, #storeId)\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shift/controller/ShiftSwapController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@PostMapping(\"/users/me/swaps\")\r",
+        "@PutMapping(\"/users/me/swaps/{requestId}/respond\")\r",
+        "@PostMapping(\"/swaps/{requestId}/approve\")\r",
+        "@PostMapping(\"/swaps/{requestId}/reject\")\r",
+        "@PostMapping(\"/swaps/{requestId}/cancel\")\r",
+        "@GetMapping(\"/users/me/swaps\")\r",
+        "@GetMapping(\"/stores/{storeId}/swaps\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('STAFF') or hasRole('MANAGER') or hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/shift/controller/ShiftTemplateController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/shift-templates\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{templateId}\")\r",
+        "@DeleteMapping(\"/{templateId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"@storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/skill/controller/SkillController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/skills\")\r",
+        "@GetMapping\r",
+        "@PostMapping\r",
+        "@PutMapping(\"/{skillId}\")\r",
+        "@DeleteMapping(\"/{skillId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"@storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/skill/controller/SkillQueryController.java",
+      "mappings": [
+        "@GetMapping(\"/api/skills\")\r",
+        "@GetMapping(\"/api/users/{userId}/skills\")\r",
+        "@PutMapping(\"/api/users/{userId}/skills\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or hasRole('MANAGER')\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/store/controller/DashboardController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/dashboard\")\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/chart\")\r"
+      ],
+      "guards": []
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/store/controller/SchedulerConfigurationController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/scheduler-config\")\r",
+        "@GetMapping\r",
+        "@PutMapping\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/store/controller/StoreConfigurationController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/configuration\")\r",
+        "@GetMapping\r",
+        "@PutMapping\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/store/controller/StoreController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores\")\r",
+        "@PostMapping\r",
+        "@GetMapping\r",
+        "@GetMapping(\"/directory\")\r",
+        "@GetMapping(\"/overview\")\r",
+        "@GetMapping(\"/{id}\")\r",
+        "@PatchMapping(\"/{id}\")\r",
+        "@DeleteMapping(\"/{id}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasAnyRole('ADMIN','MANAGER')\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN')\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #id)\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #id))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN')\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/store/controller/StoreTemplateController.java",
+      "mappings": [
+        "@RequestMapping(\"/api\")\r",
+        "@GetMapping(\"/store-templates\")\r",
+        "@GetMapping(\"/store-templates/{templateId}\")\r",
+        "@PostMapping(\"/stores/{storeId}/apply-template/{templateId}\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"isAuthenticated()\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/workforce/controller/WorkforceProposalController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/users/me/workforce-proposals\")\r",
+        "@GetMapping\r",
+        "@PutMapping(\"/{id}/respond\")\r"
+      ],
+      "guards": []
+    },
+    {
+      "file": "shiftsync-backend/src/main/java/com/shiftsync/workforce/controller/WorkforceRequestController.java",
+      "mappings": [
+        "@RequestMapping(\"/api/stores/{storeId}/workforce-requests\")\r",
+        "@PostMapping\r",
+        "@GetMapping(\"/incoming\")\r",
+        "@GetMapping(\"/outgoing\")\r",
+        "@PutMapping(\"/{id}/cancel\")\r",
+        "@PutMapping(\"/{id}/reject\")\r",
+        "@PostMapping(\"/{id}/proposals\")\r",
+        "@GetMapping(\"/{id}/eligible-staff\")\r"
+      ],
+      "guards": [
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r",
+        "@PreAuthorize(\"hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))\")\r"
+      ]
+    }
+  ]
+}

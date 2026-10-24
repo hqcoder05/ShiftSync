@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { CalendarDays, Search, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import {
@@ -34,6 +35,8 @@ import { getPositions } from '../services/headcountQuotaService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './MarketplacePage.css';
+import './marketplace-redesign.css';
+import {marketplaceTiming,vietnamDate} from '../utils/marketplaceTime.js';
 
 const toISODate = (d) => d.toISOString().slice(0, 10);
 
@@ -135,7 +138,15 @@ export default function MarketplacePage() {
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || localStorage.getItem('storeId') || '');
   const [employees, setEmployees] = useState([]);
-  const [openShifts, setOpenShifts] = useState([]);
+  const [rawOpenShifts, setOpenShifts] = useState([]);
+  const [clock,setClock]=useState(()=>Date.now());
+  useEffect(()=>{
+    const update=()=>setClock(Date.now());
+    const timer=setInterval(update,1000);
+    window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);
+    return()=>{clearInterval(timer);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};
+  },[]);
+  const openShifts=useMemo(()=>rawOpenShifts.filter(s=>marketplaceTiming(s,clock).recruitmentOpen),[rawOpenShifts,clock]);
   const [storeShifts, setStoreShifts] = useState([]);
   const [requestsList, setRequestsList] = useState([]);
   const [storeSwapList, setStoreSwapList] = useState([]);
@@ -151,6 +162,7 @@ export default function MarketplacePage() {
   const [claimLoadingId, setClaimLoadingId] = useState(null);
   const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [search, setSearch] = useState('');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [showCreateSwapModal, setShowCreateSwapModal] = useState(false);
   const [swapMyShiftId, setSwapMyShiftId] = useState('');
   const [swapTargetStaffId, setSwapTargetStaffId] = useState('');
@@ -367,7 +379,7 @@ export default function MarketplacePage() {
 
   // 6. Dynamic Understaffed Shifts
   const understaffedShifts = useMemo(() => {
-    const todayStr = toISODate(new Date());
+    const todayStr = vietnamDate(clock);
 
     return storeShifts
       .map((s) => {
@@ -427,11 +439,7 @@ export default function MarketplacePage() {
           startTimeStr < '14:00' ? 'MORNING' : startTimeStr < '22:00' ? 'AFTERNOON' : 'NIGHT';
 
         const isMarketplaceOpen = openShifts.some((os) => String(os.id) === String(s.id));
-        const shiftStart = new Date(`${s.shiftDate}T${s.startTime || '00:00:00'}`);
-        const isPastOrStarted = Number.isNaN(shiftStart.getTime()) ? false : shiftStart <= new Date();
-        const deadline = s.availabilityDeadline ? new Date(s.availabilityDeadline) : null;
-        const isDeadlineExpired = Boolean(deadline && !Number.isNaN(deadline.getTime()) && deadline <= new Date());
-        const isCancelled = s.status === 'CANCELLED';
+        const {isPastOrStarted,isDeadlineExpired,isCancelled,recruitmentOpen}=marketplaceTiming(s,clock);
 
         return {
           ...s,
@@ -457,18 +465,21 @@ export default function MarketplacePage() {
           isPastOrStarted,
           isDeadlineExpired,
           isCancelled,
+          recruitmentOpen,
           canPublishToMarketplace: s.status === 'PUBLISHED' && !isMarketplaceOpen && !isPastOrStarted && !isDeadlineExpired && !isCancelled,
           skills: (s.skillRequirements || []).map((r) => r.skillName).filter(Boolean),
         };
       })
-      .filter((s) => s.missingCount > 0)
+      .filter((s) => s.missingCount > 0 && s.recruitmentOpen)
       .sort((a, b) => {
         // Ưu tiên ca khẩn cấp hôm nay
         if (a.isUrgent && !b.isUrgent) return -1;
         if (!a.isUrgent && b.isUrgent) return 1;
         return (a.shiftDate || '').localeCompare(b.shiftDate || '');
       });
-  }, [storeShifts, openShifts, currentStore, positions]);
+  }, [storeShifts, openShifts, currentStore, positions, clock]);
+
+  const recruitableStoreShifts=useMemo(()=>storeShifts.filter(s=>marketplaceTiming(s,clock).recruitmentOpen),[storeShifts,clock]);
 
   // 6.1. Danh sách ca thiếu quân số CHƯA từng được đăng lên Marketplace (Loại bỏ tuyệt đối ca đã đăng)
   const unpublishedUnderstaffedShifts = useMemo(() => {
@@ -568,6 +579,12 @@ export default function MarketplacePage() {
       .sort((a, b) => (b.shiftDate || '').localeCompare(a.shiftDate || ''));
   }, [storeShifts]);
 
+  const historyShifts=useMemo(()=>{
+    const fullIds=new Set(filledShifts.map(s=>s.id));
+    return storeShifts.filter(s=>fullIds.has(s.id)||!marketplaceTiming(s,clock).recruitmentOpen)
+      .sort((a,b)=>(b.shiftDate||'').localeCompare(a.shiftDate||''));
+  },[storeShifts,filledShifts,clock]);
+
   // 10. Dynamic Skills List for Sidebar Filters
   const availableSkills = useMemo(() => {
     const sSet = new Set();
@@ -656,6 +673,7 @@ export default function MarketplacePage() {
 
   // 14. Real Actions
   const handleOpenEligibleCandidates = async (shift) => {
+    if(!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự. Xem lại trong Lịch sử ca.');setClock(Date.now());return;}
     setSelectedShiftForEligibility(shift);
     setShowEligibleCandidatesModal(true);
     setLoadingEligibleCandidates(true);
@@ -672,6 +690,7 @@ export default function MarketplacePage() {
   };
 
   const handleAssignCandidateFromModal = async (staffId, staffName) => {
+    if(!marketplaceTiming(selectedShiftForEligibility).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự.');setClock(Date.now());return;}
     if (!selectedShiftForEligibility) return;
     setAssigningCandidateId(staffId);
     try {
@@ -689,6 +708,8 @@ export default function MarketplacePage() {
   };
 
   const handlePublishToMarketplaceAction = async (shiftId) => {
+    const shift=storeShifts.find(s=>s.id===shiftId);
+    if(!shift||!marketplaceTiming(shift).recruitmentOpen){showToast('Không thể đăng ca đã bắt đầu hoặc hết hạn.');setClock(Date.now());return;}
     setMpActionLoadingId(shiftId);
     try {
       await publishShiftToMarketplace(storeId, shiftId);
@@ -719,6 +740,8 @@ export default function MarketplacePage() {
   };
 
   const handleClaimMarketplaceAction = async (shiftId) => {
+    const shift=rawOpenShifts.find(s=>s.id===shiftId);
+    if(!shift||!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận. Vui lòng chọn ca khác.');setClock(Date.now());return;}
     if (!shiftId || claimLoadingId) return;
     setClaimLoadingId(shiftId);
     try {
@@ -947,14 +970,14 @@ export default function MarketplacePage() {
     if (otherStores.length > 0) {
       setCreateWfTargetStoreId(String(otherStores[0].id));
     }
-    if (storeShifts.length > 0) {
-      setCreateWfShiftId(String(storeShifts[0].id));
-    }
+    setCreateWfShiftId(recruitableStoreShifts.length?String(recruitableStoreShifts[0].id):'');
     setShowCreateWorkforceModal(true);
   };
 
   const handleSubmitCreateWorkforce = async (e) => {
     e.preventDefault();
+    const shift=storeShifts.find(s=>String(s.id)===String(createWfShiftId));
+    if(!shift||!marketplaceTiming(shift).recruitmentOpen){showToast('Không thể yêu cầu chi viện cho ca đã bắt đầu hoặc hết hạn.');setClock(Date.now());return;}
     if (!createWfTargetStoreId || !createWfShiftId) {
       showToast('Vui lòng chọn chi nhánh đối tác và ca làm việc cần chi viện.');
       return;
@@ -1043,6 +1066,43 @@ export default function MarketplacePage() {
 
   return (
     <div className="mp-page-wrapper">
+      {/* ── 3. Title & Header Action Row ── */}
+      <div className="mp-header-row">
+        <div className="mp-title-col">
+          <h1 className="mp-title-main">Chợ ca mở</h1>
+          <div className="mp-heading-status">
+            <span className="mp-pill-green">{marketplaceOpenCount} ca đang mở</span>
+            {urgentUnderstaffedToday.length > 0 && <span className="mp-pill-red">{urgentUnderstaffedToday.length} ca khẩn cấp</span>}
+          </div>
+        </div>
+        <div className="mp-actions-right">
+          <button
+            type="button"
+            className="mp-btn-header-secondary"
+            onClick={() => setShowOtPolicyModal(true)}
+          >
+            Quy tắc & Giới hạn OT
+          </button>
+          <button
+            type="button"
+            className="mp-btn-header-secondary"
+            onClick={() => setShowAuditLogModal(true)}
+          >
+            Nhật ký điều phối
+          </button>
+          {isManager && (
+            <button
+              type="button"
+              className="mp-btn-header-primary"
+              onClick={() => setShowPublishModal(true)}
+            >
+              + Đăng ca lên sàn
+            </button>
+          )}
+        </div>
+      </div>
+
+
       {/* ── 1. Top Urgent Alert Banner ── */}
       {showUrgentBanner && urgentUnderstaffedToday.length > 0 && (
         <div className="mp-urgent-banner">
@@ -1090,80 +1150,39 @@ export default function MarketplacePage() {
           <div className="mp-kpi-number">{isManager ? understaffedShifts.length : marketplaceOpenCount}</div>
           <div className="mp-kpi-label">{isManager ? 'Ca thiếu nhân sự' : 'Ca đang mở Marketplace'}</div>
           <div className="mp-kpi-sub">
-            {isManager ? `${understaffedShifts.length} ca ${currentStore?.name || 'chi nhánh hiện tại'}` : `${marketplaceOpenCount} ca được Backend mở`}
+            {isManager ? `${understaffedShifts.length} ca ${currentStore?.name || 'chi nhánh hiện tại'}` : `${marketplaceOpenCount} ca đang nhận đăng ký`}
           </div>
         </div>
         <div className="mp-kpi-card kpi-red">
           <div className="mp-kpi-number">{filterCounts.noApplicant}</div>
           <div className="mp-kpi-label">Chưa có ứng viên</div>
-          <div className="mp-kpi-sub sub-red">Cần Store Manager chỉ định trực tiếp</div>
+          <div className="mp-kpi-sub">{filterCounts.noApplicant > 0 ? 'Cần xem xét phân công' : 'Không có ca cần chỉ định'}</div>
         </div>
         <div className="mp-kpi-card kpi-orange">
           <div className="mp-kpi-number">{totalPendingActionableCount}</div>
           <div className="mp-kpi-label">Yêu cầu cần xử lý</div>
           <div className="mp-kpi-sub">
-            {totalPendingActionableCount > 0 ? `${totalPendingActionableCount} yêu cầu đang chờ duyệt` : 'Đã xử lý tất cả yêu cầu'}
+            {totalPendingActionableCount > 0 ? `${totalPendingActionableCount} yêu cầu đang chờ duyệt` : 'Không có yêu cầu đang chờ'}
           </div>
         </div>
         <div className="mp-kpi-card kpi-slate">
           <div className="mp-kpi-number">{otRiskStaffCount}</div>
           <div className="mp-kpi-label">Rủi ro Overtime (OT)</div>
           <div className="mp-kpi-sub">
-            {otRiskStaffCount > 0 ? `Cảnh báo ${otRiskStaffCount} nhân sự đạt >= 40h` : 'An toàn: Không có nhân sự vượt 40h'}
+            {otRiskStaffCount > 0 ? `Cảnh báo ${otRiskStaffCount} nhân sự đạt >= 40h` : employees.length ? 'Không có nhân sự đạt 40h' : 'Chưa có dữ liệu nhân sự'}
           </div>
         </div>
       </div>
 
-      {/* ── 3. Title & Header Action Row ── */}
-      <div className="mp-header-row">
-        <div className="mp-title-col">
-          <h1 className="mp-title-main">
-            Sàn Ca Mở & Điều Phối Nhân Sự
-            <span className="mp-role-tag">({isManager ? 'Store Manager Ops' : 'Staff Marketplace'})</span>
-            <span className="mp-pill-green">{marketplaceOpenCount} ca đang mở Marketplace</span>
-            {urgentUnderstaffedToday.length > 0 && (
-              <span className="mp-pill-red">{urgentUnderstaffedToday.length} ca khẩn cấp</span>
-            )}
-          </h1>
-          <p className="mp-title-desc">
-            Trung tâm điều lệnh quản lý ca làm việc tại <strong>{currentStore?.name || 'ShiftSync Flagship Store'}</strong>. Chủ động rà soát vi phạm OT, gợi ý nhân sự phù hợp và phê duyệt hoán đổi ca tức thời.
-          </p>
-        </div>
-        <div className="mp-actions-right">
-          <button
-            type="button"
-            className="mp-btn-header-secondary"
-            onClick={() => setShowOtPolicyModal(true)}
-          >
-            Quy tắc & Giới hạn OT
-          </button>
-          <button
-            type="button"
-            className="mp-btn-header-secondary"
-            onClick={() => setShowAuditLogModal(true)}
-          >
-            Nhật ký điều phối
-          </button>
-          {isManager && (
-            <button
-              type="button"
-              className="mp-btn-header-primary"
-              onClick={() => setShowPublishModal(true)}
-            >
-              + Đăng ca lên sàn
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* ── 4. Main 2-Column Grid ── */}
-      <div className="mp-layout-grid">
+      <div className={`mp-layout-grid ${isManager ? '' : 'mp-layout-no-sidebar'}`}>
         {/* ══ CỘT TRÁI: BỘ LỌC ĐIỀU PHỐI (100% Dynamic) ══ */}
         {isManager && <aside className="mp-sidebar">
           {/* Ô Tìm Kiếm */}
           <div className="mp-search-box">
-            
+            <Search className="mp-search-symbol" size={17} aria-hidden="true" />
             <input
+              aria-label="Tìm kiếm ca làm việc"
               type="text"
               className="mp-search-input"
               placeholder="Tìm theo mã ca, tên nhân sự, vị trí..."
@@ -1172,6 +1191,10 @@ export default function MarketplacePage() {
             />
           </div>
 
+          <button type="button" className="mp-mobile-filter-toggle" aria-expanded={filtersExpanded} onClick={() => setFiltersExpanded((value) => !value)}>
+            <span><SlidersHorizontal size={16} aria-hidden="true" /> Bộ lọc điều phối</span> <span aria-hidden="true">{filtersExpanded ? '−' : '+'}</span>
+          </button>
+          <div className={`mp-filter-sections ${filtersExpanded ? 'is-open' : ''}`}>
           {/* Card Bộ Lọc Điều Phối */}
           <div className="mp-filter-card">
             <div className="mp-filter-head">
@@ -1300,27 +1323,30 @@ export default function MarketplacePage() {
             {/* Khung ca mong muốn */}
             <div className="mp-filter-group">
               <div className="mp-filter-group-title">Khung ca mong muốn</div>
-              <div
+              <button type="button"
                 className={`mp-shift-time-filter-item ${selectedTimePeriod === 'MORNING' ? 'active' : ''}`}
+                aria-pressed={selectedTimePeriod === 'MORNING'}
                 onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'MORNING' ? 'ALL' : 'MORNING')}
               >
                 <span>Ca Sáng (06:00 - 14:00)</span>
                 <span className="mp-filter-badge-count">{filterCounts.morning} ca</span>
-              </div>
-              <div
+              </button>
+              <button type="button"
                 className={`mp-shift-time-filter-item ${selectedTimePeriod === 'AFTERNOON' ? 'active' : ''}`}
+                aria-pressed={selectedTimePeriod === 'AFTERNOON'}
                 onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'AFTERNOON' ? 'ALL' : 'AFTERNOON')}
               >
                 <span>Ca Chiều (14:00 - 22:00)</span>
                 <span className="mp-filter-badge-count">{filterCounts.afternoon} ca</span>
-              </div>
-              <div
+              </button>
+              <button type="button"
                 className={`mp-shift-time-filter-item ${selectedTimePeriod === 'NIGHT' ? 'active' : ''}`}
+                aria-pressed={selectedTimePeriod === 'NIGHT'}
                 onClick={() => setSelectedTimePeriod(selectedTimePeriod === 'NIGHT' ? 'ALL' : 'NIGHT')}
               >
                 <span>Ca Đêm (22:00 - 06:00)</span>
                 <span className="mp-filter-badge-count">{filterCounts.night} ca</span>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -1356,6 +1382,7 @@ export default function MarketplacePage() {
               <strong>Lưu ý Overtime:</strong> Ưu tiên chọn nhân viên dưới 32 giờ để có dự phòng trong ca đột xuất cuối tuần.
             </div>
           </div>
+          </div>
         </aside>}
 
         {/* ══ CỘT PHẢI: TABS VÀ DANH SÁCH CA LÀM VIỆC ══ */}
@@ -1372,6 +1399,11 @@ export default function MarketplacePage() {
               </button>
             </div>
           )}
+          <div className="mp-workspace-heading">
+            <div>
+              <h2>Danh sách công việc</h2>
+            </div>
+          </div>
           {/* Thanh Tabs & Sort */}
           <div className="mp-tabs-bar">
             <div className="mp-tabs-group" style={{ flexWrap: 'wrap' }}>
@@ -1414,8 +1446,8 @@ export default function MarketplacePage() {
                 className={`mp-tab-btn ${activeTab === 'FILLED' ? 'active' : ''}`}
                 onClick={() => setActiveTab('FILLED')}
               >
-                <span>Đã phân công</span>
-                <span className="mp-tab-badge">{filledShifts.length}</span>
+                <span>Lịch sử ca</span>
+                <span className="mp-tab-badge">{historyShifts.length}</span>
               </button>
             </div>
 
@@ -1441,9 +1473,10 @@ export default function MarketplacePage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {loading && <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>Đang tải Marketplace...</div>}
                 {!loading && !marketplaceError && openShifts.length === 0 && (
-                  <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                    <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>Hiện chưa có ca nào đang mở trên Marketplace</h3>
-                    <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Danh sách được lấy trực tiếp từ Backend.</p>
+                  <div className="mp-empty-state">
+                    <span className="mp-empty-icon" aria-hidden="true"><CalendarDays size={23} /></span>
+                    <h3>Chưa có ca đang mở</h3>
+                    <p>Hãy quay lại sau để xem các ca mới.</p>
                   </div>
                 )}
                 {!loading && !marketplaceError && openShifts.map((shift) => {
@@ -1493,11 +1526,11 @@ export default function MarketplacePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {loading && <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>Đang tải dữ liệu ca làm việc...</div>}
 
-              {!loading && filteredShifts.length === 0 && (
-                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  
-                  <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>Hiện không có ca nào đang thiếu người theo bộ lọc</h3>
-                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Toàn bộ các ca trong lịch đã được phân bổ đủ quân số an toàn.</p>
+              {!loading && !marketplaceError && !storeShiftsError && filteredShifts.length === 0 && (
+                <div className="mp-empty-state">
+                  <span className="mp-empty-icon" aria-hidden="true"><CalendarDays size={23} /></span>
+                  <h3>Không có ca thiếu người còn hạn tuyển</h3>
+                  <p>Ca đã bắt đầu hoặc hết hạn được chuyển sang Lịch sử ca. Bạn có thể thay đổi bộ lọc hoặc xem lại tại đó.</p>
                 </div>
               )}
 
@@ -1667,7 +1700,7 @@ export default function MarketplacePage() {
                   <span>⇄</span> Tạo yêu cầu đổi ca
                 </button>
               </div>
-            <div className="mp-table-card">
+            <div className="mp-table-card" role="region" aria-label="Bảng thông tin điều phối" tabIndex={0}>
               {allSwapRequests.length === 0 ? (
                 <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
                   
@@ -1843,7 +1876,7 @@ export default function MarketplacePage() {
                 )}
               </div>
 
-              <div className="mp-table-card">
+              <div className="mp-table-card" role="region" aria-label="Bảng thông tin điều phối" tabIndex={0}>
                 {workforceSubTab === 'INCOMING' ? (
                   incomingWorkforce.length === 0 ? (
                     <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
@@ -2034,35 +2067,19 @@ export default function MarketplacePage() {
 
           {/* Tab 6: Đã Phân Công Xong (100% Dynamic từ CSDL) */}
           {activeTab === 'FILLED' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {filledShifts.length === 0 ? (
-                <div style={{ background: '#ffffff', padding: 32, borderRadius: 12, textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Chưa có ca nào được phân bổ đủ quân số.</p>
-                </div>
-              ) : (
-                filledShifts.map((s) => (
-                  <div key={s.id} className="mp-shift-card" style={{ opacity: 0.95 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <span className="mp-tag-has-applicants">Đã lấp ca • 100% ({(s.shiftAssignments || []).length} nhân sự)</span>
-                        <h3 style={{ margin: '8px 0 4px', fontSize: 16 }}>
-                          {s.skillName || 'Ca làm việc'} ({s.startTime?.slice(0, 5)} – {s.endTime?.slice(0, 5)})
-                        </h3>
-                        <div style={{ fontSize: 12.5, color: '#64748b' }}>
-                          Ngày: <strong>{fmtDateVN(s.shiftDate)}</strong> • Nhân sự trực:{' '}
-                          <strong>
-                            {(s.shiftAssignments || []).map((sa) => sa.staffName).join(', ')}
-                          </strong>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>Đã đồng bộ</div>
-                        <div style={{ fontSize: 12, color: '#64748b' }}>Trên lịch trình tuần</div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <p style={{fontSize:12,color:'var(--ss-mu,#64748b)'}}>Các ca đã đóng nhận, kết thúc, bị hủy hoặc đã đủ phân công. Không thể nhận hay đăng lại ca đã quá hạn.</p>
+              {historyShifts.length===0?<div className="mp-empty-state"><h3>Chưa có lịch sử ca</h3></div>:historyShifts.map(s=>{
+                const timing=marketplaceTiming(s,clock);
+                const required=s.requiredStaff??(s.skillRequirements||[]).reduce((sum,r)=>sum+(r.requiredStaff??r.requiredCount??0),0);
+                const assigned=(s.shiftAssignments||[]).length;
+                return <article key={s.id} className="mp-shift-card"><div className="mp-card-content">
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><span className="mp-tag-source">{timing.recruitmentOpen?'Đã đủ phân công':timing.label}</span><span className={assigned>=required&&required>0?'mp-tag-has-applicants':'mp-tag-no-applicant'}>{required>0?`Đã phân công ${assigned}/${required}${assigned<required?` · Thiếu ${required-assigned}`:''}`:`${assigned} phân công · Chưa thiết lập chỉ tiêu`}</span></div>
+                  <h3 style={{margin:'12px 0 8px',fontSize:16}}>{s.skillName||s.skillRequirements?.[0]?.skillName||'Ca làm việc'} ({s.startTime?.slice(0,5)||'—'} – {s.endTime?.slice(0,5)||'—'})</h3>
+                  <p style={{fontSize:12,color:'var(--ss-mu,#64748b)'}}>Ngày: <strong>{fmtDateVN(s.shiftDate)}</strong></p>
+                  <p style={{fontSize:12,color:'var(--ss-mu,#64748b)'}}>Nhân viên được phân công: {(s.shiftAssignments||[]).map(a=>a.staffName).filter(Boolean).join(', ')||'Chưa có phân công'}</p>
+                </div></article>;
+              })}
             </div>
           )}
         </main>
@@ -2325,7 +2342,7 @@ export default function MarketplacePage() {
                       onClick={() => setPublishPushNotif(!publishPushNotif)}
                     >
                       <div className="mp-publish-option-left">
-                        <span style={{ fontSize: '15px' }}></span>
+                        
                         <span>Đẩy thông báo Push tức thì đến {availableStaff} nhân viên khả dụng</span>
                       </div>
                       <div className={`mp-publish-checkbox ${publishPushNotif ? 'checked' : ''}`}>
@@ -2338,7 +2355,7 @@ export default function MarketplacePage() {
                       onClick={() => setPublishCrossBranch(!publishCrossBranch)}
                     >
                       <div className="mp-publish-option-left">
-                        <span style={{ fontSize: '15px' }}></span>
+                        
                         <span>Mở quyền nhận ca chéo cho các chi nhánh lân cận{otherStoreNamesText}</span>
                       </div>
                       <div className={`mp-publish-checkbox ${publishCrossBranch ? 'checked' : ''}`}>
@@ -2677,7 +2694,7 @@ export default function MarketplacePage() {
                     onChange={(e) => setCreateWfShiftId(e.target.value)}
                     required
                   >
-                    {storeShifts.map((sh) => {
+                    {recruitableStoreShifts.map((sh) => {
                       const reqCount = sh.requiredStaff || (sh.skillRequirements || []).reduce((acc, r) => acc + (r.requiredStaff || 0), 0);
                       const assigned = (sh.shiftAssignments || []).length;
                       const missing = Math.max(0, reqCount - assigned);
@@ -2689,7 +2706,7 @@ export default function MarketplacePage() {
                       );
                     })}
                   </select>
-                  {storeShifts.length === 0 && (
+                  {recruitableStoreShifts.length === 0 && (
                     <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>
                       Chi nhánh hiện chưa có ca làm việc nào được thiết lập.
                     </div>
@@ -2823,6 +2840,7 @@ export default function MarketplacePage() {
                 <div><strong>Thiếu quân số:</strong> <span style={{ color: '#dc2626', fontWeight: 700 }}>{selectedShiftForEligibility.missingCount} nhân sự</span></div>
               </div>
 
+              {!marketplaceTiming(selectedShiftForEligibility,clock).recruitmentOpen&&<p role="status" style={{color:'#b45309'}}>Ca đã đóng nhận nhân sự. Bạn có thể xem lại trong Lịch sử ca.</p>}
               {loadingEligibleCandidates ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
                   <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: 600 }}>Đang kiểm tra danh sách ứng viên đủ điều kiện...</div>
@@ -2906,7 +2924,7 @@ export default function MarketplacePage() {
 
                         <button
                           type="button"
-                          disabled={isAssigning}
+                          disabled={isAssigning||!marketplaceTiming(selectedShiftForEligibility,clock).recruitmentOpen}
                           onClick={() => handleAssignCandidateFromModal(cId, cName)}
                           style={{
                             padding: '8px 14px',
@@ -2966,23 +2984,6 @@ export default function MarketplacePage() {
         </div>
       )}
 
-      {/* ── 6. Chân Trang OPS ── */}
-      <footer className="mp-footer-bar">
-        <div>
-          ShiftSync™ Enterprise OPS • Store Manager Command Center • {currentStore?.name || 'Store'} Active
-        </div>
-        <div className="mp-footer-links">
-          <span className="mp-footer-link" onClick={() => setShowAuditLogModal(true)}>
-            Trung tâm điều lệnh quản lý
-          </span>
-          <span className="mp-footer-link" onClick={() => setShowOtPolicyModal(true)}>
-            Chính sách giới hạn Overtime
-          </span>
-          <span className="mp-footer-link" onClick={() => showToast('Đang kết nối bộ phận hỗ trợ kỹ thuật...')}>
-            Hỗ trợ kỹ thuật 24/7
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }

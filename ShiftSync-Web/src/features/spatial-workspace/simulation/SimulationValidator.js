@@ -9,6 +9,8 @@
  * - Hard Capacity Constraints of Store Zones
  */
 
+import { getStaffId } from '../utils/staffIdentity';
+
 export const ZONE_SKILL_KEYWORDS = {
   barista: ['barista', 'pha chế', 'pha che', 'coffee', 'espresso'],
   pos: ['pos', 'cashier', 'thu ngân', 'thu ngan', 'order', 'bán hàng', 'ban hang', 'checkout', 'tiếp tân', 'tiep tan'],
@@ -344,19 +346,16 @@ export function findReplacementCandidates(targetZone, allEmployees = [], current
 
   const assignedMap = new Map();
   currentlyAssignedStaff.forEach((s) => {
-    const staffId = s.staffId || s.employeeId || s.staff?.id || s.id;
-    if (staffId) {
-      assignedMap.set(String(staffId), s);
-    }
-    if (s.id) {
-      assignedMap.set(String(s.id), s);
+    const sid = getStaffId(s);
+    if (sid) {
+      assignedMap.set(sid, s);
     }
   });
 
   const candidates = [];
 
   allEmployees.forEach((emp) => {
-    const id = String(emp.id || emp.staffId || '');
+    const id = getStaffId(emp);
     if (!id) return;
 
     // Skip if on leave

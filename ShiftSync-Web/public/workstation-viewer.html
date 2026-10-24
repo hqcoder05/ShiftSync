@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShiftSync - 3D Workstation Digital Twin Viewer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: radial-gradient(circle at 50% 30%, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .header-bar {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      padding: 12px 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+    .badge {
+      background: #10b981;
+      color: #064e3b;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .controls-panel {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      padding: 10px 16px;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+    button.btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button.btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    button.btn.active {
+      background: #3b82f6;
+      border-color: #60a5fa;
+      color: #fff;
+    }
+    .specs-card {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      width: 280px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      padding: 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      font-size: 13px;
+    }
+    .specs-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #38bdf8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+    .spec-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      color: #94a3b8;
+    }
+    .spec-item span:last-child {
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: #0f172a;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      transition: opacity 0.5s ease;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p style="font-size: 14px; color: #94a3b8;">Đang tải 3D Workstation Asset...</p>
+  </div>
+
+  <div class="header-bar">
+    <span class="badge">Live 3D</span>
+    <h1>Bàn Làm Việc Nhân Viên — ShiftSync Digital Twin</h1>
+  </div>
+
+  <div class="specs-card">
+    <h3>Thông Tin Asset GLB</h3>
+    <div class="spec-item"><span>Format</span><span>GLTF 2.0 Binary (.glb)</span></div>
+    <div class="spec-item"><span>Kích thước file</span><span>2.73 MB</span></div>
+    <div class="spec-item"><span>Mesh / Nodes</span><span>71 meshes / 102 nodes</span></div>
+    <div class="spec-item"><span>Kích thước thật</span><span>1.47m × 1.32m × 1.32m</span></div>
+    <div class="spec-item"><span>Materials</span><span>High-end PBR Metal/Roughness</span></div>
+    <div class="spec-item"><span>Status LED</span><span>Active (Green Emissive)</span></div>
+    <div style="margin-top: 14px;">
+      <a href="/models/ShiftSync_Workstation.glb" download style="display: block; text-align: center; background: #2563eb; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 8px; font-weight: 500; font-size: 12px; transition: background 0.2s;">
+        ⬇ Tải File .GLB
+      </a>
+    </div>
+  </div>
+
+  <div class="controls-panel">
+    <button class="btn active" id="btn-rotate">🔄 Tự xoay (Auto-Rotate)</button>
+    <button class="btn" id="btn-focus-desk">🖥 Màn hình</button>
+    <button class="btn" id="btn-focus-chair">💺 Ghế làm việc</button>
+    <button class="btn" id="btn-focus-all">🔍 Toàn cảnh</button>
+    <button class="btn" id="btn-wireframe">🕸 Khung dây (Wireframe)</button>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const container = document.getElementById('canvas-container');
+    const loadingEl = document.getElementById('loading');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.FogExp2(0x0f172a, 0.08);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2.4, 1.6, 2.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02; // Do not go below floor
+    controls.minDistance = 0.6;
+    controls.maxDistance = 6.0;
+    controls.target.set(0, 0.65, 0.2);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 1.5;
+
+    // Lighting rig
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.8);
+    keyLight.position.set(3, 4, 2);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 10;
+    keyLight.shadow.camera.left = -2;
+    keyLight.shadow.camera.right = 2;
+    keyLight.shadow.camera.top = 2;
+    keyLight.shadow.camera.bottom = -2;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.8);
+    fillLight.position.set(-3, 2, -2);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
+    rimLight.position.set(0, 3, -3);
+    scene.add(rimLight);
+
+    // Subtle showroom pedestal floor
+    const floorGeo = new THREE.CylinderGeometry(1.8, 1.9, 0.06, 64);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.8,
+      metalness: 0.1,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.y = -0.03;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Subtle grid on floor
+    const gridHelper = new THREE.GridHelper(3.6, 18, 0x334155, 0x1e293b);
+    gridHelper.position.y = 0.001;
+    scene.add(gridHelper);
+
+    let workstationModel = null;
+    let isWireframe = false;
+
+    const loader = new GLTFLoader();
+    loader.load(
+      '/models/ShiftSync_Workstation.glb',
+      (gltf) => {
+        workstationModel = gltf.scene;
+        workstationModel.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        scene.add(workstationModel);
+
+        // Hide loader
+        loadingEl.style.opacity = '0';
+        setTimeout(() => loadingEl.style.display = 'none', 500);
+      },
+      undefined,
+      (err) => {
+        console.error('Failed to load workstation model:', err);
+        loadingEl.innerHTML = `<p style="color: #ef4444;">Lỗi tải mô hình 3D: ${err.message}</p>`;
+      }
+    );
+
+    // Interactive button controls
+    const btnRotate = document.getElementById('btn-rotate');
+    btnRotate.addEventListener('click', () => {
+      controls.autoRotate = !controls.autoRotate;
+      btnRotate.classList.toggle('active', controls.autoRotate);
+    });
+
+    document.getElementById('btn-focus-desk').addEventListener('click', () => {
+      controls.autoRotate = false;
+      btnRotate.classList.remove('active');
+      tweenCamera(new THREE.Vector3(0.1, 0.95, 1.1), new THREE.Vector3(0, 0.85, 0.0));
+    });
+
+    document.getElementById('btn-focus-chair').addEventListener('click', () => {
+      controls.autoRotate = false;
+      btnRotate.classList.remove('active');
+      tweenCamera(new THREE.Vector3(-0.9, 0.9, 1.4), new THREE.Vector3(0, 0.6, 0.45));
+    });
+
+    document.getElementById('btn-focus-all').addEventListener('click', () => {
+      controls.autoRotate = true;
+      btnRotate.classList.add('active');
+      tweenCamera(new THREE.Vector3(2.4, 1.6, 2.4), new THREE.Vector3(0, 0.65, 0.2));
+    });
+
+    document.getElementById('btn-wireframe').addEventListener('click', (e) => {
+      isWireframe = !isWireframe;
+      e.target.classList.toggle('active', isWireframe);
+      if (workstationModel) {
+        workstationModel.traverse((child) => {
+          if (child.isMesh && child.material) {
+            child.material.wireframe = isWireframe;
+          }
+        });
+      }
+    });
+
+    function tweenCamera(targetPos, targetLookAt) {
+      const startPos = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const duration = 1000;
+      const startTime = performance.now();
+
+      function animateTween(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+
+        camera.position.lerpVectors(startPos, targetPos, ease);
+        controls.target.lerpVectors(startTarget, targetLookAt, ease);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateTween);
+        }
+      }
+      requestAnimationFrame(animateTween);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

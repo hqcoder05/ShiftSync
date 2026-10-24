@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand';
+import { getStaffId, getAssignmentId, areSameStaff } from '../utils/staffIdentity';
 
 const MAX_HISTORY = 30;
 
@@ -241,8 +242,11 @@ export const useSimulationStore = create((set, get) => ({
    * Transfer an employee from one zone to another in simulation.
    */
   transferStaff: (staffId, targetZone) => {
+    const targetStaffId = getStaffId(staffId);
+    if (!targetStaffId || !targetZone) return;
+
     const { simulatedStaff, simulatedDiff, activeScenarioId, scenarios, _pushHistory } = get();
-    const staffMember = simulatedStaff.find((s) => (s.id || s.staffId) === staffId);
+    const staffMember = simulatedStaff.find((s) => areSameStaff(s, targetStaffId));
     if (!staffMember) return;
 
     const fromZoneId = staffMember.zoneId || staffMember.zone?.id;
@@ -253,7 +257,7 @@ export const useSimulationStore = create((set, get) => ({
     _pushHistory();
 
     const nextStaff = simulatedStaff.map((s) => {
-      if ((s.id || s.staffId) === staffId) {
+      if (areSameStaff(s, targetStaffId)) {
         return {
           ...s,
           zoneId: targetZone.id,
@@ -267,7 +271,8 @@ export const useSimulationStore = create((set, get) => ({
     const diffEntry = {
       id: 'diff-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       type: 'TRANSFER',
-      staffId,
+      staffId: targetStaffId,
+      assignmentId: getAssignmentId(staffMember),
       staffName: staffMember.staffName || staffMember.fullName || 'Nhân viên',
       fromZoneId,
       fromZoneName,
@@ -296,9 +301,13 @@ export const useSimulationStore = create((set, get) => ({
    * Swap two employees between their respective zones.
    */
   swapStaff: (staffAId, staffBId) => {
+    const normAId = getStaffId(staffAId);
+    const normBId = getStaffId(staffBId);
+    if (!normAId || !normBId || normAId === normBId) return;
+
     const { simulatedStaff, simulatedDiff, activeScenarioId, scenarios, _pushHistory } = get();
-    const staffA = simulatedStaff.find((s) => (s.id || s.staffId) === staffAId);
-    const staffB = simulatedStaff.find((s) => (s.id || s.staffId) === staffBId);
+    const staffA = simulatedStaff.find((s) => areSameStaff(s, normAId));
+    const staffB = simulatedStaff.find((s) => areSameStaff(s, normBId));
     if (!staffA || !staffB) return;
 
     const zoneAId = staffA.zoneId || staffA.zone?.id;
@@ -309,11 +318,10 @@ export const useSimulationStore = create((set, get) => ({
     _pushHistory();
 
     const nextStaff = simulatedStaff.map((s) => {
-      const sid = s.id || s.staffId;
-      if (sid === staffAId) {
+      if (areSameStaff(s, normAId)) {
         return { ...s, zoneId: zoneBId, zoneName: zoneBName, isSimulatedModified: true };
       }
-      if (sid === staffBId) {
+      if (areSameStaff(s, normBId)) {
         return { ...s, zoneId: zoneAId, zoneName: zoneAName, isSimulatedModified: true };
       }
       return s;
@@ -322,9 +330,11 @@ export const useSimulationStore = create((set, get) => ({
     const diffEntry = {
       id: 'diff-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       type: 'SWAP',
-      staffAId,
+      staffAId: normAId,
+      assignmentAId: getAssignmentId(staffA),
       staffAName: staffA.staffName || staffA.fullName || 'Nhân viên A',
-      staffBId,
+      staffBId: normBId,
+      assignmentBId: getAssignmentId(staffB),
       staffBName: staffB.staffName || staffB.fullName || 'Nhân viên B',
       zoneAId,
       zoneAName,
@@ -353,8 +363,11 @@ export const useSimulationStore = create((set, get) => ({
    * Simulate employee absence due to approved leave.
    */
   simulateLeaveAbsence: (staffId, leaveReason = 'Nghỉ phép phê duyệt') => {
+    const targetStaffId = getStaffId(staffId);
+    if (!targetStaffId) return;
+
     const { simulatedStaff, simulatedDiff, activeScenarioId, scenarios, _pushHistory } = get();
-    const staffMember = simulatedStaff.find((s) => (s.id || s.staffId) === staffId);
+    const staffMember = simulatedStaff.find((s) => areSameStaff(s, targetStaffId));
     if (!staffMember) return;
 
     const fromZoneId = staffMember.zoneId || staffMember.zone?.id;
@@ -363,7 +376,7 @@ export const useSimulationStore = create((set, get) => ({
     _pushHistory();
 
     const nextStaff = simulatedStaff.map((s) => {
-      if ((s.id || s.staffId) === staffId) {
+      if (areSameStaff(s, targetStaffId)) {
         return {
           ...s,
           zoneId: null,
@@ -379,7 +392,8 @@ export const useSimulationStore = create((set, get) => ({
     const diffEntry = {
       id: 'diff-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       type: 'LEAVE_ABSENCE',
-      staffId,
+      staffId: targetStaffId,
+      assignmentId: getAssignmentId(staffMember),
       staffName: staffMember.staffName || staffMember.fullName || 'Nhân viên',
       fromZoneId,
       fromZoneName,
@@ -407,8 +421,11 @@ export const useSimulationStore = create((set, get) => ({
    * Remove employee assignment in simulation (does not delete real employee).
    */
   removeSimulatedStaff: (staffId) => {
+    const targetStaffId = getStaffId(staffId);
+    if (!targetStaffId) return;
+
     const { simulatedStaff, simulatedDiff, activeScenarioId, scenarios, _pushHistory } = get();
-    const staffMember = simulatedStaff.find((s) => (s.id || s.staffId) === staffId);
+    const staffMember = simulatedStaff.find((s) => areSameStaff(s, targetStaffId));
     if (!staffMember) return;
 
     const fromZoneId = staffMember.zoneId || staffMember.zone?.id;
@@ -416,12 +433,13 @@ export const useSimulationStore = create((set, get) => ({
 
     _pushHistory();
 
-    const nextStaff = simulatedStaff.filter((s) => (s.id || s.staffId) !== staffId);
+    const nextStaff = simulatedStaff.filter((s) => !areSameStaff(s, targetStaffId));
 
     const diffEntry = {
       id: 'diff-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       type: 'REMOVE',
-      staffId,
+      staffId: targetStaffId,
+      assignmentId: getAssignmentId(staffMember),
       staffName: staffMember.staffName || staffMember.fullName || 'Nhân viên',
       fromZoneId,
       fromZoneName,
@@ -448,16 +466,20 @@ export const useSimulationStore = create((set, get) => ({
    * Assign an unassigned employee to a zone in simulation.
    */
   addSimulatedStaff: (employee, targetZone) => {
+    const candidateStaffId = getStaffId(employee);
+    if (!candidateStaffId || !targetZone) return;
+
     const { simulatedStaff, simulatedDiff, activeScenarioId, scenarios, _pushHistory } = get();
-    const existing = simulatedStaff.find((s) => (s.id || s.staffId) === (employee.id || employee.staffId));
+    const existing = simulatedStaff.find((s) => areSameStaff(s, candidateStaffId));
     if (existing) return;
 
     _pushHistory();
 
     const newStaff = {
       ...employee,
-      id: employee.id || employee.staffId,
-      staffId: employee.staffId || employee.id,
+      id: employee.id || candidateStaffId,
+      staffId: candidateStaffId,
+      assignmentId: getAssignmentId(employee) || null,
       zoneId: targetZone.id,
       zoneName: targetZone.name,
       isSimulatedModified: true,
@@ -468,7 +490,7 @@ export const useSimulationStore = create((set, get) => ({
     const diffEntry = {
       id: 'diff-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       type: 'ASSIGN',
-      staffId: newStaff.id,
+      staffId: candidateStaffId,
       staffName: newStaff.staffName || newStaff.fullName || 'Nhân viên',
       toZoneId: targetZone.id,
       toZoneName: targetZone.name,

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShiftSync - 3D Furniture GLB Showroom</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: radial-gradient(circle at 50% 30%, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .header-bar {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      padding: 12px 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+    .badge {
+      background: #10b981;
+      color: #064e3b;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .model-selector {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .model-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .model-btn:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .model-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 16px rgba(2, 132, 199, 0.4);
+    }
+    .controls-panel {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      padding: 10px 16px;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+    button.btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    button.btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    button.btn.active {
+      background: #10b981;
+      color: #ffffff;
+      border-color: #34d399;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+    .info-card {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      width: 280px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+    .info-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f8fafc;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .metric-val {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 15px;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 12px 24px;
+      border-radius: 30px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 20;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="header-bar">
+    <span class="badge">Model GLB 3D</span>
+    <h1>ShiftSync — Bàn Ghế Cửa Hàng</h1>
+  </div>
+
+  <div class="model-selector">
+    <button class="model-btn active" data-model="bistro">☕ Bàn Tròn Bistro</button>
+    <button class="model-btn" data-model="communal">🪵 Bàn Dài Communal</button>
+    <button class="model-btn" data-model="booth">🛋️ Sofa Booth</button>
+    <button class="model-btn" data-model="lounge">🪑 Góc Lounge Nook</button>
+  </div>
+
+  <div class="controls-panel">
+    <button class="btn active" id="btn-spin">🔄 Tự động Xoay</button>
+    <button class="btn" id="btn-wireframe">🕸️ Khung Dây (Wireframe)</button>
+    <button class="btn" id="btn-reset">🎯 Đặt lại Góc nhìn</button>
+  </div>
+
+  <div class="info-card">
+    <div class="info-title" id="card-title">☕ Bàn Tròn Bistro</div>
+    <div class="metric-row"><span>Định dạng:</span><span class="metric-val">glTF 2.0 Binary (.glb)</span></div>
+    <div class="metric-row"><span>Tệp tin:</span><span class="metric-val" id="card-filename">ShiftSync_Bistro_Set.glb</span></div>
+    <div class="metric-row"><span>Dung lượng:</span><span class="metric-val" id="card-filesize">~123 KB</span></div>
+    <div class="metric-row"><span>Chất liệu:</span><span class="metric-val" id="card-materials">Đá thạch anh, Thép, Gỗ sồi</span></div>
+    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 11px;">
+      💡 Dùng chuột trái kéo xoay 360°, cuộn chuột để zoom cực cận.
+    </div>
+  </div>
+
+  <div id="loading-indicator">⏳ Đang nạp mô hình 3D...</div>
+  <div id="canvas-container"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const MODELS = {
+      bistro: {
+        title: '☕ Bàn Tròn Bistro & 2 Ghế Bentwood',
+        file: '/models/ShiftSync_Bistro_Set.glb',
+        size: '123.6 KB',
+        materials: 'Đá thạch anh, Thép mờ, Đồng brass, Gỗ sồi',
+        camDist: 2.2,
+        camY: 1.2
+      },
+      communal: {
+        title: '🪵 Bàn Dài Communal & 6 Ghế Bar',
+        file: '/models/ShiftSync_Communal_Table.glb',
+        size: '181.4 KB',
+        materials: 'Gỗ sồi nguyên tấm, Thép chữ U, Da Espresso',
+        camDist: 4.8,
+        camY: 2.4
+      },
+      booth: {
+        title: '🛋️ Sofa Booth Nhà Hàng Cao Cấp',
+        file: '/models/ShiftSync_Booth_Sofa.glb',
+        size: '15.6 KB',
+        materials: 'Nỉ nhung xanh ngọc, Gỗ sồi, Thạch anh',
+        camDist: 3.2,
+        camY: 1.8
+      },
+      lounge: {
+        title: '🪑 Góc Thư Giãn Mid-Century & Bàn Trà',
+        file: '/models/ShiftSync_Lounge_Nook.glb',
+        size: '91.2 KB',
+        materials: 'Da bò Cognac, Gỗ óc chó, Đá cẩm thạch Ý',
+        camDist: 2.8,
+        camY: 1.4
+      }
+    };
+
+    let activeKey = 'bistro';
+    let currentModel = null;
+    let autoRotate = true;
+    let isWireframe = false;
+
+    // 1. Scene, Camera, Renderer
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2.0, 1.4, 2.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    // 2. OrbitControls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 0.3;
+    controls.maxDistance = 15;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05; // Do not go below floor
+
+    // 3. Studio Lighting Rig
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    mainLight.position.set(4, 6, 5);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.bias = -0.0001;
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.9);
+    fillLight.position.set(-4, 3, -3);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xf59e0b, 0.7);
+    rimLight.position.set(0, 4, -5);
+    scene.add(rimLight);
+
+    // Circular pedestal grid floor
+    const grid = new THREE.GridHelper(10, 20, 0x38bdf8, 0x334155);
+    grid.position.y = -0.001;
+    scene.add(grid);
+
+    const floorGeo = new THREE.CircleGeometry(3.5, 48);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8, metalness: 0.1 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // 4. Model Loader
+    const loader = new GLTFLoader();
+    const loadingElem = document.getElementById('loading-indicator');
+
+    function loadModel(key) {
+      const cfg = MODELS[key];
+      if (!cfg) return;
+
+      loadingElem.style.display = 'flex';
+      loadingElem.textContent = '⏳ Đang nạp: ' + cfg.title + '...';
+
+      if (currentModel) {
+        scene.remove(currentModel);
+      }
+
+      loader.load(
+        cfg.file,
+        (gltf) => {
+          loadingElem.style.display = 'none';
+          currentModel = gltf.scene;
+
+          currentModel.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.material) {
+                child.material.wireframe = isWireframe;
+              }
+            }
+          });
+
+          scene.add(currentModel);
+
+          // Position camera nicely
+          camera.position.set(cfg.camDist * 0.7, cfg.camY, cfg.camDist);
+          controls.target.set(0, cfg.camY * 0.45, 0);
+          controls.update();
+
+          // Update Info Card
+          document.getElementById('card-title').textContent = cfg.title;
+          document.getElementById('card-filename').textContent = cfg.file.split('/').pop();
+          document.getElementById('card-filesize').textContent = cfg.size;
+          document.getElementById('card-materials').textContent = cfg.materials;
+        },
+        undefined,
+        (err) => {
+          loadingElem.style.display = 'flex';
+          loadingElem.textContent = '❌ Lỗi tải tệp: ' + err.message;
+        }
+      );
+    }
+
+    loadModel(activeKey);
+
+    // 5. Button Listeners
+    document.querySelectorAll('.model-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeKey = btn.dataset.model;
+        loadModel(activeKey);
+      });
+    });
+
+    const btnSpin = document.getElementById('btn-spin');
+    btnSpin.addEventListener('click', () => {
+      autoRotate = !autoRotate;
+      btnSpin.classList.toggle('active', autoRotate);
+    });
+
+    const btnWireframe = document.getElementById('btn-wireframe');
+    btnWireframe.addEventListener('click', () => {
+      isWireframe = !isWireframe;
+      btnWireframe.classList.toggle('active', isWireframe);
+      if (currentModel) {
+        currentModel.traverse((c) => {
+          if (c.isMesh && c.material) {
+            c.material.wireframe = isWireframe;
+          }
+        });
+      }
+    });
+
+    const btnReset = document.getElementById('btn-reset');
+    btnReset.addEventListener('click', () => {
+      const cfg = MODELS[activeKey];
+      if (cfg) {
+        camera.position.set(cfg.camDist * 0.7, cfg.camY, cfg.camDist);
+        controls.target.set(0, cfg.camY * 0.45, 0);
+        controls.update();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // 6. Animation Loop
+    function animate() {
+      requestAnimationFrame(animate);
+      if (autoRotate && currentModel) {
+        currentModel.rotation.y += 0.008;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

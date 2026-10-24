@@ -1,0 +1,21 @@
+import * as THREE from 'three';
+import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
+import {preloadAllCharacterModels,instantiateCharacterModel} from './CharacterAssetLoader.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#efece5');
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.3;document.querySelector('#scene').appendChild(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(30,innerWidth/innerHeight,.1,100);camera.position.set(0,2.7,9.7);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,.88,0);controls.enableDamping=true;controls.maxPolarAngle=Math.PI/2;controls.minDistance=3;controls.maxDistance=15;controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff,0xada792,2));
+const key=new THREE.DirectionalLight(0xfff6e5,3.5);key.position.set(-3,7,6);key.castShadow=true;key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-6,right:6,top:4,bottom:-4});key.shadow.bias=-.0001;scene.add(key);
+const fill=new THREE.DirectionalLight(0xe5edff,1.7);fill.position.set(4,4,-3);scene.add(fill);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshStandardMaterial({color:0xe9e6dd,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;floor.receiveShadow=true;scene.add(floor);
+await preloadAllCharacterModels();const crew=[];
+['barista','cashier','manager','chef'].forEach((role,i)=>{
+ const inst=instantiateCharacterModel(role,new URLSearchParams(location.search).get('gender'));if(!inst)return;const root=inst.modelRoot;root.position.x=(i-1.5)*1.65;root.rotation.y=-.12;scene.add(root);crew.push(inst);
+ const podium=new THREE.Mesh(new THREE.CylinderGeometry(.5,.53,.035,64),new THREE.MeshStandardMaterial({color:0xdddace,roughness:.95}));podium.position.set(root.position.x,-.009,0);podium.receiveShadow=true;scene.add(podium);
+});
+let walking=false;document.querySelector('#walk').onclick=e=>{walking=!walking;e.target.setAttribute('aria-pressed',String(walking));e.target.textContent=walking?'Dừng chuyển động':'Xem chuyển động đi bộ';};
+document.querySelector('#status').textContent='Kéo để xoay · Cuộn để xem gần';
+window.crewPreview={scene,camera,renderer,crew};
+renderer.setAnimationLoop(time=>{const t=time/1000;crew.forEach((inst,i)=>{const j=inst.joints,phase=t*7+i*.45,stride=walking?Math.sin(phase):0;for(const[name,value]of [['leftHip',stride*.45],['rightHip',-stride*.45],['leftShoulder',-stride*.32],['rightShoulder',stride*.32]])if(j[name])j[name].rotation.x=value;if(j.leftKnee)j.leftKnee.rotation.x=walking?Math.max(0,-stride)*.48:0;if(j.rightKnee)j.rightKnee.rotation.x=walking?Math.max(0,stride)*.48:0;if(j.leftElbow)j.leftElbow.rotation.x=-.12;if(j.rightElbow)j.rightElbow.rotation.x=-.12;if(j.hips)j.hips.position.y=.76+(walking?Math.abs(Math.sin(phase*2))*.018:0);if(j.spine)j.spine.position.y=.08+Math.sin(t*1.8+i)*.003;if(j.head)j.head.rotation.y=Math.sin(t*.55+i)*.035;});controls.update();renderer.render(scene,camera);});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});

@@ -5,30 +5,34 @@
  */
 
 import * as THREE from 'three';
+import {createFloatingTagCanvas} from './FloatingTagCanvas.js';
+import {getRoleTheme} from '../visualization/ZoneStatus.js';
 
-// Shared reusable materials with matte SaaS finish
+// Shared reusable materials with unified PBR finish matching reference desk asset
 export const materials = {
-  warmWood: new THREE.MeshStandardMaterial({ color: 0x8D6E63, roughness: 0.7 }),
-  darkWood: new THREE.MeshStandardMaterial({ color: 0x3E2723, roughness: 0.75 }),
-  oakParquet: new THREE.MeshStandardMaterial({ color: 0xC7A17A, roughness: 0.6 }),
-  marbleTop: new THREE.MeshStandardMaterial({ color: 0xFAF8F5, roughness: 0.25 }),
-  metalInox: new THREE.MeshStandardMaterial({ color: 0xCBD5E1, roughness: 0.2, metalness: 0.7 }),
-  darkMetal: new THREE.MeshStandardMaterial({ color: 0x1E293B, roughness: 0.5, metalness: 0.5 }),
-  espressoRed: new THREE.MeshStandardMaterial({ color: 0x991B1B, roughness: 0.35, metalness: 0.2 }),
-  espressoChrome: new THREE.MeshStandardMaterial({ color: 0xE2E8F0, roughness: 0.15, metalness: 0.85 }),
-  posScreen: new THREE.MeshStandardMaterial({ color: 0x0F172A, roughness: 0.2, emissive: 0x0284C7, emissiveIntensity: 0.3 }),
-  posBody: new THREE.MeshStandardMaterial({ color: 0x1E293B, roughness: 0.4 }),
-  bakeryGold: new THREE.MeshStandardMaterial({ color: 0xD97706, roughness: 0.55 }),
-  bakeryChoc: new THREE.MeshStandardMaterial({ color: 0x451A03, roughness: 0.6 }),
-  bakeryMacaron: new THREE.MeshStandardMaterial({ color: 0xF472B6, roughness: 0.4 }),
-  trayMetal: new THREE.MeshStandardMaterial({ color: 0x94A3B8, roughness: 0.25, metalness: 0.6 }),
-  plantPot: new THREE.MeshStandardMaterial({ color: 0xC2410C, roughness: 0.85 }),
-  plantLeaf: new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.6 }),
-  chairCushion: new THREE.MeshStandardMaterial({ color: 0x3B82F6, roughness: 0.7 }),
-  glassCase: new THREE.MeshStandardMaterial({ color: 0xE0F2FE, transparent: true, opacity: 0.38, roughness: 0.1 }),
-  chalkboard: new THREE.MeshStandardMaterial({ color: 0x18181B, roughness: 0.9 }),
-  ovenGlow: new THREE.MeshStandardMaterial({ color: 0xEA580C, emissive: 0xF97316, emissiveIntensity: 0.8, roughness: 0.2 }),
-  lampGold: new THREE.MeshStandardMaterial({ color: 0xF59E0B, emissive: 0xFEF08A, emissiveIntensity: 0.5, roughness: 0.3 }),
+  warmWood: new THREE.MeshStandardMaterial({ color: 0xBA7A3E, roughness: 0.44, metalness: 0.02 }), // Natural Oak
+  darkWood: new THREE.MeshStandardMaterial({ color: 0x3E2723, roughness: 0.55, metalness: 0.02 }), // Dark Walnut
+  oakParquet: new THREE.MeshStandardMaterial({ color: 0xC7A17A, roughness: 0.48, metalness: 0.02 }), // Oak Parquet
+  marbleTop: new THREE.MeshStandardMaterial({ color: 0xFAF7F2, roughness: 0.25, metalness: 0.05 }), // White Quartz
+  metalInox: new THREE.MeshStandardMaterial({ color: 0xE2E8F0, roughness: 0.22, metalness: 0.90 }), // Brushed Stainless Steel
+  darkMetal: new THREE.MeshStandardMaterial({ color: 0x0F172A, roughness: 0.32, metalness: 0.80 }), // Matte Powder Dark Metal
+  espressoRed: new THREE.MeshStandardMaterial({ color: 0x7F1D1D, roughness: 0.35, metalness: 0.20 }), // Deep Artisan Cherry Red
+  espressoChrome: new THREE.MeshStandardMaterial({ color: 0xF1F5F9, roughness: 0.12, metalness: 0.96 }), // Polished Chrome
+  posScreen: new THREE.MeshStandardMaterial({ color: 0x0F172A, roughness: 0.15, emissive: 0x0284C7, emissiveIntensity: 0.55 }), // Active POS UI
+  posBody: new THREE.MeshStandardMaterial({ color: 0x1E293B, roughness: 0.35, metalness: 0.40 }), // Molded Equipment Chassis
+  bakeryGold: new THREE.MeshStandardMaterial({ color: 0xD97706, roughness: 0.55 }), // Golden Crust
+  bakeryChoc: new THREE.MeshStandardMaterial({ color: 0x451A03, roughness: 0.60 }), // Rich Chocolate
+  bakeryMacaron: new THREE.MeshStandardMaterial({ color: 0xF472B6, roughness: 0.40 }), // Pastel Pink Macaron
+  trayMetal: new THREE.MeshStandardMaterial({ color: 0x94A3B8, roughness: 0.25, metalness: 0.70 }), // Stainless Tray
+  plantPot: new THREE.MeshStandardMaterial({ color: 0x9A3412, roughness: 0.80 }), // Terracotta Ceramic
+  plantLeaf: new THREE.MeshStandardMaterial({ color: 0x1E4D3A, roughness: 0.65 }), // Ficus / Monstera Green
+  chairCushion: new THREE.MeshStandardMaterial({ color: 0x1E4D3A, roughness: 0.80, metalness: 0.02 }), // Emerald Velvet Upholstery
+  glassCase: new THREE.MeshStandardMaterial({ color: 0xE0F2FE, transparent: true, opacity: 0.35, roughness: 0.08 }), // Polished Float Glass
+  chalkboard: new THREE.MeshStandardMaterial({ color: 0x18181B, roughness: 0.88 }), // Slate Chalkboard
+  ovenGlow: new THREE.MeshStandardMaterial({ color: 0xEA580C, emissive: 0xF97316, emissiveIntensity: 0.9, roughness: 0.2 }), // Heated Oven Cavity
+  lampGold: new THREE.MeshStandardMaterial({ color: 0xF59E0B, emissive: 0xFEF08A, emissiveIntensity: 0.85, roughness: 0.3 }), // Warm Brass Filament
+  brassTrim: new THREE.MeshStandardMaterial({ color: 0xD4AF37, roughness: 0.28, metalness: 0.88 }), // Warm Brass Collar & Accents
+  leatherCognac: new THREE.MeshStandardMaterial({ color: 0xB45309, roughness: 0.78, metalness: 0.02 }), // Cognac Leatherette
 };
 
 /**
@@ -805,4 +809,141 @@ export function buildZoneFurniture(zoneOrName = '', width = 3.6) {
 
   // 3. Fallback to generic modern operational workstation
   return buildGenericWorkstation(width);
+}
+
+/**
+ * 4. Real Workstation Object Builder (Dispatched from Backend WorkstationDto)
+ */
+export function buildWorkstationObject(workstation) {
+  if (!workstation) return new THREE.Group();
+
+  const type = String(workstation.workstationType || '').toUpperCase();
+  const name = String(workstation.name || '').toLowerCase();
+
+  let model;
+  if (
+    type === 'BARISTA' ||
+    type === 'ESPRESSO' ||
+    type === 'EQUIPMENT' ||
+    name.includes('espresso') ||
+    name.includes('barista') ||
+    name.includes('pha chế') ||
+    name.includes('cà phê')
+  ) {
+    model = buildBaristaWorkstation(2.6, 1.4);
+  } else if (
+    type === 'POS' ||
+    type === 'COUNTER' ||
+    type === 'CHECKOUT' ||
+    name.includes('pos') ||
+    name.includes('thu ngân') ||
+    name.includes('cashier') ||
+    name.includes('thanh toán')
+  ) {
+    model = buildCashierWorkstation(2.2);
+  } else if (
+    type === 'KITCHEN' ||
+    type === 'OVEN' ||
+    type === 'BAKERY' ||
+    type === 'PRODUCTION' ||
+    name.includes('bếp') ||
+    name.includes('bánh') ||
+    name.includes('nướng') ||
+    name.includes('kitchen')
+  ) {
+    model = buildKitchenWorkstation(2.6);
+  } else if (
+    type === 'STORAGE' ||
+    type === 'RACK' ||
+    name.includes('kho') ||
+    name.includes('kệ') ||
+    name.includes('rack')
+  ) {
+    model = buildStorageShelves(2.4);
+  } else if (
+    type === 'DISPLAY' ||
+    type === 'RETAIL' ||
+    name.includes('trưng bày') ||
+    name.includes('giày') ||
+    name.includes('display')
+  ) {
+    model = buildRetailDisplayRack(2.4);
+  } else if (
+    type === 'STYLING' ||
+    type === 'SALON' ||
+    type === 'WORKSTATION' ||
+    name.includes('stylist') ||
+    name.includes('tóc') ||
+    name.includes('ghế') ||
+    name.includes('salon')
+  ) {
+    model = buildStylingStation(2.4);
+  } else if (
+    type === 'SERVICE' ||
+    type === 'SERVICE_STATION' ||
+    name.includes('dịch vụ') ||
+    name.includes('tiếp tân') ||
+    name.includes('service')
+  ) {
+    model = buildServiceCounter(2.4);
+  } else {
+    model = buildGenericWorkstation(2.2);
+  }
+
+  const group = new THREE.Group();
+  group.name = `workstation-${workstation.id || workstation.code || 'ws'}`;
+  group.userData = {
+    isWorkstation: true,
+    workstationId: workstation.id,
+    workstation,
+  };
+  group.add(model);
+
+  return group;
+}
+
+/**
+ * Creates an informative, high-contrast floating 3D label sprite for a Workstation
+ */
+/**
+ * Creates an informative, high-contrast floating 3D label sprite for a Workstation
+ * with real-time Occupancy & Staff Presence visualization (PHASE 2B).
+ */
+export function createWorkstationTagSprite(workstation, occupancyInfo = null, { showAttendance = true, isSelected = false } = {}) {
+  const assigned=occupancyInfo?.assignedStaff||[];
+  const present=showAttendance&&assigned.some(person=>person.isPresent);
+  const active=workstation.isActive!==false;
+  const state=occupancyInfo?.state;
+  let subtitle='Chưa có thông tin phân công';
+  let statusColor='#64748B';
+  if(!active) subtitle='Trạm đang tạm đóng';
+  else if(state==='ASSIGNED'&&assigned.length){
+    subtitle=showAttendance?(present?'Có nhân sự đã check-in':'Đã phân công · chưa check-in'):'Đã có phân công';
+    statusColor=present?'#168568':'#0284C7';
+  }else if(state==='UNASSIGNED'){subtitle='Chưa có người được phân công';statusColor='#B56A09';}
+  else if(occupancyInfo?.statusReason)subtitle=occupancyInfo.statusReason;
+  const canvas=createFloatingTagCanvas({
+    title:workstation.name||'Trạm làm việc',subtitle,
+    metric:`${state==='ASSIGNED'?assigned.length:state==='UNASSIGNED'?0:'—'} / ${workstation.capacity??'—'}`,
+    caption:'Đã xếp / Chỗ',
+    accent:getRoleTheme(workstation.workstationType||workstation.name).color,
+    statusColor,selected:isSelected,
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3, 3 * 192 / 720, 1);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  sprite.material.depthTest = false;
+  sprite.material.toneMapped = false;
+  sprite.renderOrder = 900;
+  sprite.userData = { isWorkstationTag: true, workstationId: workstation.id, showAttendance, isSelected };
+  return sprite;
+}
+
+export function isFurnitureSharedMaterial(mat) {
+  if (!mat) return false;
+  return Object.values(materials).includes(mat);
 }

@@ -22,6 +22,7 @@ const getEmployeeAvatarId = (emp) => {
 export default function EmployeesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isContracts = location.pathname === '/employees/contracts';
   const searchParams = new URLSearchParams(location.search);
   const currentTab = searchParams.get('tab') === 'payroll' ? 'payroll' : 'staff';
 
@@ -135,8 +136,8 @@ export default function EmployeesPage() {
 
   return (
     <EmployeeModuleLayout
-      title="Danh sách nhân viên"
-      subtitle="Quản lý thông tin nhân viên, phân quyền và theo dõi hoạt động"
+      title={isContracts ? "Hợp đồng nhân sự" : "Danh sách nhân viên"}
+      subtitle={isContracts ? "Tra cứu nhân viên và mở thông tin hợp đồng, vị trí cùng khung lương trong hồ sơ." : "Tìm đúng người, quản lý thông tin liên hệ và tài khoản trong đội ngũ."}
       actions={
         <>
           <button
@@ -193,7 +194,7 @@ export default function EmployeesPage() {
             <span>Đang tải danh sách nhân viên...</span>
           </div>
         ) : (
-          <div className="emp-table-card ss-card-25d">
+          <div className="emp-table-card ss-card-25d" role="region" aria-label="Danh sách nhân viên" tabIndex={0}>
             <div className="emp-table-header">
               <span className="col-emp">Nhân viên</span>
               <span className="col-role">Vai trò hệ thống</span>
@@ -222,7 +223,7 @@ export default function EmployeesPage() {
                     <div
                       className="emp-name col-emp"
                       style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/employees/${emp.id || emp.email}`)}
+                      onClick={() => navigate(`/employees/${emp.id || emp.email}${isContracts ? '?tab=contract' : ''}`)}
                       title="Xem và chỉnh sửa hồ sơ chi tiết"
                     >
                       <div className="emp-avatar-3d-wrap" style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -248,13 +249,13 @@ export default function EmployeesPage() {
                       <button
                         type="button"
                         className="emp-action-btn edit"
-                        onClick={() => navigate(`/employees/${emp.id || emp.email}`)}
+                        onClick={() => navigate(`/employees/${emp.id || emp.email}${isContracts ? '?tab=contract' : ''}`)}
                         title="Chỉnh sửa thông tin chi tiết"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                         </svg>
-                        <span>Sửa</span>
+                        <span>{isContracts ? 'Hợp đồng' : 'Xem hồ sơ'}</span>
                       </button>
                       <button
                         type="button"

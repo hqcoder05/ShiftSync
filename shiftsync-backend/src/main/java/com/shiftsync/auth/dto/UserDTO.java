@@ -20,6 +20,7 @@ public class UserDTO {
 
     @Schema(description = "Full name of the user", example = "Nguyen Van A")
     private String fullName;
+    private String gender;
 
     @Schema(description = "Unique email address", example = "staff_auth@shiftsync.com")
     private String email;

@@ -9,25 +9,71 @@ export const ZONE_STATUS = {
   OVERSTAFFED: 'OVERSTAFFED',
   FULL: 'FULL',
   EMPTY: 'EMPTY',
+  NO_DATA: 'NO_DATA',
 };
 
 /**
  * Determine zone staffing status.
  * If targetCount is provided (from shift requirements), evaluate against shift demand first.
  */
-export function getZoneStatus(assignedCount = 0, capacity = 4, targetCount = null) {
+export function getZoneStatus(assignedCount = 0, capacity = null, targetCount = null) {
   if (targetCount !== null && targetCount !== undefined) {
     if (targetCount === 0) return assignedCount > 0 ? ZONE_STATUS.OVERSTAFFED : ZONE_STATUS.OPTIMAL; // Not needed in this shift
     if (assignedCount === 0) return ZONE_STATUS.EMPTY;
     if (assignedCount < targetCount) return ZONE_STATUS.UNDERSTAFFED;
-    if (assignedCount > targetCount || assignedCount > capacity) return ZONE_STATUS.OVERSTAFFED;
+    if (assignedCount > targetCount || (capacity > 0 && assignedCount > capacity)) return ZONE_STATUS.OVERSTAFFED;
     return ZONE_STATUS.OPTIMAL;
   }
+
+  // If no capacity or capacity <= 0 and no targetCount, return NO_DATA
+  if (capacity === null || capacity === undefined || capacity <= 0) {
+    return assignedCount > 0 ? ZONE_STATUS.OPTIMAL : ZONE_STATUS.NO_DATA;
+  }
+
   if (assignedCount === 0) return ZONE_STATUS.EMPTY;
   if (assignedCount < Math.ceil(capacity * 0.5)) return ZONE_STATUS.UNDERSTAFFED;
   if (assignedCount > capacity) return ZONE_STATUS.OVERSTAFFED;
   if (assignedCount === capacity) return ZONE_STATUS.FULL;
   return ZONE_STATUS.OPTIMAL;
+}
+
+/**
+ * Detailed human-readable explanation of why a zone has a specific staffing status
+ */
+export function getZoneStatusExplanation(assignedCount = 0, capacity = null, targetCount = null) {
+  const status = getZoneStatus(assignedCount, capacity, targetCount);
+  if (targetCount !== null && targetCount !== undefined) {
+    if (status === ZONE_STATUS.OPTIMAL) {
+      return `Đạt định biên ca (${assignedCount}/${targetCount} nhân sự)`;
+    }
+    if (status === ZONE_STATUS.UNDERSTAFFED) {
+      const missing = targetCount - assignedCount;
+      return `Thiếu ${missing} nhân sự so với nhu cầu ca (${assignedCount}/${targetCount})`;
+    }
+    if (status === ZONE_STATUS.OVERSTAFFED) {
+      const excess = assignedCount - targetCount;
+      return `Vượt định biên ca +${excess} nhân sự (${assignedCount}/${targetCount})`;
+    }
+    if (status === ZONE_STATUS.EMPTY) {
+      return `Chưa có nhân sự được phân công (Yêu cầu: ${targetCount})`;
+    }
+  }
+  if (status === ZONE_STATUS.NO_DATA) {
+    return 'Chưa cấu hình định biên ca hoặc sức chứa phân khu';
+  }
+  if (status === ZONE_STATUS.EMPTY) {
+    return `Khu vực đang để trống (Sức chứa: ${capacity})`;
+  }
+  if (status === ZONE_STATUS.UNDERSTAFFED) {
+    return `Dưới 50% sức chứa thiết kế (${assignedCount}/${capacity})`;
+  }
+  if (status === ZONE_STATUS.OVERSTAFFED) {
+    return `Vượt quá sức chứa tối đa (${assignedCount}/${capacity})`;
+  }
+  if (status === ZONE_STATUS.FULL) {
+    return `Đạt tối đa sức chứa thiết kế (${assignedCount}/${capacity})`;
+  }
+  return `Vận hành tối ưu (${assignedCount}/${capacity} nhân sự)`;
 }
 
 /**
@@ -71,6 +117,15 @@ export function getZoneStatusColor(status) {
         label: 'Đầy công suất',
         hexInt: 0xEF4444,
       };
+    case ZONE_STATUS.NO_DATA:
+      return {
+        main: '#64748B', // Slate
+        bg: 'rgba(100, 116, 139, 0.12)',
+        border: '#94A3B8',
+        text: '#64748B',
+        label: 'Chưa có định biên',
+        hexInt: 0x64748B,
+      };
     case ZONE_STATUS.EMPTY:
     default:
       return {
@@ -92,63 +147,63 @@ export const ROLE_PALETTE = {
     name: 'Pha chế (Barista)',
     color: '#D97706', // Warm caramel
     hexInt: 0xD97706,
-    icon: '☕',
+    icon: '',
     apronColor: 0x92400E,
   },
   cashier: {
     name: 'Thu ngân (Cashier)',
     color: '#10B981', // Emerald mint
     hexInt: 0x10B981,
-    icon: '💳',
+    icon: '',
     apronColor: 0x065F46,
   },
   kitchen: {
     name: 'Bếp / Làm bánh (Bakery)',
     color: '#EA580C', // Warm orange
     hexInt: 0xEA580C,
-    icon: '🥐',
+    icon: '',
     apronColor: 0x9A3412,
   },
   waiter: {
     name: 'Phục vụ (Server)',
     color: '#3B82F6', // Royal blue
     hexInt: 0x3B82F6,
-    icon: '🍽️',
+    icon: '',
     apronColor: 0x1E40AF,
   },
   manager: {
     name: 'Quản lý (Manager)',
     color: '#8B5CF6', // Purple
     hexInt: 0x8B5CF6,
-    icon: '👔',
+    icon: '',
     apronColor: 0x5B21B6,
   },
   sales: {
     name: 'Bán hàng / Tư vấn (Sales)',
     color: '#06B6D4', // Cyan
     hexInt: 0x06B6D4,
-    icon: '👟',
+    icon: '',
     apronColor: 0x0E7490,
   },
   stylist: {
     name: 'Tạo mẫu / Chăm sóc (Stylist)',
     color: '#EC4899', // Pink
     hexInt: 0xEC4899,
-    icon: '✂️',
+    icon: '',
     apronColor: 0xBE185D,
   },
   stock: {
     name: 'Kho / Tiếp liệu (Inventory)',
     color: '#64748B', // Slate
     hexInt: 0x64748B,
-    icon: '📦',
+    icon: '',
     apronColor: 0x334155,
   },
   default: {
     name: 'Nhân viên',
     color: '#6366F1', // Indigo
     hexInt: 0x6366F1,
-    icon: '👤',
+    icon: '',
     apronColor: 0x3730A3,
   },
 };

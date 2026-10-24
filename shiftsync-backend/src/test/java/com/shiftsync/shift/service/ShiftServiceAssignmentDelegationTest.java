@@ -76,4 +76,47 @@ class ShiftServiceAssignmentDelegationTest {
         verify(shiftAssignmentService).assignStaffToShift(storeId, saved.getId(), staffId);
         verify(shiftAssignmentRepository, never()).save(any());
     }
+
+    @Test
+    void createShiftPersistsNoteColorRoleAndTemplate() {
+        Store store = Store.builder().id(storeId).openTime(LocalTime.of(6,0)).closeTime(LocalTime.of(23,0)).build();
+        UUID skillId=UUID.randomUUID(),templateId=UUID.randomUUID();
+        com.shiftsync.skill.entity.Skill skill=new com.shiftsync.skill.entity.Skill();
+        skill.setId(skillId);skill.setName("Barista");
+        com.shiftsync.shift.entity.ShiftTemplate template=new com.shiftsync.shift.entity.ShiftTemplate();template.setId(templateId);
+        ShiftCreateRequest request=new ShiftCreateRequest();request.setShiftDate(LocalDate.of(2026,11,1));
+        request.setStartTime(LocalTime.of(8,0));request.setEndTime(LocalTime.of(16,0));
+        request.setNote("Bàn giao máy pha");request.setColor("#8DD9CC");request.setSkillId(skillId);request.setShiftTemplateId(templateId);
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(skillRepository.findByIdAndStoreId(skillId,storeId)).thenReturn(Optional.of(skill));
+        when(shiftTemplateRepository.findByIdAndStoreId(templateId,storeId)).thenReturn(Optional.of(template));
+        when(storeZoneRepository.findByStoreId(storeId)).thenReturn(java.util.List.of());
+        when(shiftRepository.save(any())).thenAnswer(invocation->{Shift saved=invocation.getArgument(0);saved.setId(UUID.randomUUID());return saved;});
+        com.shiftsync.shift.dto.ShiftDTO result=service.createShift(storeId,request);
+        org.junit.jupiter.api.Assertions.assertEquals("Bàn giao máy pha",result.getNote());
+        org.junit.jupiter.api.Assertions.assertEquals("#8DD9CC",result.getColor());
+        org.junit.jupiter.api.Assertions.assertEquals(skillId,result.getSkillId());
+        org.junit.jupiter.api.Assertions.assertEquals(templateId,result.getShiftTemplateId());
+        org.junit.jupiter.api.Assertions.assertEquals(1,result.getRequiredStaff());
+    }
+
+    @Test
+    void updateMultiStaffShiftMustNotDeleteOtherAssignments() {
+        Store store=Store.builder().id(storeId).build();UUID shiftId=UUID.randomUUID();
+        com.shiftsync.auth.entity.User first=new com.shiftsync.auth.entity.User();first.setId(UUID.randomUUID());
+        com.shiftsync.auth.entity.User second=new com.shiftsync.auth.entity.User();second.setId(staffId);
+        Shift shift=Shift.builder().id(shiftId).store(store).shiftDate(LocalDate.of(2026,11,1))
+                .startTime(LocalTime.of(8,0)).endTime(LocalTime.of(16,0)).build();
+        var a=com.shiftsync.shift.entity.ShiftAssignment.builder().staff(first).shift(shift).build();
+        var b=com.shiftsync.shift.entity.ShiftAssignment.builder().staff(second).shift(shift).build();
+        shift.getAssignments().addAll(java.util.List.of(a,b));
+        ShiftCreateRequest request=new ShiftCreateRequest();request.setShiftDate(shift.getShiftDate());
+        request.setStartTime(shift.getStartTime());request.setEndTime(shift.getEndTime());request.setStaffId(staffId);
+        when(shiftRepository.findByIdAndStoreId(shiftId,storeId)).thenReturn(Optional.of(shift));
+        when(shiftRepository.save(any())).thenReturn(shift);
+        when(shiftAssignmentRepository.findByShiftId(shiftId)).thenReturn(java.util.List.of(a,b));
+        service.updateShift(storeId,shiftId,request);
+        verify(shiftAssignmentRepository,never()).deleteAll(anyIterable());
+        verify(shiftAssignmentService,never()).assignStaffToShift(any(),any(),any());
+    }
 }

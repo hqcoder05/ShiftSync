@@ -3,8 +3,10 @@
  * High-end SaaS Exploration HUD overlay for Mode 2 (3D Store World Exploration).
  * 
  * Features:
- * - Controls helper pill (WASD, Mouse, Shift, Space, E, V, ESC)
- * - Interactive Proximity Card when near Zones or Employees
+ * - Controls helper pill (WASD, Mouse, Shift, Space, E, F, V, ESC)
+ * - Center Reticle / Crosshair with Target Lock indicators
+ * - Dedicated Point Lock HUD Banner with release button
+ * - Interactive Proximity Card for Zones, Workstations and Employees
  * - Real-time SVG Store Minimap with player position dot, FOV vision cone, and zone click-to-teleport
  * - Fast Teleport Dropdown
  * - Exit / View Mode Switcher
@@ -18,7 +20,9 @@ import {
   Zap,
   MapPin,
   Sparkles,
-  Info,
+  Crosshair,
+  Unlock,
+  Target,
   ChevronDown,
 } from 'lucide-react';
 import { toThreeCoords } from '../../../components/spatial/spatial.constants';
@@ -30,11 +34,16 @@ export default function ExploreHUD({
   playerPosition = { x: 0, z: 0 },
   playerYaw = 0,
   nearbyEntity = null,
-  viewMode = 'third_person',
+  reticleTarget = null,
+  targetLock = null,
+  viewMode = 'first_person',
+  isFlyMode = false,
   isDrawerOpen = false,
   onToggleView,
   onTeleportToZone,
   onInteract,
+  onToggleTargetLock,
+  onReleaseTargetLock,
   onExit,
 }) {
   const [showControlsGuide, setShowControlsGuide] = useState(true);
@@ -49,7 +58,6 @@ export default function ExploreHUD({
 
   // Helper: map 3D world coord (X, Z) to minimap SVG coord (mx, my)
   const toMapCoord = (wx, wz) => {
-    // 3D world: X in [-storeLen/2, storeLen/2], Z in [-storeWid/2, storeWid/2]
     const mx = ((wx + storeLen / 2) / storeLen) * mapW;
     const my = ((wz + storeWid / 2) / storeWid) * mapH;
     return [Math.max(6, Math.min(mapW - 6, mx)), Math.max(6, Math.min(mapH - 6, my))];
@@ -60,7 +68,6 @@ export default function ExploreHUD({
   // Vision cone triangle points (based on yaw)
   const coneLength = 24;
   const coneAngle = 0.55; // radians FOV half-angle
-  // Note: look direction vector in 3D: (-sin(yaw), -cos(yaw))
   const dirX = -Math.sin(playerYaw);
   const dirY = -Math.cos(playerYaw);
 
@@ -78,12 +85,123 @@ export default function ExploreHUD({
         left: 0,
         right: 0,
         bottom: 0,
-        pointerEvents: 'none', // Allow canvas mouse events through
+        pointerEvents: 'none',
         zIndex: 25,
         userSelect: 'none',
       }}
     >
-      {/* 1. Top Bar: Exploration Mode Indicator & Teleport / Exit controls */}
+      {/* 1. Center Reticle / Crosshair for First-Person View */}
+      {viewMode === 'first_person' && (
+        <div
+          id="fp-crosshair-reticle"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 26,
+          }}
+        >
+          {targetLock ? (
+            // Target Locked brackets
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                animation: 'pulse 1.8s infinite ease-in-out',
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  border: '2px solid #38BDF8',
+                  borderRadius: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  boxShadow: '0 0 16px rgba(56, 189, 248, 0.5)',
+                }}
+              >
+                <Target size={20} color="#38BDF8" />
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  color: '#38BDF8',
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                 POINT LOCKED: {targetLock.name}
+              </div>
+            </div>
+          ) : reticleTarget ? (
+            // Reticle Target in Sight
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  border: '1.5px dashed #FBBF24',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(251, 191, 36, 0.08)',
+                }}
+              >
+                <Crosshair size={15} color="#FBBF24" />
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  color: '#FDE68A',
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                }}
+              >
+                [F] Khóa nhìn {reticleTarget.name}
+              </div>
+            </div>
+          ) : (
+            // Default subtle crosshair dot
+            <div
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                boxShadow: '0 0 6px rgba(0, 0, 0, 0.7)',
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* 2. Top Bar: Exploration Mode Indicator & Teleport / Exit controls */}
       <div
         style={{
           position: 'absolute',
@@ -113,7 +231,7 @@ export default function ExploreHUD({
             boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <span style={{ fontSize: 16 }}>🚶</span>
+          
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontWeight: 700, fontSize: 13, color: '#38BDF8' }}>
@@ -133,7 +251,7 @@ export default function ExploreHUD({
               </span>
             </div>
             <div style={{ fontSize: 11, color: '#94A3B8' }}>
-              Di chuyển tự do trong cửa hàng số
+              Di chuyển tự do góc nhìn thứ nhất (WASD + Chuột)
             </div>
           </div>
         </div>
@@ -295,7 +413,78 @@ export default function ExploreHUD({
         </div>
       </div>
 
-      {/* 2. Interactive Proximity Prompt (When standing near Zone or Employee) */}
+      {/* 3. Point Lock Active Banner (Top Center) */}
+      {targetLock && (
+        <div
+          id="point-lock-active-banner"
+          style={{
+            position: 'absolute',
+            top: 68,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            pointerEvents: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            backgroundColor: 'rgba(15, 23, 42, 0.94)',
+            backdropFilter: 'blur(14px)',
+            padding: '7px 16px',
+            borderRadius: 24,
+            border: '1.5px solid #38BDF8',
+            boxShadow: '0 8px 30px rgba(56, 189, 248, 0.35)',
+            color: '#FFFFFF',
+            fontSize: 12,
+            zIndex: 30,
+            animation: 'fadeInDown 0.25s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            
+            <span>
+              Đang khóa nhìn: <strong>{targetLock.name}</strong>
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                color: '#38BDF8',
+                padding: '1px 6px',
+                borderRadius: 4,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+              }}
+            >
+              {targetLock.type === 'staff' ? 'Nhân sự' : (targetLock.type === 'workstation' ? 'Trạm làm việc' : 'Phân khu')}
+            </span>
+          </div>
+
+          <button
+            id="btn-release-point-lock"
+            type="button"
+            onClick={onReleaseTargetLock}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              border: 'none',
+              backgroundColor: '#0284C7',
+              color: '#FFFFFF',
+              padding: '3px 9px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
+            }}
+            title="Mở khóa góc nhìn để tự do xoay chuột (Phím ESC hoặc F)"
+          >
+            <Unlock size={12} />
+            <span>Mở khóa (ESC)</span>
+          </button>
+        </div>
+      )}
+
+      {/* 4. Interactive Proximity Prompt (When standing near Zone, Workstation or Employee) */}
       {nearbyEntity && (
         <div
           style={{
@@ -305,8 +494,12 @@ export default function ExploreHUD({
             transform: 'translateX(-50%)',
             pointerEvents: 'auto',
             animation: 'fadeInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
+          {/* Main Inspection Button (E) */}
           <button
             id="btn-proximity-action"
             type="button"
@@ -353,7 +546,7 @@ export default function ExploreHUD({
             </div>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase' }}>
-                {nearbyEntity.type === 'staff' ? 'Nhân sự phụ trách' : 'Thông số phân khu'}
+                {nearbyEntity.type === 'staff' ? 'Nhân sự phụ trách' : (nearbyEntity.type === 'workstation' ? 'Trạm làm việc' : 'Thông số phân khu')}
               </div>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F8FAFC' }}>
                 {nearbyEntity.name}
@@ -361,10 +554,52 @@ export default function ExploreHUD({
             </div>
             <Sparkles size={16} color="#38BDF8" />
           </button>
+
+          {/* Dedicated Point Lock Button (F) */}
+          <button
+            id="btn-proximity-lock"
+            type="button"
+            onClick={() => onToggleTargetLock?.(nearbyEntity)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '10px 14px',
+              borderRadius: 16,
+              border: targetLock?.id === nearbyEntity.id ? '1.5px solid #10B981' : '1.5px solid #0284C7',
+              backgroundColor: targetLock?.id === nearbyEntity.id ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 23, 42, 0.94)',
+              backdropFilter: 'blur(14px)',
+              boxShadow: '0 8px 24px rgba(2, 132, 199, 0.25)',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Khóa góc nhìn camera vào đối tượng này (Phím F)"
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                backgroundColor: targetLock?.id === nearbyEntity.id ? '#10B981' : '#0284C7',
+                color: '#FFFFFF',
+                fontWeight: 800,
+                fontSize: 12,
+              }}
+            >
+              F
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>
+              {targetLock?.id === nearbyEntity.id ? 'Đang khóa' : 'Khóa nhìn'}
+            </span>
+          </button>
         </div>
       )}
 
-      {/* 3. Bottom Center: Controls Helper Pill */}
+      {/* 5. Bottom Center: Controls Helper Pill */}
       {showControlsGuide && (
         <div
           style={{
@@ -375,8 +610,8 @@ export default function ExploreHUD({
             pointerEvents: 'auto',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            backgroundColor: 'rgba(15, 23, 42, 0.82)',
+            gap: 10,
+            backgroundColor: 'rgba(15, 23, 42, 0.86)',
             backdropFilter: 'blur(12px)',
             padding: '7px 16px',
             borderRadius: 30,
@@ -392,23 +627,30 @@ export default function ExploreHUD({
           </div>
           <span style={{ opacity: 0.3 }}>•</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ backgroundColor: isFlyMode ? '#10B981' : 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>
+              C
+            </span>
+            <span>{isFlyMode ? 'Bay: Bật (Space/Q)' : 'Bay tự do'}</span>
+          </div>
+          <span style={{ opacity: 0.3 }}>•</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 5px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>Chuột</span>
-            <span>Xoay nhìn</span>
+            <span>Xoay nhìn 360°</span>
           </div>
           <span style={{ opacity: 0.3 }}>•</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 5px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>Shift</span>
-            <span>Chạy</span>
-          </div>
-          <span style={{ opacity: 0.3 }}>•</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 5px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>Space</span>
-            <span>Nhảy</span>
+            <span style={{ backgroundColor: '#0284C7', color: '#FFF', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>F</span>
+            <span>Khóa nhìn (Point Lock)</span>
           </div>
           <span style={{ opacity: 0.3 }}>•</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 5px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>E</span>
             <span>Tương tác</span>
+          </div>
+          <span style={{ opacity: 0.3 }}>•</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 5px', borderRadius: 4, fontWeight: 700, color: '#FFF' }}>ESC</span>
+            <span>Mở khóa / Thoát</span>
           </div>
 
           <button
@@ -429,7 +671,7 @@ export default function ExploreHUD({
         </div>
       )}
 
-      {/* 4. Bottom Right: Live Store Minimap */}
+      {/* 6. Bottom Right: Live Store Minimap */}
       <div
         style={{
           position: 'absolute',

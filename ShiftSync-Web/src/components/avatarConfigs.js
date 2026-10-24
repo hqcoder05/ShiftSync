@@ -12,7 +12,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'dilan',
     label: 'Dilan',
-    icon: '⚡',
+    icon: '',
     description: 'Tóc ngắn cá tính, mắt quả hạnh',
     props: {
       skinColor: '#F4C5A3',
@@ -28,7 +28,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'mew',
     label: 'Mew',
-    icon: '🐱',
+    icon: '',
     description: 'Búi tóc cam san hô, mắt tròn hiền hòa',
     props: {
       skinColor: '#FFDDBB',
@@ -44,7 +44,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'paul',
     label: 'Paul',
-    icon: '🔥',
+    icon: '',
     description: 'Mohawk mạnh mẽ, nụ cười tươi',
     props: {
       skinColor: '#795548',
@@ -60,7 +60,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'thia',
     label: 'Thia',
-    icon: '✨',
+    icon: '',
     description: 'Tóc dài bồng bềnh, cười nhếch mép nhẹ',
     props: {
       skinColor: '#C68642',
@@ -76,7 +76,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'alex',
     label: 'Alex',
-    icon: '🌊',
+    icon: '',
     description: 'Tóc xoăn xanh lam năng động, mắt to tròn',
     props: {
       skinColor: '#E0AC69',
@@ -92,7 +92,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'kai',
     label: 'Kai',
-    icon: '🎯',
+    icon: '',
     description: 'Tóc nhọn xám bạc, mắt ngọc bích sắc sảo',
     props: {
       skinColor: '#FFE0BD',
@@ -108,7 +108,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'maya',
     label: 'Maya',
-    icon: '🌙',
+    icon: '',
     description: 'Tóc sóng tím huyền bí, làn da nâu cuốn hút',
     props: {
       skinColor: '#8D5524',
@@ -124,7 +124,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'leo',
     label: 'Leo',
-    icon: '🦁',
+    icon: '',
     description: 'Vương miện tóc Afro độc đáo, nụ cười vui tươi',
     props: {
       skinColor: '#D79E75',
@@ -140,7 +140,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'zack',
     label: 'Zack',
-    icon: '🚀',
+    icon: '',
     description: 'Tóc ngắn hiện đại, mắt xanh băng rạng ngời',
     props: {
       skinColor: '#F5CBA7',
@@ -157,7 +157,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'felix',
     label: 'Felix',
-    icon: '🧶',
+    icon: '',
     description: 'Mũ len Beanie vàng mù tạt cá tính',
     props: {
       skinColor: '#FBE4D8',
@@ -174,7 +174,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'kenji',
     label: 'Kenji',
-    icon: '🧢',
+    icon: '',
     description: 'Mũ lưỡi trai snapback thể thao sành điệu',
     props: {
       skinColor: '#E5B995',
@@ -191,7 +191,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'chloe',
     label: 'Chloe',
-    icon: '🌿',
+    icon: '',
     description: 'Tóc Bob vàng bạch kim thời thượng',
     props: {
       skinColor: '#FFF0E5',
@@ -207,7 +207,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'aria',
     label: 'Aria',
-    icon: '🎀',
+    icon: '',
     description: 'Đuôi ngựa cao đỏ rượu vang rực lửa',
     props: {
       skinColor: '#F5D0B5',
@@ -239,7 +239,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'rin',
     label: 'Rin',
-    icon: '🎧',
+    icon: '',
     description: 'Tai nghe gaming phát sáng, tóc xanh mint',
     props: {
       skinColor: '#FFE7D9',
@@ -256,7 +256,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'victor',
     label: 'Victor',
-    icon: '👓',
+    icon: '',
     description: 'Kính gọng tri thức, phong thái học giả',
     props: {
       skinColor: '#F2C9AC',
@@ -273,7 +273,7 @@ export const AVATAR_OPTIONS = [
   {
     id: 'marcus',
     label: 'Marcus',
-    icon: '🧔',
+    icon: '',
     description: 'Râu quai nón phong trần lịch lãm',
     props: {
       skinColor: '#BA8C63',

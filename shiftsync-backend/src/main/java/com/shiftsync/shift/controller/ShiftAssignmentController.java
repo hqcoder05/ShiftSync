@@ -2,6 +2,8 @@ package com.shiftsync.shift.controller;
 
 import com.shiftsync.shift.dto.ShiftAssignmentCreateRequest;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
+import com.shiftsync.shift.dto.ShiftZoneSwapRequest;
+import com.shiftsync.shift.dto.ShiftZoneSwapResponseDTO;
 import com.shiftsync.shift.service.ShiftAssignmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,5 +53,15 @@ public class ShiftAssignmentController {
             @PathVariable UUID staffId) {
         assignmentService.unassignStaffFromShift(storeId, shiftId, staffId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Swap zones between two assigned staff members (Manager)")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PostMapping("/swap")
+    public ResponseEntity<ShiftZoneSwapResponseDTO> swapStaffZones(
+            @PathVariable UUID storeId,
+            @PathVariable UUID shiftId,
+            @Valid @RequestBody ShiftZoneSwapRequest request) {
+        return ResponseEntity.ok(assignmentService.swapStaffZones(storeId, shiftId, request));
     }
 }

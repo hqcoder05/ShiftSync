@@ -1,0 +1,42 @@
+name: shiftsync-stabilization
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: shiftsync_stabilization
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: stabilization-local-only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - stabilization_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shiftsync_stabilization"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:56379:6379"
+  tests:
+    image: maven:3.9-eclipse-temurin-21
+    profiles: ["test"]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - stabilization_target:/workspace/target
+      - stabilization_maven:/root/.m2
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: shiftsync_stabilization
+      DB_USER: postgres
+      DB_PASSWORD: stabilization-local-only
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: ["mvn", "test", "-Dspring.datasource.url=jdbc:postgresql://postgres:5432/shiftsync_stabilization", "-Dspring.datasource.username=postgres", "-Dspring.datasource.password=stabilization-local-only", "-Dspring.data.redis.host=redis", "-Dspring.data.redis.port=6379"]
+volumes:
+  stabilization_pg:
+  stabilization_target:
+  stabilization_maven:

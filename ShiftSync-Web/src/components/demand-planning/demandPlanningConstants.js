@@ -12,7 +12,7 @@ export const DEFAULT_ROLE_CONFIGS = [
     max: 4,
     normLabel: 'Chuẩn: 2 - 4 NV/ca',
     applyRule: 'Áp dụng: Mọi ca',
-    icon: '☕',
+    icon: '',
     keywords: ['barista', 'pha chế', 'cà phê', 'bar'],
   },
   {
@@ -27,7 +27,7 @@ export const DEFAULT_ROLE_CONFIGS = [
     max: 2,
     normLabel: 'Chuẩn: 1 - 2 NV/ca',
     applyRule: 'Áp dụng: Chỉ ca cao điểm',
-    icon: '💳',
+    icon: '',
     keywords: ['cashier', 'thu ngân', 'pos', 'checkout'],
   },
   {
@@ -42,7 +42,7 @@ export const DEFAULT_ROLE_CONFIGS = [
     max: 3,
     normLabel: 'Chuẩn: 2 - 3 NV/ca',
     applyRule: 'Áp dụng: Mọi ca',
-    icon: '🍳',
+    icon: '',
     keywords: ['kitchen', 'bếp', 'bánh', 'bakery'],
   },
   {
@@ -57,7 +57,7 @@ export const DEFAULT_ROLE_CONFIGS = [
     max: 3,
     normLabel: 'Chuẩn: 1 - 2 NV/ca',
     applyRule: 'Áp dụng: Giờ cao điểm',
-    icon: '🍽️',
+    icon: '',
     keywords: ['waiter', 'phục vụ', 'server', 'sảnh'],
   },
   {
@@ -98,7 +98,7 @@ export function matchRoleConfig(skillName = '') {
     max: 2,
     normLabel: 'Chuẩn: 1 - 2 NV/ca',
     applyRule: 'Áp dụng: Mọi ca',
-    icon: '💼',
+    icon: '',
     keywords: [],
   };
 }

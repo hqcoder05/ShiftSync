@@ -6,9 +6,12 @@ import com.shiftsync.availability.repository.AvailabilityRepository;
 import com.shiftsync.availability.repository.BlackoutDateRepository;
 import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.layout.entity.StoreZone;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
+import com.shiftsync.shift.dto.ShiftZoneSwapRequest;
+import com.shiftsync.shift.dto.ShiftZoneSwapResponseDTO;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.enums.AssignmentSource;
@@ -17,6 +20,7 @@ import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.store.entity.Store;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -223,5 +227,418 @@ class ShiftAssignmentServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.assignStaffToShift(storeId, shiftId, staffId));
         assertTrue(ex.getMessage().contains("capacity reached"));
+    }
+
+    @Test
+    void assignStaffToShift_ExistingAssignment_WithZoneId_UpdatesZoneSuccessfully() {
+        UUID targetZoneId = UUID.randomUUID();
+        Store store = shift.getStore();
+        StoreZone targetZone = StoreZone.builder()
+                .id(targetZoneId)
+                .name("Khu vực Pha Chế")
+                .store(store)
+                .build();
+
+        ShiftAssignment existing = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.of(existing));
+        when(storeZoneRepository.findById(targetZoneId)).thenReturn(Optional.of(targetZone));
+        when(shiftAssignmentRepository.save(existing)).thenReturn(existing);
+
+        ShiftAssignmentResponseDTO result = service.assignStaffToShift(storeId, shiftId, staffId, targetZoneId);
+
+        assertNotNull(result);
+        assertEquals(targetZoneId, result.getZoneId());
+        assertEquals("Khu vực Pha Chế", result.getZoneName());
+        assertEquals(targetZone, existing.getZone());
+        verify(shiftAssignmentRepository, times(1)).save(existing);
+        verify(storeZoneRepository, times(1)).findById(targetZoneId);
+    }
+
+    @Test
+    void assignStaffToShift_ExistingAssignment_WithoutZoneId_ThrowsConflict() {
+        ShiftAssignment existing = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.of(existing));
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.assignStaffToShift(storeId, shiftId, staffId, null));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Staff is already assigned to this shift"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assignStaffToShift_ExistingAssignment_ZoneFromDifferentStore_ThrowsNotFound() {
+        UUID targetZoneId = UUID.randomUUID();
+        Store otherStore = Store.builder().id(UUID.randomUUID()).build();
+        StoreZone otherStoreZone = StoreZone.builder()
+                .id(targetZoneId)
+                .name("Khu vực Cửa hàng khác")
+                .store(otherStore)
+                .build();
+
+        ShiftAssignment existing = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.of(existing));
+        when(storeZoneRepository.findById(targetZoneId)).thenReturn(Optional.of(otherStoreZone));
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.assignStaffToShift(storeId, shiftId, staffId, targetZoneId));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Zone not found"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assignStaffToShift_SequentialZoneReallocations_SimulateSwap() {
+        UUID staffAId = staffId;
+        UUID staffBId = UUID.randomUUID();
+        User staffB = User.builder().id(staffBId).fullName("Nhân viên B").build();
+
+        UUID zoneAId = UUID.randomUUID();
+        UUID zoneBId = UUID.randomUUID();
+        Store store = shift.getStore();
+
+        StoreZone zoneA = StoreZone.builder().id(zoneAId).name("Khu vực A").store(store).build();
+        StoreZone zoneB = StoreZone.builder().id(zoneBId).name("Khu vực B").store(store).build();
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .zone(zoneA)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staffB)
+                .zone(zoneB)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(userRepository.findById(staffAId)).thenReturn(Optional.of(staff));
+        when(userRepository.findById(staffBId)).thenReturn(Optional.of(staffB));
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffAId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffBId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffAId)).thenReturn(Optional.of(assignmentA));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.of(assignmentB));
+
+        when(storeZoneRepository.findById(zoneBId)).thenReturn(Optional.of(zoneB));
+        when(storeZoneRepository.findById(zoneAId)).thenReturn(Optional.of(zoneA));
+
+        when(shiftAssignmentRepository.save(assignmentA)).thenReturn(assignmentA);
+        when(shiftAssignmentRepository.save(assignmentB)).thenReturn(assignmentB);
+
+        // Step 1: Staff A is moved to Zone B
+        ShiftAssignmentResponseDTO resultA = service.assignStaffToShift(storeId, shiftId, staffAId, zoneBId);
+        assertNotNull(resultA);
+        assertEquals(zoneBId, resultA.getZoneId());
+        assertEquals("Khu vực B", resultA.getZoneName());
+        assertEquals(zoneB, assignmentA.getZone());
+
+        // Step 2: Staff B is moved to Zone A
+        ShiftAssignmentResponseDTO resultB = service.assignStaffToShift(storeId, shiftId, staffBId, zoneAId);
+        assertNotNull(resultB);
+        assertEquals(zoneAId, resultB.getZoneId());
+        assertEquals("Khu vực A", resultB.getZoneName());
+        assertEquals(zoneA, assignmentB.getZone());
+
+        verify(shiftAssignmentRepository, times(1)).save(assignmentA);
+        verify(shiftAssignmentRepository, times(1)).save(assignmentB);
+    }
+
+    @Test
+    void swapStaffZones_Success() {
+        UUID staffAId = staffId;
+        UUID staffBId = UUID.randomUUID();
+        User staffB = User.builder().id(staffBId).fullName("Nhân viên B").build();
+
+        UUID zoneAId = UUID.randomUUID();
+        UUID zoneBId = UUID.randomUUID();
+        Store store = shift.getStore();
+
+        StoreZone zoneA = StoreZone.builder().id(zoneAId).name("Khu vực A").store(store).build();
+        StoreZone zoneB = StoreZone.builder().id(zoneBId).name("Khu vực B").store(store).build();
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .zone(zoneA)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staffB)
+                .zone(zoneB)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffAId)).thenReturn(Optional.of(assignmentA));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.of(assignmentB));
+
+        when(storeZoneRepository.findById(zoneBId)).thenReturn(Optional.of(zoneB));
+        when(storeZoneRepository.findById(zoneAId)).thenReturn(Optional.of(zoneA));
+
+        when(shiftAssignmentRepository.save(assignmentA)).thenReturn(assignmentA);
+        when(shiftAssignmentRepository.save(assignmentB)).thenReturn(assignmentB);
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffAId)
+                .staffBId(staffBId)
+                .targetZoneForAId(zoneBId)
+                .targetZoneForBId(zoneAId)
+                .build();
+
+        ShiftZoneSwapResponseDTO result = service.swapStaffZones(storeId, shiftId, request);
+
+        assertNotNull(result);
+        assertNotNull(result.getAssignmentA());
+        assertNotNull(result.getAssignmentB());
+        assertEquals(zoneBId, result.getAssignmentA().getZoneId());
+        assertEquals(zoneAId, result.getAssignmentB().getZoneId());
+        assertEquals(zoneB, assignmentA.getZone());
+        assertEquals(zoneA, assignmentB.getZone());
+
+        verify(shiftAssignmentRepository, times(1)).save(assignmentA);
+        verify(shiftAssignmentRepository, times(1)).save(assignmentB);
+    }
+
+    @Test
+    void swapStaffZones_SameStaff_ThrowsBadRequest() {
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(staffId)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Cannot swap zones with the same staff member"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void swapStaffZones_StaffANotAssigned_ThrowsNotFound() {
+        UUID staffBId = UUID.randomUUID();
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        lenient().when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.empty());
+        lenient().when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.empty());
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(staffBId)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Staff A is not assigned to this shift"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void swapStaffZones_StaffBNotAssigned_ThrowsNotFound() {
+        UUID staffBId = UUID.randomUUID();
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        lenient().when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.of(assignmentA));
+        lenient().when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.empty());
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(staffBId)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Staff B is not assigned to this shift"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void swapStaffZones_TargetZoneFromDifferentStore_ThrowsNotFound() {
+        UUID staffBId = UUID.randomUUID();
+        User staffB = User.builder().id(staffBId).build();
+        UUID otherZoneId = UUID.randomUUID();
+        Store otherStore = Store.builder().id(UUID.randomUUID()).build();
+        StoreZone otherStoreZone = StoreZone.builder().id(otherZoneId).store(otherStore).build();
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(staff).build();
+        ShiftAssignment assignmentB = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).staff(staffB).build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)).thenReturn(Optional.of(assignmentA));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.of(assignmentB));
+        when(storeZoneRepository.findById(otherZoneId)).thenReturn(Optional.of(otherStoreZone));
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(staffBId)
+                .targetZoneForAId(otherZoneId)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Target zone for Staff A not found or does not belong to this store"));
+        verify(shiftAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void swapStaffZones_ShiftCompleted_ThrowsBadRequest() {
+        Shift completedShift = Shift.builder()
+                .id(shiftId)
+                .store(shift.getStore())
+                .shiftDate(shift.getShiftDate())
+                .status(com.shiftsync.shift.enums.ShiftStatus.COMPLETED)
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(completedShift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(UUID.randomUUID())
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Cannot swap assignments in a COMPLETED shift"));
+    }
+
+    @Test
+    void swapStaffZones_LockedPayrollPeriod_ThrowsBadRequest() {
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(true);
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffId)
+                .staffBId(UUID.randomUUID())
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.swapStaffZones(storeId, shiftId, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("LOCKED/PAID payroll period"));
+    }
+
+    @Test
+    void swapStaffZones_WhenSecondSaveFails_ThrowsExceptionAndAborts() {
+        UUID staffAId = staffId;
+        UUID staffBId = UUID.randomUUID();
+        User staffB = User.builder().id(staffBId).fullName("Nhân viên B").build();
+
+        UUID zoneAId = UUID.randomUUID();
+        UUID zoneBId = UUID.randomUUID();
+        Store store = shift.getStore();
+
+        StoreZone zoneA = StoreZone.builder().id(zoneAId).name("Khu vực A").store(store).build();
+        StoreZone zoneB = StoreZone.builder().id(zoneBId).name("Khu vực B").store(store).build();
+
+        ShiftAssignment assignmentA = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staff)
+                .zone(zoneA)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        ShiftAssignment assignmentB = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(shift)
+                .staff(staffB)
+                .zone(zoneB)
+                .source(AssignmentSource.MANUAL)
+                .assignedAt(java.time.OffsetDateTime.now())
+                .build();
+
+        when(shiftRepository.findByIdAndStoreId(shiftId, storeId)).thenReturn(Optional.of(shift));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
+
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffAId)).thenReturn(Optional.of(assignmentA));
+        when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffBId)).thenReturn(Optional.of(assignmentB));
+
+        when(storeZoneRepository.findById(zoneBId)).thenReturn(Optional.of(zoneB));
+        when(storeZoneRepository.findById(zoneAId)).thenReturn(Optional.of(zoneA));
+
+        when(shiftAssignmentRepository.save(assignmentA)).thenReturn(assignmentA);
+        when(shiftAssignmentRepository.save(assignmentB)).thenThrow(new RuntimeException("Database error during save assignment B"));
+
+        ShiftZoneSwapRequest request = ShiftZoneSwapRequest.builder()
+                .staffAId(staffAId)
+                .staffBId(staffBId)
+                .targetZoneForAId(zoneBId)
+                .targetZoneForBId(zoneAId)
+                .build();
+
+        assertThrows(RuntimeException.class, () -> service.swapStaffZones(storeId, shiftId, request));
+
+        verify(shiftAssignmentRepository, times(1)).save(assignmentA);
+        verify(shiftAssignmentRepository, times(1)).save(assignmentB);
     }
 }

@@ -29,7 +29,6 @@ import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,7 +44,6 @@ public class HeadcountQuotaService {
     private final PositionNormOverrideRepository positionNormOverrideRepository;
 
     private static final long MONTHLY_BUDGET_STANDARD = 85_000_000L;
-    private final Map<UUID, Long> storeMonthlyBudgets = new ConcurrentHashMap<>();
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter SHORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM");
 
@@ -307,8 +305,8 @@ public class HeadcountQuotaService {
         Shift afternoonShift = resolveCanonicalShift(shifts, date, mid, close, false, open, close);
 
         List<DailyQuotaResponse.DailyShiftQuota> shiftQuotas = new ArrayList<>();
-        shiftQuotas.add(buildDailyShiftQuota(morningShift, "Ca Sáng (" + openStr + "-" + midStr + ")", openStr, midStr, generateTimelineHours(open, mid), positions, true));
-        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, "Ca Chiều (" + midStr + "-" + closeStr + ")", midStr, closeStr, generateTimelineHours(mid, close), positions, false));
+        shiftQuotas.add(buildDailyShiftQuota(morningShift, "Ca Sáng (" + openStr + "-" + midStr + ")", openStr, midStr, generateTimelineHours(open, mid), positions, true, date));
+        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, "Ca Chiều (" + midStr + "-" + closeStr + ")", midStr, closeStr, generateTimelineHours(mid, close), positions, false, date));
 
         // Evaluate Position KPIs
         List<DailyQuotaResponse.DailyPositionKpi> kpis = new ArrayList<>();
@@ -482,7 +480,7 @@ public class HeadcountQuotaService {
 
     private DailyQuotaResponse.DailyShiftQuota buildDailyShiftQuota(
             Shift shift, String name, String startTime, String endTime,
-            List<Integer> timelineHours, List<PositionDTO> positions, boolean isMorning) {
+            List<Integer> timelineHours, List<PositionDTO> positions, boolean isMorning, LocalDate date) {
 
         List<DailyQuotaResponse.DailyQuotaCell> cells = new ArrayList<>();
         Map<UUID, Integer> reqMap = new HashMap<>();
@@ -498,14 +496,7 @@ public class HeadcountQuotaService {
         for (PositionDTO pos : positions) {
             Integer count = reqMap.get(pos.getId());
             if (count == null) {
-                // Default standards: Barista 2 NV, Cashier morning 1 NV (or 2 NV afternoon), Kitchen 2 NV, Leader 1 NV, Waiter 2 NV
-                if ("CASHIER".equals(pos.getCode())) {
-                    count = isMorning ? 1 : 2;
-                } else if ("LEADER".equals(pos.getCode())) {
-                    count = 1;
-                } else {
-                    count = pos.getDefaultTarget();
-                }
+                count = suggestedCount(pos, date, isMorning);
             }
 
             int min = pos.getDefaultMin();
@@ -531,6 +522,11 @@ public class HeadcountQuotaService {
             String quotaId = (shift != null ? shift.getId().toString() : "temp") + "_" + pos.getId();
 
             cells.add(DailyQuotaResponse.DailyQuotaCell.builder()
+                    .source(reqMap.containsKey(pos.getId()) ? "SAVED" : "SUGGESTED")
+                    .assignedCount(assignedCount(shift, pos.getId()))
+                    .shortageCount(Math.max(0, count - assignedCount(shift, pos.getId())))
+                    .excessCount(Math.max(0, assignedCount(shift, pos.getId()) - count))
+                    .unclassifiedAssignedCount(assignedCount(shift, null))
                     .quotaId(quotaId)
                     .positionId(pos.getId())
                     .positionName(pos.getName())
@@ -769,7 +765,8 @@ public class HeadcountQuotaService {
 
         double totalSla = totalSlotsAll > 0 ? Math.round(((double) (totalSlotsCompliant + totalSlotsPeak) / totalSlotsAll) * 1000.0) / 10.0 : 100.0;
         double totalHoursAll = manHours.stream().mapToDouble(Double::doubleValue).sum();
-        long monthlyBudget = branchId != null ? storeMonthlyBudgets.getOrDefault(branchId, MONTHLY_BUDGET_STANDARD) : MONTHLY_BUDGET_STANDARD;
+        long monthlyBudget = store != null && store.getMonthlyQuotaBudget() != null
+                ? store.getMonthlyQuotaBudget() : MONTHLY_BUDGET_STANDARD;
         double budgetPct = Math.round(((double) totalWeeklyCost / monthlyBudget) * 1000.0) / 10.0;
 
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.GERMANY);
@@ -837,25 +834,14 @@ public class HeadcountQuotaService {
             }
         }
 
+        boolean saved = count != -1;
         if (count == -1) {
-            // Default standards: Weekend afternoon for Barista is auto peak +50% (3 NV)
-            if (isWeekend && "afternoon".equalsIgnoreCase(shiftType) && "BARISTA".equals(pos.getCode())) {
-                count = pos.getDefaultTarget() + 1; // Auto peak +50% for weekend afternoon (3 NV)
-            } else if ("CASHIER".equals(pos.getCode())) {
-                count = shiftType.equals("morning") ? 1 : 2;
-            } else if ("LEADER".equals(pos.getCode())) {
-                count = 1;
-            } else {
-                count = pos.getDefaultTarget();
-            }
+            count = suggestedCount(pos, date, "morning".equals(shiftType));
         }
 
         int min = pos.getDefaultMin();
         int max = pos.getDefaultMax();
         int target = pos.getDefaultTarget();
-        if (isWeekend && count > target) {
-            max = Math.max(max, count);
-        }
 
         String status = "COMPLIANT";
         String statusLabel = "Đạt chuẩn";
@@ -864,17 +850,22 @@ public class HeadcountQuotaService {
         if (count < min) {
             status = "VIOLATION";
             statusLabel = "Vi phạm";
-        } else if (isPeakSlot) {
-            status = "PEAK";
-            statusLabel = "Cao điểm";
         } else if (count > max) {
             status = "OVER";
             statusLabel = "Vượt chuẩn";
+        } else if (isPeakSlot) {
+            status = "PEAK";
+            statusLabel = "Cao điểm";
         }
 
         String quotaId = date.toString() + "_" + shiftType + "_" + pos.getId();
 
         return WeeklyMatrixQuotaResponse.MatrixCell.builder()
+                .source(saved ? "SAVED" : "SUGGESTED")
+                .assignedCount(assignedCount(shift, pos.getId()))
+                .shortageCount(Math.max(0, count - assignedCount(shift, pos.getId())))
+                .excessCount(Math.max(0, assignedCount(shift, pos.getId()) - count))
+                .unclassifiedAssignedCount(assignedCount(shift, null))
                 .quotaId(quotaId)
                 .date(date)
                 .shiftType(shiftType)
@@ -887,6 +878,22 @@ public class HeadcountQuotaService {
                 .statusLabel(statusLabel)
                 .isPeakSlot(isPeakSlot)
                 .build();
+    }
+
+    private int suggestedCount(PositionDTO position, LocalDate date, boolean morning) {
+        boolean weekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
+        if (weekend && ("BARISTA".equals(position.getCode()) || "KITCHEN".equals(position.getCode()))) {
+            return position.getDefaultTarget() + 1;
+        }
+        if ("CASHIER".equals(position.getCode())) return morning ? 1 : 2;
+        return position.getDefaultTarget();
+    }
+
+    private int assignedCount(Shift shift, UUID positionId) {
+        if (shift == null || shift.getStatus() == ShiftStatus.CANCELLED || shift.getAssignments() == null) return 0;
+        return (int) shift.getAssignments().stream()
+                .filter(a -> !a.isDeleted() && Objects.equals(a.getRequiredSkillId(), positionId))
+                .count();
     }
 
     private String getDayOfWeekVietnamese(DayOfWeek dow) {
@@ -954,9 +961,9 @@ public class HeadcountQuotaService {
             LocalTime start = req.getShiftType().equalsIgnoreCase("morning") ? open : mid;
             LocalTime end = req.getShiftType().equalsIgnoreCase("morning") ? mid : close;
 
+            Skill skill = skillRepository.findByIdAndStoreId(req.getPositionId(), branchId)
+                    .orElseThrow(() -> new BusinessException("Position/Skill not found in this store: " + req.getPositionId(), HttpStatus.NOT_FOUND));
             Shift shift = getOrCreateShift(store, req.getDate(), start, end, req.getShiftType().equalsIgnoreCase("morning") ? "Ca Sáng" : "Ca Chiều");
-            Skill skill = skillRepository.findById(req.getPositionId())
-                    .orElseThrow(() -> new BusinessException("Position/Skill not found: " + req.getPositionId(), HttpStatus.NOT_FOUND));
 
             if (shift != null) {
                 if (shift.getRequirements() == null) {
@@ -1028,12 +1035,7 @@ public class HeadcountQuotaService {
                     Skill skill = posSkillMap.get(pos.getId());
                     if (skill == null) continue;
 
-                    int targetCount = pos.getDefaultTarget();
-                    if (isWeekend && ("BARISTA".equals(pos.getCode()) || "KITCHEN".equals(pos.getCode()))) {
-                        targetCount = pos.getDefaultTarget() + 1; // +50% on weekends
-                    } else if ("CASHIER".equals(pos.getCode())) {
-                        targetCount = isMorning ? 1 : 2;
-                    }
+                    int targetCount = suggestedCount(pos, d, isMorning);
 
                     ShiftSkillRequirement existing = null;
                     for (ShiftSkillRequirement r : s.getRequirements()) {
@@ -1084,18 +1086,14 @@ public class HeadcountQuotaService {
             end = start;
         }
 
-        // 1. Clean up ONLY out-of-bounds DRAFT shifts for this store in this date range
+        // Demand planning must never delete existing shifts or their assignments.
         List<Shift> existingDraftShifts = shiftRepository.findByStoreIdAndShiftDateBetween(store.getId(), start, end)
                 .stream().filter(s -> s.getStatus() == ShiftStatus.DRAFT).collect(Collectors.toList());
 
-        for (Shift s : existingDraftShifts) {
-            if ((s.getStartTime() != null && s.getStartTime().isBefore(openTime))
-                    || (s.getEndTime() != null && s.getEndTime().isAfter(closeTime))) {
-                shiftAssignmentRepository.deleteAll(shiftAssignmentRepository.findByShiftId(s.getId()));
-                shiftRepository.delete(s);
-            }
-        }
-        shiftRepository.flush();
+        List<UUID> reviewShiftIds = existingDraftShifts.stream()
+                .filter(s -> (s.getStartTime() != null && s.getStartTime().isBefore(openTime))
+                        || (s.getEndTime() != null && s.getEndTime().isAfter(closeTime)))
+                .map(Shift::getId).toList();
 
         // 2. Synchronize demand: ensure canonical shifts [open, mid] and [mid, close] exist.
         // If requirements already exist, PRESERVE THEM (preserve custom quota edits).
@@ -1134,12 +1132,7 @@ public class HeadcountQuotaService {
                     if (skill == null) continue;
 
                     if (!existingReqs.containsKey(skill.getId())) {
-                        int targetCount = pos.getDefaultTarget();
-                        if (isWeekend && ("BARISTA".equals(pos.getCode()) || "KITCHEN".equals(pos.getCode()))) {
-                            targetCount = pos.getDefaultTarget() + 1;
-                        } else if ("CASHIER".equals(pos.getCode())) {
-                            targetCount = isMorning ? 1 : 2;
-                        }
+                        int targetCount = suggestedCount(pos, d, isMorning);
 
                         s.getRequirements().add(ShiftSkillRequirement.builder()
                                 .shift(s)
@@ -1159,7 +1152,11 @@ public class HeadcountQuotaService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
-        result.put("message", "Đã áp dụng định biên sang Scheduler thành công!");
+        result.put("reviewShiftIds", reviewShiftIds);
+        result.put("message", reviewShiftIds.isEmpty()
+                ? "Đã áp dụng định biên sang Scheduler thành công!"
+                : "Đã áp dụng định biên. Giữ nguyên " + reviewShiftIds.size()
+                    + " ca nháp ngoài giờ mở cửa và phân công hiện có; cần rà soát riêng.");
         return result;
     }
 
@@ -1185,10 +1182,15 @@ public class HeadcountQuotaService {
                 .build();
     }
 
+    @Transactional
     public void updateMonthlyBudget(UUID branchId, long budget) {
-        if (branchId != null && budget > 0) {
-            storeMonthlyBudgets.put(branchId, budget);
+        if (branchId == null || budget <= 0) {
+            throw new BusinessException("Ngân sách phải lớn hơn 0 và có chi nhánh hợp lệ.", HttpStatus.BAD_REQUEST);
         }
+        Store store = storeRepository.findById(branchId)
+                .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
+        store.setMonthlyQuotaBudget(budget);
+        storeRepository.save(store);
     }
 }
 

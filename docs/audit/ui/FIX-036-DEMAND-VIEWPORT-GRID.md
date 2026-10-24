@@ -1,0 +1,6 @@
+# FIX-036 — Sửa theo ảnh nội dung ngân sách bị cắt
+22/10/2026. Tái sử dụng FIX035/FIX034. Người dùng cung cấp ảnh1620×948: footer mất ngoài khung, budget buttons bị cắt. Bản035 trên Edge đang điều khiển vẫn bound đúng ở size này, nên không khẳng định root cause CSS/cache của tab người dùng; ảnh chứng minh báo cáo trước chưa giải quyết đủ môi trường.
+
+Thay đổi: tách DemandPlanningViewport.css import sau Redesign để contract viewport độc lập. Dùng grid4rows auto/auto/minmax(0,1fr)/auto thay flexauto+maxheight. Chiều cao xác định min860px,actualviewport−32 (mobile−16). Content row cuộn riêng, footer ởrowcuối khôngoverlay. Modal useRef/effect cập nhật --dp-viewport-height theo visualViewport/window resize, cleanup listeners. Không API/data change.
+
+Kiểm chứng: buildPASS(chunkwarningcũ). Edge liveDocker vớibudget mở+edit1620×948 panel860px,1366×768 panel736,390×600 panel584; boundedmodal/footer, Savebudget hittest vàtrênfooter đềuPASS. Ảnh .playwright-mcp/demand-scroll-036-exact.png đãxem. Tab riêng fixture42warnings allopen+budgetedit1620/390: bounded/savehit/lastabovefooter/footerPASS, nonGETblocked/tabclosed. Kết thúcEdge1920 liveweekbudgetedit. Không DBwrites, khôngclaimpinchzoom hoặc toànapp đãtest. Khôngcommit. Thay contract FIX035 bằng definitegridheight.

@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   font-family: var(--ss-font);
-  min-height: calc(100vh - 56px);
+  min-height: calc(100dvh - var(--ss-navbar-height, 60px));
   background: #ffffff;
   padding: 12px 16px;
   gap: 12px;
@@ -2950,3 +2950,22 @@
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
 }
 
+
+/* Keep schedule actions inside small-screen layouts, including the 3D workspace. */
+@media(max-width:1000px){
+ .sch-topbar{flex-wrap:wrap;gap:10px}
+ .sch-header-right{min-width:0;max-width:100%;width:100%}
+ .sch-publish-card{max-width:100%;height:auto;min-height:42px;flex-wrap:wrap;border-radius:12px}
+ .sch-publish-divider{display:none}
+ .sch-viewmode-toggle{max-width:100%;flex-wrap:wrap}
+}
+
+.sch-page--explorer{height:calc(100dvh - var(--ss-navbar-height,60px));min-height:0!important;overflow:hidden;display:flex;flex-direction:column}
+.sch-page--explorer .sch-domain-tabs,.sch-page--explorer .sch-topbar,.sch-page--explorer .sch-toolbar-row{display:none!important}
+.sch-page--explorer .sch-main{padding:8px!important;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.sch-explorer-stage,.sch-explorer-frame{flex:1;min-height:0;position:relative;width:100%;display:flex;flex-direction:column}
+.sch-explorer-frame>div{flex:1;min-height:0}
+@media(max-width:760px){.sch-page--explorer{height:calc(100dvh - var(--ss-navbar-height,60px));min-height:760px!important}}
+
+.sch-page--explorer{padding:0!important;gap:0!important;background:var(--ss-bg)}
+.sch-page--explorer .sch-header-toolbar{display:none!important}

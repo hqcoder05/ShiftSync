@@ -1095,7 +1095,7 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div style={{ marginBottom: 16, fontSize: 12.5, color: '#b45309', background: '#fef3c7', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
-                  ⚠️ Chi nhánh này hiện chưa có Quản lý nào phụ trách.
+                   Chi nhánh này hiện chưa có Quản lý nào phụ trách.
                 </div>
               )}
 

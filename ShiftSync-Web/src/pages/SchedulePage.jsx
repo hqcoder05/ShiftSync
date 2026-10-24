@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import StaffAvailabilityPage from './StaffAvailabilityPage';
+import ShiftRegistrationForm from '../components/ShiftRegistrationForm';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore, assignStaffToStore } from '../services/employmentService';
 import { getContractTypes } from '../services/contractTypeService';
 import { getSkillsByStore, getStaffSkills } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
-import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts, autoScheduleShifts } from '../services/shiftService';
+import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
 import { getStoreLayout, getStoreZones, allocateZonesForShift } from '../services/layoutService';
 import Store3DCanvas from '../components/spatial/Store3DCanvas';
@@ -20,6 +21,14 @@ import iconLocation from '../assets/icons/location_on.png';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './SchedulePage.css';
+import './schedule-redesign.css';
+import './shift-form.css';
+import api from '../services/api';
+import {getStoreConfiguration} from '../services/storeConfigService';
+import {newShiftDefaults,validateShiftForm,shiftRegistrationDeadline} from '../utils/shiftForm.js';
+import SchedulePlanner from '../features/schedule-planner/SchedulePlanner.jsx';
+import AutoSchedulerVisualization from '../features/auto-scheduler/AutoSchedulerVisualization.jsx';
+import {shiftsInWindow} from '../features/auto-scheduler/visualizationModel.js';
 
 /* ── Helpers ────────────────────────────────────────────── */
 // Pastel colour palette for schedule views
@@ -352,15 +361,23 @@ export default function SchedulePage() {
 
   /* -- Auto Schedule AI Modal state -- */
   const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
+
   const [autoScheduleDates, setAutoScheduleDates] = useState({
     startDate: '',
     endDate: '',
   });
-  const [showAutoScheduleResultModal, setShowAutoScheduleResultModal] = useState(false);
-  const [autoScheduleResultData, setAutoScheduleResultData] = useState(null);
+  const [autoVisualization, setAutoVisualization] = useState(null);
+  const autoVisualizationLock = useRef(false);
 
   /* -- navigation state -- */
-  const [viewMode, setViewMode] = useState('Tuần');
+  const [viewMode, setViewMode] = useState(() =>
+    new URLSearchParams(location.search).get('view') === '3d' ? '3D' : 'Tuần'
+  );
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('view') === '3d') {
+      setViewMode('3D');
+    }
+  }, [location.search]);
   const [currentDate, setCurrentDate] = useState(() => new Date());
 
   /* -- 3D Spatial Computing state -- */
@@ -387,6 +404,31 @@ export default function SchedulePage() {
 
   /* -- "Tạo lịch" modal -- */
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const registerModalRef=useRef(null),shiftSubmitRef=useRef(false);
+  const [savingShift,setSavingShift]=useState(false),[registerTemplates,setRegisterTemplates]=useState([]),[registerTemplateState,setRegisterTemplateState]=useState('loading'),[attendanceConfig,setAttendanceConfig]=useState(null);
+  const closeRegisterModal=()=>{if(shiftSubmitRef.current)return;setShowRegisterModal(false);setEditingShift(null);};
+  useEffect(()=>{
+    if(!showRegisterModal||!storeId)return;
+    const abort=new AbortController();
+    setRegisterTemplateState('loading');setRegisterTemplates([]);setAttendanceConfig(null);
+    api.get(`/stores/${storeId}/shift-templates`,{signal:abort.signal}).then(({data})=>{if(!abort.signal.aborted){setRegisterTemplates(Array.isArray(data)?data.filter(t=>t.isActive!==false):[]);setRegisterTemplateState('ready');}}).catch(()=>{if(!abort.signal.aborted)setRegisterTemplateState('error');});
+    getStoreConfiguration(storeId).then(({data})=>{if(!abort.signal.aborted)setAttendanceConfig(data);}).catch(()=>{});
+    return()=>abort.abort();
+  },[showRegisterModal,storeId]);
+  useEffect(()=>{
+    if(!showRegisterModal)return;
+    const previous=document.activeElement,overflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';registerModalRef.current?.querySelector('button')?.focus();
+    const keyboard=e=>{
+      if(e.key==='Escape'&&!shiftSubmitRef.current){e.preventDefault();setShowRegisterModal(false);}
+      if(e.key!=='Tab')return;
+      const nodes=[...registerModalRef.current.querySelectorAll('button,input,select,textarea,a[href],summary')].filter(n=>!n.disabled&&n.getClientRects().length);
+      if(e.shiftKey&&document.activeElement===nodes[0]){e.preventDefault();nodes.at(-1)?.focus();}
+      else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0]?.focus();}
+    };
+    document.addEventListener('keydown',keyboard);
+    return()=>{document.removeEventListener('keydown',keyboard);document.body.style.overflow=overflow;previous?.isConnected&&previous.focus();};
+  },[showRegisterModal]);
   const [registerForm, setRegisterForm] = useState({
     staffId: '',
     shiftDate: '',
@@ -461,6 +503,14 @@ export default function SchedulePage() {
 
   /* ── Computed dates ────────────────────────────── */
   const weekDatesFull = useMemo(() => getWeekDates(currentDate), [currentDate]);
+  useEffect(()=>{
+    const params=new URLSearchParams(location.search);
+    if(params.get('action')!=='auto')return;
+    setAutoScheduleDates({startDate:toISODate(weekDatesFull[0]),endDate:toISODate(weekDatesFull.at(-1))});
+    setShowAutoScheduleModal(true);
+    params.delete('action');
+    navigate({pathname:location.pathname,search:params.toString()},{replace:true});
+  },[location.pathname,location.search,navigate,weekDatesFull]);
   const today = currentDate;
   const displayedDates = viewMode === 'Ngày' ? [currentDate] : weekDatesFull;
 
@@ -576,6 +626,20 @@ export default function SchedulePage() {
     return () => window.removeEventListener('storage', handleStorageSync);
   }, [storeId]); // eslint-disable-line
 
+  const handleStoreChange = (nextStoreId) => {
+    if (String(nextStoreId) === String(storeId)) return;
+    if (!stores.some(store => String(store.id) === String(nextStoreId))) return;
+    setStoreId(nextStoreId);
+    setSelected3DShiftId(null);
+    setStoreZones([]);
+    setEmployees([]);
+    setAllShifts([]);
+    setAssignments({});
+    setAllocatedSequence([]);
+    localStorage.setItem('selectedStoreId', String(nextStoreId));
+    window.dispatchEvent(new CustomEvent('storeChanged', { detail: { storeId: nextStoreId } }));
+  };
+
   /* ── Load stores ───────────────────────────────── */
   useEffect(() => {
     getAllStores()
@@ -633,7 +697,7 @@ export default function SchedulePage() {
   }, [currentDate, weekDatesFull]);
 
   const active3DDate = currentDate;
-  const activeDateShifts = allShifts.filter((s) => s.shiftDate === toISODate(active3DDate));
+  const activeDateShifts = allShifts.filter((s) => s.shiftDate === toISODate(active3DDate) && s.status !== 'CANCELLED');
 
   const current3DShift = useMemo(() => {
     if (selected3DShiftId) {
@@ -671,6 +735,7 @@ export default function SchedulePage() {
         list.push({
           id: assign.id || assign.staffId || `staff-${idx}`,
           staffId: assign.staffId,
+          gender: assign.gender ?? matchedEmp?.gender,
           staffName: assign.staffName || matchedEmp?.fullName || 'Nhân viên',
           skillName: skillName,
           zoneId: assignedZoneId,
@@ -748,10 +813,10 @@ export default function SchedulePage() {
         shiftsInRange.forEach((shift) => {
           const meta = savedMeta[shift.id] || {};
           const baseShift = {
-            ...shift,
             ...meta,
-            color: meta.color || shift.color,
-            note: meta.note !== undefined ? meta.note : shift.note,
+            ...shift,
+            color: shift.color || meta.color,
+            note: shift.note ?? meta.note,
           };
 
           if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
@@ -894,32 +959,6 @@ export default function SchedulePage() {
       .finally(() => setLoading(false));
   };
 
-  const handleAutoSchedule = async () => {
-    if (!storeId) {
-      showToast('Thông báo', 'Vui lòng chọn cửa hàng để xếp ca.');
-      return;
-    }
-    const startDate = toISODate(weekDatesFull[0]);
-    const endDate = toISODate(weekDatesFull[6]);
-    setAutoScheduling(true);
-    showToast(
-      'AI Đang Tính Toán...',
-      `Đang chạy thuật toán tối ưu xếp ca tự động từ ${startDate} đến ${endDate}...`
-    );
-    try {
-      const res = await autoScheduleShifts(storeId, { startDate, endDate });
-      const msg = res?.data?.message || 'Xếp ca tự động hoàn tất!';
-      showToast('Thành Công! ', msg);
-      loadData();
-      notifyShiftUpdates();
-    } catch (err) {
-      console.error('Auto schedule failed:', err);
-      showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');
-    } finally {
-      setAutoScheduling(false);
-    }
-  };
-
   const notifyShiftUpdates = () => {
     window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
     window.dispatchEvent(new CustomEvent('store_marketplace_updated', { detail: { storeId } }));
@@ -934,11 +973,18 @@ export default function SchedulePage() {
   }, [storeId, weekStartIso]); // eslint-disable-line
 
   useEffect(() => {
-    const handleSync = () => {
-      loadData();
+    let timer;
+    const handleSync = (event) => {
+      if (event.detail?.storeId && String(event.detail.storeId) !== String(storeId)) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => loadData(), 150);
     };
-    window.addEventListener('store_shifts_updated', handleSync);
-    return () => window.removeEventListener('store_shifts_updated', handleSync);
+    const events = ['store_shifts_updated', 'store_marketplace_updated', 'store_connection_restored'];
+    events.forEach(name => window.addEventListener(name, handleSync));
+    return () => {
+      clearTimeout(timer);
+      events.forEach(name => window.removeEventListener(name, handleSync));
+    };
   }, [storeId, weekStartIso]);
 
   const pendingCrossStoreRequests = crossStoreRequests.filter(
@@ -994,6 +1040,10 @@ export default function SchedulePage() {
     return empMatchesSkill || hasShiftWithSkill;
   });
 
+  const shiftsInVisibleRange = allShifts.filter((shift) =>
+    displayedDates.some((date) => toISODate(date) === shift.shiftDate)
+  ).length;
+
   const alreadyInStoreIds = new Set(employees.map((e) => e.staffId || e.id));
   const availableToAdd = allEmployees.filter((e) => !alreadyInStoreIds.has(e.id) && (e.role || e.systemRole) !== 'ADMIN');
 
@@ -1029,14 +1079,13 @@ export default function SchedulePage() {
 
     const defaults = getEmpDefaultSkillAndColor(empId);
     const currentStore = stores.find((store) => String(store.id) === String(storeId));
-    const defaultStartTime = currentStore?.openTime?.slice(0, 5) || '08:00';
-    const defaultEndTime = currentStore?.closeTime ? currentStore.closeTime.slice(0, 5) : '16:00';
+    const temporalDefaults=newShiftDefaults(currentStore,dateIso);
+    setError('');
 
     setRegisterForm({
       staffId: empId || '',
-      shiftDate: dateIso || '',
-      startTime: defaultStartTime,
-      endTime: defaultEndTime,
+      ...temporalDefaults,
+      shiftTemplateId:'',
       color: defaults.color || SHIFT_COLORS[0],
       location: defaults.location || '',
       branch: storeId,
@@ -1051,6 +1100,7 @@ export default function SchedulePage() {
 
   const openEditModal = (shift, empId) => {
     setModalMode('edit');
+    setError('');
     setEditingShift(shift);
     const currentStore = stores.find((store) => String(store.id) === String(storeId));
     const fmtT = (t) => {
@@ -1061,10 +1111,11 @@ export default function SchedulePage() {
     setRegisterForm({
       staffId: empId || shift.staffId || '',
       shiftDate: shift.shiftDate || '',
+      shiftTemplateId:shift.shiftTemplateId||'',
       startTime: fmtT(shift.startTime),
       endTime: fmtT(shift.endTime),
       color: shift.color || SHIFT_COLORS[0],
-      location: shift.location || '',
+      location: shift.skillId || shift.location || '',
       branch: shift.storeId || storeId,
       note: shift.note || '',
       clockIn: shift.clockIn ?? true,
@@ -1253,101 +1304,26 @@ export default function SchedulePage() {
     setError('');
 
     const currentStore = stores.find((store) => String(store.id) === String(storeId));
-    const openTime = currentStore?.openTime?.slice(0, 5);
-    const closeTime = currentStore?.closeTime?.slice(0, 5);
-    if (openTime && registerForm.startTime < openTime) {
-      setError(`Giờ bắt đầu phải từ ${openTime} trở đi (giờ mở cửa chi nhánh).`);
-      return;
-    }
-    if (closeTime && registerForm.endTime > closeTime) {
-      setError(`Giờ kết thúc phải trước hoặc bằng ${closeTime} (giờ đóng cửa chi nhánh).`);
-      return;
-    }
-    if (registerForm.startTime >= registerForm.endTime) {
-      setError('Giờ kết thúc phải sau giờ bắt đầu.');
-      return;
-    }
-
+    if(shiftSubmitRef.current)return;
+    const validation=validateShiftForm(registerForm,currentStore,'create');
+    if(validation){setError(validation);return;}
+    if(registerForm.branch&&registerForm.branch!==storeId){setError('Điều phối liên chi nhánh cần tạo tại Chợ ca mở.');return;}
+    shiftSubmitRef.current=true;setSavingShift(true);
     try {
-      // Nếu chọn chi nhánh làm việc khác với chi nhánh hiện tại -> Tạo yêu cầu điều phối liên chi nhánh
-      if (registerForm.branch && registerForm.branch !== storeId) {
-        const targetStore = stores.find((s) => s.id === registerForm.branch);
-        const currentStore = stores.find((s) => s.id === storeId);
-        const emp = employees.find((e) => (e.staffId || e.id) === registerForm.staffId);
-        const skObj = skills.find((s) => s.id === registerForm.location);
-
-        const newRequest = {
-          id: 'csr_' + Date.now(),
-          sourceStoreId: storeId,
-          sourceStoreName: currentStore?.name || 'Chi nhánh hiện tại',
-          targetStoreId: registerForm.branch,
-          targetStoreName: targetStore?.name || 'Chi nhánh khác',
-          staffId: registerForm.staffId,
-          staffName: emp?.staffFullName || emp?.fullName || 'Nhân viên',
-          position: skObj?.name || emp?.position || 'Nhân viên',
-          skillId: registerForm.location,
-          color: registerForm.color,
-          shiftDate: registerForm.shiftDate,
-          startTime: registerForm.startTime,
-          endTime: registerForm.endTime,
-          note: registerForm.note,
-          clockIn: registerForm.clockIn,
-          clockOut: registerForm.clockOut,
-          radius: registerForm.radius,
-          status: 'PENDING_APPROVAL',
-          createdAt: new Date().toISOString(),
-        };
-
-        const allReqs = JSON.parse(localStorage.getItem('cross_store_requests') || '[]');
-        allReqs.push(newRequest);
-        localStorage.setItem('cross_store_requests', JSON.stringify(allReqs));
-        setCrossStoreRequests(allReqs);
-
-        showToast(
-          'Đã gửi yêu cầu điều phối',
-          `Lịch làm việc của nhân viên "${newRequest.staffName}" đã được gửi sang chi nhánh "${newRequest.targetStoreName}" để chờ duyệt.`
-        );
-        setShowRegisterModal(false);
-        return;
-      }
-
-      const deadlineDate = new Date(registerForm.shiftDate + 'T00:00:00Z');
-      deadlineDate.setUTCDate(deadlineDate.getUTCDate() - 1);
-      deadlineDate.setUTCHours(23, 59, 59, 0);
-      const registrationDeadline = deadlineDate.toISOString().replace('.000Z', 'Z');
-
+      const registrationDeadline=shiftRegistrationDeadline(registerForm,attendanceConfig?.availabilityDeadlineHours??24);
       const res = await createShift(storeId, {
+        shiftTemplateId:registerForm.shiftTemplateId||null,
         shiftDate: registerForm.shiftDate,
         startTime: registerForm.startTime + ':00',
         endTime: registerForm.endTime + ':00',
         availabilityDeadline: registrationDeadline,
         staffId: registerForm.staffId || null,
         skillId: registerForm.location || null,
-        note: registerForm.note || null,
+        note: registerForm.note,
         color: registerForm.color || null,
       });
 
-      const shiftId = res.data.id;
-
-      // Lưu metadata vào localStorage
-      const savedMeta = JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`) || '{}');
-      savedMeta[shiftId] = {
-        color: registerForm.color,
-        staffId: registerForm.staffId,
-        skillId: registerForm.location,
-        location: registerForm.location,
-        note: registerForm.note,
-        clockIn: registerForm.clockIn,
-        clockOut: registerForm.clockOut,
-        radius: registerForm.radius,
-      };
-      localStorage.setItem(`shifts_meta_${storeId}`, JSON.stringify(savedMeta));
-
-      // Optimistic update
-      const newShift = {
-        ...res.data,
-        ...savedMeta[shiftId],
-      };
+      const newShift={...res.data,location:res.data.skillId||registerForm.location};
       const empId = registerForm.staffId;
       const dateIso = registerForm.shiftDate;
       if (empId && dateIso) {
@@ -1363,9 +1339,10 @@ export default function SchedulePage() {
       }
       setShowRegisterModal(false);
       notifyShiftUpdates();
+      await loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Tạo lịch thất bại');
-    }
+    } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
   const handleUpdateShift = async (e) => {
@@ -1374,51 +1351,28 @@ export default function SchedulePage() {
     setError('');
 
     const currentStore = stores.find((store) => String(store.id) === String(storeId));
-    const openTime = currentStore?.openTime?.slice(0, 5);
-    const closeTime = currentStore?.closeTime?.slice(0, 5);
-    if (openTime && registerForm.startTime < openTime) {
-      setError(`Giờ bắt đầu phải từ ${openTime} trở đi (giờ mở cửa chi nhánh).`);
-      return;
-    }
-    if (closeTime && registerForm.endTime > closeTime) {
-      setError(`Giờ kết thúc phải trước hoặc bằng ${closeTime} (giờ đóng cửa chi nhánh).`);
-      return;
-    }
-    if (registerForm.startTime >= registerForm.endTime) {
-      setError('Giờ kết thúc phải sau giờ bắt đầu.');
-      return;
-    }
+    if(shiftSubmitRef.current)return;
+    const validation=validateShiftForm(registerForm,currentStore,'edit');
+    if(validation){setError(validation);return;}
+    shiftSubmitRef.current=true;setSavingShift(true);
 
     try {
       const res = await updateShift(storeId, editingShift.id, {
+        shiftTemplateId:registerForm.shiftTemplateId||null,
         shiftDate: registerForm.shiftDate,
         startTime: registerForm.startTime + ':00',
         endTime: registerForm.endTime + ':00',
         staffId: registerForm.staffId || null,
         skillId: registerForm.location || null,
-        note: registerForm.note || null,
+        note: registerForm.note,
         color: registerForm.color || null,
       });
 
-      // Lưu metadata
-      const savedMeta = JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`) || '{}');
-      savedMeta[editingShift.id] = {
-        color: registerForm.color,
-        staffId: registerForm.staffId,
-        skillId: registerForm.location,
-        location: registerForm.location,
-        note: registerForm.note,
-        clockIn: registerForm.clockIn,
-        clockOut: registerForm.clockOut,
-        radius: registerForm.radius,
-      };
-      localStorage.setItem(`shifts_meta_${storeId}`, JSON.stringify(savedMeta));
-
-      const updated = {
-        ...editingShift,
-        ...res.data,
-        ...savedMeta[editingShift.id],
-      };
+      try {
+        const legacy=JSON.parse(localStorage.getItem(`shifts_meta_${storeId}`)||'{}');
+        delete legacy[editingShift.id];localStorage.setItem(`shifts_meta_${storeId}`,JSON.stringify(legacy));
+      } catch {/* Backend remains the source of truth if browser storage is unavailable. */}
+      const updated={...editingShift,...res.data,location:res.data.skillId||registerForm.location};
 
       // Cập nhật optimistic vào state assignments
       setAssignments((prev) => {
@@ -1446,7 +1400,7 @@ export default function SchedulePage() {
       await loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Cập nhật ca làm việc thất bại');
-    }
+    } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
   /* ── Cross-Store Request Handlers ───────────────── */
@@ -1650,48 +1604,53 @@ export default function SchedulePage() {
     }
   };
 
-  const handleRunAutoSchedule = async () => {
-    if (!storeId) return;
-    const dateFrom = toISODate(weekDatesFull[0]);
-    const dateTo = toISODate(weekDatesFull[weekDatesFull.length - 1]);
+  const prepareAutoVisualization = async (startDate, endDate) => {
+    if (!storeId || autoVisualizationLock.current) return;
+    autoVisualizationLock.current = true;
+    setAutoScheduling(true);
     try {
-      showToast('Đang xếp lịch tự động', 'Hệ thống đang chạy thuật toán tối ưu 8 bước...');
-      const res = await autoScheduleShifts(storeId, { startDate: dateFrom, endDate: dateTo });
-      setAutoScheduleResultData(res.data);
-      setShowAutoScheduleResultModal(true);
-      loadData();
-      notifyShiftUpdates();
+      const response = await getShiftsForStore(storeId);
+      const before = shiftsInWindow(response.data, startDate, endDate);
+      const store = stores.find(s => String(s.id) === String(storeId));
+      setAutoVisualization({storeId, storeName: store?.name || 'Cửa hàng', storeCategory: store?.category || 'OTHER', layout: storeLayout, zones: storeZones, employees, skills, before, startDate, endDate});
+      setShowAutoScheduleModal(false);
     } catch (err) {
-      showToast('Lỗi xếp lịch tự động', err.response?.data?.message || 'Không thể xếp lịch tự động.');
-    }
+      showToast('Không tải được lịch hiện tại', err.response?.data?.message || 'Chưa chạy xếp lịch. Vui lòng thử lại.');
+    } finally { autoVisualizationLock.current = false; setAutoScheduling(false); }
   };
+  const handleRunAutoSchedule = () => prepareAutoVisualization(toISODate(weekDatesFull[0]), toISODate(weekDatesFull[weekDatesFull.length - 1]));
 
   /* ── Render ────────────────────────────────────── */
   return (
-    <div className="sch-page">
+    <div className={`sch-page ${['3D','Planner'].includes(viewMode) && scheduleSubTab === 'board' ? 'sch-page--explorer' : ''}`}>
+      {scheduleSubTab === 'board' && <header className="sch-page-heading">
+        <div className="sch-page-heading-copy">
+          <span className="sch-page-eyebrow">VẬN HÀNH / NHÂN SỰ</span>
+          <h1>Lịch làm việc</h1>
+          <p>Xem phân công, điều chỉnh ca và theo dõi nhu cầu nhân sự theo từng ngày.</p>
+        </div>
+        <div className="sch-page-metrics" aria-label="Tổng quan lịch làm việc">
+          <div><strong>{employees.length}</strong><span>Nhân viên</span></div>
+          <div><strong>{shiftsInVisibleRange}</strong><span>Ca trong {viewMode === 'Ngày' ? 'ngày' : 'tuần'}</span></div>
+        </div>
+      </header>}
       {/* ═══ DOMAIN SUBTAB BAR ═══ */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', background: '#fff', padding: '0 24px' }}>
+      <div className="sch-domain-tabs" role="tablist" aria-label="Phân hệ lịch làm việc">
         <button
           type="button"
+          role="tab"
+          aria-selected={scheduleSubTab === 'board'}
+          className={`sch-domain-tab ${scheduleSubTab === 'board' ? 'active' : ''}`}
           onClick={() => { setScheduleSubTab('board'); navigate('/schedule', { replace: true }); }}
-          style={{
-            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
-            borderBottom: scheduleSubTab === 'board' ? '3px solid #0d9488' : '3px solid transparent',
-            color: scheduleSubTab === 'board' ? '#0d9488' : '#64748b',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
         >
           Lập lịch & Bảng ca
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={scheduleSubTab === 'availability'}
+          className={`sch-domain-tab ${scheduleSubTab === 'availability' ? 'active' : ''}`}
           onClick={() => { setScheduleSubTab('availability'); navigate('/schedule?tab=availability', { replace: true }); }}
-          style={{
-            padding: '12px 20px', fontWeight: 600, fontSize: 13, border: 'none', background: 'none',
-            borderBottom: scheduleSubTab === 'availability' ? '3px solid #0d9488' : '3px solid transparent',
-            color: scheduleSubTab === 'availability' ? '#0d9488' : '#64748b',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
         >
           Khả dụng nhân sự
         </button>
@@ -1732,6 +1691,7 @@ export default function SchedulePage() {
               <Compass size={13} />
               <span>Không gian 3D</span>
             </button>
+            <button type="button" className={`sch-toggle-btn ${viewMode === 'Planner' ? 'active' : ''}`} onClick={()=>setViewMode('Planner')}>3D Schedule Planner</button>
           </div>
 
           <div className="sch-header-right">
@@ -1845,7 +1805,8 @@ export default function SchedulePage() {
                 >
                   ‹
                 </button>
-                <div
+                <button
+                  type="button"
                   className="sch-date-nav-center"
                   onClick={openCalendarPopover}
                   title="Bấm 1 lần để xem lịch • Bấm ngày để chọn tuần • Bấm đúp để chọn ngày"
@@ -1859,15 +1820,17 @@ export default function SchedulePage() {
                     </svg>
                   </span>
                   {viewMode === 'Ngày' ? (
-                    <span style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span className="sch-date-range-full" style={{ fontWeight: 600, alignItems: 'center', gap: 6 }}>
                       <span>{DOW_VI[currentDate.getDay()]},</span>
                       <span>{fmtDateRangeText(currentDate)}</span>
                     </span>
                   ) : (
                     <>
-                      <span>{fmtDateRangeText(weekDatesFull[0])}</span>
-                      <span className="sch-date-arrow-sep">→</span>
-                      <span>{fmtDateRangeText(weekDatesFull[6])}</span>
+                      <span className="sch-date-range-full">
+                        <span>{fmtDateRangeText(weekDatesFull[0])}</span>
+                        <span className="sch-date-arrow-sep">→</span>
+                        <span>{fmtDateRangeText(weekDatesFull[6])}</span>
+                      </span>
                       {viewMode === '3D' && (
                         <span style={{
                           marginLeft: 6,
@@ -1884,7 +1847,10 @@ export default function SchedulePage() {
                       )}
                     </>
                   )}
-                </div>
+                  <span className="sch-date-range-compact">
+                    {viewMode === 'Ngày' ? fmtDM(currentDate) : `${fmtDM(weekDatesFull[0])} – ${fmtDM(weekDatesFull[6])}`}
+                  </span>
+                </button>
                 <button
                   type="button"
                   className="sch-date-nav-arrow"
@@ -1930,13 +1896,13 @@ export default function SchedulePage() {
                   </div>
 
                   <div className="sch-cal-weekdays">
-                    <span>Mo</span>
-                    <span>Tu</span>
-                    <span>We</span>
-                    <span>Th</span>
-                    <span>Fr</span>
-                    <span>Sa</span>
-                    <span>Su</span>
+                    <span>T2</span>
+                    <span>T3</span>
+                    <span>T4</span>
+                    <span>T5</span>
+                    <span>T6</span>
+                    <span>T7</span>
+                    <span>CN</span>
                   </div>
 
                   <div className="sch-cal-grid">
@@ -2011,144 +1977,18 @@ export default function SchedulePage() {
         {error && <p className="sch-error">{error}</p>}
 
         {/* Schedule View: 3D Spatial View vs 2D Matrix Table */}
-        {viewMode === '3D' ? (
-          <div style={{ padding: '0 8px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-            {/* Unified Compact Navigation Bar: Day & Shift Selector */}
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 12,
-              border: '1px solid #E2E8F0',
-              padding: '8px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}>
-              {/* Left: Day Pills */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', whiteSpace: 'nowrap' }}>Ngày:</span>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {weekDatesFull.map((d, idx) => {
-                    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-                    const dayLabel = dayNames[idx] || `T${idx + 2}`;
-                    const dayShifts = allShifts.filter((s) => s.shiftDate === toISODate(d));
-                    const hasShifts = dayShifts.length > 0;
-                    const hasStaff = dayShifts.some(
-                      (s) => (Array.isArray(s.shiftAssignments) && s.shiftAssignments.length > 0) || s.staffId
-                    );
-                    const isActive = toISODate(d) === toISODate(currentDate);
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setCurrentDate(d);
-                          setSelected3DShiftId(null);
-                        }}
-                        title={`${dayLabel} - ${fmtDM(d)}${hasShifts ? ` (${dayShifts.length} ca)` : ' (chưa có ca)'}`}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: 6,
-                          border: isActive ? '1.5px solid #10B981' : '1px solid #E2E8F0',
-                          backgroundColor: isActive ? '#EEFAEB' : (hasStaff ? '#F0FDF4' : '#F8FAFC'),
-                          color: isActive ? '#047857' : (hasShifts ? '#334155' : '#94A3B8'),
-                          fontSize: 11,
-                          fontWeight: isActive ? 700 : 500,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        <span>{dayLabel}</span>
-                        <span style={{ fontSize: 10, opacity: 0.75 }}>{fmtDM(d)}</span>
-                        {hasStaff && (
-                          <span style={{
-                            width: 5, height: 5, borderRadius: '50%',
-                            backgroundColor: isActive ? '#10B981' : '#34D399',
-                            display: 'inline-block',
-                          }} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Center / Right: Shift Pills */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={14} color="#51A33D" />
-                  <span>Ca ({fmtDateRangeText(active3DDate)}):</span>
-                </div>
-                {activeDateShifts.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic' }}>
-                    Chưa có ca làm việc nào
-                  </span>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {activeDateShifts.map((shift) => {
-                      const isSelected = current3DShift?.id === shift.id;
-                      const timeStr = `${fmtTimeAMPM(shift.startTime)} - ${fmtTimeAMPM(shift.endTime)}`;
-                      const assignedCount = Array.isArray(shift.shiftAssignments) ? shift.shiftAssignments.length : (shift.staffId ? 1 : 0);
-
-                      return (
-                        <button
-                          key={shift.id}
-                          type="button"
-                          onClick={() => setSelected3DShiftId(shift.id)}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            border: isSelected ? '1.5px solid #51A33D' : '1px solid #E2E8F0',
-                            backgroundColor: isSelected ? '#EEFAEB' : '#F8FAFC',
-                            color: isSelected ? '#2E7D32' : '#334155',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <span>{shift.name || shift.templateName || 'Ca làm'} ({timeStr})</span>
-                          <span style={{
-                            fontSize: 9,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            backgroundColor: isSelected ? '#51A33D' : '#E2E8F0',
-                            color: isSelected ? '#FFF' : '#64748B',
-                          }}>
-                            {assignedCount}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Status summary */}
-                {current3DShift && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#64748B', marginLeft: 8 }}>
-                    <span>Trạng thái: <strong style={{ color: current3DShift.status === 'PUBLISHED' ? '#16a34a' : '#f59e0b' }}>{current3DShift.status || 'DRAFT'}</strong></span>
-                    <span>•</span>
-                    <span><strong>{active3DStaff.length}</strong> nhân sự</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
+        {viewMode === 'Planner'?<SchedulePlanner key={storeId} storeId={storeId} storeName={stores.find(s=>String(s.id)===String(storeId))?.name||'Cửa hàng'} storeCategory={stores.find(s=>String(s.id)===String(storeId))?.category||'OTHER'} layout={storeLayout} zones={storeZones} employees={employees} skills={skills} shifts={allShifts} date={toISODate(currentDate)} onDateChange={value=>setCurrentDate(new Date(`${value}T12:00:00`))} onExit={()=>setViewMode('Tuần')} onReload={loadData}/>:viewMode === '3D' ? (
+          <div className="sch-explorer-stage">
             {/* 3D Canvas Spatial Model - Full Expanded Height & Width */}
-            <div style={{ height: 'calc(100vh - 120px)', minHeight: 820, position: 'relative', width: '100%' }}>
+            <div className="sch-explorer-frame">
               <Store3DCanvas
+                onExitWorkspace={() => setViewMode('Tuần')}
+                onDateChange={(date) => { if (date) { setCurrentDate(new Date(`${date}T12:00:00`)); setSelected3DShiftId(null); } }}
                 layout={storeLayout}
                 zones={storeZones}
                 staff={active3DStaff}
                 storeName={stores.find((s) => String(s.id) === String(storeId))?.name || 'ShiftSync Store'}
+                storeCategory={stores.find((s) => String(s.id) === String(storeId))?.category || 'OTHER'}
                 stores={stores}
                 selectedStoreId={storeId}
                 onSelectStore={(id) => handleStoreChange(id)}
@@ -2156,7 +1996,7 @@ export default function SchedulePage() {
                 isAllocating={isAllocating3D}
                 allocatedSequence={allocatedSequence}
                 allDateShifts={activeDateShifts}
-                activeDate={active3DDate}
+                activeDate={toISODate(active3DDate)}
                 currentShift={current3DShift}
                 onSelectShift={(shift) => setSelected3DShiftId(shift?.id || null)}
                 employees={employees}
@@ -2171,6 +2011,16 @@ export default function SchedulePage() {
         ) : (
           /* Schedule table */
           <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <div className="sch-board-caption">
+              <div>
+                <span className="sch-board-kicker">BẢNG PHÂN CÔNG</span>
+                <h2>{viewMode === 'Ngày' ? 'Lịch theo ngày' : 'Lịch theo tuần'}</h2>
+              </div>
+              <div className="sch-pattern-legend">
+                <span className="sch-pattern-swatch" aria-hidden="true" />
+                Màu và sọc chéo thể hiện vị trí làm việc
+              </div>
+            </div>
             {viewMode === 'Ngày' && (
               <div className="sch-day-nav-pills-bar">
                 <span className="sch-day-nav-label">Chọn ngày:</span>
@@ -2208,7 +2058,7 @@ export default function SchedulePage() {
                 </div>
               </div>
             )}
-            <div className="sch-table-wrap">
+            <div className="sch-table-wrap" role="region" aria-label="Bảng phân công ca làm việc, có thể cuộn ngang" tabIndex={0}>
             <table className="sch-table">
               <thead>
                 <tr>
@@ -2507,6 +2357,23 @@ export default function SchedulePage() {
                   );
                 })}
 
+              {!loading && visibleEmployees.length === 0 && (
+                <tr className="sch-empty-row">
+                  <td colSpan={displayedDates.length + 1}>
+                    <div className="sch-empty-content">
+                      <span className="sch-empty-icon" aria-hidden="true"><Users size={22} strokeWidth={1.8} /></span>
+                      <strong>{employees.length ? 'Không có nhân viên phù hợp' : 'Chưa có nhân viên trong cửa hàng'}</strong>
+                      <p>{employees.length ? 'Hãy đổi bộ lọc để xem lại lịch phân công.' : 'Thêm nhân viên để bắt đầu tạo và phân công ca làm việc.'}</p>
+                      {employees.length ? (
+                        <button type="button" onClick={() => { setSelectedSkills(['ALL']); setSelectedEmployees(['ALL']); }}>Xóa bộ lọc</button>
+                      ) : (
+                        <button type="button" onClick={openAddUserModal}>Thêm nhân viên</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+
               {/* Add User row — không có border cột, chỉ border ngang */}
               {!loading && (
                 <tr className="sch-add-user-row">
@@ -2515,7 +2382,7 @@ export default function SchedulePage() {
                     className="sch-add-user-td"
                     onClick={openAddUserModal}
                   >
-                    <span className="sch-add-user-plus">+</span> Add User
+                    <span className="sch-add-user-plus">+</span> Thêm nhân viên
                   </td>
                 </tr>
               )}
@@ -2526,253 +2393,18 @@ export default function SchedulePage() {
         )}
       </main>}
 
-      {/* ═══ MODAL: Tạo lịch làm việc ═══ */}
-      {showRegisterModal && (
-        <div className="sch-modal-overlay" onClick={() => setShowRegisterModal(false)}>
-          <form
-            className="sch-modal"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={modalMode === 'edit' ? handleUpdateShift : handleCreateShift}
-          >
-            {/* Header */}
-            <div className="sch-modal-header">
-              <h2>{modalMode === 'edit' ? 'Sửa ca làm việc' : 'Tạo lịch làm việc'}</h2>
-              <div className="sch-modal-header-right">
-                <span className="sch-leave-tag">Nghỉ phép</span>
-                <button
-                  type="button"
-                  className="sch-modal-close"
-                  onClick={() => setShowRegisterModal(false)}
-                >&times;</button>
-              </div>
-            </div>
-
-            {error && <p className="sch-error">{error}</p>}
-
-            {/* 2-column grid */}
-            <div className="sch-modal-grid">
-              {/* Gán */}
-              <label>
-                Gán
-                <select
-                  value={registerForm.staffId}
-                  onChange={(e) => {
-                    const selectedEmpId = e.target.value;
-                    const defaults = getEmpDefaultSkillAndColor(selectedEmpId);
-                    setRegisterForm({
-                      ...registerForm,
-                      staffId: selectedEmpId,
-                      location: defaults.location || registerForm.location,
-                      color: defaults.color || registerForm.color,
-                    });
-                  }}
-                  placeholder="Chọn nhân viên..."
-                >
-                  <option value="">Chọn nhân viên...</option>
-                  {employees.map((e) => (
-                    <option key={e.staffId || e.id} value={e.staffId || e.id}>
-                      {e.staffFullName || e.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* Màu */}
-              <label>
-                Màu
-                <div className="sch-color-picker-row">
-                  {SHIFT_COLORS.map((c) => (
-                    <div
-                      key={c}
-                      className={`sch-color-dot${registerForm.color === c ? ' selected' : ''}`}
-                      style={{ backgroundColor: c }}
-                      onClick={() => setRegisterForm({ ...registerForm, color: c })}
-                    />
-                  ))}
-                  {!SHIFT_COLORS.includes(registerForm.color) && registerForm.color && (
-                    <div
-                      className="sch-color-dot selected"
-                      style={{ backgroundColor: registerForm.color }}
-                      title="Màu mặc định vị trí"
-                    />
-                  )}
-                </div>
-              </label>
-
-              {/* Thời gian làm việc */}
-              <label>
-                Thời gian làm việc
-                <input
-                  required
-                  type="date"
-                  value={registerForm.shiftDate}
-                  onChange={(e) => setRegisterForm({ ...registerForm, shiftDate: e.target.value })}
-                  placeholder="Chọn thời gian làm việc..."
-                />
-              </label>
-
-              {/* Vị trí làm việc */}
-              <label>
-                Vị trí làm việc
-                <select
-                  value={registerForm.location}
-                  onChange={(e) => {
-                    const skId = e.target.value;
-                    const skObj = skills.find((s) => s.id === skId);
-                    let skColor = registerForm.color;
-                    if (skObj) {
-                      skColor = getSkillColor(skObj);
-                    }
-                    setRegisterForm({
-                      ...registerForm,
-                      location: skId,
-                      color: skColor || registerForm.color,
-                    });
-                  }}
-                >
-                  <option value="">Chọn vị trí làm việc...</option>
-                  {skills.map((sk) => (
-                    <option key={sk.id} value={sk.id}>
-                      {sk.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* Start time */}
-              <label>
-                Giờ bắt đầu
-                <input
-                  required
-                  type="time"
-                  value={registerForm.startTime}
-                  onChange={(e) => setRegisterForm({ ...registerForm, startTime: e.target.value })}
-                />
-              </label>
-
-              {/* End time */}
-              <label>
-                Giờ kết thúc
-                <input
-                  required
-                  type="time"
-                  value={registerForm.endTime}
-                  onChange={(e) => setRegisterForm({ ...registerForm, endTime: e.target.value })}
-                />
-              </label>
-            </div>
-
-            {/* Thêm chi tiết section */}
-            <div className="sch-modal-section">
-              <div className="sch-modal-section-title">Thêm chi tiết</div>
-
-              <label>
-                Chi nhánh
-                <select
-                  value={registerForm.branch || storeId}
-                  onChange={(e) => setRegisterForm({ ...registerForm, branch: e.target.value })}
-                >
-                  <option value="">Chọn chi nhánh làm việc...</option>
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Ghi chú
-                <textarea
-                  value={registerForm.note}
-                  onChange={(e) => setRegisterForm({ ...registerForm, note: e.target.value })}
-                  placeholder=""
-                  rows={3}
-                />
-              </label>
-            </div>
-
-            {/* Thiết lập chấm công section */}
-            <div className="sch-modal-section">
-              <div className="sch-modal-section-title">Thiết lập chấm công</div>
-
-              <p className="sch-checkbox-row">
-                Nhân viên phải ở gần địa điểm để:&nbsp;
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={registerForm.clockIn}
-                    onChange={(e) => setRegisterForm({ ...registerForm, clockIn: e.target.checked })}
-                  />
-                  &nbsp;clock In
-                </label>
-                &nbsp;
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={registerForm.clockOut}
-                    onChange={(e) =>
-                      setRegisterForm({ ...registerForm, clockOut: e.target.checked })
-                    }
-                  />
-                  &nbsp;clock Out
-                </label>
-              </p>
-
-              <p className="sch-checkbox-row">
-                Nhân viên và người giám sát phải ở gần địa điểm mức độ nào?
-              </p>
-              <div className="sch-meters-group">
-                <input
-                  className="sch-meters-input"
-                  type="number"
-                  min={0}
-                  value={registerForm.radius}
-                  onChange={(e) =>
-                    setRegisterForm({ ...registerForm, radius: Number(e.target.value) })
-                  }
-                />
-                <span className="sch-meters-unit">Meters</span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="sch-modal-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              {modalMode === 'edit' ? (
-                <button
-                  type="button"
-                  className="sch-delete-shift-btn"
-                  onClick={() => {
-                    if (editingShift) {
-                      handleDeleteShift(editingShift);
-                      setShowRegisterModal(false);
-                    }
-                  }}
-                >
-                  Xóa ca làm việc
-                </button>
-              ) : (
-                <div />
-              )}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  className="sch-cancel-btn"
-                  onClick={() => {
-                    setShowRegisterModal(false);
-                    setEditingShift(null);
-                  }}
-                >
-                  Huỷ
-                </button>
-                <button className="sch-save-btn" type="submit">
-                  {modalMode === 'edit' ? 'Cập nhật' : 'Lưu'}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
+      {showRegisterModal && <div className="sch-modal-overlay" onClick={closeRegisterModal}>
+        <ShiftRegistrationForm modalRef={registerModalRef} mode={modalMode} form={registerForm} setForm={setRegisterForm}
+          employees={employees} skills={skills} colors={SHIFT_COLORS} store={stores.find(s=>String(s.id)===String(storeId))}
+          templates={registerTemplates} templateState={registerTemplateState} config={attendanceConfig} error={error} saving={savingShift}
+          assignmentLocked={modalMode==='edit'&&(editingShift?.assignedStaffCount||editingShift?.shiftAssignments?.length||0)>1}
+          roleLocked={modalMode==='edit'&&(editingShift?.status!=='DRAFT'||(editingShift?.assignedStaffCount||editingShift?.shiftAssignments?.length||0)>0||(editingShift?.skillRequirements?.length||0)>1)}
+          onClose={closeRegisterModal} onSubmit={modalMode==='edit'?handleUpdateShift:handleCreateShift}
+          onDelete={()=>{if(editingShift){handleDeleteShift(editingShift);setShowRegisterModal(false);}}}
+          onEmployeeChange={staffId=>{const defaults=getEmpDefaultSkillAndColor(staffId);setRegisterForm({...registerForm,staffId,...(modalMode==='create'?{location:defaults.location,color:defaults.color}:{})});}}
+          onSkillChange={id=>{const skill=skills.find(s=>s.id===id);setRegisterForm({...registerForm,location:id,color:skill?getSkillColor(skill):registerForm.color});}}
+          onSettings={()=>{closeRegisterModal();navigate('/settings?tab=attendance');}}/>
+      </div>}
 
       {/* ═══ MODAL: Add User to store ═══ */}
       {showAddUserModal && (
@@ -3016,10 +2648,7 @@ export default function SchedulePage() {
               <div className="sch-view-item" style={{ gridColumn: '1 / -1' }}>
                 <span className="sch-view-item-label">Thiết lập chấm công</span>
                 <span className="sch-view-item-val" style={{ fontWeight: 500 }}>
-                  {viewingShift.clockIn ? 'Bắt buộc Clock In' : ''}
-                  {viewingShift.clockIn && viewingShift.clockOut ? ' • ' : ''}
-                  {viewingShift.clockOut ? 'Bắt buộc Clock Out' : ''}
-                  &nbsp;(Bán kính {viewingShift.radius || 150}m)
+                  Áp dụng cấu hình chấm công chung của chi nhánh.
                 </span>
               </div>
             </div>
@@ -3457,237 +3086,22 @@ export default function SchedulePage() {
                   const dStart = new Date(autoScheduleDates.startDate);
                   const dEnd = new Date(autoScheduleDates.endDate);
                   const diffDays = Math.round((dEnd - dStart) / (1000 * 60 * 60 * 24));
-                  if (diffDays < 0 || diffDays > 6) {
+                  if (!Number.isFinite(diffDays) || diffDays < 0 || diffDays > 6) {
                     showToast('Khoảng thời gian không hợp lệ', 'Thời gian xếp ca tự động tối đa là 7 ngày (1 tuần).');
                     return;
                   }
-                  setShowAutoScheduleModal(false);
-                  setAutoScheduling(true);
-                  showToast(
-                    'AI Đang Tính Toán...',
-                    `Đang chạy thuật toán tối ưu xếp ca tự động từ ${autoScheduleDates.startDate} đến ${autoScheduleDates.endDate}...`
-                  );
-                  try {
-                    const res = await autoScheduleShifts(storeId, {
-                      startDate: autoScheduleDates.startDate,
-                      endDate: autoScheduleDates.endDate,
-                    });
-                    setAutoScheduleResultData(res?.data);
-                    setShowAutoScheduleResultModal(true);
-                    loadData();
-                    notifyShiftUpdates();
-                  } catch (err) {
-                    console.error('Auto schedule failed:', err);
-                    showToast('Lỗi xếp ca', err.response?.data?.message || 'Không thể xếp ca tự động. Vui lòng kiểm tra lại cấu hình.');
-                  } finally {
-                    setAutoScheduling(false);
-                  }
+                  await prepareAutoVisualization(autoScheduleDates.startDate, autoScheduleDates.endDate);
                 }}
                 style={{ background: '#0d9488', color: '#fff', padding: '9px 20px', borderRadius: 8, fontWeight: 700 }}
               >
-                {autoScheduling ? 'Đang xếp...' : 'Bắt đầu tự động xếp ca'}
+                {autoScheduling ? 'Đang tải lịch...' : 'Xem trước vị trí'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ MODAL: Kết quả Tự động xếp ca (AI Scheduler Result & Diagnostics) ═══ */}
-      {showAutoScheduleResultModal && autoScheduleResultData && (
-        <div className="sch-modal-overlay" onClick={() => setShowAutoScheduleResultModal(false)}>
-          <div
-            className="sch-modal sch-auto-result-modal"
-            style={{ maxWidth: 840, maxHeight: '90vh', overflowY: 'auto' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sch-modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 24 }}>✨</span>
-                <div>
-                  <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a', fontWeight: 700 }}>
-                    Kết Quả Tự Động Xếp Ca Bằng AI
-                  </h2>
-                  <span style={{ fontSize: 12.5, color: '#64748b' }}>
-                    Báo cáo phân bổ ca và chẩn đoán năng lực đáp ứng định biên
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="sch-modal-close"
-                onClick={() => setShowAutoScheduleResultModal(false)}
-              >&times;</button>
-            </div>
-
-            <div style={{ padding: '16px 0' }}>
-              {/* Coverage Banner */}
-              {autoScheduleResultData.status === 'FULL_COVERAGE' ? (
-                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065f46', fontWeight: 700, fontSize: 14 }}>
-                    <span>🎉</span>
-                    <span>Phân công hoàn tất 100% — Toàn bộ nhu cầu định biên đã được lấp đầy!</span>
-                  </div>
-                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#047857' }}>
-                    Tất cả {autoScheduleResultData.totalDemands} vị trí ca làm việc đã được phân bổ nhân sự tối ưu, tuân thủ mọi quy định hợp đồng và khả dụng.
-                  </p>
-                </div>
-              ) : autoScheduleResultData.status === 'PARTIALLY_COVERED' ? (
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#92400e', fontWeight: 700, fontSize: 14 }}>
-                    <span>⚠️</span>
-                    <span>Phân công một phần: Đã xếp {autoScheduleResultData.newAssignmentsCreated}/{autoScheduleResultData.totalDemands} vị trí ({Math.round((autoScheduleResultData.newAssignmentsCreated / (autoScheduleResultData.totalDemands || 1)) * 100)}%)</span>
-                  </div>
-                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b45309' }}>
-                    Hệ thống đã xếp tối đa vị trí hợp lệ. Phát hiện thiếu hụt {autoScheduleResultData.shortageSlots} vị trí do thiếu nhân sự khả dụng hoặc vi phạm hạn mức giờ làm việc.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991b1b', fontWeight: 700, fontSize: 14 }}>
-                    <span>❗</span>
-                    <span>Chưa thể xếp ca: 0/{autoScheduleResultData.totalDemands} vị trí được xếp</span>
-                  </div>
-                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b91c1c' }}>
-                    Không có nhân sự nào đáp ứng được các ca làm này do trùng lịch, vượt quá giờ làm tối đa hoặc chưa đăng ký kỹ năng phù hợp.
-                  </p>
-                </div>
-              )}
-
-              {/* Stat Metrics Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Tổng Nhu Cầu</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
-                    {autoScheduleResultData.totalDemands || 0}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>vị trí ca</div>
-                </div>
-
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Đã Phân Bổ</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#15803d', marginTop: 4 }}>
-                    {autoScheduleResultData.newAssignmentsCreated || 0}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#16a34a' }}>vị trí thành công</div>
-                </div>
-
-                <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase' }}>Còn Thiếu Hụt</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#c2410c', marginTop: 4 }}>
-                    {autoScheduleResultData.shortageSlots || 0}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#ea580c' }}>vị trí chưa có người</div>
-                </div>
-
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Tỷ Lệ Đáp Ứng</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#0d9488', marginTop: 4 }}>
-                    {autoScheduleResultData.feasibility?.utilizationRate ?? Math.round(((autoScheduleResultData.newAssignmentsCreated || 0) / (autoScheduleResultData.totalDemands || 1)) * 100)}%
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>năng lực vận hành</div>
-                </div>
-              </div>
-
-              {/* Feasibility Details Box */}
-              {autoScheduleResultData.feasibility && (
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>📊</span>
-                    <span>Phân Tích Năng Lực Nhân Sự Chi Nhánh:</span>
-                  </div>
-                  <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.6 }}>
-                    Chi nhánh hiện có <strong>{autoScheduleResultData.feasibility.totalActiveStaff}</strong> nhân sự đang hoạt động với tổng hạn mức năng lực <strong>{autoScheduleResultData.feasibility.capacityHours} giờ</strong>.
-                    Kế hoạch định biên yêu cầu <strong>{autoScheduleResultData.feasibility.demandHours} giờ</strong> làm việc.
-                    {autoScheduleResultData.feasibility.deficitHours > 0 ? (
-                      <span style={{ color: '#dc2626' }}>
-                        {' '}(Thiếu hụt <strong>{autoScheduleResultData.feasibility.deficitHours} giờ</strong> công).
-                      </span>
-                    ) : (
-                      <span style={{ color: '#16a34a' }}>
-                        {' '}(Năng lực nhân sự đủ đáp ứng toàn bộ nhu cầu định biên).
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Shortages Breakdown Table */}
-              {Array.isArray(autoScheduleResultData.shortages) && autoScheduleResultData.shortages.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>📋</span>
-                    <span>Danh Sách Vị Trí Cần Bổ Sung Nhân Sự ({autoScheduleResultData.shortages.length} ca):</span>
-                  </div>
-                  <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                          <th style={{ padding: '8px 12px' }}>Ngày</th>
-                          <th style={{ padding: '8px 12px' }}>Khung giờ</th>
-                          <th style={{ padding: '8px 12px' }}>Vị trí</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Cần / Đã có</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Thiếu</th>
-                          <th style={{ padding: '8px 12px' }}>Lý do chẩn đoán</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {autoScheduleResultData.shortages.map((s, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1e293b' }}>{s.shiftDate}</td>
-                            <td style={{ padding: '8px 12px', color: '#64748b' }}>{s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}</td>
-                            <td style={{ padding: '8px 12px' }}>
-                              <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 4, fontWeight: 600, fontSize: 11.5 }}>
-                                {s.skillName || 'Nhân viên'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', color: '#334155' }}>
-                              {s.requiredCount} / {s.assignedCount}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', color: '#dc2626', fontWeight: 700 }}>
-                              -{s.shortageCount}
-                            </td>
-                            <td style={{ padding: '8px 12px', color: '#64748b', fontSize: 12 }}>
-                              {s.reason || 'Thiếu nhân sự khả dụng'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="sch-modal-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                {autoScheduleResultData.shortageSlots > 0 && (
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn-secondary"
-                    style={{ fontSize: 12.5 }}
-                    onClick={() => {
-                      setShowAutoScheduleResultModal(false);
-                      navigate('/marketplace');
-                    }}
-                  >
-                    🏪 Mở Sàn Chuyển Ca (Marketplace)
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  type="button"
-                  className="sch-save-btn"
-                  style={{ background: '#0d9488', color: '#fff', padding: '8px 20px', borderRadius: 8, fontWeight: 600, fontSize: 13 }}
-                  onClick={() => setShowAutoScheduleResultModal(false)}
-                >
-                  Đóng &amp; Xem Bảng Ca
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {autoVisualization && <AutoSchedulerVisualization snapshot={autoVisualization} onClose={() => setAutoVisualization(null)} onSaved={() => {loadData(); notifyShiftUpdates();}}/>}
 
     </div>
   );

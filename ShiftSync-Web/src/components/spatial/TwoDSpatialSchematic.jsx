@@ -7,6 +7,8 @@ import { getZoneThemeColor, calculateZoneDistance } from './spatial.constants';
 export default function TwoDSpatialSchematic({
   layout,
   zones = [],
+  workstations = [],
+  showWorkstations = true,
   staff = [],
   selectedZone = null,
   onSelectZone,
@@ -24,6 +26,10 @@ export default function TwoDSpatialSchematic({
 
   const scaleX = (x) => padding + (x / storeLength) * usableWidth;
   const scaleY = (y) => padding + (y / storeWidth) * usableHeight;
+  const zoneDimensions=zone=>({
+    width:zone.physicalFrame?Math.max(72,(usableWidth/storeLength)*(zone.physicalFrame.sizeX-.3)):Math.max(90,Math.min(160,(usableWidth/storeLength)*4)),
+    height:zone.physicalFrame?Math.max(76,(usableHeight/storeWidth)*zone.physicalFrame.sizeZ):Math.max(60,Math.min(120,(usableHeight/storeWidth)*3)),
+  });
 
   // Group staff by assigned zone
   const staffByZone = {};
@@ -134,8 +140,7 @@ export default function TwoDSpatialSchematic({
         {zones.map((zone) => {
           const zx = scaleX(zone.x);
           const zy = scaleY(zone.y);
-          const zw = Math.max(90, Math.min(160, (usableWidth / storeLength) * 4));
-          const zh = Math.max(60, Math.min(120, (usableHeight / storeWidth) * 3));
+          const {width:zw,height:zh}=zoneDimensions(zone);
           const isSelected = selectedZone?.id === zone.id;
           const color = getZoneThemeColor(zone.name);
           const assignedStaff = staffByZone[zone.id] || [];
@@ -143,6 +148,9 @@ export default function TwoDSpatialSchematic({
           return (
             <g
               key={zone.id || zone.name}
+              data-zone-id={zone.id}
+              data-store-x={zone.x}
+              data-store-y={zone.y}
               onClick={() => onSelectZone?.(zone)}
               style={{ cursor: 'pointer' }}
             >
@@ -208,7 +216,7 @@ export default function TwoDSpatialSchematic({
               <g>
                 {assignedStaff.map((emp, sIdx) => {
                   const dotX = zx - ((assignedStaff.length - 1) * 12) / 2 + sIdx * 14;
-                  const dotY = zy + 22;
+                  const dotY = zy + 26;
                   return (
                     <g key={emp.id || sIdx}>
                       <circle cx={dotX} cy={dotY} r="5" fill={color} stroke="#FFFFFF" strokeWidth="1.5" />
@@ -217,6 +225,52 @@ export default function TwoDSpatialSchematic({
                   );
                 })}
               </g>
+            </g>
+          );
+        })}
+
+        {/* Render Workstations Layer */}
+        {showWorkstations && (workstations || []).map((ws) => {
+          let wx = ws.x;
+          let wy = ws.y;
+          if (wx == null || wy == null) {
+            const parentZone = zones.find((z) => z.id === ws.zoneId);
+            if (parentZone) {
+              wx = parentZone.x;
+              wy = parentZone.y;
+            } else {
+              wx = 0;
+              wy = 0;
+            }
+          }
+          const sx = scaleX(wx);
+          const sy = scaleY(wy);
+          const parentZone=zones.find(zone=>zone.id===ws.zoneId);
+          const siblingIndex=workstations.filter(item=>item.zoneId===ws.zoneId).findIndex(item=>item.id===ws.id);
+          const labelY=parentZone?scaleY(parentZone.y)+zoneDimensions(parentZone).height/2+20+Math.max(0,siblingIndex)*20:sy+32;
+
+          return (
+            <g key={ws.id || ws.name} data-workstation-id={ws.id} style={{ pointerEvents: 'none' }}>
+              <path d={`M ${sx} ${sy+8} L ${sx} ${labelY-14}`} stroke="#64748b" strokeWidth="1" />
+              <circle cx={sx} cy={sy} r="7" fill="#0284C7" stroke="#FFFFFF" strokeWidth="2" />
+              <rect
+                x={sx - 36}
+                y={labelY - 14}
+                width="72"
+                height="15"
+                rx="3"
+                fill="rgba(15, 23, 42, 0.85)"
+              />
+              <text
+                x={sx}
+                y={labelY - 3}
+                textAnchor="middle"
+                fontSize="8.5"
+                fontWeight="700"
+                fill="#FFFFFF"
+              >
+                {String(ws.name || 'Trạm').slice(0, 11)}
+              </text>
             </g>
           );
         })}

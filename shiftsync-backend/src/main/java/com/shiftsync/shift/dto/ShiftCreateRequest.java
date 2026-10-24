@@ -39,6 +39,7 @@ public class ShiftCreateRequest {
     private String note;
 
     @Schema(description = "Shift Color (Optional)")
+    @jakarta.validation.constraints.Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "Color must be a six-digit hex value")
     private String color;
 
     @Schema(description = "Skill / Role ID (Optional)")

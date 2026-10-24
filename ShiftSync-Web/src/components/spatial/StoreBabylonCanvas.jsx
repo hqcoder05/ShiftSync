@@ -614,7 +614,7 @@ export default function StoreBabylonCanvas({
             zIndex: 20,
           }}
         >
-          🌐 Trở lại 3D
+           Trở lại 3D
         </button>
       </div>
     );
@@ -696,7 +696,7 @@ export default function StoreBabylonCanvas({
             cursor: 'default',
           }}
         >
-          Babylon.js ★
+          Babylon.js 
         </span>
       </div>
 

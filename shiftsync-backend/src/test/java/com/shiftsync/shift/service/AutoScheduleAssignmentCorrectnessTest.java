@@ -16,13 +16,19 @@ import com.shiftsync.layout.service.SpatialAllocationService;
 import com.shiftsync.payroll.repository.PayrollPeriodRepository;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shared.security.SystemRole;
+import com.shiftsync.leave.entity.LeaveRequest;
+import com.shiftsync.leave.enums.LeaveStatus;
 import com.shiftsync.shift.dto.AutoScheduleRequest;
+import com.shiftsync.shift.dto.AutoScheduleResult;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
+import com.shiftsync.shift.dto.ShortageDetailDTO;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
 import com.shiftsync.shift.enums.AssignmentSource;
+import com.shiftsync.shift.enums.ScheduleCoverageStatus;
 import com.shiftsync.shift.enums.ShiftStatus;
+import com.shiftsync.skill.entity.SkillLevel;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.skill.entity.Skill;
@@ -74,6 +80,7 @@ class AutoScheduleAssignmentCorrectnessTest {
     @Mock private StoreZoneRepository storeZoneRepository;
     @Mock private SkillRepository skillRepository;
     @Mock private com.shiftsync.notification.service.NotificationService notificationService;
+    @Mock private com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
     @Captor
     private ArgumentCaptor<List<ShiftAssignment>> assignmentsCaptor;
@@ -954,5 +961,406 @@ class AutoScheduleAssignmentCorrectnessTest {
         assertTrue(shiftAssignmentValidator.isEligible(shift, multiStaff.getId()));
         // validateEligibility passes without throwing
         assertDoesNotThrow(() -> shiftAssignmentValidator.validateEligibility(shift, multiStaff.getId()));
+    }
+
+    // =========================================================================
+    // TEST 19: HC2 Approved leave request strictly blocks auto-schedule assignment
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 19: HC2 Approved leave request strictly blocks auto-schedule assignment")
+    void test19_approvedLeaveRequestBlocksAutoScheduleAssignment() {
+        ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                .id(UUID.randomUUID())
+                .skill(baristaSkill)
+                .requiredCount(1)
+                .build();
+        Shift shift = createShift(List.of(req));
+
+        User candidate = createStaffUser("On-Leave Staff");
+        Employment emp = createEmployment(candidate, 40);
+
+        LeaveRequest leave = LeaveRequest.builder()
+                .id(UUID.randomUUID())
+                .staff(candidate)
+                .store(store)
+                .status(LeaveStatus.APPROVED)
+                .startDate(testDate.minusDays(1))
+                .endDate(testDate.plusDays(1))
+                .build();
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig()));
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultSchedConfig()));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate)).thenReturn(List.of(shift));
+        when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(emp));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(createStaffSkill(candidate.getId(), baristaSkill)));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(createAvailability(candidate, (short) 1)));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(leaveRequestRepository.findByStoreIdAndStatus(storeId, LeaveStatus.APPROVED)).thenReturn(List.of(leave));
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
+
+        assertNotNull(result);
+        assertEquals(ScheduleCoverageStatus.ZERO_COVERAGE, result.getStatus());
+        assertEquals(1, result.getShortageSlots());
+        verify(shiftAssignmentRepository, never()).saveAll(any());
+    }
+
+    // =========================================================================
+    // TEST 20: HC5 Minimum rest time violation across day boundary strictly rejected
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 20: HC5 Minimum rest time violation across day boundary strictly rejected")
+    void test20_minimumRestTimeAcrossDayBoundaryStrictlyRejected() {
+        // Shift on testDate (Monday): 06:00 to 14:00
+        Shift morningShift = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(testDate)
+                .startTime(LocalTime.of(6, 0))
+                .endTime(LocalTime.of(14, 0))
+                .status(ShiftStatus.DRAFT)
+                .requirements(new ArrayList<>(List.of(
+                        ShiftSkillRequirement.builder().id(UUID.randomUUID()).skill(baristaSkill).requiredCount(1).build()
+                )))
+                .assignments(new ArrayList<>())
+                .build();
+        morningShift.getRequirements().get(0).setShift(morningShift);
+
+        // Pre-existing closing shift on Sunday (day before testDate): 15:00 to 23:00
+        // Rest gap from 23:00 Sun to 06:00 Mon is only 7 hours (< 11 hours min rest)
+        LocalDate dayBefore = testDate.minusDays(1);
+        Shift closingShift = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(dayBefore)
+                .startTime(LocalTime.of(15, 0))
+                .endTime(LocalTime.of(23, 0))
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+
+        User candidate = createStaffUser("Night Staff");
+        Employment emp = createEmployment(candidate, 40);
+
+        ShiftAssignment previousAssignment = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(closingShift)
+                .staff(candidate)
+                .requiredSkillId(baristaSkillId)
+                .source(AssignmentSource.AUTO)
+                .build();
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig())); // minRestHours = 11
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultSchedConfig()));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate)).thenReturn(List.of(morningShift));
+        when(shiftAssignmentRepository.findByShiftId(morningShift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(emp));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(createStaffSkill(candidate.getId(), baristaSkill)));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(createAvailability(candidate, (short) 1)));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(List.of(previousAssignment));
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
+
+        assertNotNull(result);
+        assertEquals(ScheduleCoverageStatus.ZERO_COVERAGE, result.getStatus());
+        assertEquals(1, result.getShortageSlots());
+        assertTrue(result.getShortages().get(0).getDiagnosticDetails().contains("giờ nghỉ"));
+        verify(shiftAssignmentRepository, never()).saveAll(any());
+    }
+
+    // =========================================================================
+    // TEST 21: HC3 Overnight shift overlap strictly rejected across midnight
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 21: HC3 Overnight shift overlap strictly rejected across midnight")
+    void test21_overnightShiftOverlapStrictlyRejectedAcrossMidnight() {
+        // Shift on testDate: Overnight shift from 22:00 to 06:00 (ends next day at 06:00)
+        Shift overnightShift = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(testDate)
+                .startTime(LocalTime.of(22, 0))
+                .endTime(LocalTime.of(6, 0))
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+
+        // New draft shift on testDate + 1: Morning from 05:00 to 13:00 (overlaps from 05:00 to 06:00)
+        LocalDate dayAfter = testDate.plusDays(1);
+        Shift morningOverlapShift = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(dayAfter)
+                .startTime(LocalTime.of(5, 0))
+                .endTime(LocalTime.of(13, 0))
+                .status(ShiftStatus.DRAFT)
+                .requirements(new ArrayList<>(List.of(
+                        ShiftSkillRequirement.builder().id(UUID.randomUUID()).skill(baristaSkill).requiredCount(1).build()
+                )))
+                .assignments(new ArrayList<>())
+                .build();
+        morningOverlapShift.getRequirements().get(0).setShift(morningOverlapShift);
+
+        User candidate = createStaffUser("Overnight Staff");
+        Employment emp = createEmployment(candidate, 40);
+
+        ShiftAssignment overnightAssignment = ShiftAssignment.builder()
+                .id(UUID.randomUUID())
+                .shift(overnightShift)
+                .staff(candidate)
+                .requiredSkillId(baristaSkillId)
+                .source(AssignmentSource.MANUAL)
+                .build();
+
+        AutoScheduleRequest req = new AutoScheduleRequest();
+        req.setStartDate(dayAfter);
+        req.setEndDate(dayAfter);
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig()));
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultSchedConfig()));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, dayAfter, dayAfter)).thenReturn(List.of(morningOverlapShift));
+        when(shiftAssignmentRepository.findByShiftId(morningOverlapShift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(emp));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(createStaffSkill(candidate.getId(), baristaSkill)));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(createAvailability(candidate, (short) 2)));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(List.of(overnightAssignment));
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, req);
+
+        assertNotNull(result);
+        assertEquals(ScheduleCoverageStatus.ZERO_COVERAGE, result.getStatus());
+        assertEquals(1, result.getShortageSlots());
+        assertTrue(result.getShortages().get(0).getDiagnosticDetails().contains("trùng ca"));
+        verify(shiftAssignmentRepository, never()).saveAll(any());
+    }
+
+    // =========================================================================
+    // TEST 22: Honest reporting and complete traceability for unassignable shifts
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 22: Honest reporting and complete traceability for unassignable shifts (Honesty Invariant)")
+    void test22_honestReportingForUnassignableShifts() {
+        // Demanded 3 slots, but only 1 candidate available
+        ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                .id(UUID.randomUUID())
+                .skill(baristaSkill)
+                .requiredCount(3)
+                .build();
+        Shift shift = createShift(List.of(req));
+
+        User candidate = createStaffUser("Only One Staff");
+        Employment emp = createEmployment(candidate, 40);
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig()));
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultSchedConfig()));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate)).thenReturn(List.of(shift));
+        when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(emp));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(createStaffSkill(candidate.getId(), baristaSkill)));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(createAvailability(candidate, (short) 1)));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
+
+        assertNotNull(result);
+        // Correct status reflecting partial coverage
+        assertEquals(ScheduleCoverageStatus.PARTIALLY_COVERED, result.getStatus());
+        assertEquals(3, result.getTotalDemandSlots());
+        assertEquals(1, result.getTotalAssignedSlots());
+        assertEquals(2, result.getShortageSlots());
+        assertEquals(33.3, result.getCoverageRate());
+
+        // Honest shortage report: precisely 2 shortage slots reported, not 0
+        assertEquals(1, result.getShortages().size());
+        ShortageDetailDTO shortage = result.getShortages().get(0);
+        assertEquals(2, shortage.getShortageCount());
+        assertEquals(baristaSkillId, shortage.getSkillId());
+        assertEquals("Barista", shortage.getSkillName());
+        assertEquals(storeId, shortage.getStoreId());
+        assertEquals(shift.getId(), shortage.getShiftId());
+
+        // Only 1 assignment saved in database, never fabricating 3
+        verify(shiftAssignmentRepository).saveAll(assignmentsCaptor.capture());
+        assertEquals(1, assignmentsCaptor.getValue().size());
+    }
+
+    // =========================================================================
+    // TEST 23: HC4 Weekly max contract hours ceiling strictly enforced across ISO week
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 23: HC4 Weekly max contract hours ceiling strictly enforced across ISO week")
+    void test23_weeklyMaxContractHoursCeilingEnforced() {
+        ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                .id(UUID.randomUUID())
+                .skill(baristaSkill)
+                .requiredCount(1)
+                .build();
+        Shift shift = createShift(List.of(req)); // 8 hours duration
+
+        // Staff A: Part-time (20 hours max). Already worked 16 hours -> 16 + 8 = 24 > 20 (Fails HC4)
+        User staffA = createStaffUser("Part Time Exceeded");
+        Employment empA = createEmployment(staffA, 20);
+
+        Shift previousShiftA = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(testDate.minusDays(1)) // Sunday, wait: ISO week Monday is testDate, so Tuesday would be same week!
+                .startTime(LocalTime.of(0, 0))
+                .endTime(LocalTime.of(16, 0))
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+        // Set previousShiftA to testDate (earlier on same day) or same ISO week (testDate is Monday)
+        previousShiftA.setShiftDate(testDate);
+        previousShiftA.setStartTime(LocalTime.of(0, 0));
+        previousShiftA.setEndTime(LocalTime.of(8, 0)); // 8h
+        // Let's create two 8h shifts = 16h earlier in the week
+        Shift previousShiftA2 = Shift.builder()
+                .id(UUID.randomUUID())
+                .store(store)
+                .shiftDate(testDate.plusDays(1)) // Tuesday
+                .startTime(LocalTime.of(0, 0))
+                .endTime(LocalTime.of(8, 0)) // 8h -> total 16h
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+
+        ShiftAssignment assignA1 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(previousShiftA).staff(staffA).build();
+        ShiftAssignment assignA2 = ShiftAssignment.builder().id(UUID.randomUUID()).shift(previousShiftA2).staff(staffA).build();
+
+        // Staff B: Full-time (40 hours max). Worked 0 hours -> 0 + 8 = 8 <= 40 (Passes HC4)
+        User staffB = createStaffUser("Full Time Eligible");
+        Employment empB = createEmployment(staffB, 40);
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig()));
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultSchedConfig()));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate)).thenReturn(List.of(shift));
+        when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(empA, empB));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(
+                createStaffSkill(staffA.getId(), baristaSkill),
+                createStaffSkill(staffB.getId(), baristaSkill)
+        ));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(
+                createAvailability(staffA, (short) 1),
+                createAvailability(staffB, (short) 1)
+        ));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(List.of(assignA1, assignA2));
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
+
+        assertNotNull(result);
+        assertEquals(ScheduleCoverageStatus.FULLY_COVERED, result.getStatus());
+        verify(shiftAssignmentRepository).saveAll(assignmentsCaptor.capture());
+        List<ShiftAssignment> saved = assignmentsCaptor.getValue();
+        assertEquals(1, saved.size());
+        assertEquals(staffB.getId(), saved.get(0).getStaff().getId(), "Staff B must be chosen because Staff A would exceed weekly contract limit");
+    }
+
+    // =========================================================================
+    // TEST 24: Soft constraint multi-objective optimization: skill level and utilization
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 24: Soft constraint multi-objective optimization prefers higher skill level and lower utilization")
+    void test24_softConstraintMultiObjectiveOptimization() {
+        ShiftSkillRequirement req = ShiftSkillRequirement.builder()
+                .id(UUID.randomUUID())
+                .skill(baristaSkill)
+                .requiredCount(1)
+                .build();
+        Shift shift = createShift(List.of(req));
+
+        User expertStaff = createStaffUser("Expert Staff");
+        Employment expertEmp = createEmployment(expertStaff, 40);
+
+        User beginnerStaff = createStaffUser("Beginner Staff");
+        Employment beginnerEmp = createEmployment(beginnerStaff, 40);
+
+        // Expert has EXPERT level, Beginner has BEGINNER level
+        StaffSkill expertSkill = StaffSkill.builder()
+                .id(UUID.randomUUID())
+                .staffId(expertStaff.getId())
+                .skillId(baristaSkillId)
+                .level(SkillLevel.EXPERT)
+                .build();
+        StaffSkill beginnerSkill = StaffSkill.builder()
+                .id(UUID.randomUUID())
+                .staffId(beginnerStaff.getId())
+                .skillId(baristaSkillId)
+                .level(SkillLevel.BEGINNER)
+                .build();
+
+        // Configure scheduler with high skill weight to clearly favor Expert
+        SchedulerConfiguration customConfig = SchedulerConfiguration.builder()
+                .skillWeight(BigDecimal.valueOf(0.60))
+                .hourWeight(BigDecimal.valueOf(0.10))
+                .fairnessWeight(BigDecimal.valueOf(0.10))
+                .restTimeWeight(BigDecimal.valueOf(0.10))
+                .availabilityWeight(BigDecimal.valueOf(0.10))
+                .build();
+
+        when(storeConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(defaultStoreConfig()));
+        when(schedulerConfigRepo.findByStoreId(storeId)).thenReturn(Optional.of(customConfig));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate)).thenReturn(List.of(shift));
+        when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.emptyList());
+
+        when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(List.of(beginnerEmp, expertEmp));
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(List.of(expertSkill, beginnerSkill));
+        when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(
+                createAvailability(expertStaff, (short) 1),
+                createAvailability(beginnerStaff, (short) 1)
+        ));
+        when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
+
+        AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
+
+        assertNotNull(result);
+        verify(shiftAssignmentRepository).saveAll(assignmentsCaptor.capture());
+        List<ShiftAssignment> saved = assignmentsCaptor.getValue();
+        assertEquals(1, saved.size());
+        assertEquals(expertStaff.getId(), saved.get(0).getStaff().getId(), "Candidate with EXPERT level must be selected over BEGINNER when skill weight is favored");
+    }
+
+    // =========================================================================
+    // TEST 25: Request validation rejects null request, inverted date range, or range exceeding 7 days
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 25: Request validation rejects null request, inverted date range, or range exceeding 7 days")
+    void test25_requestValidation_rejectsInvalidDateRanges() {
+        // 1. Null dates
+        AutoScheduleRequest nullDatesReq = new AutoScheduleRequest();
+        BusinessException ex1 = assertThrows(BusinessException.class, () ->
+                autoScheduleService.autoSchedule(storeId, nullDatesReq)
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, ex1.getStatus());
+        assertTrue(ex1.getMessage().contains("required"));
+
+        // 2. Inverted dates (endDate before startDate)
+        AutoScheduleRequest invertedReq = new AutoScheduleRequest();
+        invertedReq.setStartDate(testDate);
+        invertedReq.setEndDate(testDate.minusDays(1));
+        BusinessException ex2 = assertThrows(BusinessException.class, () ->
+                autoScheduleService.autoSchedule(storeId, invertedReq)
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, ex2.getStatus());
+        assertTrue(ex2.getMessage().contains("cannot exceed 7 days"));
+
+        // 3. Range > 7 days (e.g. 10 days)
+        AutoScheduleRequest tooLongReq = new AutoScheduleRequest();
+        tooLongReq.setStartDate(testDate);
+        tooLongReq.setEndDate(testDate.plusDays(9));
+        BusinessException ex3 = assertThrows(BusinessException.class, () ->
+                autoScheduleService.autoSchedule(storeId, tooLongReq)
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, ex3.getStatus());
+        assertTrue(ex3.getMessage().contains("cannot exceed 7 days"));
     }
 }

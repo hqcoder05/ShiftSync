@@ -1,0 +1,2 @@
+ALTER TABLE staff ADD COLUMN gender VARCHAR(16) NOT NULL DEFAULT 'MALE';
+ALTER TABLE staff ADD CONSTRAINT staff_gender_valid CHECK (gender IN ('MALE', 'FEMALE', 'OTHER'));

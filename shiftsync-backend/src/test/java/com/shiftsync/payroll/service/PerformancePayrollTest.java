@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Transactional
 public class PerformancePayrollTest {
 
     @Autowired
@@ -51,10 +52,11 @@ public class PerformancePayrollTest {
         store = storeRepository.save(store);
         testStoreId = store.getId();
 
-                com.shiftsync.employment.entity.ContractType ct = null;
-        try {
-            ct = entityManager.createQuery("FROM ContractType", com.shiftsync.employment.entity.ContractType.class).getResultList().get(0);
-        } catch (Exception e) {}
+        var ct = com.shiftsync.employment.entity.ContractType.builder()
+                .store(store).name("Performance test contract").maxWeeklyHours(40)
+                .otMultiplier(new java.math.BigDecimal("1.5"))
+                .defaultHourlyRate(new java.math.BigDecimal("25000")).build();
+        entityManager.persist(ct);
 
         for (int i = 0; i < 5; i++) {
             User staff = new User();

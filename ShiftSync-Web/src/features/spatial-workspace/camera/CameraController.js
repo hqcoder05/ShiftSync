@@ -20,6 +20,7 @@ export class CameraController {
     this.followingObject = null;
     this.followOffset = new THREE.Vector3(0, 2.6, 3.4);
     this.isFollowing = false;
+    this.followWorldPosition = new THREE.Vector3();
   }
 
   /**
@@ -60,9 +61,12 @@ export class CameraController {
   /**
    * Called in requestAnimationFrame loop
    */
-  update() {
+  update(delta = 1 / 60) {
+    const frames = Math.min(Math.max(delta, 0), 1) * 60;
+    const transitionBlend = 1 - Math.pow(1 - this.lerpSpeed, frames);
+    const followBlend = 1 - Math.pow(1 - 0.08, frames);
     if (this.isFollowing && this.followingObject) {
-      const objPos = this.followingObject.position;
+      const objPos = this.followingObject.getWorldPosition(this.followWorldPosition);
       
       // Calculate target lookAt (chest level)
       const lookTarget = new THREE.Vector3(objPos.x, objPos.y + 1.1, objPos.z);
@@ -74,15 +78,15 @@ export class CameraController {
         objPos.z + this.followOffset.z
       );
 
-      this.camera.position.lerp(camTarget, 0.08);
-      this.controls.target.lerp(lookTarget, 0.08);
+      this.camera.position.lerp(camTarget, followBlend);
+      this.controls.target.lerp(lookTarget, followBlend);
       this.controls.update();
       return;
     }
 
     if (this.isTransitioning) {
-      this.camera.position.lerp(this.targetPos, this.lerpSpeed);
-      this.controls.target.lerp(this.targetLookAt, this.lerpSpeed);
+      this.camera.position.lerp(this.targetPos, transitionBlend);
+      this.controls.target.lerp(this.targetLookAt, transitionBlend);
 
       const posDist = this.camera.position.distanceTo(this.targetPos);
       const targetDist = this.controls.target.distanceTo(this.targetLookAt);

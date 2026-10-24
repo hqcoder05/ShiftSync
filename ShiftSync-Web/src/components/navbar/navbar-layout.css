@@ -1,0 +1,914 @@
+/* Layout and interaction styles; theme tokens live in navbar.css. */
+:root {
+  --ss-navbar-height: 112px;
+}
+.ssn {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  height: var(--ss-navbar-height);
+  font-family: inherit;
+  color: var(--ss-nav-tx);
+  background: var(--ss-bar);
+  border-bottom: 1px solid var(--ss-line);
+  box-shadow: 0 2px 12px #00000008;
+}
+.ssn * {
+  box-sizing: border-box;
+}
+.ssn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.ssn button {
+  font: inherit;
+  cursor: pointer;
+}
+.ssn a {
+  text-decoration: none;
+}
+.ssn button:disabled {
+  cursor: default;
+}
+.ssn :focus-visible {
+  outline: 2px solid var(--ss-nav-ac);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.ssn-secondary :focus-visible,
+.ssn-menu :focus-visible,
+.ssn-command :focus-visible {
+  outline-color: var(--ss-tx);
+}
+.ssn-topbar {
+  height: 64px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  position: relative;
+  z-index: 4;
+  background: var(--ss-bar);
+}
+.ssn-logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
+  color: var(--ss-nav-tx);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 1.1;
+}
+.ssn-logo i {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--ss-nav-ac);
+  color: var(--ss-nav-on-ac);
+  box-shadow: inset 0 0 0 1px #ffffff20;
+}
+.ssn-logo i svg {
+  width: 21px;
+  height: 21px;
+}
+.ssn-logo b {
+  color: var(--ss-nav-ac);
+  font-weight: 700;
+}
+.ssn-logo small {
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  display: block;
+  margin-top: 5px;
+  color: var(--ss-nav-mu);
+  font-weight: 500;
+}
+.ssn-store-wrap {
+  position: relative;
+  min-width: 0;
+}
+.ssn-store {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 330px;
+  min-width: 190px;
+  padding: 0 12px;
+  height: 42px;
+  color: var(--ss-nav-tx);
+  background: var(--ss-nav-surf);
+  border: 1px solid var(--ss-nav-line);
+  border-radius: 9px;
+  text-align: left;
+}
+.ssn-store:hover {
+  border-color: var(--ss-nav-mu);
+}
+.ssn-store-icon {
+  display: grid;
+  place-items: center;
+  color: var(--ss-nav-mu);
+}
+.ssn-store-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ssn-store-copy small {
+  font-size: 9px;
+  letter-spacing: 0.35px;
+  color: var(--ss-nav-mu);
+}
+.ssn-store-copy strong {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 600;
+  max-width: 235px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ssn .chev {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: inherit;
+  opacity: 0.7;
+}
+.ssn button[aria-expanded="true"] > .chev {
+  transform: rotate(180deg);
+}
+.ssn-top-spacer {
+  flex: 1;
+  min-width: 0;
+}
+.ssn-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  padding: 0 10px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--ss-nav-line);
+  background: var(--ss-nav-surf);
+  color: var(--ss-nav-mu);
+  text-align: left;
+}
+.ssn-search span {
+  font-size: 12px;
+  flex: 1;
+}
+.ssn-search:hover {
+  color: var(--ss-nav-tx);
+  border-color: var(--ss-nav-mu);
+}
+.ssn kbd {
+  font-family: inherit;
+  font-size: 10px;
+  border: 1px solid var(--ss-nav-line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.ssn-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ssn-ico {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ss-nav-tx);
+}
+.ssn-ico:hover {
+  background: var(--ss-nav-surf);
+}
+.ssn-account {
+  position: relative;
+  margin-left: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--ss-nav-line);
+}
+.ssn-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ss-nav-tx);
+  text-align: left;
+}
+.ssn-user:hover .ssn-av {
+  box-shadow: 0 0 0 3px var(--ss-nav-surf);
+}
+.ssn-av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--ss-nav-ac);
+  color: var(--ss-nav-on-ac);
+  font-size: 12px;
+  font-weight: 700;
+}
+.ssn-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ssn-user .who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ssn-user .who b {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 145px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ssn-user .who small {
+  font-size: 10px;
+  color: var(--ss-nav-mu);
+}
+.ssn-burger {
+  display: none;
+}
+.ssn-secondary {
+  height: 48px;
+  padding: 0 28px;
+  background: var(--ss-surf);
+  color: var(--ss-tx);
+}
+.ssn-nav-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  gap: 16px;
+}
+.ssn-nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 6px;
+}
+.ssn-item {
+  position: relative;
+}
+.ssn-tab {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0 12px;
+  color: var(--ss-mu);
+  background: transparent;
+  border-radius: 7px;
+  font-size: 12px !important;
+  font-weight: 550 !important;
+  white-space: nowrap;
+}
+.ssn-tab svg:first-child {
+  width: 16px;
+  height: 16px;
+}
+.ssn-tab:hover,
+.ssn-item.open > .ssn-tab {
+  background: var(--ss-surf2);
+  color: var(--ss-tx);
+}
+.ssn-item.on > .ssn-tab {
+  background: var(--ss-ac-soft);
+  color: var(--ss-tx);
+  font-weight: 650 !important;
+}
+.ssn-item.on > .ssn-tab::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ss-ac);
+}
+.ssn-cnt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: var(--ss-surf2);
+  color: var(--ss-tx);
+}
+.ssn-store-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--ss-tx);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ss-line);
+  background: var(--ss-surf);
+}
+.ssn-store-link svg {
+  width: 15px;
+  height: 15px;
+}
+.ssn-store-link svg:last-child {
+  width: 13px;
+  height: 13px;
+  color: var(--ss-mu);
+}
+.ssn-store-link:hover {
+  background: var(--ss-surf2);
+  border-color: var(--ss-mu);
+}
+.ssn-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 7px;
+  color: var(--ss-tx);
+  background: var(--ss-surf);
+  border: 1px solid var(--ss-line);
+  border-radius: 12px;
+  box-shadow: var(--ss-shadow);
+  max-height: calc(100dvh - 130px);
+  overflow-y: auto;
+  animation: ssn-appear 0.12s ease-out;
+}
+.ssn-menu.right {
+  left: auto;
+  right: 0;
+  width: 270px;
+}
+.ssn-store-menu {
+  width: 350px;
+  top: calc(100% + 12px);
+}
+.ssn-menu-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px 10px;
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--ss-mu);
+  letter-spacing: 0.35px;
+}
+.ssn-menu-heading span {
+  font-size: 10px;
+}
+.ssn-menu a,
+.ssn-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+  text-align: left;
+  color: var(--ss-tx);
+  background: transparent;
+  font-size: 12px;
+}
+.ssn-menu a:hover,
+.ssn-menu button:hover,
+.ssn-menu a.active,
+.ssn-menu button[aria-pressed="true"] {
+  background: var(--ss-surf2);
+}
+.ssn-menu a[aria-current="page"] {
+  box-shadow: inset 2px 0 var(--ss-ac);
+}
+.ssn-menu .txt {
+  flex: 1;
+  min-width: 0;
+}
+.ssn-menu strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ssn-menu small {
+  display: block;
+  font-size: 11px;
+  color: var(--ss-mu);
+  line-height: 1.5;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.ssn-link-arrow {
+  width: 14px !important;
+  color: var(--ss-mu);
+}
+.ssn-check {
+  width: 16px !important;
+  color: var(--ss-tx);
+}
+.ssn-account-summary {
+  padding: 10px 10px 14px;
+  overflow-wrap: anywhere;
+}
+.ssn-menu-divider {
+  height: 1px;
+  background: var(--ss-line);
+  margin: 6px 0;
+}
+.ssn-menu .ssn-logout {
+  color: var(--ss-warn);
+}
+.ssn-empty {
+  padding: 18px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ss-mu);
+  line-height: 1.7;
+}
+.ssn-drawer-heading,
+.ssn-mobile-context,
+.ssn-backdrop {
+  display: none;
+}
+.ssn-skip {
+  position: fixed;
+  left: 12px;
+  top: -100px;
+  z-index: 110;
+  background: var(--ss-surf);
+  color: var(--ss-tx);
+  padding: 10px 16px;
+  font-size: 13px;
+  border: 1px solid var(--ss-line);
+  border-radius: 8px;
+}
+.ssn-skip:focus {
+  top: 8px;
+}
+.ssn-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ss-mu);
+  background: transparent;
+}
+.ssn-close:hover {
+  background: var(--ss-surf2);
+  color: var(--ss-tx);
+}
+.ssn-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 120px 16px 24px;
+  background: #0d151b66;
+  backdrop-filter: blur(3px);
+}
+.ssn-command {
+  width: 560px;
+  max-height: calc(100dvh - 150px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ss-surf);
+  border: 1px solid var(--ss-line);
+  box-shadow: var(--ss-shadow);
+  border-radius: 14px;
+  color: var(--ss-tx);
+}
+.ssn-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+}
+.ssn-command h2 {
+  font-size: 13px;
+  margin: 0;
+  font-weight: 600;
+}
+.ssn-command-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ss-line);
+  border-bottom: 1px solid var(--ss-line);
+}
+.ssn-command-input input {
+  flex: 1;
+  min-width: 0;
+  outline: none !important;
+  background: transparent;
+  color: var(--ss-tx);
+  font: inherit;
+  font-size: 13px;
+  border: 0;
+  padding: 4px;
+}
+.ssn-command-input:focus-within {
+  box-shadow: inset 2px 0 var(--ss-ac);
+}
+.ssn-command-input input::placeholder {
+  color: var(--ss-mu);
+}
+.ssn-command-input kbd {
+  color: var(--ss-mu);
+  border-color: var(--ss-line);
+}
+.ssn-command-results {
+  overflow: auto;
+  min-height: 0;
+  padding: 6px;
+}
+.ssn-command-results a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  border-radius: 7px;
+  padding: 9px 12px;
+  color: var(--ss-tx);
+}
+.ssn-command-results a:hover,
+.ssn-command-results a:focus {
+  background: var(--ss-surf2);
+}
+.ssn-command-results a > span {
+  flex: 1;
+}
+.ssn-command-results strong,
+.ssn-command-results small {
+  display: block;
+}
+.ssn-command-results strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ssn-command-results small {
+  font-size: 10px;
+  color: var(--ss-mu);
+  margin-top: 3px;
+}
+.ssn-command-results a > svg {
+  color: var(--ss-mu);
+  width: 16px;
+}
+.ssn-command-results a > svg:last-child {
+  width: 13px;
+}
+.ssn-command-foot {
+  border-top: 1px solid var(--ss-line);
+  padding: 11px 16px;
+  font-size: 10px;
+  color: var(--ss-mu);
+}
+/* Notification popover uses the header palette for its trigger and surface palette inside. */
+[data-nav-style="surface"] .ssn-av {
+  background: var(--ss-tx);
+  color: var(--ss-surf);
+}
+.ssn .ssnf .ssn-ico em {
+  background: #be123c;
+  color: #fff;
+}
+.ssn .ssnf .ssn-ico {
+  width: 38px;
+  height: 38px;
+  color: var(--ss-nav-tx) !important;
+}
+.ssn .ssnf .ssn-ico:hover {
+  background: var(--ss-nav-surf);
+}
+.ssn .ssnf .ssn-ico em {
+  border-color: var(--ss-bar);
+}
+@keyframes ssn-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 1200px) {
+  .ssn-topbar {
+    gap: 16px;
+    padding-inline: 20px;
+  }
+  .ssn-secondary {
+    padding-inline: 20px;
+  }
+  .ssn-store {
+    max-width: 275px;
+  }
+  .ssn-search {
+    min-width: 220px;
+  }
+  .ssn-nav {
+    gap: 2px;
+  }
+  .ssn-tab {
+    padding-inline: 9px;
+    gap: 6px;
+  }
+  .ssn-user .who {
+    display: none;
+  }
+  .ssn-account {
+    padding-left: 12px;
+  }
+}
+@media (max-width: 1020px) {
+  .ssn-topbar {
+    padding-inline: 18px;
+    gap: 12px;
+  }
+  .ssn-logo {
+    font-size: 18px;
+  }
+  .ssn-secondary {
+    padding: 0 18px;
+  }
+  .ssn-search {
+    min-width: 0;
+    width: 38px;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--ss-nav-tx);
+  }
+  .ssn-search span,
+  .ssn-search kbd {
+    display: none;
+  }
+  .ssn-top-spacer {
+    flex: 1;
+  }
+  .ssn-actions {
+    gap: 5px;
+  }
+  .ssn-theme {
+    display: none;
+  }
+  .ssn-account {
+    padding-left: 0;
+    margin-left: 3px;
+    border: 0;
+  }
+  .ssn-user > .chev {
+    display: none;
+  }
+  .ssn-burger {
+    display: grid;
+  }
+  .ssn-mobile-context {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .ssn-store-mobile .ssn-store {
+    min-width: 0;
+    max-width: 310px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ss-tx);
+    gap: 8px;
+  }
+  .ssn-store-mobile .ssn-store-icon {
+    color: var(--ss-mu);
+  }
+  .ssn-store-mobile .ssn-store-copy small {
+    display: none;
+  }
+  .ssn-store-mobile .ssn-store-copy strong {
+    font-size: 12px;
+    max-width: 235px;
+  }
+  .ssn-current-page {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ss-mu);
+    white-space: nowrap;
+  }
+  .ssn-backdrop {
+    position: fixed;
+    inset: var(--ss-navbar-height) 0 0;
+    z-index: 1;
+    display: block;
+    background: #10151866;
+    border: 0;
+    backdrop-filter: blur(2px);
+  }
+  .ssn-nav-shell {
+    display: none;
+    position: fixed;
+    top: calc(var(--ss-navbar-height) + 8px);
+    left: 12px;
+    right: 12px;
+    height: auto;
+    max-height: calc(100dvh - var(--ss-navbar-height) - 20px);
+    overflow: auto;
+    background: var(--ss-surf);
+    color: var(--ss-tx);
+    border: 1px solid var(--ss-line);
+    border-radius: 12px;
+    box-shadow: var(--ss-shadow);
+    z-index: 2;
+    padding: 8px;
+    gap: 8px;
+  }
+  .ssn-nav-shell.show {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ssn-drawer-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ss-mu);
+    padding: 3px 6px 7px;
+    border-bottom: 1px solid var(--ss-line);
+  }
+  .ssn-nav {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+  }
+  .ssn-tab {
+    height: 44px;
+    width: 100%;
+    padding-inline: 12px;
+    font-size: 13px !important;
+  }
+  .ssn-tab > span:first-of-type {
+    flex: 1;
+    text-align: left;
+  }
+  .ssn-item.on > .ssn-tab::after {
+    display: none;
+  }
+  .ssn-nav .ssn-menu {
+    position: static;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+    border: 0;
+    border-left: 1px solid var(--ss-line);
+    border-radius: 0;
+    margin: 5px 8px 8px 20px;
+    padding: 0 0 0 8px;
+    animation: none;
+  }
+  .ssn-nav .ssn-menu-heading {
+    display: none;
+  }
+  .ssn-nav .ssn-menu a {
+    min-height: 48px;
+    padding-block: 9px;
+  }
+  .ssn-store-link {
+    justify-content: center;
+    margin-top: 4px;
+    min-height: 40px;
+    background: var(--ss-surf2);
+  }
+  .ssn-store-menu {
+    top: calc(100% + 10px);
+    left: 0;
+    max-height: calc(100dvh - 140px);
+  }
+  .ssn-command {
+    max-height: calc(100dvh - 50px);
+  }
+  .ssn-search-overlay {
+    padding-top: 24px;
+  }
+  .ssn .ssnf-pop {
+    position: fixed;
+    top: 68px;
+    left: auto;
+    right: 18px;
+    width: min(380px, calc(100vw - 36px));
+    max-width: none;
+    max-height: calc(100dvh - 88px);
+  }
+}
+@media (max-width: 480px) {
+  .ssn-topbar {
+    gap: 4px;
+    padding-inline: 14px;
+  }
+  .ssn-logo {
+    gap: 8px;
+    font-size: 17px;
+  }
+  .ssn-logo i {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+  .ssn-logo small {
+    font-size: 7px;
+    letter-spacing: 0.75px;
+  }
+  .ssn-actions {
+    gap: 1px;
+  }
+  .ssn-user {
+    padding-inline: 2px;
+  }
+  .ssn-av {
+    width: 32px;
+    height: 32px;
+  }
+  .ssn-ico,
+  .ssn .ssnf .ssn-ico,
+  .ssn-search {
+    width: 36px;
+  }
+  .ssn-secondary {
+    padding-inline: 16px;
+  }
+  .ssn-store-mobile .ssn-store-copy strong {
+    max-width: 190px;
+  }
+  .ssn-current-page {
+    max-width: 105px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ssn-menu.right {
+    right: -35px;
+  }
+  .ssn-search-overlay {
+    padding: 12px;
+  }
+  .ssn-command {
+    max-height: calc(100dvh - 24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ssn * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

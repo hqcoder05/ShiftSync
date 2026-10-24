@@ -154,7 +154,7 @@ export default function SkillsPage() {
 
   return (
     <EmployeeModuleLayout
-      title="Vị trí & Mức lương"
+      title="Vị trí & kỹ năng"
       subtitle="Quản lý danh sách vị trí làm việc và thiết lập mức lương/giờ áp dụng cho tính lương tự động."
       actions={
         canEdit && (
@@ -186,7 +186,7 @@ export default function SkillsPage() {
             justifyContent: 'space-between',
             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
           }}>
-            <span>✅ {success}</span>
+            <span> {success}</span>
             <button
               onClick={() => setSuccess('')}
               style={{
@@ -218,7 +218,7 @@ export default function SkillsPage() {
             justifyContent: 'space-between',
             boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
           }}>
-            <span>⚠️ {error}</span>
+            <span> {error}</span>
             <button
               onClick={() => setError('')}
               style={{
@@ -235,7 +235,7 @@ export default function SkillsPage() {
           </div>
         )}
 
-        <div className="skill-table-card">
+        <div className="skill-table-card" role="region" aria-label="Danh sách vị trí và mức lương" tabIndex={0}>
           <div className="skill-table-header">
             <span style={{ width: canEdit ? '40%' : '55%' }}>Vị trí / Kỹ năng</span>
             <span style={{ width: canEdit ? '35%' : '45%' }}>Mức lương / giờ</span>
@@ -250,7 +250,7 @@ export default function SkillsPage() {
                   className="skill-dot"
                   style={{ background: getSkillColor(sk) }}
                 />
-                <span style={{ fontWeight: 500, color: '#18181B' }}>{sk.name}</span>
+                <span style={{ fontWeight: 600, color: 'var(--ss-tx)' }}>{sk.name}</span>
               </div>
               <div className="skill-cell-rate" style={{ width: canEdit ? '35%' : '45%', color: '#15803D', fontWeight: 600 }}>
                 {formatVND(sk.hourlyRate)}
@@ -270,7 +270,7 @@ export default function SkillsPage() {
 
           {filtered.length === 0 && (
             <div style={{ padding: '32px', textAlign: 'center', color: '#71717A', fontSize: '14px' }}>
-              Chưa có vị trí công việc nào được cấu hình cho chi nhánh này.
+              {search ? 'Không có vị trí khớp từ khóa. Thử tìm kiếm lại.' : 'Chưa có vị trí công việc nào được cấu hình cho chi nhánh này.'}
             </div>
           )}
         </div>

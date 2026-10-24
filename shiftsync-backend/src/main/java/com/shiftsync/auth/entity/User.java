@@ -31,6 +31,10 @@ public class User {
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
+    @Builder.Default
+    @Column(name = "gender", nullable = false)
+    private String gender = "MALE";
+
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 

@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment, UUID> {
     @Query("SELECT a FROM ShiftAssignment a WHERE a.shift.id = :shiftId ORDER BY a.staff.id ASC, a.id ASC")
@@ -22,6 +24,14 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
     long countByShiftId(UUID shiftId);
 
     Optional<ShiftAssignment> findByShiftIdAndStaffId(UUID shiftId, UUID staffId);
+    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT sa FROM ShiftAssignment sa WHERE sa.shift.id = :shiftId AND sa.staff.id = :staffId")
+    Optional<ShiftAssignment> findWithLockByShiftIdAndStaffId(@Param("shiftId") UUID shiftId, @Param("staffId") UUID staffId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT sa FROM ShiftAssignment sa WHERE sa.shift.id = :shiftId AND sa.staff.id IN :staffIds")
+    List<ShiftAssignment> findWithLockByShiftIdAndStaffIdIn(@Param("shiftId") UUID shiftId, @Param("staffIds") List<UUID> staffIds);
     
     List<ShiftAssignment> findByStaffIdAndShift_ShiftDateBetween(UUID staffId, LocalDate startDate, LocalDate endDate);
     

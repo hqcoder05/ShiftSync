@@ -307,7 +307,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
           >
             {templates.map((tpl) => (
               <option key={tpl.id} value={tpl.id}>
-                {STORE_CATEGORIES[tpl.category]?.icon || '🏬'} {tpl.name} ({tpl.category})
+                {STORE_CATEGORIES[tpl.category]?.icon || ''} {tpl.name} ({tpl.category})
               </option>
             ))}
           </select>
@@ -345,6 +345,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
           staff={[]}
           storeName={storeName}
           storeId={storeId}
+          storeCategory={templates.find((template) => template.id === selectedTemplateId)?.category || 'OTHER'}
         />
       </div>
 

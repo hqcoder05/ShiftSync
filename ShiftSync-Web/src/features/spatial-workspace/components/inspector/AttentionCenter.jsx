@@ -1,6 +1,6 @@
 /**
  * AttentionCenter.jsx
- * Operational Attention Center view for the ShiftSync Contextual Inspector (State 1: Default / Store Overview).
+ * Operational Cảnh báo vận hành view for the ShiftSync Contextual Inspector (State 1: Default / Store Overview).
  * 
  * Aggregates prioritized staffing alerts:
  * - Understaffed zones
@@ -15,34 +15,27 @@
  * - Max-Min Dispersion spatial allocation trigger
  */
 
-import React from 'react';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Search,
-  Sparkles,
-  Users,
-  Layers,
-  ArrowRight,
-  Zap,
-  Clock,
-  ShieldAlert,
-  ChevronRight,
-} from 'lucide-react';
-import { getZoneIcon, getZoneShiftRequirements } from '../../../../components/spatial/spatial.constants';
-import { getZoneStatus, getZoneStatusColor } from '../../visualization/ZoneStatus';
+import {useState} from 'react';
+import {AlertTriangle,CheckCircle2,Search,Sparkles,Users,ArrowUpRight,Zap,Clock,Box,ChevronRight,CalendarDays} from 'lucide-react';
+import {getZoneShiftRequirements} from '../../../../components/spatial/spatial.constants';
+import './attention-center.css';
 
 export default function AttentionCenter({
   zones = [],
   staff = [],
   currentShift = null,
   skills = [],
+  workstations = [],
+  workstationOccupancies = null,
   onSelectZone,
   onFocusZone,
+  onSelectWorkstation,
+  onFocusWorkstation,
   onRunAlgorithm,
   isAllocating = false,
   onOpenAutoSchedule,
 }) {
+  const [filter,setFilter]=useState('all');
   // Map staff by zone
   const staffByZone = {};
   staff.forEach((s) => {
@@ -61,7 +54,28 @@ export default function AttentionCenter({
   let totalCapacity = 0;
   const issues = [];
 
-  zones.forEach((zone) => {
+  // 1. Workstation Unassigned Issues (Equipment / Station Idle)
+  if (Array.isArray(workstations) && workstations.length > 0 && currentShift) {
+    workstations.forEach((ws) => {
+      if (ws.isActive === false) return;
+      const occ = workstationOccupancies?.get(ws.id);
+      const isUnassigned = occ?.state === 'UNASSIGNED' || occ?.status === 'UNASSIGNED';
+
+      if (isUnassigned) {
+        issues.push({
+          id: `unassigned-ws-${ws.id}`,
+          severity: 'WARNING',
+          type: 'WORKSTATION',
+          workstation: ws,
+          title: `Trạm chưa phân công: ${ws.name || ws.code}`,
+          description: `Trạm tại ${ws.zoneName || 'khu vực chưa xác định'} chưa có nhân viên được phân công trong ca.`,
+          impact: 'Quầy/trạm chưa được kích hoạt vận hành.',
+        });
+      }
+    });
+  }
+
+  (currentShift ? zones : []).forEach((zone) => {
     const cap = zone.capacity || 4;
     totalCapacity += cap;
     const zStaff = staffByZone[zone.id] || [];
@@ -73,10 +87,10 @@ export default function AttentionCenter({
       if (count === 0) {
         issues.push({
           id: `empty-${zone.id}`,
-          severity: 'CRITICAL',
+          severity: 'Ưu tiên',
           zone,
           title: `Trống nhân sự: ${zone.name}`,
-          description: `Chưa có nhân sự trực (Chỉ tiêu ca: ${target} nhân sự • Sức chứa quầy: ${cap} chỗ).`,
+          description: `Chưa có phân công (Chỉ tiêu ca: ${target} nhân sự • Sức chứa quầy: ${cap} chỗ).`,
           impact: 'Nguy cơ gián đoạn phục vụ vị trí này trong ca trực.',
         });
       } else if (count < target) {
@@ -85,7 +99,7 @@ export default function AttentionCenter({
           severity: 'WARNING',
           zone,
           title: `Thiếu định biên: ${zone.name}`,
-          description: `Đang trực ${count}/${target} nhân sự theo ca (Thiếu ${target - count} người • Sức chứa: ${cap}).`,
+          description: `Đã phân công ${count}/${target} nhân sự theo ca (Thiếu ${target - count} người • Sức chứa: ${cap}).`,
           impact: 'Dung lượng phục vụ giảm, thời gian xử lý đơn kéo dài.',
         });
       } else if (count > target || count > cap) {
@@ -95,7 +109,7 @@ export default function AttentionCenter({
           severity: 'OVERSTAFFED',
           zone,
           title: `Dư thừa nhân sự: ${zone.name}`,
-          description: `Đang trực ${count}/${target} nhân sự (Dư ${surplus} người so với định biên ca • Sức chứa: ${cap}).`,
+          description: `Đã phân công ${count}/${target} nhân sự (Dư ${surplus} người so với định biên ca • Sức chứa: ${cap}).`,
           impact: 'Lãng phí chi phí nhân công. Có thể điều chuyển sang quầy thiếu.',
         });
       }
@@ -105,7 +119,7 @@ export default function AttentionCenter({
         severity: 'OVERSTAFFED',
         zone,
         title: `Ngoài kế hoạch ca: ${zone.name}`,
-        description: `Đang có ${count} nhân sự trực tại quầy không yêu cầu trong ca này.`,
+        description: `Đã phân công ${count} nhân sự tại quầy không yêu cầu trong ca này.`,
         impact: 'Nên điều chuyển nhân sự sang các quầy trọng yếu đang thiếu.',
       });
     }
@@ -116,348 +130,36 @@ export default function AttentionCenter({
     ? Math.min(100, Math.round((staff.length / effectiveTarget) * 100))
     : 100;
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', gap: 14 }}>
-      {/* Header Banner */}
-      <div
-        style={{
-          padding: '14px 16px',
-          borderBottom: '1px solid #E2E8F0',
-          backgroundColor: '#F8FAFC',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div>
-          <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <AlertTriangle size={16} color={issues.length > 0 ? '#EF4444' : '#10B981'} />
-            <span>Attention Center</span>
-          </h4>
-          <span style={{ fontSize: 11.5, color: '#64748B' }}>
-            {issues.length > 0
-              ? `${issues.length} sự cố cần can thiệp vận hành`
-              : 'Tất cả phân khu vận hành tối ưu'}
-          </span>
-        </div>
-
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            padding: '3px 8px',
-            borderRadius: 6,
-            backgroundColor: issues.length > 0 ? '#FEE2E2' : '#DCFCE7',
-            color: issues.length > 0 ? '#DC2626' : '#166534',
-          }}
-        >
-          {issues.length > 0 ? `${issues.length} CẢNH BÁO` : 'CHUẨN 100%'}
-        </span>
-      </div>
-
-      {/* Body Content */}
-      <div style={{ padding: '0 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Priority Issue Queue */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Hàng đợi sự cố ưu tiên ({issues.length})
-          </span>
-
-          {issues.length === 0 ? (
-            <div
-              style={{
-                padding: '14px',
-                borderRadius: 10,
-                backgroundColor: '#F0FDF4',
-                border: '1px solid #BBF7D0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontSize: 12,
-                color: '#15803D',
-              }}
-            >
-              <CheckCircle2 size={18} color="#16A34A" />
-              <span>Các phân khu đều đạt chuẩn chỉ tiêu nhân sự trong ca làm này.</span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {issues.map((issue) => (
-                <div
-                  key={issue.id}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 10,
-                    border: issue.severity === 'CRITICAL'
-                      ? '1px solid #FCA5A5'
-                      : issue.severity === 'OVERSTAFFED'
-                        ? '1px solid #C4B5FD'
-                        : '1px solid #FDE68A',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                    padding: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>{getZoneIcon(issue.zone.name)}</span>
-                      <div>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>
-                          {issue.title}
-                        </div>
-                        <span style={{ fontSize: 11, color: '#64748B' }}>
-                          {issue.description}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span
-                      style={{
-                        fontSize: 9.5,
-                        fontWeight: 800,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        backgroundColor: issue.severity === 'CRITICAL'
-                          ? '#EF4444'
-                          : issue.severity === 'OVERSTAFFED'
-                            ? '#8B5CF6'
-                            : '#F59E0B',
-                        color: '#FFFFFF',
-                      }}
-                    >
-                      {issue.severity === 'OVERSTAFFED' ? 'DƯ NHÂN SỰ' : issue.severity}
-                    </span>
-                  </div>
-
-                  <div style={{
-                    fontSize: 11,
-                    color: issue.severity === 'OVERSTAFFED' ? '#5B21B6' : '#991B1B',
-                    backgroundColor: issue.severity === 'OVERSTAFFED' ? '#F5F3FF' : '#FEF2F2',
-                    padding: '6px 8px',
-                    borderRadius: 6,
-                  }}>
-                    {issue.severity === 'OVERSTAFFED' ? '⇄ ' : '⚠️ '}{issue.impact}
-                  </div>
-
-                  {/* Quick Action Buttons */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 2 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectZone?.(issue.zone);
-                        onFocusZone?.(issue.zone);
-                      }}
-                      style={{
-                        padding: '6px 8px',
-                        borderRadius: 6,
-                        border: '1px solid #E2E8F0',
-                        backgroundColor: '#F8FAFC',
-                        color: '#0F172A',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        transition: 'background 0.15s ease',
-                      }}
-                    >
-                      <Search size={12} color="#0284C7" />
-                      <span>Zoom 3D</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectZone?.(issue.zone);
-                      }}
-                      style={{
-                        padding: '6px 8px',
-                        borderRadius: 6,
-                        border: '1px solid #0284C7',
-                        backgroundColor: '#F0F9FF',
-                        color: '#0369A1',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        transition: 'background 0.15s ease',
-                      }}
-                    >
-                      <Sparkles size={12} color="#0284C7" />
-                      <span>Tìm ứng viên</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Compact Capacity Bar */}
-        <div
-          style={{
-            backgroundColor: '#F8FAFC',
-            borderRadius: 8,
-            padding: '8px 12px',
-            border: '1px solid #E2E8F0',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-            <span style={{ fontWeight: 600, color: '#475569' }}>
-              Độ phủ định biên ca:
-            </span>
-            <strong style={{ color: shiftCoveragePercent >= 90 ? '#10B981' : '#F59E0B' }}>
-              {staff.length} / {effectiveTarget} ({shiftCoveragePercent}%)
-            </strong>
-          </div>
-          <div style={{ width: '100%', height: 5, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
-            <div
-              style={{
-                width: `${shiftCoveragePercent}%`,
-                height: '100%',
-                backgroundColor: shiftCoveragePercent >= 90 ? '#10B981' : shiftCoveragePercent >= 60 ? '#F59E0B' : '#EF4444',
-                borderRadius: 3,
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Spatial Algorithm & Auto-Schedule Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button
-            type="button"
-            id="btn-run-spatial-allocation"
-            onClick={onRunAlgorithm}
-            disabled={isAllocating}
-            style={{
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: '1px solid #3B82F6',
-              backgroundColor: isAllocating ? '#94A3B8' : '#EFF6FF',
-              color: '#1D4ED8',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: isAllocating ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.12)',
-              transition: 'all 0.15s ease',
-            }}
-            title="Tự động phân bổ nhân sự vào các phân khu theo thuật toán Max-Min Dispersion"
-          >
-            <Zap size={14} color="#2563EB" />
-            <span>{isAllocating ? 'Đang phân bổ...' : 'Phân bổ tối ưu (Max-Min Dispersion)'}</span>
-          </button>
-
-          {onOpenAutoSchedule && (
-            <button
-              type="button"
-              id="btn-trigger-auto-schedule"
-              onClick={onOpenAutoSchedule}
-              style={{
-                padding: '9px 12px',
-                borderRadius: 8,
-                border: '1px solid #10B981',
-                backgroundColor: '#ECFDF5',
-                color: '#047857',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
-                transition: 'all 0.15s ease',
-              }}
-              title="Khởi chạy thuật toán Xếp lịch tự động thông minh (Auto-Schedule AI)"
-            >
-              <Sparkles size={14} color="#059669" />
-              <span>Tự động xếp lịch AI (Auto-Schedule)</span>
-            </button>
-          )}
-        </div>
-
-        {/* Zone Directory */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Danh sách phân khu ({zones.length})
-          </span>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {zones.map((z) => {
-              const zStaff = staffByZone[z.id] || [];
-              const cap = z.capacity || 4;
-              const target = zoneRequirements[z.id] !== undefined ? zoneRequirements[z.id] : cap;
-              const status = getZoneStatus(zStaff.length, cap, target);
-              const statusColor = getZoneStatusColor(status);
-
-              return (
-                <div
-                  key={z.id}
-                  onClick={() => {
-                    onSelectZone?.(z);
-                    onFocusZone?.(z);
-                  }}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    transition: 'border 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>{getZoneIcon(z.name)}</span>
-                    <div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', display: 'block' }}>
-                        {z.name}
-                      </span>
-                      <span style={{ fontSize: 10, color: '#94A3B8' }}>
-                        Sức chứa tối đa: {cap} chỗ
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        backgroundColor: statusColor.bg,
-                        color: statusColor.text,
-                      }}
-                      title={target > 0 ? `Hiện trực: ${zStaff.length}/${target} (Chỉ tiêu ca)` : `Hiện trực: ${zStaff.length}/${cap}`}
-                    >
-                      {target > 0 ? `${zStaff.length}/${target}` : `${zStaff.length}/${cap}`}
-                    </span>
-                    <ChevronRight size={13} color="#94A3B8" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+  const priority={'Ưu tiên':0,WARNING:1,OVERSTAFFED:2};
+  issues.sort((a,b)=>(priority[a.severity]??1)-(priority[b.severity]??1));
+  const urgent=issues.filter(i=>i.severity==='Ưu tiên').length;
+  const filtered=issues.filter(i=>filter==='all'||(filter==='urgent'?i.severity==='Ưu tiên':filter==='station'?i.type==='WORKSTATION':i.type!=='WORKSTATION'));
+  const selectIssue=(issue,focus=false)=>{
+    if(issue.type==='WORKSTATION'){onSelectWorkstation?.(issue.workstation);if(focus)onFocusWorkstation?.(issue.workstation);}
+    else {onSelectZone?.(issue.zone);if(focus)onFocusZone?.(issue.zone);}
+  };
+  return <div className="ac-center">
+    <div className="ac-context"><CalendarDays size={15}/><strong>{currentShift?(currentShift.name||'Ca làm việc'):'Chưa chọn ca làm việc'}</strong>{currentShift&&<span>{(currentShift.shiftDate||currentShift.date||'').split('-').reverse().join('/')} · {currentShift.startTime?.slice(0,5)}–{currentShift.endTime?.slice(0,5)}</span>}</div>
+    <div className="ac-layout">
+      <section className="ac-queue" aria-label="Danh sách cảnh báo">
+        <div className="ac-queue-heading"><h3>Cần chú ý <span>{currentShift?issues.length:'—'}</span></h3><small>Phân công theo lịch ca</small></div>
+        <div className="ac-filters" role="group" aria-label="Lọc cảnh báo">{[['all','Tất cả',issues.length],['urgent','Ưu tiên',urgent],['zone','Khu vực',issues.filter(i=>i.type!=='WORKSTATION').length],['station','Trạm',issues.filter(i=>i.type==='WORKSTATION').length]].map(([key,label,count])=><button key={key} type="button" aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}<span>{currentShift?count:'—'}</span></button>)}</div>
+        {!currentShift?<div className="ac-empty"><Clock size={30}/><h4>Chọn ca để xem cảnh báo</h4><p>Chọn ngày và ca trên thanh công cụ để đối chiếu phân công với nhu cầu nhân sự.</p></div>:filtered.length===0?<div className="ac-empty"><CheckCircle2 size={30}/><h4>{issues.length?'Không có cảnh báo thuộc nhóm này':'Không có chênh lệch phân công'}</h4><p>{issues.length?'Chọn nhóm khác để xem các mục cần xử lý.':'Số lượng được đối chiếu với nhu cầu ca và cấu hình khu vực. Trạng thái điểm danh được xem riêng tại từng nhân viên.'}</p></div>:<div className="ac-issues">{filtered.map(issue=>{
+          const tone=issue.severity==='Ưu tiên'?'critical':issue.severity==='OVERSTAFFED'?'surplus':'warning';
+          const label=tone==='critical'?'Ưu tiên':tone==='surplus'?'Dư phân công':issue.type==='WORKSTATION'?'Trạm trống':'Thiếu người';
+          return <article key={issue.id} className={`ac-issue ac-issue--${tone}`}>
+            <div className="ac-issue-top"><span className="ac-severity"><AlertTriangle size={12}/>{label}</span><span className="ac-kind">{issue.type==='WORKSTATION'?'Trạm làm việc':'Khu vực'}</span></div>
+            <h4>{issue.workstation?.name||issue.workstation?.code||issue.zone?.name}</h4><p>{issue.description}</p>
+            <div className="ac-impact">{issue.impact}</div>
+            <div className="ac-issue-actions"><button type="button" onClick={()=>selectIssue(issue,true)}><Search size={13}/>Xem trong 3D</button><button type="button" className="ac-primary-link" onClick={()=>selectIssue(issue)}>{issue.type==='WORKSTATION'?'Chi tiết trạm':'Tìm ứng viên'}<ArrowUpRight size={14}/></button></div>
+          </article>;
+        })}</div>}
+      </section>
+      <aside className="ac-summary" aria-label="Tổng quan phân công">
+        <section className="ac-coverage"><span><Users size={15}/>Nhân sự trong ca</span><div className="ac-coverage-number">{currentShift?staff.length:'—'}<small>/ {currentShift?effectiveTarget:'—'}</small></div><p>Đã phân công / Nhu cầu đối chiếu</p><div className="ac-meter" role="progressbar" aria-label="Độ phủ phân công" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentShift?shiftCoveragePercent:0}><i style={{width:`${currentShift?shiftCoveragePercent:0}%`}}/></div><small>{currentShift?`${shiftCoveragePercent}% độ phủ theo số lượng`:'Chưa đánh giá khi chưa chọn ca'}</small></section>
+        <div className="ac-tools"><h4>Hỗ trợ phân công</h4><button type="button" id="btn-run-spatial-allocation" onClick={onRunAlgorithm} disabled={!currentShift||isAllocating||!onRunAlgorithm}><Zap size={16}/><span>{isAllocating?'Đang phân bổ…':'Phân bổ theo khu vực'}</span><ChevronRight size={14}/></button>{onOpenAutoSchedule&&<button type="button" id="btn-trigger-auto-schedule" onClick={onOpenAutoSchedule} disabled={!currentShift}><Sparkles size={16}/><span>Xếp ca tự động</span><ChevronRight size={14}/></button>}<p>Các thao tác mở luồng xử lý hiện có. Phân công chưa xác nhận không đồng nghĩa nhân viên đã có mặt.</p></div>
+        <details className="ac-directory"><summary><Box size={14}/>Các khu vực<span>{zones.length}</span></summary><div>{zones.map(zone=><button type="button" key={zone.id} onClick={()=>{onSelectZone?.(zone);onFocusZone?.(zone);}}><span>{zone.name}</span><small>{currentShift?`${(staffByZone[zone.id]||[]).length} phân công`:'Chưa chọn ca'}</small><ChevronRight size={13}/></button>)}</div></details>
+      </aside>
     </div>
-  );
+  </div>;
 }

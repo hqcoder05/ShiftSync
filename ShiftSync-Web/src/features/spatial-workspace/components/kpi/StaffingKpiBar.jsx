@@ -49,7 +49,7 @@ export default function StaffingKpiBar({
     : 'rgba(239, 68, 68, 0.14)';
 
   return (
-    <div
+    <div className="se-kpi-ribbon"
       style={{
         height: 38,
         backgroundColor: '#1E293B',
@@ -59,7 +59,7 @@ export default function StaffingKpiBar({
         justifyContent: 'space-between',
         padding: '0 16px',
         fontSize: 12,
-        color: '#E2E8F0',
+        color: 'var(--se-text)',
         zIndex: 25,
         userSelect: 'none',
       }}
@@ -68,7 +68,7 @@ export default function StaffingKpiBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {/* Coverage SLA */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#94A3B8', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <span style={{ color: 'var(--se-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Độ bao phủ ca:
           </span>
           <div
@@ -89,19 +89,19 @@ export default function StaffingKpiBar({
           </div>
         </div>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#334155' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
 
         {/* Active Staff vs Target */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Users size={14} color="#94A3B8" />
-          <span style={{ color: '#94A3B8' }}>Nhân sự trực:</span>
-          <strong style={{ color: '#FFFFFF', fontWeight: 700 }}>{activeStaffCount}</strong>
+          <Users size={14} color="var(--se-muted)" />
+          <span style={{ color: 'var(--se-muted)' }}>Đã phân công:</span>
+          <strong style={{ color: 'var(--se-text)', fontWeight: 700 }}>{activeStaffCount}</strong>
           {requiredStaffCount > 0 && (
-            <span style={{ color: '#CBD5E1', fontWeight: 600 }}>/ {requiredStaffCount} chỉ tiêu ca</span>
+            <span style={{ color: 'var(--se-muted)', fontWeight: 600 }}>/ {requiredStaffCount} chỉ tiêu ca</span>
           )}
         </div>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#334155' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
 
         {/* Understaffed Zones Warning Pill */}
         <div
@@ -139,7 +139,7 @@ export default function StaffingKpiBar({
           </span>
         </div>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#334155' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
 
         {/* Spatial assignment integrity */}
         <div
@@ -150,7 +150,7 @@ export default function StaffingKpiBar({
             padding: '2px 8px',
             borderRadius: 6,
             backgroundColor: unresolvedAssignmentsCount > 0 ? 'rgba(245, 158, 11, 0.16)' : 'rgba(148, 163, 184, 0.1)',
-            color: unresolvedAssignmentsCount > 0 ? '#FBBF24' : '#94A3B8',
+            color: unresolvedAssignmentsCount > 0 ? '#FBBF24' : 'var(--se-muted)',
             fontWeight: 600,
           }}
           title="Assignment của ca hiện tại chưa có phân khu không gian"
@@ -163,16 +163,16 @@ export default function StaffingKpiBar({
           </span>
         </div>
 
-        <div style={{ width: 1, height: 16, backgroundColor: '#334155' }} />
+        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
 
         {/* Open Shifts Count */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Briefcase size={14} color="#94A3B8" />
-          <span style={{ color: '#94A3B8' }}>Ca chưa gán:</span>
+          <Briefcase size={14} color="var(--se-muted)" />
+          <span style={{ color: 'var(--se-muted)' }}>Ca chưa gán:</span>
           <span
             style={{
               fontWeight: 700,
-              color: openShiftsCount > 0 ? '#FBBF24' : '#94A3B8',
+              color: openShiftsCount > 0 ? '#FBBF24' : 'var(--se-muted)',
             }}
           >
             {openShiftsCount} ca
@@ -200,9 +200,9 @@ export default function StaffingKpiBar({
 
         {estimatedCost > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
-            <DollarSign size={13} color="#94A3B8" />
-            <span style={{ color: '#94A3B8' }}>Ước tính chi phí ca:</span>
-            <span style={{ fontWeight: 700, color: '#F8FAFC' }}>
+            <DollarSign size={13} color="var(--se-muted)" />
+            <span style={{ color: 'var(--se-muted)' }}>Ước tính chi phí ca:</span>
+            <span style={{ fontWeight: 700, color: 'var(--se-text)' }}>
               {estimatedCost.toLocaleString()} ₫
             </span>
           </div>

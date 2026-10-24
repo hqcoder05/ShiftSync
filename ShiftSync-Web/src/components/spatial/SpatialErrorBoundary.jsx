@@ -52,7 +52,7 @@ export class SpatialErrorBoundary extends React.Component {
             fontSize: 22,
             marginBottom: 12,
           }}>
-            ⚠️
+            
           </div>
           <h4 style={{ margin: '0 0 6px 0', fontSize: 16, color: '#1E293B', fontWeight: 600 }}>
             Không thể tải giao diện 3D Không gian
@@ -75,7 +75,7 @@ export class SpatialErrorBoundary extends React.Component {
                 cursor: 'pointer',
               }}
             >
-              🔄 Thử lại
+               Thử lại
             </button>
             {this.props.onSwitchTo2D && (
               <button
@@ -92,7 +92,7 @@ export class SpatialErrorBoundary extends React.Component {
                   cursor: 'pointer',
                 }}
               >
-                📐 Chuyển sang Sơ đồ 2D
+                 Chuyển sang Sơ đồ 2D
               </button>
             )}
           </div>

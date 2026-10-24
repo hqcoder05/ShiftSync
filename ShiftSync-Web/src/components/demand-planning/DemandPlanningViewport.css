@@ -1,0 +1,81 @@
+/* A bounded dialog owns one vertical content scroller. Expanded sections never sit under the action bar. */
+.dp-fullscreen-modal-overlay{display:flex;align-items:center;justify-content:center;overflow:hidden;animation:none;padding:16px}
+.dp-fullscreen-workspace,.dp-fullscreen-workspace:has(.dp-demand-day,.dp-demand-week){height:auto;min-height:0;max-height:calc(100dvh - 32px);overflow:hidden;display:flex;flex-direction:column;margin:0 auto}
+.dp-fullscreen-workspace>.dp-modal-top-bar,.dp-fullscreen-workspace>.dp-controls-strip,.dp-fullscreen-workspace>.dp-demand-savebar{flex:0 0 auto}
+.dp-fullscreen-workspace>.dp-modal-content-area{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scroll-padding-block:16px;padding-bottom:24px}
+.dp-fullscreen-workspace>.dp-demand-savebar{position:static;box-shadow:0 -3px 12px #00000005}
+.dp-fullscreen-workspace .dp-modal-top-bar{position:relative}
+.dp-fullscreen-workspace .dp-top-bar-left{padding-right:40px}
+.dp-fullscreen-workspace .dp-top-bar-right{position:absolute;top:14px;right:16px;margin:0}
+.dp-fullscreen-workspace .dp-modal-close-round{position:static;flex-shrink:0}
+.dp-fullscreen-workspace .dp-week-details{min-width:0;overflow-wrap:anywhere}
+.dp-fullscreen-workspace .dp-norm-dialog-backdrop{padding:16px;overflow-y:auto;overscroll-behavior:contain}
+.dp-fullscreen-workspace .dp-norm-dialog-card{flex:0 0 auto;max-height:calc(100dvh - 32px);overflow-y:auto;margin:auto}
+@media(max-width:600px){.dp-fullscreen-modal-overlay{padding:8px}.dp-fullscreen-workspace,.dp-fullscreen-workspace:has(.dp-demand-day,.dp-demand-week){max-height:calc(100dvh - 16px);width:100%;border-radius:10px}.dp-fullscreen-workspace>.dp-demand-savebar{border-radius:0 0 10px 10px}}
+
+/* Definite grid height keeps the scroll row bounded even when every section expands. */
+.dp-fullscreen-modal-overlay>.dp-fullscreen-workspace{
+ display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
+ height:min(860px,calc(var(--dp-viewport-height,100dvh) - 32px));
+ max-height:calc(var(--dp-viewport-height,100dvh) - 32px);min-height:0;
+}
+.dp-fullscreen-modal-overlay>.dp-fullscreen-workspace>.dp-modal-content-area{min-height:0;max-height:100%;overflow-y:auto;scrollbar-width:auto}
+@media(max-width:600px){.dp-fullscreen-modal-overlay>.dp-fullscreen-workspace{height:calc(var(--dp-viewport-height,100dvh) - 16px);max-height:calc(var(--dp-viewport-height,100dvh) - 16px)}}
+/* A shared scale for both views: comfortable controls, quiet secondary text. */
+.dp-fullscreen-modal-overlay>.dp-fullscreen-workspace{
+ --dp-body-size:13px;--dp-secondary-size:12px;--dp-control-size:32px;
+ width:min(1420px,100%);height:min(800px,calc(var(--dp-viewport-height,100dvh) - 32px));
+ font-size:var(--dp-body-size);line-height:1.5;
+}
+.dp-fullscreen-modal-overlay .dp-fullscreen-workspace .dp-modal-top-bar{padding:14px 22px}
+.dp-fullscreen-modal-overlay .dp-fullscreen-workspace .dp-modal-main-title{font-size:23px;line-height:1.25}
+.dp-fullscreen-workspace .dp-modal-sub-desc{display:none}
+.dp-fullscreen-modal-overlay .dp-fullscreen-workspace .dp-controls-strip{padding:10px 22px}
+.dp-fullscreen-workspace>.dp-modal-content-area{padding:16px 22px 20px}
+.dp-demand-day,.dp-demand-week{gap:14px}
+.dp-demand-intro{font-size:12px;line-height:1.6;gap:12px}
+.dp-demand-metrics{gap:12px}
+.dp-demand-metrics>div{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;min-height:60px;border-radius:10px}
+.dp-demand-metrics span{font-size:12px;line-height:1.5}
+.dp-demand-metrics strong{font-size:23px;line-height:1.3;white-space:nowrap}
+.dp-demand-metrics small{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.dp-week-matrix-hint{font-size:12px}
+.dp-week-table{min-width:1340px;font-size:12px;line-height:1.5}
+.dp-week-table th,.dp-week-table td{padding:8px 4px}
+.dp-week-table .dp-week-role{width:144px;padding:12px}
+.dp-week-cell{grid-template-columns:30px minmax(18px,1fr) 30px;grid-template-rows:32px auto;column-gap:2px;row-gap:6px;align-items:center;max-width:84px;margin:auto}
+.dp-week-cell>strong{grid-column:2;grid-row:1;font-size:18px;line-height:32px}
+.dp-week-cell>.dp-demand-status{grid-column:1 / -1;grid-row:2;font-size:11px;white-space:nowrap;padding:2px 5px;line-height:1.5}
+.dp-week-cell .dp-demand-stepper{display:contents}
+.dp-week-cell .dp-demand-stepper button{grid-row:1;width:30px;height:32px;border:1px solid var(--ss-line);border-radius:6px;line-height:1;font-size:16px;padding:0}
+.dp-week-cell .dp-demand-stepper button:first-child{grid-column:1}
+.dp-week-cell .dp-demand-stepper button:last-child{grid-column:3}
+.dp-demand-position{gap:8px}
+.dp-demand-position button{font-size:11px;min-height:32px;padding:6px 9px;line-height:1.4}
+.dp-demand-review{padding:12px 16px;min-height:60px;gap:14px}
+.dp-demand-review strong{font-size:13px}
+.dp-demand-review button,.dp-week-budget button{font-size:12px;min-height:36px;padding:8px 12px;line-height:1.4}
+.dp-fullscreen-workspace>.dp-demand-savebar{padding:12px 22px}
+.dp-demand-savebar>div>strong{display:none}
+.dp-demand-savebar span{font-size:12px;line-height:1.5}
+.dp-week-details{padding:12px 16px;font-size:12px}
+.dp-week-budget p{margin:10px 0;font-size:12px}
+.dp-week-budget form{display:grid;grid-template-columns:minmax(180px,280px) auto;align-items:end;gap:12px;max-width:560px}
+.dp-week-budget form>p{grid-column:1/-1}
+.dp-week-budget label{gap:6px;font-size:12px}
+.dp-week-budget input{min-height:38px;font-size:13px}
+.dp-demand-table{font-size:13px}
+.dp-demand-cell-bottom>span,.dp-demand-count>span{font-size:12px}
+.dp-demand-count .dp-demand-status{font-size:11px}
+.dp-demand-stepper button{min-height:32px}
+@media(max-width:600px){
+ .dp-fullscreen-modal-overlay>.dp-fullscreen-workspace{width:100%;height:calc(var(--dp-viewport-height,100dvh) - 16px)}
+ .dp-fullscreen-modal-overlay .dp-fullscreen-workspace .dp-modal-top-bar{padding:14px 16px}
+ .dp-fullscreen-modal-overlay .dp-fullscreen-workspace .dp-controls-strip,.dp-fullscreen-workspace>.dp-modal-content-area,.dp-fullscreen-workspace>.dp-demand-savebar{padding-left:14px;padding-right:14px}
+ .dp-demand-metrics{gap:8px}.dp-demand-metrics>div{min-height:50px;padding:10px 12px}.dp-demand-metrics strong{font-size:21px}
+ .dp-week-budget form{grid-template-columns:1fr}
+ .dp-week-table .dp-week-role{width:132px}.dp-week-scroll{scroll-padding-left:136px}
+ .dp-demand-review{gap:10px}
+}
+
+.dp-coverage { display: grid; gap: 3px; padding-top: 6px; font-size: 11px; line-height: 1.4; color: var(--text-secondary, #64748b); }

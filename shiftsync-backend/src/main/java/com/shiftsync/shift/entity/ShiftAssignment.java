@@ -26,6 +26,7 @@ import java.util.UUID;
 @Builder
 @SQLDelete(sql = "UPDATE shift_assignment SET deleted = true WHERE id = ?")
 @SQLRestriction("deleted = false")
+@org.hibernate.annotations.DynamicUpdate
 public class ShiftAssignment {
 
     @Column(name = "deleted", nullable = false)

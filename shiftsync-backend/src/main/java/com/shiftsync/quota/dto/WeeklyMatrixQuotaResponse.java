@@ -119,6 +119,11 @@ public class WeeklyMatrixQuotaResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class MatrixCell {
+        private String source; // SAVED or SUGGESTED
+        private int assignedCount;
+        private int shortageCount;
+        private int excessCount;
+        private int unclassifiedAssignedCount; // Shift-level total; do not sum across positions
         private String quotaId;
         private LocalDate date;
         private String shiftType; // "morning" or "afternoon"

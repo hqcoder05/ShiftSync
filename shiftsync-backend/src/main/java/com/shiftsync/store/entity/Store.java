@@ -56,6 +56,9 @@ public class Store {
     @Column(name = "close_time")
     private LocalTime closeTime;
 
+    @Column(name = "monthly_quota_budget")
+    private Long monthlyQuotaBudget;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

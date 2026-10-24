@@ -87,25 +87,25 @@ export const SPATIAL_THEME = {
 };
 
 export const STORE_CATEGORIES = {
-  RETAIL: { key: 'RETAIL', label: 'Bán lẻ (Retail)', icon: '🛍️' },
-  FOOD_BEVERAGE: { key: 'FOOD_BEVERAGE', label: 'Ẩm thực & Đồ uống (F&B)', icon: '☕' },
-  SERVICE: { key: 'SERVICE', label: 'Dịch vụ & Chăm sóc (Service)', icon: '✂️' },
-  HOSPITALITY: { key: 'HOSPITALITY', label: 'Khách sạn & Nghỉ dưỡng', icon: '🏨' },
-  HEALTHCARE: { key: 'HEALTHCARE', label: 'Y tế & Sức khỏe', icon: '🩺' },
-  OTHER: { key: 'OTHER', label: 'Khác (Custom)', icon: '🏢' },
+  RETAIL: { key: 'RETAIL', label: 'Bán lẻ (Retail)', icon: '' },
+  FOOD_BEVERAGE: { key: 'FOOD_BEVERAGE', label: 'Ẩm thực & Đồ uống (F&B)', icon: '' },
+  SERVICE: { key: 'SERVICE', label: 'Dịch vụ & Chăm sóc (Service)', icon: '' },
+  HOSPITALITY: { key: 'HOSPITALITY', label: 'Khách sạn & Nghỉ dưỡng', icon: '' },
+  HEALTHCARE: { key: 'HEALTHCARE', label: 'Y tế & Sức khỏe', icon: '' },
+  OTHER: { key: 'OTHER', label: 'Khác (Custom)', icon: '' },
 };
 
 export const SPATIAL_TYPES = {
-  CHECKOUT: { key: 'CHECKOUT', label: 'Quầy thu ngân / POS', color: '#0284C7', icon: '💳' },
-  STORAGE: { key: 'STORAGE', label: 'Kho lưu trữ / Tiếp liệu', color: '#64748B', icon: '📦' },
-  PRODUCTION: { key: 'PRODUCTION', label: 'Khu sản xuất / Chế biến', color: '#F97316', icon: '🍳' },
-  SERVICE_STATION: { key: 'SERVICE_STATION', label: 'Trạm dịch vụ khách hàng', color: '#0D9488', icon: '🛎️' },
-  DISPLAY: { key: 'DISPLAY', label: 'Khu trưng bày sản phẩm', color: '#8B5CF6', icon: '🏷️' },
-  REST_BREAK: { key: 'REST_BREAK', label: 'Khu nghỉ ngơi nhân viên', color: '#10B981', icon: '☕' },
-  OFFICE: { key: 'OFFICE', label: 'Văn phòng điều hành', color: '#475569', icon: '💼' },
-  SEATING: { key: 'SEATING', label: 'Khu ngồi khách hàng', color: '#EAB308', icon: '🪑' },
-  CONSULTATION: { key: 'CONSULTATION', label: 'Tư vấn / Thử đồ / Tạo mẫu', color: '#EC4899', icon: '✨' },
-  CUSTOM: { key: 'CUSTOM', label: 'Khu vực tuỳ chỉnh', color: '#3B82F6', icon: '📍' },
+  CHECKOUT: { key: 'CHECKOUT', label: 'Quầy thu ngân / POS', color: '#0284C7', icon: '' },
+  STORAGE: { key: 'STORAGE', label: 'Kho lưu trữ / Tiếp liệu', color: '#64748B', icon: '' },
+  PRODUCTION: { key: 'PRODUCTION', label: 'Khu sản xuất / Chế biến', color: '#F97316', icon: '' },
+  SERVICE_STATION: { key: 'SERVICE_STATION', label: 'Trạm dịch vụ khách hàng', color: '#0D9488', icon: '' },
+  DISPLAY: { key: 'DISPLAY', label: 'Khu trưng bày sản phẩm', color: '#8B5CF6', icon: '' },
+  REST_BREAK: { key: 'REST_BREAK', label: 'Khu nghỉ ngơi nhân viên', color: '#10B981', icon: '' },
+  OFFICE: { key: 'OFFICE', label: 'Văn phòng điều hành', color: '#475569', icon: '' },
+  SEATING: { key: 'SEATING', label: 'Khu ngồi khách hàng', color: '#EAB308', icon: '' },
+  CONSULTATION: { key: 'CONSULTATION', label: 'Tư vấn / Thử đồ / Tạo mẫu', color: '#EC4899', icon: '' },
+  CUSTOM: { key: 'CUSTOM', label: 'Khu vực tuỳ chỉnh', color: '#3B82F6', icon: '' },
 };
 
 export const ZONE_PRESETS = [
@@ -150,24 +150,9 @@ export function getCapacityState(assignedCount = 0, capacity = 4) {
   return 'PARTIAL';
 }
 
-export function getZoneIcon(zoneOrName = '') {
-  if (typeof zoneOrName === 'object' && zoneOrName !== null) {
-    if (zoneOrName.zoneType && SPATIAL_TYPES[zoneOrName.zoneType]) {
-      return SPATIAL_TYPES[zoneOrName.zoneType].icon;
-    }
-    zoneOrName = zoneOrName.name || '';
-  }
-  const lower = String(zoneOrName).toLowerCase();
-  if (lower.includes('barista') || lower.includes('pha chế') || lower.includes('cà phê')) return '☕';
-  if (lower.includes('pos') || lower.includes('cashier') || lower.includes('thu ngân')) return '💳';
-  if (lower.includes('dining') || lower.includes('khách') || lower.includes('bàn')) return '🍽️';
-  if (lower.includes('mezzanine') || lower.includes('lửng') || lower.includes('lầu')) return '🪜';
-  if (lower.includes('kitchen') || lower.includes('bếp') || lower.includes('bakery')) return '🍳';
-  if (lower.includes('storage') || lower.includes('kho')) return '📦';
-  if (lower.includes('display') || lower.includes('trưng bày') || lower.includes('kệ') || lower.includes('giày')) return '🏷️';
-  if (lower.includes('styling') || lower.includes('salon') || lower.includes('tóc') || lower.includes('gội')) return '✂️';
-  if (lower.includes('fitting') || lower.includes('thử đồ')) return '👗';
-  return '📍';
+// Retained for callers of the legacy label API; decorative emoji are disabled.
+export function getZoneIcon() {
+  return '';
 }
 
 export function getShortZoneName(zoneOrName = '') {

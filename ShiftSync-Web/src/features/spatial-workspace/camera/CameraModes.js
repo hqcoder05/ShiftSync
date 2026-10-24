@@ -26,9 +26,9 @@ export function getOverviewCameraConfig(layout) {
   const maxDim = Math.max(len, wid);
 
   return {
-    position: [len * 0.9, maxDim * 1.05, wid * 1.15],
+    position: [len * 0.85, maxDim * 0.85, wid * 1.05],
     target: [0, 0.5, 0],
-    fov: 36,
+    fov: 48,
   };
 }
 

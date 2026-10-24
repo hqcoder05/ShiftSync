@@ -12,9 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -40,6 +43,8 @@ public class MarketplaceService {
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final TransactionTemplate transactionTemplate;
+    @Autowired(required = false)
+    private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
 
     @Transactional(rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
@@ -75,6 +80,7 @@ public class MarketplaceService {
             shift.setAvailabilityDeadline(deadline);
         }
         shiftRepository.save(shift);
+        publishMarketplaceEvent(storeId, "OPEN_SHIFT_PUBLISHED", shiftId, null);
 
                 // Hook FR-19: OPEN_SHIFT_AVAILABLE
         // Find all ACTIVE employments in store
@@ -124,6 +130,7 @@ public class MarketplaceService {
 
         shift.setOpen(false);
         shiftRepository.save(shift);
+        publishMarketplaceEvent(storeId, "OPEN_SHIFT_UNPUBLISHED", shiftId, null);
     }
 
     @Transactional(readOnly = true)
@@ -232,6 +239,9 @@ public class MarketplaceService {
                 shiftRepository.save(shift);
             }
             });
+            // TransactionTemplate only returns after the inner transaction commits, so consumers
+            // that reload REST data never observe the pre-claim state.
+            publishMarketplaceEvent(storeId, "OPEN_SHIFT_CLAIMED", shiftId, staffId);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Lỗi hệ thống khi lấy lock", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -240,6 +250,18 @@ public class MarketplaceService {
                 lock.unlock();
             }
         }
+    }
+
+    private void publishMarketplaceEvent(UUID storeId, String action, UUID shiftId, UUID staffId) {
+        if (realtimeEventPublisher == null) return;
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("shiftId", shiftId == null ? "" : shiftId.toString());
+        if (staffId != null) data.put("staffId", staffId.toString());
+        Runnable publish = () -> {
+            realtimeEventPublisher.publishStoreEvent(storeId, "marketplace", action, data);
+            realtimeEventPublisher.publishStoreEvent(storeId, "shifts", action, data);
+        };
+        publish.run();
     }
 }
 

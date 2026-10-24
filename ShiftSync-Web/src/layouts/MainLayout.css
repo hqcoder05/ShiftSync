@@ -1,0 +1,26 @@
+.ss-main-viewport {
+  min-height: calc(100dvh - var(--ss-navbar-height, 112px));
+}
+
+.ss-page-footer {
+  min-height: 128px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 25px 20px max(24px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ss-line, var(--ss-border, #e2e8f0));
+  color: var(--ss-mu, var(--ss-text-muted, #64748b));
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.ss-page-footer-separator {
+  opacity: 0.6;
+}
+
+/* The schedule's immersive canvas must stay anchored to its viewport. */
+.ss-app-shell:has(.sch-page--explorer) > .ss-page-footer {
+  display: none;
+}

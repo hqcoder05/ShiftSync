@@ -52,8 +52,8 @@ export function WebSocketProvider({ children }) {
       return;
     }
 
-    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080/api`;
-    const apiOrigin = new URL(apiUrl).origin;
+    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    const apiOrigin = new URL(apiUrl, window.location.origin).origin;
     const wsUrl = apiOrigin.replace(/^http/, 'ws') + '/ws/websocket';
 
     const handleIncomingNotification = (notif) => {
@@ -136,6 +136,7 @@ export function WebSocketProvider({ children }) {
 
         if (currentStoreId) {
           subscribeToStoreTopics(client, currentStoreId);
+          window.dispatchEvent(new CustomEvent('store_connection_restored', { detail: { storeId: currentStoreId } }));
         }
 
         client.subscribe('/topic/system', (message) => {
@@ -152,6 +153,7 @@ export function WebSocketProvider({ children }) {
         setConnected(false);
       },
       onStompError: (frame) => {
+        setConnected(false);
         console.warn('⚠️ [WebSocket] STOMP error:', frame?.headers?.['message'], frame?.body);
       },
       onWebSocketClose: () => {

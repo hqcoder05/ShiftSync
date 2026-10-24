@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import { validateEmployeeTransfer } from '../simulation/SimulationValidator';
+import { areSameStaff } from '../utils/staffIdentity';
 
 export class DragTransfer {
   constructor({
@@ -170,7 +171,7 @@ export class DragTransfer {
         const emp = this.draggedAvatar.userData.employee;
         const fromZone = this.draggedAvatar.userData.zone;
         const staffInZone = (this.simulatedStaff || []).filter(
-          (s) => (s.zoneId || s.zone?.id) === nearestZone.id && (s.id || s.staffId) !== (emp.id || emp.staffId)
+          (s) => (s.zoneId || s.zone?.id) === nearestZone.id && !areSameStaff(s, emp)
         );
 
         const check = validateEmployeeTransfer({

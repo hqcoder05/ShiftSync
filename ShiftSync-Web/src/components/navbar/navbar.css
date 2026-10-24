@@ -1,0 +1,216 @@
+/* ==========================================================================
+   STYLE: WARM ROAST (Mặc định cho F&B / Quán Cà phê)
+   ========================================================================== */
+:root,
+[data-style="warm"][data-theme="light"],
+:root:not([data-style])[data-theme="light"] {
+  --ss-surf: #ffffff;
+  --ss-surf2: #f3ede4;
+  --ss-line: #e7ded3;
+  --ss-tx: #1c1612;
+  --ss-mu: #766a5e;
+  --ss-ac: #d97706;
+  --ss-ac-soft: rgba(217, 119, 6, 0.1);
+  --ss-on-ac: #ffffff;
+  --ss-warn: #e11d48;
+  --ss-bg: #faf7f2;
+  --ss-shadow: 0 12px 32px rgba(45, 28, 12, 0.1);
+
+  /* Navbar Contrast (Deep Roast Espresso) */
+  --ss-bar: #1c140e;
+  --ss-nav-tx: #fbf8f4;
+  --ss-nav-mu: #a59585;
+  --ss-nav-line: rgba(255, 255, 255, 0.1);
+  --ss-nav-surf: rgba(255, 255, 255, 0.06);
+  --ss-nav-ac: #f59e0b;
+  --ss-nav-ac-soft: rgba(245, 158, 11, 0.18);
+  --ss-nav-on-ac: #1c140e;
+}
+
+[data-style="warm"][data-theme="dark"],
+:root:not([data-style])[data-theme="dark"] {
+  --ss-surf: #191410;
+  --ss-surf2: #241c16;
+  --ss-line: #33261d;
+  --ss-tx: #faf6f0;
+  --ss-mu: #a69687;
+  --ss-ac: #f59e0b;
+  --ss-ac-soft: rgba(245, 158, 11, 0.14);
+  --ss-on-ac: #1c130b;
+  --ss-warn: #fb7185;
+  --ss-bg: #110d0a;
+  --ss-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  /* Navbar Contrast (Deep Obsidian Roast) */
+  --ss-bar: #0c0806;
+  --ss-nav-tx: #faf6f0;
+  --ss-nav-mu: #9b8c7d;
+  --ss-nav-line: #291c13;
+  --ss-nav-surf: #1a120c;
+  --ss-nav-ac: #f59e0b;
+  --ss-nav-ac-soft: rgba(245, 158, 11, 0.18);
+  --ss-nav-on-ac: #1c130b;
+}
+
+/* ==========================================================================
+   STYLE: MODERN MINT & EMERALD (Bạc hà tươi mới & Xanh ngọc)
+   ========================================================================== */
+[data-style="emerald"][data-theme="light"] {
+  --ss-surf: #ffffff;
+  --ss-surf2: #eaf3ee;
+  --ss-line: #d1e4da;
+  --ss-tx: #0d1a14;
+  --ss-mu: #577366;
+  --ss-ac: #0f9d68;
+  --ss-ac-soft: rgba(15, 157, 104, 0.1);
+  --ss-on-ac: #ffffff;
+  --ss-warn: #e11d48;
+  --ss-bg: #f4f8f6;
+  --ss-shadow: 0 12px 32px rgba(15, 75, 50, 0.08);
+
+  --ss-bar: #082117;
+  --ss-nav-tx: #f0faf4;
+  --ss-nav-mu: #7ca895;
+  --ss-nav-line: rgba(255, 255, 255, 0.1);
+  --ss-nav-surf: rgba(255, 255, 255, 0.06);
+  --ss-nav-ac: #3ddc97;
+  --ss-nav-ac-soft: rgba(61, 220, 151, 0.18);
+  --ss-nav-on-ac: #082117;
+}
+
+[data-style="emerald"][data-theme="dark"] {
+  --ss-surf: #111e19;
+  --ss-surf2: #182b23;
+  --ss-line: #223a30;
+  --ss-tx: #f0faf4;
+  --ss-mu: #7fa192;
+  --ss-ac: #10b981;
+  --ss-ac-soft: rgba(16, 185, 129, 0.14);
+  --ss-on-ac: #071710;
+  --ss-warn: #fb7185;
+  --ss-bg: #0b1410;
+  --ss-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  --ss-bar: #05140e;
+  --ss-nav-tx: #f0faf4;
+  --ss-nav-mu: #7fa192;
+  --ss-nav-line: #1c3027;
+  --ss-nav-surf: #13221b;
+  --ss-nav-ac: #3ddc97;
+  --ss-nav-ac-soft: rgba(61, 220, 151, 0.18);
+  --ss-nav-on-ac: #05140e;
+}
+
+/* ==========================================================================
+   STYLE: CLASSIC SLATE & OCEAN (Xanh công nghệ & Xám phiến)
+   ========================================================================== */
+[data-style="ocean"][data-theme="light"] {
+  --ss-surf: #ffffff;
+  --ss-surf2: #f1f5f9;
+  --ss-line: #e2e8f0;
+  --ss-tx: #0f172a;
+  --ss-mu: #64748b;
+  --ss-ac: #2563eb;
+  --ss-ac-soft: rgba(37, 99, 235, 0.1);
+  --ss-on-ac: #ffffff;
+  --ss-warn: #e11d48;
+  --ss-bg: #f8fafc;
+  --ss-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+
+  --ss-bar: #0f172a;
+  --ss-nav-tx: #f8fafc;
+  --ss-nav-mu: #94a3b8;
+  --ss-nav-line: rgba(255, 255, 255, 0.1);
+  --ss-nav-surf: rgba(255, 255, 255, 0.06);
+  --ss-nav-ac: #38bdf8;
+  --ss-nav-ac-soft: rgba(56, 189, 248, 0.18);
+  --ss-nav-on-ac: #0f172a;
+}
+
+[data-style="ocean"][data-theme="dark"] {
+  --ss-surf: #111a2e;
+  --ss-surf2: #1a253e;
+  --ss-line: #243454;
+  --ss-tx: #f8fafc;
+  --ss-mu: #94a3b8;
+  --ss-ac: #38bdf8;
+  --ss-ac-soft: rgba(56, 189, 248, 0.14);
+  --ss-on-ac: #061120;
+  --ss-warn: #fb7185;
+  --ss-bg: #0b1120;
+  --ss-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  --ss-bar: #070b14;
+  --ss-nav-tx: #f8fafc;
+  --ss-nav-mu: #94a3b8;
+  --ss-nav-line: #1e2b44;
+  --ss-nav-surf: #131c2e;
+  --ss-nav-ac: #38bdf8;
+  --ss-nav-ac-soft: rgba(56, 189, 248, 0.18);
+  --ss-nav-on-ac: #061120;
+}
+
+/* ==========================================================================
+   STYLE: MINIMALIST STUDIO (Đen trắng & Than chì đơn sắc)
+   ========================================================================== */
+[data-style="minimal"][data-theme="light"] {
+  --ss-surf: #ffffff;
+  --ss-surf2: #f4f4f5;
+  --ss-line: #e4e4e7;
+  --ss-tx: #18181b;
+  --ss-mu: #71717a;
+  --ss-ac: #18181b;
+  --ss-ac-soft: rgba(24, 24, 27, 0.08);
+  --ss-on-ac: #ffffff;
+  --ss-warn: #e11d48;
+  --ss-bg: #ffffff;
+  --ss-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+
+  --ss-bar: #18181b;
+  --ss-nav-tx: #fafafa;
+  --ss-nav-mu: #a1a1aa;
+  --ss-nav-line: rgba(255, 255, 255, 0.12);
+  --ss-nav-surf: rgba(255, 255, 255, 0.08);
+  --ss-nav-ac: #ffffff;
+  --ss-nav-ac-soft: rgba(255, 255, 255, 0.18);
+  --ss-nav-on-ac: #18181b;
+}
+
+[data-style="minimal"][data-theme="dark"] {
+  --ss-surf: #121215;
+  --ss-surf2: #1c1c21;
+  --ss-line: #27272a;
+  --ss-tx: #fafafa;
+  --ss-mu: #a1a1aa;
+  --ss-ac: #f4f4f5;
+  --ss-ac-soft: rgba(244, 244, 245, 0.12);
+  --ss-on-ac: #09090b;
+  --ss-warn: #fb7185;
+  --ss-bg: #09090b;
+  --ss-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  --ss-bar: #000000;
+  --ss-nav-tx: #fafafa;
+  --ss-nav-mu: #a1a1aa;
+  --ss-nav-line: #27272a;
+  --ss-nav-surf: #18181b;
+  --ss-nav-ac: #f4f4f5;
+  --ss-nav-ac-soft: rgba(244, 244, 245, 0.16);
+  --ss-nav-on-ac: #000000;
+}
+
+/* ==========================================================================
+   NAVBAR STYLE: SURFACE (SEAMLESS / LIỀN MẠCH)
+   ========================================================================== */
+[data-nav-style="surface"] {
+  --ss-bar: var(--ss-surf);
+  --ss-nav-tx: var(--ss-tx);
+  --ss-nav-mu: var(--ss-mu);
+  --ss-nav-line: var(--ss-line);
+  --ss-nav-surf: var(--ss-surf2);
+  --ss-nav-ac: var(--ss-ac);
+  --ss-nav-ac-soft: var(--ss-ac-soft);
+  --ss-nav-on-ac: var(--ss-on-ac);
+}
+
+

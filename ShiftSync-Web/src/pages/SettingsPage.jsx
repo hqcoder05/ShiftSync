@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getAllStores, updateStore } from '../services/storeService';
 import { getStoreConfiguration, updateStoreConfiguration } from '../services/storeConfigService';
 import { getContractTypes, updateContractType, createContractType } from '../services/contractTypeService';
 import { toast } from '../context/ToastContext';
+import { useTheme, THEME_STYLES } from '../components/navbar/theme';
+import { Palette, Sun, Moon, Layout, Eye, Check } from 'lucide-react';
 import './SettingsPage.css';
 
 const DEFAULT_CONFIG = {
@@ -61,6 +64,8 @@ const DEFAULT_CONFIG = {
 const STORAGE_KEY_PREFIX = 'shiftsync_store_config_';
 
 export default function SettingsPage() {
+  const { search } = useLocation();
+  const { theme, setTheme, style, setStyle, navStyle, setNavStyle } = useTheme();
   const [stores, setStores] = useState([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -68,7 +73,11 @@ export default function SettingsPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('general');
+  const requestedTab = new URLSearchParams(search).get('tab');
+  const urlTab = ['attendance', 'schedule', 'config', 'dispatch', 'permissions', 'appearance'].includes(requestedTab) ? requestedTab : 'general';
+  const [tabSelection, setTabSelection] = useState(() => ({ search, tab: urlTab }));
+  const activeTab = tabSelection.search === search ? tabSelection.tab : urlTab;
+  const setActiveTab = (tab) => setTabSelection({ search, tab });
   const [lastSavedTime, setLastSavedTime] = useState('14:35 hôm nay');
 
   // Contract types state
@@ -372,7 +381,7 @@ export default function SettingsPage() {
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} hôm nay`;
       setLastSavedTime(timeStr);
-      showToast('Đã lưu cấu hình cửa hàng thành công! 🎉');
+      showToast('Đã lưu cấu hình cửa hàng thành công! ');
     } catch (err) {
       showToast('Lỗi khi lưu cấu hình: ' + err.message);
     } finally {
@@ -518,6 +527,15 @@ export default function SettingsPage() {
             onClick={() => handleTabClick('permissions')}
           >
             <span>Phân quyền</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sc-tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
+            onClick={() => handleTabClick('appearance')}
+          >
+            <Palette size={14} style={{ marginRight: 4 }} />
+            <span>Giao diện & Chủ đề</span>
           </button>
         </div>
 
@@ -1343,6 +1361,256 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+        )}
+
+        {/* ── 9. CARD 7: GIAO DIỆN & PHONG CÁCH HỆ THỐNG ── */}
+        {activeTab === 'appearance' && (
+          <section className="sc-section-card sc-tab-pane">
+            <div className="sc-card-header">
+              <div className="sc-ch-left">
+                <div>
+                  <h2 className="sc-ch-title">Tùy biến Giao diện & Chủ đề</h2>
+                  <p className="sc-ch-desc">
+                    Lựa chọn bảng màu, chế độ sáng tối và phong cách thanh điều hướng phù hợp với thương hiệu cửa hàng
+                  </p>
+                </div>
+              </div>
+              <span className="sc-badge-active">Áp dụng tức thì</span>
+            </div>
+
+            <div className="sc-card-body sc-appearance-section">
+              {/* Block 1: Theme Style Palette */}
+              <div className="sc-appearance-block">
+                <div className="sc-appearance-block-header">
+                  <div className="sc-appearance-block-title">
+                    <Palette size={16} />
+                    <span>Phong cách Bảng màu (Theme Style)</span>
+                  </div>
+                  <p className="sc-appearance-block-desc">
+                    Chọn bộ phối màu chủ đạo cho toàn bộ ứng dụng (Dashboard, Lập lịch ca, Chấm công, Bản đồ mặt bằng)
+                  </p>
+                </div>
+
+                <div className="sc-theme-options-grid">
+                  {THEME_STYLES.map((s) => {
+                    const isSelected = (style || "warm") === s.id;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`sc-theme-choice-card ${isSelected ? "active" : ""}`}
+                        onClick={() => {
+                          setStyle(s.id);
+                          showToast(`Đã áp dụng phong cách ${s.name}! `);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            setStyle(s.id);
+                            showToast(`Đã áp dụng phong cách ${s.name}! `);
+                          }
+                        }}
+                      >
+                        <div className="sc-theme-choice-top">
+                          <span className="sc-theme-choice-badge">{s.badge}</span>
+                          <span className="sc-theme-choice-check">✓</span>
+                        </div>
+
+                        <div className="sc-theme-swatches">
+                          <span
+                            className="sc-swatch-dot"
+                            style={{ backgroundColor: s.primaryColor }}
+                            title={`Màu chính: ${s.primaryColor}`}
+                          />
+                          <span
+                            className="sc-swatch-dot"
+                            style={{ backgroundColor: s.navColor }}
+                            title={`Màu thanh điều hướng: ${s.navColor}`}
+                          />
+                          <span
+                            className="sc-swatch-dot"
+                            style={{ backgroundColor: s.bgColor }}
+                            title={`Màu nền trang: ${s.bgColor}`}
+                          />
+                          <span
+                            className="sc-swatch-dot"
+                            style={{ backgroundColor: s.accentColor }}
+                            title={`Màu điểm nhấn: ${s.accentColor}`}
+                          />
+                        </div>
+
+                        <div>
+                          <h4 className="sc-theme-choice-title">{s.name}</h4>
+                          <span className="sc-theme-choice-tagline">{s.tagline}</span>
+                        </div>
+
+                        <p className="sc-theme-choice-desc">{s.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Block 2: Light / Dark Mode */}
+              <div className="sc-appearance-block">
+                <div className="sc-appearance-block-header">
+                  <div className="sc-appearance-block-title">
+                    <Sun size={16} />
+                    <span>Chế độ Sáng / Tối (Color Mode)</span>
+                  </div>
+                  <p className="sc-appearance-block-desc">
+                    Tùy chỉnh nền sáng rõ nét cho ban ngày hoặc nền tối dịu mắt cho ca đêm
+                  </p>
+                </div>
+
+                <div className="sc-mode-options-grid">
+                  <div
+                    className={`sc-mode-choice-card ${theme === "light" ? "active" : ""}`}
+                    onClick={() => {
+                      setTheme("light");
+                      showToast("Đã chuyển sang giao diện Sáng! ");
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="sc-mode-choice-icon">
+                      <Sun size={20} />
+                    </div>
+                    <div className="sc-mode-choice-info">
+                      <strong>Giao diện Sáng (Light Mode)</strong>
+                      <small>Nền ngà sáng rõ, độ tương phản cao, tối ưu cho môi trường ánh sáng ban ngày</small>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`sc-mode-choice-card ${theme === "dark" ? "active" : ""}`}
+                    onClick={() => {
+                      setTheme("dark");
+                      showToast("Đã chuyển sang giao diện Tối! ");
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="sc-mode-choice-icon">
+                      <Moon size={20} />
+                    </div>
+                    <div className="sc-mode-choice-info">
+                      <strong>Giao diện Tối (Dark Mode)</strong>
+                      <small>Nền than sẫm êm dịu, giảm mỏi mắt khi quản lý ca tối hoặc làm việc thiếu sáng</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Block 3: Navbar Style */}
+              <div className="sc-appearance-block">
+                <div className="sc-appearance-block-header">
+                  <div className="sc-appearance-block-title">
+                    <Layout size={16} />
+                    <span>Phong cách Thanh Điều Hướng (Navbar Style)</span>
+                  </div>
+                  <p className="sc-appearance-block-desc">
+                    Lựa chọn thanh điều hướng nổi bật hay hòa nhập cùng màu nền ứng dụng
+                  </p>
+                </div>
+
+                <div className="sc-mode-options-grid">
+                  <div
+                    className={`sc-mode-choice-card ${navStyle === "contrast" ? "active" : ""}`}
+                    onClick={() => {
+                      setNavStyle("contrast");
+                      showToast("Đã đặt thanh điều hướng Tương phản đậm!");
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="sc-mode-choice-icon">
+                      <Layout size={20} />
+                    </div>
+                    <div className="sc-mode-choice-info">
+                      <strong>Tương phản đậm (Contrast Bar)</strong>
+                      <small>Thanh điều hướng mang sắc sẫm đặc trưng, tạo điểm neo thị giác mạnh mẽ</small>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`sc-mode-choice-card ${navStyle === "surface" ? "active" : ""}`}
+                    onClick={() => {
+                      setNavStyle("surface");
+                      showToast("Đã đặt thanh điều hướng Liền mạch!");
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="sc-mode-choice-icon">
+                      <Eye size={20} />
+                    </div>
+                    <div className="sc-mode-choice-info">
+                      <strong>Liền mạch đồng màu (Seamless Surface)</strong>
+                      <small>Thanh điều hướng hòa nhập nhẹ nhàng cùng màu nền của trang</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Block 4: Live UI Preview Mockup */}
+              <div className="sc-appearance-block">
+                <div className="sc-appearance-block-header">
+                  <div className="sc-appearance-block-title">
+                    <Eye size={16} />
+                    <span>Xem trước giao diện thực tế (Live Preview)</span>
+                  </div>
+                  <p className="sc-appearance-block-desc">
+                    Mô phỏng màu sắc và thành phần giao diện áp dụng theo tùy chọn hiện tại của bạn
+                  </p>
+                </div>
+
+                <div className="sc-preview-box">
+                  {/* Mock Navbar */}
+                  <div className="sc-preview-navbar">
+                    <div className="sc-preview-nav-left">
+                      <span className="sc-preview-brand">ShiftSync</span>
+                      <span className="sc-preview-nav-tab active">Dashboard</span>
+                      <span className="sc-preview-nav-tab">Lập lịch</span>
+                      <span className="sc-preview-nav-tab">Chấm công</span>
+                    </div>
+                    <div className="sc-preview-nav-right">
+                      <span className="sc-preview-nav-badge">3 ca trống</span>
+                      <span style={{ fontSize: 11, opacity: 0.8 }}>Quản lý chi nhánh</span>
+                    </div>
+                  </div>
+
+                  {/* Mock Page Content */}
+                  <div className="sc-preview-body">
+                    <div className="sc-preview-metrics">
+                      <div className="sc-preview-metric-card">
+                        <span>Ca hôm nay</span>
+                        <strong>12 ca</strong>
+                      </div>
+                      <div className="sc-preview-metric-card">
+                        <span>Độ phủ ca</span>
+                        <strong>96%</strong>
+                      </div>
+                      <div className="sc-preview-metric-card">
+                        <span>Cần duyệt</span>
+                        <strong>2 yêu cầu</strong>
+                      </div>
+                    </div>
+
+                    <div className="sc-preview-content-card">
+                      <div className="sc-preview-card-left">
+                        <Check size={16} color="var(--ss-ac, #d97706)" />
+                        <b>Phân công ca tự động & tối ưu giờ công</b>
+                      </div>
+                      <button type="button" className="sc-preview-btn">
+                        Xếp ca ngay
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
 
         {/* ── STICKY / FLOATING UN-SAVED CHANGES BAR ── */}

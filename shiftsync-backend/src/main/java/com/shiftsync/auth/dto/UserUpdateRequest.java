@@ -19,6 +19,9 @@ public class UserUpdateRequest {
     @Schema(description = "Full name of the user", example = "Nguyen Van A Updated")
     private String fullName;
 
+    @Pattern(regexp = "MALE|FEMALE|OTHER", message = "Gender must be MALE, FEMALE or OTHER")
+    private String gender;
+
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     @Schema(description = "User unique email address", example = "staff_auth@shiftsync.com")

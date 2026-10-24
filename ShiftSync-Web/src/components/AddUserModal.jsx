@@ -172,6 +172,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
       phone: form.phone.trim(),
       password: form.password,
       systemRole: targetRole,
+      gender: form.gender || 'MALE',
     };
 
     const activeStoreId = storeId || localStorage.getItem('selectedStoreId');
@@ -262,6 +263,12 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
         <form id="add-user-form" className="aum-body" onSubmit={handleSubmit}>
           {/* Row 1: Full Name | Email */}
           <div className="aum-grid-2">
+            <div className="aum-field">
+              <label htmlFor="aum-gender">Giới tính</label>
+              <select id="aum-gender" value={form.gender || 'MALE'} onChange={e => setForm({...form,gender:e.target.value})}>
+                <option value="MALE">Nam (mặc định)</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option>
+              </select>
+            </div>
             {/* Họ và tên */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-fullname">

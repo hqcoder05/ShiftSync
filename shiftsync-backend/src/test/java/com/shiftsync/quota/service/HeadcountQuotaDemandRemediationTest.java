@@ -96,6 +96,8 @@ class HeadcountQuotaDemandRemediationTest {
         when(skillRepository.findById(baristaSkill.getId())).thenReturn(Optional.of(baristaSkill));
         when(skillRepository.findById(cashierSkill.getId())).thenReturn(Optional.of(cashierSkill));
         when(skillRepository.findById(waiterSkill.getId())).thenReturn(Optional.of(waiterSkill));
+        when(skillRepository.findByIdAndStoreId(cashierSkill.getId(), storeId)).thenReturn(Optional.of(cashierSkill));
+        when(skillRepository.findByIdAndStoreId(waiterSkill.getId(), storeId)).thenReturn(Optional.of(waiterSkill));
         when(skillRepository.findByIdAndStoreId(baristaSkill.getId(), storeId)).thenReturn(Optional.of(baristaSkill)); when(skillRepository.findAllById(org.mockito.ArgumentMatchers.anyIterable())).thenAnswer(inv -> { java.util.List<com.shiftsync.skill.entity.Skill> list = new java.util.ArrayList<>(); for(Object id: (Iterable)inv.getArgument(0)) { if (id.equals(baristaSkill.getId())) list.add(baristaSkill); if (id.equals(cashierSkill.getId())) list.add(cashierSkill); if (id.equals(waiterSkill.getId())) list.add(waiterSkill); } return list; });
     }
 
@@ -143,6 +145,71 @@ class HeadcountQuotaDemandRemediationTest {
         headcountQuotaService.getDailyQuotas(storeId, testDate);
 
         verify(shiftRepository, never()).save(any(Shift.class));
+    }
+
+    @Test
+    void budgetIsPersistedAndInvalidValueDoesNotWrite() {
+        headcountQuotaService.updateMonthlyBudget(storeId, 90000000L);
+        verify(storeRepository).save(store);
+        assertEquals(90000000L, store.getMonthlyQuotaBudget());
+        assertThrows(BusinessException.class, () -> headcountQuotaService.updateMonthlyBudget(storeId, 0));
+        verify(storeRepository, times(1)).save(any());
+    }
+
+    @Test
+    void quotaRejectsPositionFromAnotherStoreBeforeCreatingShift() {
+        UUID foreignPosition = UUID.randomUUID();
+        UpdateQuotaRequest req = new UpdateQuotaRequest();
+        req.setBranchId(storeId);
+        req.setDate(testDate);
+        req.setShiftType("morning");
+        req.setPositionId(foreignPosition);
+        req.setCount(2);
+        when(skillRepository.findByIdAndStoreId(foreignPosition, storeId)).thenReturn(Optional.empty());
+        assertThrows(BusinessException.class, () -> headcountQuotaService.updateQuota("q", req));
+        verify(shiftRepository, never()).save(any());
+    }
+
+    @Test
+    void weekendSuggestionsAgreeBetweenDailyAndWeeklyAndDoNotRaiseMaximum() {
+        LocalDate saturday = testDate.plusDays(5);
+        when(shiftRepository.findByStoreIdAndShiftDate(storeId, saturday)).thenReturn(List.of());
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, testDate, testDate.plusDays(6))).thenReturn(List.of());
+        var daily = headcountQuotaService.getDailyQuotas(storeId, saturday);
+        var weekly = headcountQuotaService.getWeeklyQuotas(storeId, testDate);
+        for (var row : weekly.getMatrixRows()) {
+            for (var cell : row.getCells()) {
+                if (!saturday.equals(cell.getDate())) continue;
+                var dayCell = daily.getShifts().get("morning".equals(cell.getShiftType()) ? 0 : 1)
+                        .getQuotas().stream().filter(c -> c.getPositionId().equals(row.getPositionId())).findFirst().orElseThrow();
+                assertEquals(dayCell.getCount(), cell.getCount());
+                assertEquals(dayCell.getMax(), cell.getMax());
+                assertEquals("SUGGESTED", cell.getSource());
+            }
+        }
+    }
+
+    @Test
+    void existingShiftWithMissingRequirementIsStillSuggested() {
+        Shift shift = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(testDate)
+                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(15, 0))
+                .status(ShiftStatus.DRAFT).requirements(new ArrayList<>()).build();
+        shift.getRequirements().add(ShiftSkillRequirement.builder().shift(shift)
+                .skill(baristaSkill).requiredCount(0).build());
+        shift.setAssignments(List.of(
+                com.shiftsync.shift.entity.ShiftAssignment.builder().requiredSkillId(baristaSkill.getId()).build(),
+                com.shiftsync.shift.entity.ShiftAssignment.builder().build(),
+                com.shiftsync.shift.entity.ShiftAssignment.builder().requiredSkillId(baristaSkill.getId()).deleted(true).build()));
+        when(shiftRepository.findByStoreIdAndShiftDate(storeId, testDate)).thenReturn(List.of(shift));
+        var cells = headcountQuotaService.getDailyQuotas(storeId, testDate).getShifts().get(0).getQuotas();
+        assertEquals("SAVED", cells.stream().filter(c -> c.getPositionId().equals(baristaSkill.getId())).findFirst().orElseThrow().getSource());
+        assertEquals("SUGGESTED", cells.stream().filter(c -> c.getPositionId().equals(cashierSkill.getId())).findFirst().orElseThrow().getSource());
+        var barista = cells.stream().filter(c -> c.getPositionId().equals(baristaSkill.getId())).findFirst().orElseThrow();
+        assertEquals(1, barista.getAssignedCount());
+        assertEquals(1, barista.getExcessCount());
+        assertEquals(0, barista.getShortageCount());
+        assertEquals(1, barista.getUnclassifiedAssignedCount());
+        verify(shiftRepository, never()).save(any());
     }
 
     @Test
@@ -516,10 +583,12 @@ class HeadcountQuotaDemandRemediationTest {
         req.setBranchId(storeId);
         req.setDate(testDate);
 
-        headcountQuotaService.applyToScheduler(req);
+        var result = headcountQuotaService.applyToScheduler(req);
+        assertEquals(List.of(outOfBoundsShift.getId()), result.get("reviewShiftIds"));
 
-        // Out of bounds shift was deleted
-        verify(shiftRepository).delete(outOfBoundsShift);
+        // Applying demand must preserve even out-of-bounds shifts and assignments.
+        verify(shiftRepository, never()).delete(any(Shift.class));
+        verify(shiftAssignmentRepository, never()).deleteAll(anyIterable());
         // Valid mid shift was NOT deleted
         verify(shiftRepository, never()).delete(validMidShift);
 

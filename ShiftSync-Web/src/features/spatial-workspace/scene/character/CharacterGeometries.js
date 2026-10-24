@@ -95,6 +95,11 @@ class CharacterGeometryCache {
     return this.get('orderTablet', () => new THREE.BoxGeometry(0.11, 0.16, 0.012));
   }
 
+  get tabletScreen() {
+    // Cashier tablet screen display plane (2 triangles)
+    return this.get('tabletScreen', () => new THREE.PlaneGeometry(0.09, 0.13));
+  }
+
   get headsetBand() {
     // Cashier slim communication headset band (4x10 = 80 triangles vs 192)
     return this.get('headsetBand', () => new THREE.TorusGeometry(0.185, 0.016, 4, 10, Math.PI));
@@ -170,6 +175,26 @@ class CharacterGeometryCache {
   get lod1Limb() {
     // Fast 5-segment limb for LOD 1 (18 triangles)
     return this.get('lod1Limb', () => new THREE.CylinderGeometry(0.055, 0.045, 0.38, 5));
+  }
+
+  isSharedGeometry(geo) {
+    if (!geo) return false;
+    return Object.values(this._geos).includes(geo);
+  }
+
+  preloadAll() {
+    const proto = CharacterGeometryCache.prototype;
+    const descriptors = Object.getOwnPropertyDescriptors(proto);
+    for (const [name, desc] of Object.entries(descriptors)) {
+      if (typeof desc.get === 'function') {
+        try {
+          this[name];
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return Object.values(this._geos);
   }
 }
 

@@ -1,0 +1,106 @@
+/* Attendance workspace: the same warm palette and reading rhythm as HR. */
+.att-page {
+  --att-primary: var(--ss-ac); --att-primary-hover: var(--ss-ac); --att-primary-light: var(--ss-ac-soft);
+  --att-border: var(--ss-line); --att-text: var(--ss-tx); --att-text-muted: var(--ss-mu);
+  display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 24px;
+  background: var(--ss-bg); color: var(--ss-tx); padding: 28px clamp(16px,2.5vw,40px) 48px;
+  min-height: calc(100dvh - var(--ss-navbar-height,112px)); min-width: 0; width: 100%;
+}
+.att-page .tw-header-container { grid-column: 1 / -1; background: var(--ss-surf); border: 1px solid var(--ss-line); border-left: 4px solid var(--ss-ac); border-radius: 14px; padding: 25px 28px 0; margin: 0; gap: 22px; }
+.att-eyebrow, .att-section-label { color: var(--ss-ac); font-size: 10px; font-weight: 800; letter-spacing: .09em; }
+.att-eyebrow { margin-bottom: 10px; }
+.att-page .tw-page-title { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px,2.4vw,38px); line-height: 1.2; color: var(--ss-tx); letter-spacing: -.025em; }
+.att-page .tw-page-subtitle { color: var(--ss-mu); margin-top: 9px; line-height: 1.6; }
+.att-page .tw-domain-tabs { margin-top: 20px; gap: 8px; border-color: var(--ss-line); overflow-x: auto; max-width: 100%; }
+.att-page .tw-domain-tab-btn { color: var(--ss-mu); flex-shrink: 0; min-height: 47px; padding: 12px 16px; border-bottom-color: transparent; white-space: nowrap; }
+.att-page .tw-domain-tab-btn.active { color: var(--ss-ac); background: var(--ss-ac-soft); border-color: var(--ss-ac); }
+.att-page .tw-domain-tab-btn:hover { background: var(--ss-surf2); }
+.att-page .att-sidebar { min-width: 0; width: 100%; background: var(--ss-surf); border-color: var(--ss-line); box-shadow: none; border-radius: 12px; padding: 18px; }
+.att-page .att-sidebar-title { font-size: 15px; color: var(--ss-tx); }
+.att-page .att-sidebar-day-header { border-color: var(--ss-line); }
+.att-page .att-sidebar-day-label, .att-page .att-sidebar-day-label span { color: var(--ss-mu); }
+.att-page .att-filter-box { background: var(--ss-surf); border-color: var(--ss-line); }
+.att-page .att-filter-label { color: var(--ss-tx); }
+.att-page .att-user-list-item { color: var(--ss-mu); }
+.att-page .att-user-list-item.active { background: var(--ss-ac-soft); color: var(--ss-ac); }
+.att-page .att-user-list-item:hover { background: var(--ss-surf2); }
+.att-page .att-main { min-width: 0; width: 100%; }
+.att-workspace-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
+.att-workspace-title h2 { color: var(--ss-tx); font-size: 24px; letter-spacing: -.035em; margin: 7px 0 5px; }
+.att-workspace-title p { color: var(--ss-mu); margin: 0; font-size: 13px; line-height: 1.6; }
+.att-pending-summary { color: var(--ss-ac); background: var(--ss-ac-soft); border: 1px solid var(--ss-line); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+.att-mobile-filters { display: none; }
+.att-page .att-topbar, .att-page .att-header-toolbar { flex-wrap: wrap; gap: 14px; align-items: center; }
+.att-page .att-topbar-actions { flex-wrap: wrap; gap: 10px; }
+.att-page .att-viewmode-toggle, .att-page .att-capsule-card, .att-page .att-date-navigator { background: var(--ss-surf); border-color: var(--ss-line); }
+.att-page .att-toggle-btn { color: var(--ss-mu); }
+.att-page .att-toggle-btn.active { color: var(--ss-ac); background: var(--ss-ac-soft); box-shadow: none; }
+.att-page :is(.att-date-nav-arrow,.att-date-nav-center,.att-today-btn,.att-capsule-payroll-btn,.att-capsule-export-btn) { color: var(--ss-tx); background: transparent; border-color: var(--ss-line); }
+.att-page .att-today-btn { background: var(--ss-surf); }
+.att-page .att-table-card, .att-page .tw-table-card { background: var(--ss-surf); border-color: var(--ss-line); border-radius: 12px; box-shadow: none; max-width: 100%; min-width: 0; }
+.att-page .tw-table-card, .att-page .tw-impact-table-wrap { overflow-x: auto; }
+.att-page .att-table-responsive { width: 100%; overflow-x: auto; }
+.att-page .att-table { min-width: 1180px; }
+.att-page .tw-data-table { min-width: 850px; }
+.att-page :is(.att-table,.tw-data-table) th { background: var(--ss-surf2); color: var(--ss-mu); border-color: var(--ss-line); font-size: 11px; letter-spacing: .04em; padding: 15px 16px; }
+.att-page :is(.att-table,.tw-data-table) td { color: var(--ss-tx); border-color: var(--ss-line); padding: 17px 16px; }
+.att-page .tw-data-table tr:hover td, .att-page .att-table tbody tr:hover { background: var(--ss-ac-soft); }
+.att-page .att-user-name { color: var(--ss-tx); }
+.att-page :is(.att-muted,.att-empty-box,.att-empty-box p) { color: var(--ss-mu); }
+.att-page .att-empty-box { min-height: 240px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 36px 20px; }
+.att-page .att-empty-box h3 { color: var(--ss-tx); font-size: 17px; }
+.att-page .tw-action-bar { background: var(--ss-surf); border: 1px solid var(--ss-line); border-radius: 12px; padding: 14px; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.att-page .tw-filter-group { flex-wrap: wrap; gap: 8px; min-width: 0; }
+.att-page .tw-filter-pill { background: var(--ss-surf); color: var(--ss-mu); border-color: var(--ss-line); padding: 9px 12px; }
+.att-page .tw-filter-pill.active { color: var(--ss-ac); background: var(--ss-ac-soft); border-color: var(--ss-ac); }
+.att-page .tw-btn-create { background: var(--ss-ac); color: var(--ss-on-ac); box-shadow: none; }
+.att-page :is(.att-time-input,.att-select-input) { background: var(--ss-surf); color: var(--ss-tx); border-color: var(--ss-line); box-sizing: border-box; max-width: 100%; }
+.att-page .att-modal-overlay { padding: 20px; overflow-y: auto; box-sizing: border-box; }
+.att-page .att-modal-content, .att-page .tw-impact-modal-card { background: var(--ss-surf); color: var(--ss-tx); max-height: calc(100dvh - 40px); overflow-y: auto; border: 1px solid var(--ss-line); }
+.att-page :is(.att-modal-header,.tw-impact-header,.tw-impact-footer,.att-modal-actions) { border-color: var(--ss-line); background: var(--ss-surf); }
+.att-page .att-modal-header h3, .att-page .att-form-group label { color: var(--ss-tx); }
+.att-page .att-modal-actions { flex-wrap: wrap; }
+.att-page .att-save-btn { background: var(--ss-ac); color: var(--ss-on-ac); }
+.att-page .att-cancel-btn { color: var(--ss-tx); background: var(--ss-surf2); border-color: var(--ss-line); }
+.att-page .att-calendar-popover { background: var(--ss-surf); color: var(--ss-tx); border-color: var(--ss-line); max-width: calc(100vw - 48px); }
+.att-page :focus-visible { outline: 3px solid var(--ss-ac); outline-offset: 3px; }
+@media(max-width:1000px) {
+ .att-page { grid-template-columns: minmax(0,1fr); }
+ .att-mobile-filters { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; background: var(--ss-surf); color: var(--ss-tx); border: 1px solid var(--ss-line); border-radius: 10px; font: inherit; font-size: 13px; font-weight: 600; }
+ .att-page .att-sidebar { display: none; }
+ .att-page .att-sidebar.is-open { display: flex; }
+}
+@media(max-width:600px) {
+ .att-page { padding: 20px 16px 40px; gap: 18px; }
+ .att-page .tw-header-container { padding: 20px 20px 0; min-width: 0; }
+ .att-page .tw-domain-tabs { margin-inline: -20px; padding-inline: 10px; }
+ .att-page .tw-domain-tab-btn { padding-inline: 12px; font-size: 12px; }
+ .att-workspace-title h2 { font-size: 22px; }
+ .att-page .att-topbar-actions { width: 100%; }
+ .att-page .att-capsule-card { max-width: 100%; margin-right: 0 !important; }
+ .att-page .att-date-navigator-wrap { min-width: 0; max-width: 100%; }
+ .att-page .att-date-navigator { max-width: 100%; }
+ .att-page .att-date-nav-center { font-size: 12px; }
+ .att-page .tw-filter-group { width: 100%; }
+ .att-page .tw-filter-group > div { width: 100% !important; }
+}
+
+.att-page { align-content: start; }
+.att-page .tw-domain-tabs { background: transparent; padding: 0; border-radius: 0; }
+.att-page .tw-domain-tab-btn { border-radius: 8px 8px 0 0; box-shadow: none; }
+.att-page .att-topbar-actions { display: flex; flex-direction: row; }
+.att-page .att-filter-box-header { width: 100%; border: 0; font: inherit; text-align: left; background: var(--ss-surf2); color: var(--ss-tx); }
+@media(max-width:600px) {
+ .att-page .tw-domain-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-inline: -10px; padding: 0; gap: 0; }
+ .att-page .tw-domain-tab-btn { white-space: normal; line-height: 1.45; min-width: 0; padding: 10px 8px; min-height: 60px; }
+}
+
+.att-page button.att-user-list-item { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.att-page button.att-user-list-item.active { background: var(--ss-ac-soft); }
+.att-page button.att-user-list-item:hover { background: var(--ss-surf2); }
+
+.att-page .tw-header-container { background: transparent; border: 0; border-radius: 0; padding: 0; }
+.att-page .tw-page-title { font-family: var(--ss-font); font-size: 25px; margin: 0; }
+.att-page .tw-domain-tabs { margin-top: 16px; border-bottom: 1px solid var(--ss-line); }
+.att-workspace-title h2 { font-size: 19px; margin: 0; }
+@media(max-width:600px) { .att-page .tw-domain-tabs { margin-inline: 0; } }

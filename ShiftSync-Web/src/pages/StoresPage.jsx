@@ -393,11 +393,11 @@ export default function StoresPage() {
                       <div style={{ marginTop: 6, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         {s.managers && s.managers.length > 0 ? (
                           <span style={{ color: '#0f766e', fontWeight: 600, background: '#f0fdfa', padding: '2px 8px', borderRadius: 6, border: '1px solid #ccfbf1' }}>
-                            👤 Quản lý: {s.managers.map((m) => m.fullName).join(', ')}
+                             Quản lý: {s.managers.map((m) => m.fullName).join(', ')}
                           </span>
                         ) : (
                           <span style={{ color: '#d97706', fontWeight: 500, background: '#fef3c7', padding: '2px 8px', borderRadius: 6, border: '1px solid #fde68a' }}>
-                            ⚠️ Chưa có Quản lý
+                             Chưa có Quản lý
                           </span>
                         )}
                         {typeof s.staffCount === 'number' && (

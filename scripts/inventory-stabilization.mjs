@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const root = path.resolve(import.meta.dirname, '..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const walk = p => fs.readdirSync(path.join(root,p), {withFileTypes:true}).flatMap(e => e.isDirectory() ? walk(`${p}/${e.name}`) : [`${p}/${e.name}`]);
+const routes = [...read('ShiftSync-Web/src/App.jsx').matchAll(/<Route path="([^"]+)"[^\n]*/g)].map(m=>({path:m[1],declaration:m[0],status:'NOT_VERIFIED'}));
+const services = walk('ShiftSync-Web/src/services').filter(p=>p.endsWith('.js')).map(file=>({file,calls:[...read(file).matchAll(/api\.(get|post|put|patch|delete)\(([^\n]+)/g)].map(m=>({method:m[1].toUpperCase(),expression:m[2]}))}));
+const controllers = walk('shiftsync-backend/src/main/java/com/shiftsync').filter(p=>p.endsWith('Controller.java')).map(file=>({file,mappings:[...read(file).matchAll(/@(Get|Post|Put|Patch|Delete|Request)Mapping[^\n]*/g)].map(m=>m[0]),guards:[...read(file).matchAll(/@PreAuthorize[^\n]*/g)].map(m=>m[0])}));
+const out = 'docs/audit/stabilization/source-inventory.json';
+fs.mkdirSync(path.dirname(path.join(root,out)),{recursive:true});
+fs.writeFileSync(path.join(root,out),JSON.stringify({note:'Static inventory only. A route or annotation is not proof of runtime correctness or authorization.',routes,services,controllers},null,2)+'\n');
+console.log(`${routes.length} routes, ${services.length} service files, ${controllers.length} controllers -> ${out}`);

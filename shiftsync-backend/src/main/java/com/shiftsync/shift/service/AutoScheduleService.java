@@ -206,6 +206,9 @@ public class AutoScheduleService {
     @Transactional
     public AutoScheduleResult autoSchedule(UUID storeId, AutoScheduleRequest request) {
         long startTime = System.currentTimeMillis(); // Profiling start
+        if (request == null || request.getStartDate() == null || request.getEndDate() == null) {
+            throw new BusinessException("Auto-scheduling start date and end date are required.", HttpStatus.BAD_REQUEST);
+        }
         long daysBetween = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (daysBetween < 0 || daysBetween > 6) {
             throw new BusinessException("Auto-scheduling range cannot exceed 7 days (1 week).", HttpStatus.BAD_REQUEST);
@@ -225,8 +228,8 @@ public class AutoScheduleService {
                 .filter(s -> s.getStatus() == ShiftStatus.DRAFT)
                 .collect(Collectors.toList());
         draftShifts.sort(Comparator.comparing(Shift::getShiftDate)
-                .thenComparing(Shift::getStartTime)
-                .thenComparing(Shift::getEndTime)
+                .thenComparing(Shift::getStartTime, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(Shift::getEndTime, Comparator.nullsFirst(Comparator.naturalOrder()))
                 .thenComparing(Shift::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
 
         // Validate and clean up any DRAFT shifts outside store operating hours
@@ -1269,11 +1272,11 @@ public class AutoScheduleService {
             LocalDateTime sStart = getStartDateTime(s);
             LocalDateTime sEnd = getEndDateTime(s);
 
-            long hoursBetween = 0;
+            double hoursBetween = 0;
             if (sEnd.isBefore(newStart) || sEnd.isEqual(newStart)) {
-                hoursBetween = Duration.between(sEnd, newStart).toHours();
+                hoursBetween = Duration.between(sEnd, newStart).toMinutes() / 60.0;
             } else if (newEnd.isBefore(sStart) || newEnd.isEqual(sStart)) {
-                hoursBetween = Duration.between(newEnd, sStart).toHours();
+                hoursBetween = Duration.between(newEnd, sStart).toMinutes() / 60.0;
             } else {
                 return false; // overlap, handled by HC3, but just in case
             }

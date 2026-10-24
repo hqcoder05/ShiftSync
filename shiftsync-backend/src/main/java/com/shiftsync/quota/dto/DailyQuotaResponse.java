@@ -81,6 +81,11 @@ public class DailyQuotaResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DailyQuotaCell {
+        private String source; // SAVED or SUGGESTED; independent of shift existence
+        private int assignedCount;
+        private int shortageCount;
+        private int excessCount;
+        private int unclassifiedAssignedCount; // Shift-level total; do not sum across positions
         private String quotaId;
         private UUID positionId;
         private String positionName;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { getEmployeeById, getEmployees, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import { getStoresByStaff, assignStaffToStore } from '../services/employmentService';
@@ -32,7 +32,8 @@ export default function EmployeeDetailPage() {
   const [skills, setSkills] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('info'); // info | schedule | attendance | contract
+  const [profileParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => ['info', 'schedule', 'attendance', 'contract', 'payroll'].includes(profileParams.get('tab')) ? profileParams.get('tab') : 'info'); // info | schedule | attendance | contract
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -189,15 +190,8 @@ export default function EmployeeDetailPage() {
         }
 
         if (!empData) {
-          empData = {
-            id: '8492',
-            fullName: 'Test User',
-            email: 'test_audit_3f283d00-836f-45',
-            phone: '(+84) 0912 345 678',
-            role: 'STAFF',
-            systemRole: 'STAFF',
-            status: 'ACTIVE'
-          };
+          setEmployee(null);
+          return;
         }
 
         setEmployee(empData);
@@ -205,19 +199,16 @@ export default function EmployeeDetailPage() {
         // 3. Load Metadata for this employee
         const savedMetaStr = localStorage.getItem(`emp_meta_${empData.id}`);
         let currentMeta = {
-          dob: '15/08/1998 (26 tuổi)',
-          gender: 'Nam',
-          cccd: '079' + (String(empData.id || '98001234').replace(/[^0-9]/g, '').padEnd(9, '0').slice(0, 9)),
-          address: 'Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-          emergencyName: 'Nguyễn Văn B',
-          emergencyRelation: 'Anh trai',
-          emergencyPhone: '(+84) 0987 654 321'
+          dob: empData.dateOfBirth || 'Chưa cập nhật', gender: empData.gender || 'Chưa cập nhật',
+          cccd: empData.cccd || 'Chưa cập nhật', address: empData.address || 'Chưa cập nhật',
+          emergencyName: 'Chưa cập nhật', emergencyRelation: 'Chưa cập nhật', emergencyPhone: 'Chưa cập nhật'
         };
         if (savedMetaStr) {
           try {
             currentMeta = { ...currentMeta, ...JSON.parse(savedMetaStr) };
           } catch {}
         }
+        currentMeta.gender = empData.gender === 'FEMALE' ? 'Nữ' : empData.gender === 'OTHER' ? 'Khác' : 'Nam';
         setEmpMeta(currentMeta);
 
         // 4. Load Stores by Staff
@@ -338,11 +329,11 @@ export default function EmployeeDetailPage() {
   const contractTypeName = useMemo(() => {
     if (activeEmployment?.contractType?.name) {
       const n = activeEmployment.contractType.name;
-      if (n.toLowerCase().includes('full')) return 'Toàn thời gian (FT)';
+      if (n.toLowerCase().includes('full')) return 'Chưa có loại hợp đồng';
       if (n.toLowerCase().includes('part')) return 'Bán thời gian (PT)';
       return n;
     }
-    return 'Toàn thời gian (FT)';
+    return 'Chưa có loại hợp đồng';
   }, [activeEmployment]);
 
   // Hourly Rate
@@ -442,18 +433,18 @@ export default function EmployeeDetailPage() {
     const lateCount = myAtt.filter(a => a.status === 'LATE').length;
     const attScore = myAtt.length > 0
       ? Math.max(80, 100 - (absentCount * 10 + lateCount * 3))
-      : 98.6;
+      : 0;
 
     // 4. Estimated Salary
     const estimatedSalary = monthTotalHours * hourlyRateNum;
 
     return {
       weekCount: weekAssignedCount > 0 ? weekAssignedCount : myShifts.length,
-      monthHours: monthTotalHours > 0 ? monthTotalHours : 142.5,
+      monthHours: monthTotalHours,
       targetHours: targetHours > 0 ? targetHours : 150,
-      targetPercent: targetPercent > 0 ? targetPercent : 95,
+      targetPercent,
       attScore: attScore.toFixed(1),
-      estimatedSalary: estimatedSalary > 0 ? estimatedSalary : 3990000,
+      estimatedSalary,
       noLateThisWeek: lateCount === 0
     };
   }, [weekDays, myShifts, activeEmployment, attendance, employee, hourlyRateNum]);
@@ -533,6 +524,7 @@ export default function EmployeeDetailPage() {
       const updatePayload = {
         fullName: editForm.fullName,
         phone: editForm.phone,
+        gender: editForm.gender === 'Nữ' ? 'FEMALE' : editForm.gender === 'Khác' ? 'OTHER' : 'MALE',
         email: editForm.email || employee.email
       };
       if (editForm.password && editForm.password.trim() !== '') {
@@ -671,8 +663,12 @@ export default function EmployeeDetailPage() {
     );
   }
 
+  if (!employee) {
+    return <section className="ed-page-container"><div className="hr-detail-panel ed-card"><h1>Không tải được hồ sơ nhân viên</h1><p>Vui lòng kiểm tra lại nhân viên hoặc thử tải lại trang.</p><Link to="/employees">Về danh sách nhân viên</Link></div></section>;
+  }
+
   return (
-    <div className="ed-page-container">
+    <div className="ed-page-container" data-profile-tab={activeTab}>
       {/* Toast Notification */}
       {toastMessage && (
         <div style={{
@@ -918,21 +914,21 @@ export default function EmployeeDetailPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--emp-primary)', fontSize: '11px', fontWeight: 600, marginTop: '8px' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                  <span>{kpis.noLateThisWeek ? 'Không trễ ca tuần này' : 'Có phát sinh trễ ca'}</span>
+                  <span>{attendance.length ? (kpis.noLateThisWeek ? 'Không có bản ghi trễ ca' : 'Có phát sinh trễ ca') : 'Chưa có dữ liệu chấm công'}</span>
                 </div>
               </div>
 
               {/* KPI 3 */}
               <div className="ed-kpi-card">
                 <div className="ed-kpi-top">
-                  <span>Ca hoàn thành tuần</span>
+                  <span>Ca được phân công tuần</span>
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--emp-primary)' }}>event_available</span>
                 </div>
                 <div className="ed-kpi-val-row">
                   <span className="ed-kpi-val">{kpis.weekCount}</span>
                   <span className="ed-kpi-sub">ca làm việc</span>
                 </div>
-                <span style={{ fontSize: '11px', color: 'var(--emp-outline)', marginTop: '8px' }}>Đã xác nhận chấm công</span>
+                <span style={{ fontSize: '11px', color: 'var(--emp-outline)', marginTop: '8px' }}>Theo lịch phân công đang xem</span>
               </div>
 
               {/* KPI 4 */}
@@ -952,7 +948,7 @@ export default function EmployeeDetailPage() {
 
           <div className="ed-banner-skyline">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--emp-primary)' }}></span>
+              
               <span>Hệ thống ShiftSync v4.2 Cloud • Bảo vệ quyền riêng tư &amp; Nghị định 13/2023/NĐ-CP</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1076,7 +1072,7 @@ export default function EmployeeDetailPage() {
 
             {/* Pay matrix table */}
             <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 12px 0', color: '#1e293b' }}>Định mức thù lao theo từng vị trí kiêm nhiệm:</h4>
-            <div className="ed-pay-table-wrapper">
+            <div className="ed-pay-table-wrapper" role="region" aria-label="Vị trí và khung lương" tabIndex={0}>
               <table className="ed-pay-table">
                 <thead>
                   <tr>
@@ -1111,12 +1107,34 @@ export default function EmployeeDetailPage() {
         </section>
       )}
 
+      {activeTab === 'contract' && (
+        <section className="hr-detail-panel ed-card" aria-label="Thông tin hợp đồng">
+          <h2 className="ed-card-title">Thông tin hợp đồng</h2>
+          {activeEmployment ? <dl className="hr-contract-fields">
+            <div><dt>Chi nhánh</dt><dd>{activeEmployment.storeName || primaryStoreName}</dd></div>
+            <div><dt>Loại hợp đồng</dt><dd>{activeEmployment.contractType?.name || 'Chưa có thông tin'}</dd></div>
+            <div><dt>Trạng thái</dt><dd>{activeEmployment.status || 'Chưa có thông tin'}</dd></div>
+          </dl> : <p className="hr-muted">Chưa có thông tin hợp đồng hoặc phân công chi nhánh cho nhân viên này.</p>}
+        </section>
+      )}
+      {activeTab === 'attendance' && (
+        <section className="hr-detail-panel ed-card" aria-label="Lịch sử chấm công">
+          <h2 className="ed-card-title">Lịch sử chấm công</h2>
+          <div className="hr-attendance-list">
+            {attendance.filter(record => String(record.staffId) === String(employee?.id) || (record.staffName && record.staffName === employee?.fullName)).map((record, index) => (
+              <div className="hr-attendance-row" key={record.id || index}><strong>{record.shiftDate || record.date || 'Chưa có ngày'}</strong><span>{record.status || 'Chưa có trạng thái'}</span></div>
+            ))}
+            {!attendance.some(record => String(record.staffId) === String(employee?.id) || (record.staffName && record.staffName === employee?.fullName)) && <p className="hr-muted">Chưa có bản ghi chấm công của nhân viên trong dữ liệu đang xem.</p>}
+          </div>
+        </section>
+      )}
+
       {/* =================================================================
           4. Main Profile View (2-Column Dense Grid)
           ================================================================= */}
-      <section className="ed-main-grid">
+      <section className="ed-main-grid" aria-label="Nội dung hồ sơ">
         {/* LEFT COLUMN (5 cols): Identity & Security */}
-        <div className="ed-col">
+        <div className="ed-col ed-personal-column">
           {/* Card 1: Basic Personal Info */}
           <div className="ed-card">
             <div className="ed-card-header">
@@ -1319,7 +1337,7 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
 
-            <div className="ed-pay-table-wrapper">
+            <div className="ed-pay-table-wrapper" role="region" aria-label="Vị trí và khung lương" tabIndex={0}>
               <table className="ed-pay-table">
                 <thead>
                   <tr>
@@ -1362,7 +1380,7 @@ export default function EmployeeDetailPage() {
           </div>
 
           {/* Card 5: Schedule Availability & Current Week Roster - DYNAMIC 7-DAY TIMELINE */}
-          <div className="ed-card">
+          <div className="ed-card ed-schedule-card">
             <div className="ed-card-header">
               <div className="ed-card-header-left">
                 <div className="ed-card-icon-box">
@@ -1457,10 +1475,10 @@ export default function EmployeeDetailPage() {
       <aside className="ed-bottom-dock">
         <div className="ed-dock-content">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--emp-primary)' }}></span>
+            
             <span>
               Đang xem hồ sơ của <strong>{employee?.fullName || 'Nhân viên'}</strong> ({empCode})
-              <span style={{ fontFamily: 'monospace', color: 'var(--emp-outline)', marginLeft: '6px' }}>• Dữ liệu đồng bộ theo /api/users/{employee?.id || ''}</span>
+              
             </span>
           </div>
 
@@ -1491,10 +1509,10 @@ export default function EmployeeDetailPage() {
               type="button"
               className="ed-btn-primary"
               disabled={isSaving}
-              onClick={() => handleSaveEdit()}
+              onClick={handleOpenEditModal}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
-              <span>{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
+              <span>Chỉnh sửa hồ sơ</span>
             </button>
           </div>
         </div>
@@ -1585,6 +1603,12 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
 
+              <div className="ed-form-field">
+                <label htmlFor="ed-gender">Giới tính</label>
+                <select id="ed-gender" className="ed-form-select" value={editForm.gender || 'Nam'} onChange={e => setEditForm({...editForm, gender:e.target.value})}>
+                  <option value="Nam">Nam (mặc định)</option><option value="Nữ">Nữ</option><option value="Khác">Khác</option>
+                </select>
+              </div>
               {/* Row 3: Số điện thoại | CCCD */}
               <div className="ed-form-grid-2">
                 <div className="ed-form-field">

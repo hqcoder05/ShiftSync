@@ -7,8 +7,8 @@
  */
 
 import * as THREE from 'three';
-import { characterGeometries as geo } from './CharacterGeometries';
-import { characterMaterials as mat } from './CharacterMaterials';
+import { characterGeometries as geo } from './CharacterGeometries.js';
+import { characterMaterials as mat } from './CharacterMaterials.js';
 
 export function buildRoleOutfit({ roleName = '', roleTheme = {}, seed = 0 }) {
   const norm = (roleName || '').toLowerCase();
@@ -64,7 +64,7 @@ export function buildRoleOutfit({ roleName = '', roleTheme = {}, seed = 0 }) {
     const tabletGroup = new THREE.Group();
     const tablet = new THREE.Mesh(geo.orderTablet, mat.darkDevice);
     tabletGroup.add(tablet);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.13), mat.tabletScreen);
+    const screen = new THREE.Mesh(geo.tabletScreen, mat.tabletScreen);
     screen.position.z = 0.007;
     tabletGroup.add(screen);
 

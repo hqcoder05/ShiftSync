@@ -58,6 +58,8 @@ public class ShiftService {
     private final ShiftAssignmentValidator shiftAssignmentValidator;
     private final ShiftAssignmentService shiftAssignmentService;
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftService(
@@ -171,20 +173,10 @@ public class ShiftService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
-        if (!request.getStartTime().isBefore(request.getEndTime())) {
-            throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
-        }
+        validateShiftTimes(store, request.getStartTime(), request.getEndTime());
 
         if (shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, request.getShiftDate(), request.getStartTime(), request.getEndTime()).isPresent()) {
             throw new BusinessException("A shift with identical date and time already exists for this store", HttpStatus.CONFLICT);
-        }
-
-        if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
-            throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
-        }
-
-        if (store.getCloseTime() != null && request.getEndTime().isAfter(store.getCloseTime())) {
-            throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
         }
 
         ShiftTemplate template = null;
@@ -197,7 +189,7 @@ public class ShiftService {
         if (deadline == null) {
             com.shiftsync.store.entity.StoreConfiguration config = storeConfigRepository.findByStoreId(storeId).orElse(null);
             int deadlineHours = config != null ? config.getAvailabilityDeadlineHours() : 24;
-            deadline = java.time.ZonedDateTime.of(request.getShiftDate(), request.getStartTime(), java.time.ZoneId.of("UTC")).minusHours(deadlineHours);
+            deadline = java.time.ZonedDateTime.of(request.getShiftDate(), request.getStartTime(), java.time.ZoneId.of("Asia/Ho_Chi_Minh")).minusHours(deadlineHours);
         }
 
         Shift shift = Shift.builder()
@@ -208,8 +200,11 @@ public class ShiftService {
                 .endTime(request.getEndTime())
                 .status(ShiftStatus.DRAFT)
                 .availabilityDeadline(deadline)
+                .note(request.getNote())
+                .color(request.getColor())
                 .build();
 
+        configureRequestedRole(shift, storeId, request.getSkillId());
         Shift savedShift = shiftRepository.save(shift);
 
         if (request.getStaffId() != null) {
@@ -314,21 +309,13 @@ public class ShiftService {
             checkDateNotLocked(storeId, date);
 
             for (BulkDemandPlanningRequest.ShiftDemandConfig dConfig : request.getShifts()) {
-                if (!dConfig.getStartTime().isBefore(dConfig.getEndTime())) {
-                    throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
-                }
-                if (store.getOpenTime() != null && dConfig.getStartTime().isBefore(store.getOpenTime())) {
-                    throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
-                }
-                if (store.getCloseTime() != null && dConfig.getEndTime().isAfter(store.getCloseTime())) {
-                    throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
-                }
+                validateShiftTimes(store, dConfig.getStartTime(), dConfig.getEndTime());
 
                 Shift shift = shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, date, dConfig.getStartTime(), dConfig.getEndTime())
                         .orElse(null);
 
                 if (shift == null) {
-                    java.time.ZonedDateTime deadline = java.time.ZonedDateTime.of(date, dConfig.getStartTime(), java.time.ZoneId.of("UTC")).minusHours(24);
+                    java.time.ZonedDateTime deadline = java.time.ZonedDateTime.of(date, dConfig.getStartTime(), java.time.ZoneId.of("Asia/Ho_Chi_Minh")).minusHours(24);
                     shift = Shift.builder()
                             .store(store)
                             .shiftDate(date)
@@ -514,25 +501,11 @@ public class ShiftService {
             }
         }
 
-        if (request.getStartTime() != null && request.getEndTime() != null) {
-            if (!request.getStartTime().isBefore(request.getEndTime())) {
-                throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
-            }
-            Store store = shift.getStore();
-            if (store == null) {
-                store = storeRepository.findById(storeId).orElse(null);
-            }
-            if (store != null) {
-                if (store.getOpenTime() != null && request.getStartTime().isBefore(store.getOpenTime())) {
-                    throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
-                }
-                if (store.getCloseTime() != null && request.getEndTime().isAfter(store.getCloseTime())) {
-                    throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
-                }
-            }
-            shift.setStartTime(request.getStartTime());
-            shift.setEndTime(request.getEndTime());
-        }
+        Store store = shift.getStore();
+        if (store == null) store = storeRepository.findById(storeId).orElse(null);
+        if (dateTimeChanged) validateShiftTimes(store, newStart, newEnd);
+        if (request.getStartTime() != null) shift.setStartTime(request.getStartTime());
+        if (request.getEndTime() != null) shift.setEndTime(request.getEndTime());
         if (request.getShiftDate() != null) {
             shift.setShiftDate(request.getShiftDate());
         }
@@ -545,16 +518,26 @@ public class ShiftService {
         if (request.getNote() != null) {
             shift.setNote(request.getNote());
         }
+        if (request.getColor() != null) shift.setColor(request.getColor());
+        configureRequestedRole(shift, storeId, request.getSkillId());
+        if (request.getShiftTemplateId() != null) {
+            shift.setShiftTemplate(shiftTemplateRepository.findByIdAndStoreId(request.getShiftTemplateId(), storeId)
+                    .orElseThrow(() -> new BusinessException("Shift template not found in this store", HttpStatus.NOT_FOUND)));
+        } else if (dateTimeChanged) shift.setShiftTemplate(null);
 
         Shift saved = shiftRepository.save(shift);
 
         if (request.getStaffId() != null) {
             List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
-            if (existing.isEmpty() || !existing.get(0).getStaff().getId().equals(request.getStaffId())) {
+            boolean alreadyAssigned = existing.stream().anyMatch(a -> a.getStaff().getId().equals(request.getStaffId()));
+            if (existing.size() > 1 && !alreadyAssigned) {
+                throw new BusinessException("Ca có nhiều nhân viên. Hãy thay đổi từng phân công thay vì thay thế toàn bộ ca.", HttpStatus.BAD_REQUEST);
+            }
+            if (existing.isEmpty() || !alreadyAssigned) {
                 shiftAssignmentRepository.deleteAll(existing);
                 requireAssignmentService().assignStaffToShift(storeId, saved.getId(), request.getStaffId());
             } else if (dateTimeChanged && shiftAssignmentValidator != null) {
-                shiftAssignmentValidator.validateEligibility(saved, request.getStaffId());
+                for (ShiftAssignment assignment : existing) shiftAssignmentValidator.validateEligibility(saved, assignment.getStaff().getId());
             }
         } else if (dateTimeChanged && shiftAssignmentValidator != null) {
             List<ShiftAssignment> existing = shiftAssignmentRepository.findByShiftId(shiftId);
@@ -571,6 +554,23 @@ public class ShiftService {
             throw new IllegalStateException("ShiftAssignmentService is required for staff assignment");
         }
         return shiftAssignmentService;
+    }
+
+    private void configureRequestedRole(Shift shift, UUID storeId, UUID skillId) {
+        if (skillId == null) return;
+        if (shift.getRequirements().stream().anyMatch(r -> r.getSkill() != null && skillId.equals(r.getSkill().getId()))) return;
+        if (shift.getStatus() != ShiftStatus.DRAFT || shift.getRequirements().size() > 1 || !shift.getAssignments().isEmpty()) {
+            throw new BusinessException("Không thể đổi vị trí của ca đã xuất bản hoặc đã có phân công tại biểu mẫu này. Hãy điều chỉnh phân công và định biên trước.", HttpStatus.BAD_REQUEST);
+        }
+        Skill skill = skillRepository.findByIdAndStoreId(skillId, storeId)
+                .orElseThrow(() -> new BusinessException("Skill not found in this store", HttpStatus.NOT_FOUND));
+        ShiftSkillRequirement requirement = shift.getRequirements().isEmpty()
+                ? ShiftSkillRequirement.builder().shift(shift).requiredCount(1).build()
+                : shift.getRequirements().get(0);
+        requirement.setSkill(skill);
+        requirement.setZone(storeZoneRepository.findByStoreId(storeId).stream()
+                .filter(z -> isZoneSemanticMatch(z, skill.getName().toLowerCase())).findFirst().orElse(null));
+        if (shift.getRequirements().isEmpty()) shift.getRequirements().add(requirement);
     }
 
     @Transactional
@@ -603,6 +603,7 @@ public class ShiftService {
                     );
                 } catch (Exception ignored) {}
             }
+            publishShiftCancelled(storeId, shiftId);
             return;
         }
 
@@ -610,6 +611,18 @@ public class ShiftService {
             shiftAssignmentRepository.deleteAll(assignments);
         }
         shiftRepository.delete(shift);
+        publishShiftCancelled(storeId, shiftId);
+    }
+
+    private void publishShiftCancelled(UUID storeId, UUID shiftId) {
+        if (realtimeEventPublisher == null) return;
+        Runnable publish = () -> {
+            realtimeEventPublisher.publishStoreEvent(storeId, "shifts", "SHIFT_CANCELLED",
+                    java.util.Map.of("shiftId", shiftId.toString()));
+            realtimeEventPublisher.publishStoreEvent(storeId, "marketplace", "SHIFT_CANCELLED",
+                    java.util.Map.of("shiftId", shiftId.toString()));
+        };
+        publish.run();
     }
 
     @Transactional(readOnly = true)
@@ -661,12 +674,15 @@ public class ShiftService {
                             .shiftId(a.getShift() != null ? a.getShift().getId() : null)
                             .staffId(a.getStaff() != null ? a.getStaff().getId() : null)
                             .staffName(a.getStaff() != null ? a.getStaff().getFullName() : null)
+                            .gender(a.getStaff() != null ? a.getStaff().getGender() : "MALE")
                             .avatarUrl(a.getStaff() != null ? a.getStaff().getAvatarUrl() : null)
                             .avatarId(a.getStaff() != null ? a.getStaff().getAvatarId() : null)
                             .requiredSkillId(a.getRequiredSkillId())
                             .skillName(skillName)
                             .zoneId(a.getZone() != null ? a.getZone().getId() : null)
                             .zoneName(a.getZone() != null ? a.getZone().getName() : null)
+                            .workstationId(a.getWorkstation() != null ? a.getWorkstation().getId() : null)
+                            .workstationName(a.getWorkstation() != null ? a.getWorkstation().getName() : null)
                             .source(a.getSource())
                             .assignedAt(a.getAssignedAt())
                             .build();
@@ -743,6 +759,9 @@ public class ShiftService {
                 .shortageStaff(totalShortageStaff)
                 .isOpen(entity.isOpen())
                 .note(entity.getNote())
+                .color(entity.getColor())
+                .skillId(entity.getRequirements() == null ? null : entity.getRequirements().stream()
+                        .filter(r -> r.getSkill() != null).map(r -> r.getSkill().getId()).findFirst().orElse(null))
                 .build();
     }
 
@@ -767,6 +786,19 @@ public class ShiftService {
             return zName.contains("pos") || zName.contains("cashier") || zName.contains("barista") || zName.contains("service");
         }
         return false;
+    }
+
+    private void validateShiftTimes(Store store, java.time.LocalTime start, java.time.LocalTime end) {
+        if (start == null || end == null || !start.isBefore(end)) {
+            throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
+        }
+        if (store == null) return;
+        if (store.getOpenTime() != null && start.isBefore(store.getOpenTime())) {
+            throw new BusinessException("Shift start time cannot be before store open time", HttpStatus.BAD_REQUEST);
+        }
+        if (store.getCloseTime() != null && end.isAfter(store.getCloseTime())) {
+            throw new BusinessException("Shift end time cannot be after store close time", HttpStatus.BAD_REQUEST);
+        }
     }
 
     @Transactional(readOnly = true)

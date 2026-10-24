@@ -19,7 +19,13 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@org.springframework.transaction.annotation.Transactional
 public class AvailabilityIdorSecurityTest {
+
+    @org.junit.jupiter.api.AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Autowired
     private AvailabilityController availabilityController;
@@ -28,7 +34,7 @@ public class AvailabilityIdorSecurityTest {
     private UserRepository userRepository;
 
     @Test
-    public void managerCanViewStaffAvailabilityFromAnotherStore_IDOR() {
+    public void managerCannotViewStaffAvailabilityOutsideManagedStores() {
         // Setup Users
         User managerA = new User();
         managerA.setEmail("managera_sec_" + UUID.randomUUID() + "@test.com");

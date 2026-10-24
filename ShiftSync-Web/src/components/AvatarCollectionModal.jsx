@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Avatar3DWeb from './Avatar3DWeb';
 import { AVATAR_OPTIONS } from './avatarConfigs';
 import { getAllAvatarThumbnails } from './avatarThumbnails';
@@ -10,6 +11,7 @@ export default function AvatarCollectionModal({
   onSelectAvatar,
   targetUserName = '',
 }) {
+  const navigate = useNavigate();
   const [previewAvatarId, setPreviewAvatarId] = useState(currentAvatarId || 'dilan');
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [thumbnails, setThumbnails] = useState({});
@@ -147,9 +149,9 @@ export default function AvatarCollectionModal({
               )}
             </div>
             <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>
-              💡 Rê chuột / kéo xoay 360° trực tiếp để xem diện mạo và chuyển động biểu cảm
+               Rê chuột / kéo xoay 360° trực tiếp để xem diện mạo và chuyển động biểu cảm
             </div>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
                 disabled={savingAvatar}
                 onClick={() => handleApply(previewAvatarId)}
@@ -167,6 +169,29 @@ export default function AvatarCollectionModal({
                 }}
               >
                 {savingAvatar ? 'Đang lưu...' : (isCurrentUsing ? '✓ Đang là ảnh đại diện' : 'Áp dụng làm ảnh đại diện')}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClose) onClose();
+                  navigate('/avatar-studio');
+                }}
+                style={{
+                  backgroundColor: '#EEF2FF',
+                  color: '#4F46E5',
+                  border: '1.5px solid #C7D2FE',
+                  padding: '7px 16px',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span> 3D Avatar Studio (Ready Player Me)</span>
               </button>
             </div>
           </div>
@@ -256,7 +281,7 @@ export default function AvatarCollectionModal({
                     />
                   ) : (
                     <div style={{ width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: 28 }}>{item.icon || '👤'}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.label}</span>
                     </div>
                   )}
                 </div>

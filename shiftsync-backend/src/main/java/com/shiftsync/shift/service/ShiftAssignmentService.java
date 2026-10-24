@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import com.shiftsync.shared.exception.BusinessException;
 import com.shiftsync.shift.dto.ShiftAssignmentResponseDTO;
+import com.shiftsync.shift.dto.ShiftZoneSwapRequest;
+import com.shiftsync.shift.dto.ShiftZoneSwapResponseDTO;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSkillRequirement;
@@ -29,8 +31,11 @@ import com.shiftsync.skill.repository.SkillRepository;
 import com.shiftsync.skill.repository.StaffSkillRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -49,6 +54,8 @@ public class ShiftAssignmentService {
     private final StoreZoneRepository storeZoneRepository;
     private final SkillRepository skillRepository;
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    @Autowired(required = false)
+    private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftAssignmentService(
@@ -134,7 +141,10 @@ public class ShiftAssignmentService {
         }
 
         // Check if staff is ALREADY assigned to this shift (e.g. Zone Transfer / Reallocation)
-        Optional<ShiftAssignment> existingOpt = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId);
+        Optional<ShiftAssignment> existingOpt = shiftAssignmentRepository.findWithLockByShiftIdAndStaffId(shiftId, staffId);
+        if (existingOpt.isEmpty()) {
+            existingOpt = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId);
+        }
         if (existingOpt.isPresent()) {
             ShiftAssignment existing = existingOpt.get();
             if (requestedZoneId != null) {
@@ -143,6 +153,7 @@ public class ShiftAssignmentService {
                         .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
                 existing.setZone(targetZone);
                 existing = shiftAssignmentRepository.save(existing);
+                publishShiftEventAfterCommit(storeId, "ASSIGNMENT_MOVED", shiftId, staffId, requestedZoneId);
                 return mapToResponseDTO(existing);
             } else {
                 throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);
@@ -266,6 +277,8 @@ public class ShiftAssignmentService {
                 .build();
 
         assignment = shiftAssignmentRepository.save(assignment);
+        publishShiftEventAfterCommit(storeId, "ASSIGNMENT_CREATED", shiftId, staffId,
+                assignedZone == null ? null : assignedZone.getId());
 
         try {
             notificationService.sendNotification(
@@ -287,11 +300,14 @@ public class ShiftAssignmentService {
                 .shiftId(assignment.getShift().getId())
                 .staffId(assignment.getStaff().getId())
                 .staffName(assignment.getStaff().getFullName())
+                .gender(assignment.getStaff().getGender())
                 .avatarUrl(assignment.getStaff().getAvatarUrl())
                 .avatarId(assignment.getStaff().getAvatarId())
                 .requiredSkillId(assignment.getRequiredSkillId())
                 .zoneId(assignment.getZone() != null ? assignment.getZone().getId() : null)
                 .zoneName(assignment.getZone() != null ? assignment.getZone().getName() : null)
+                .workstationId(assignment.getWorkstation() != null ? assignment.getWorkstation().getId() : null)
+                .workstationName(assignment.getWorkstation() != null ? assignment.getWorkstation().getName() : null)
                 .source(assignment.getSource())
                 .assignedAt(assignment.getAssignedAt())
                 .build();
@@ -307,9 +323,10 @@ public class ShiftAssignmentService {
             throw new BusinessException("Cannot unassign staff from a completed shift", HttpStatus.BAD_REQUEST);
         }
         
-        ShiftAssignment assignment = shiftAssignmentRepository.findByShiftId(shiftId).stream()
-                .filter(a -> a.getStaff().getId().equals(staffId))
-                .findFirst()
+        ShiftAssignment assignment = shiftAssignmentRepository.findWithLockByShiftIdAndStaffId(shiftId, staffId)
+                .or(() -> shiftAssignmentRepository.findByShiftId(shiftId).stream()
+                        .filter(a -> a.getStaff().getId().equals(staffId))
+                        .findFirst())
                 .orElseThrow(() -> new BusinessException("Staff is not assigned to this shift", HttpStatus.NOT_FOUND));
 
         if (attendanceRepository != null && attendanceRepository.existsByShiftAssignmentId(assignment.getId())) {
@@ -321,6 +338,99 @@ public class ShiftAssignmentService {
         }
         shiftAssignmentRepository.delete(assignment);
         shiftAssignmentRepository.flush();
+        publishShiftEventAfterCommit(storeId, "ASSIGNMENT_REMOVED", shiftId, staffId,
+                assignment.getZone() == null ? null : assignment.getZone().getId());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ShiftZoneSwapResponseDTO swapStaffZones(UUID storeId, UUID shiftId, ShiftZoneSwapRequest request) {
+        if (request == null || request.getStaffAId() == null || request.getStaffBId() == null) {
+            throw new BusinessException("Both staff IDs are required for zone swap", HttpStatus.BAD_REQUEST);
+        }
+
+        UUID staffAId = request.getStaffAId();
+        UUID staffBId = request.getStaffBId();
+
+        if (staffAId.equals(staffBId)) {
+            throw new BusinessException("Cannot swap zones with the same staff member", HttpStatus.BAD_REQUEST);
+        }
+
+        Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
+                .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+        checkDateNotLocked(storeId, shift.getShiftDate());
+
+        if (shift.getStatus() == ShiftStatus.COMPLETED || shift.getStatus() == ShiftStatus.CANCELLED) {
+            throw new BusinessException("Cannot swap assignments in a " + shift.getStatus() + " shift", HttpStatus.BAD_REQUEST);
+        }
+
+        // Pessimistic Write Lock both assignments in a single query to eliminate race conditions,
+        // prevent lost updates, and guarantee canonical ordering without deadlocks.
+        List<UUID> staffIds = java.util.stream.Stream.of(staffAId, staffBId).sorted().toList();
+        List<ShiftAssignment> lockedAssignments = shiftAssignmentRepository.findWithLockByShiftIdAndStaffIdIn(shiftId, staffIds);
+        if (lockedAssignments == null || lockedAssignments.isEmpty()) {
+            lockedAssignments = new ArrayList<>();
+            UUID firstId = staffAId.compareTo(staffBId) < 0 ? staffAId : staffBId;
+            UUID secondId = staffAId.compareTo(staffBId) < 0 ? staffBId : staffAId;
+            shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, firstId).ifPresent(lockedAssignments::add);
+            shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, secondId).ifPresent(lockedAssignments::add);
+        }
+
+        ShiftAssignment assignmentA = lockedAssignments.stream()
+                .filter(a -> a.getStaff() != null && staffAId.equals(a.getStaff().getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Staff A is not assigned to this shift", HttpStatus.NOT_FOUND));
+
+        ShiftAssignment assignmentB = lockedAssignments.stream()
+                .filter(a -> a.getStaff() != null && staffBId.equals(a.getStaff().getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Staff B is not assigned to this shift", HttpStatus.NOT_FOUND));
+
+        // Determine target zone for Staff A
+        UUID targetAId = request.getTargetZoneForAId() != null ? request.getTargetZoneForAId() :
+                (request.getZoneBId() != null ? request.getZoneBId() :
+                        (assignmentB.getZone() != null ? assignmentB.getZone().getId() : null));
+
+        StoreZone targetZoneA = null;
+        if (targetAId != null) {
+            targetZoneA = storeZoneRepository.findById(targetAId)
+                    .filter(z -> z.getStore() != null && storeId.equals(z.getStore().getId()))
+                    .orElseThrow(() -> new BusinessException("Target zone for Staff A not found or does not belong to this store", HttpStatus.NOT_FOUND));
+        }
+
+        // Determine target zone for Staff B
+        UUID targetBId = request.getTargetZoneForBId() != null ? request.getTargetZoneForBId() :
+                (request.getZoneAId() != null ? request.getZoneAId() :
+                        (assignmentA.getZone() != null ? assignmentA.getZone().getId() : null));
+
+        StoreZone targetZoneB = null;
+        if (targetBId != null) {
+            targetZoneB = storeZoneRepository.findById(targetBId)
+                    .filter(z -> z.getStore() != null && storeId.equals(z.getStore().getId()))
+                    .orElseThrow(() -> new BusinessException("Target zone for Staff B not found or does not belong to this store", HttpStatus.NOT_FOUND));
+        }
+
+        assignmentA.setZone(targetZoneA);
+        assignmentB.setZone(targetZoneB);
+
+        ShiftAssignment savedA = shiftAssignmentRepository.save(assignmentA);
+        ShiftAssignment savedB = shiftAssignmentRepository.save(assignmentB);
+        publishShiftEventAfterCommit(storeId, "ASSIGNMENT_ZONE_SWAPPED", shiftId, staffAId,
+                targetZoneA == null ? null : targetZoneA.getId());
+
+        return ShiftZoneSwapResponseDTO.builder()
+                .assignmentA(mapToResponseDTO(savedA))
+                .assignmentB(mapToResponseDTO(savedB))
+                .build();
+    }
+
+    private void publishShiftEventAfterCommit(UUID storeId, String action, UUID shiftId, UUID staffId, UUID zoneId) {
+        if (realtimeEventPublisher == null) return;
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("shiftId", shiftId == null ? "" : shiftId.toString());
+        if (staffId != null) data.put("staffId", staffId.toString());
+        if (zoneId != null) data.put("zoneId", zoneId.toString());
+        Runnable publish = () -> realtimeEventPublisher.publishStoreEvent(storeId, "shifts", action, data);
+        publish.run();
     }
 
     public java.util.List<ShiftAssignmentResponseDTO> getAssignmentsByShiftId(UUID storeId, UUID shiftId) {
@@ -333,11 +443,14 @@ public class ShiftAssignmentService {
                         .shiftId(assignment.getShift().getId())
                         .staffId(assignment.getStaff().getId())
                         .staffName(assignment.getStaff().getFullName())
+                .gender(assignment.getStaff().getGender())
                         .avatarUrl(assignment.getStaff().getAvatarUrl())
                         .avatarId(assignment.getStaff().getAvatarId())
                         .requiredSkillId(assignment.getRequiredSkillId())
                         .zoneId(assignment.getZone() != null ? assignment.getZone().getId() : null)
                         .zoneName(assignment.getZone() != null ? assignment.getZone().getName() : null)
+                        .workstationId(assignment.getWorkstation() != null ? assignment.getWorkstation().getId() : null)
+                        .workstationName(assignment.getWorkstation() != null ? assignment.getWorkstation().getName() : null)
                         .source(assignment.getSource())
                         .assignedAt(assignment.getAssignedAt())
                         .build())

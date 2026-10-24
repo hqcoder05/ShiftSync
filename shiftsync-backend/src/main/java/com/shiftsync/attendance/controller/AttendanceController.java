@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -74,7 +75,7 @@ public class AttendanceController {
             @PathVariable UUID storeId,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to) {
-        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate end = to == null ? LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")) : to;
         LocalDate start = from == null ? end.withDayOfMonth(1) : from;
         return ResponseEntity.ok(attendanceService.getStoreAttendance(storeId, start, end));
     }
@@ -97,6 +98,27 @@ public class AttendanceController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/stores/{storeId}/attendance/{attendanceId}/photos/{kind:check-in|check-out}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    public ResponseEntity<byte[]> getStoreAttendancePhoto(
+            @PathVariable UUID storeId,
+            @PathVariable UUID attendanceId,
+            @PathVariable String kind) {
+        return attendancePhotoResponse(attendanceService.getAttendancePhoto(attendanceId, storeId, null, "check-in".equals(kind)));
+    }
+
+    @GetMapping("/attendance/me/{attendanceId}/photos/{kind:check-in|check-out}")
+    public ResponseEntity<byte[]> getMyAttendancePhoto(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID attendanceId,
+            @PathVariable String kind) {
+        return attendancePhotoResponse(attendanceService.getAttendancePhoto(attendanceId, null, userDetails.getId(), "check-in".equals(kind)));
+    }
+
+    private ResponseEntity<byte[]> attendancePhotoResponse(byte[] photo) {
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(photo);
+    }
+
 
     private AttendanceDTO toDTO(Attendance attendance) {
         Long lateMinutes = null;
@@ -107,7 +129,8 @@ public class AttendanceController {
             LocalDateTime shiftStart = LocalDateTime.of(
                     attendance.getShiftAssignment().getShift().getShiftDate(),
                     attendance.getShiftAssignment().getShift().getStartTime());
-            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart,
+                    attendance.getCheckInTime().atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime()).toMinutes());
         }
         return AttendanceDTO.builder()
                 .id(attendance.getId())

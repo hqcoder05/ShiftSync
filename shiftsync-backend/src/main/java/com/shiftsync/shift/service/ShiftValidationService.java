@@ -32,15 +32,12 @@ public class ShiftValidationService {
                 continue;
             }
 
-            // Check for overlap if on the same day
             if (s.getShiftDate().equals(newShift.getShiftDate())) {
                 boolean overlap = newShift.getStartTime().isBefore(s.getEndTime()) && newShift.getEndTime().isAfter(s.getStartTime());
                 if (overlap) {
                     String msg = String.format("Ca làm việc bị trùng giờ (%s - %s) với ca làm bạn đã có trong ngày (%s - %s).",
-                            newShift.getStartTime().toString().substring(0, 5),
-                            newShift.getEndTime().toString().substring(0, 5),
-                            s.getStartTime().toString().substring(0, 5),
-                            s.getEndTime().toString().substring(0, 5));
+                            newShift.getStartTime().toString().substring(0, 5), newShift.getEndTime().toString().substring(0, 5),
+                            s.getStartTime().toString().substring(0, 5), s.getEndTime().toString().substring(0, 5));
                     throw new BusinessException(msg, HttpStatus.CONFLICT);
                 }
             }

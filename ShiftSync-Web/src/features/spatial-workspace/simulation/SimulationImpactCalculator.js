@@ -10,6 +10,7 @@
  */
 
 import { validateSkillForZone } from './SimulationValidator';
+import { getStaffId } from '../utils/staffIdentity';
 
 export function calculateWorkforceMetrics(staffList = [], zones = [], shiftRequirements = []) {
   const staffByZone = {};
@@ -115,12 +116,12 @@ export function compareSimulationImpact(beforeStaff = [], afterStaff = [], zones
   const skillIssueDelta = afterMetrics.skillIssueCount - beforeMetrics.skillIssueCount;
 
   // Calculate affected employees
-  const beforeStaffMap = new Map(beforeStaff.map((s) => [s.id || s.staffId, s]));
+  const beforeStaffMap = new Map(beforeStaff.map((s) => [getStaffId(s), s]));
   let affectedEmployeesCount = 0;
   const changedZones = new Set();
 
   afterStaff.forEach((s) => {
-    const sid = s.id || s.staffId;
+    const sid = getStaffId(s);
     const old = beforeStaffMap.get(sid);
     const oldZid = old?.zoneId || old?.zone?.id;
     const newZid = s.zoneId || s.zone?.id;

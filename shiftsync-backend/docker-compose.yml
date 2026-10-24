@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-shiftsync}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env before starting Docker}
     ports:
       - "5432:5432"
     volumes:
@@ -43,12 +43,13 @@ services:
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-shiftsync}
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env before starting Docker}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET:-shiftsync-dev-secret-key-change-in-production-min-32-chars!!}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env before starting Docker}
       - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS:-86400000}
       - TZ=Asia/Ho_Chi_Minh
+      - SPRING_PROFILES_ACTIVE=prod
     depends_on:
       postgres:
         condition: service_healthy

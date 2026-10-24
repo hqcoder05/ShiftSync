@@ -6,8 +6,9 @@
  */
 
 import * as THREE from 'three';
-import { getZoneStatus, getZoneStatusColor, ZONE_STATUS } from '../visualization/ZoneStatus';
-import { getZoneIcon, getShortZoneName } from '../../../components/spatial/spatial.constants';
+import { getZoneStatus, getZoneStatusColor, getRoleTheme, ZONE_STATUS } from '../visualization/ZoneStatus';
+import { getShortZoneName } from '../../../components/spatial/spatial.constants';
+import {createFloatingTagCanvas} from './FloatingTagCanvas.js';
 
 /**
  * Creates high-quality CanvasTexture for Floating 3D Zone Tag
@@ -21,77 +22,22 @@ export function createZoneTagSprite(
   requiredStaff = null,
   isSkillMatched = false
 ) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 140;
-  const ctx = canvas.getContext('2d');
-
-  const effectiveTarget = requiredStaff !== null ? requiredStaff : Math.max(1, Math.floor(capacity * 0.5));
-  const status = getZoneStatus(assignedCount, capacity);
-  const statusColor = getZoneStatusColor(status);
-
-  // Background rounded glass rect
-  const r = 28;
-  const w = 512;
-  const h = 140;
-
-  ctx.fillStyle = isSelected ? 'rgba(15, 23, 42, 0.96)' : 'rgba(15, 23, 42, 0.88)';
-  ctx.beginPath();
-  ctx.roundRect(8, 8, w - 16, h - 16, r);
-  ctx.fill();
-
-  // Highlight Border (Skill match or selection)
-  ctx.lineWidth = isSelected ? 8 : (isSkillMatched ? 6 : (status === ZONE_STATUS.UNDERSTAFFED ? 5 : 4));
-  ctx.strokeStyle = isSelected ? '#10B981' : (isSkillMatched ? '#06B6D4' : statusColor.main);
-  ctx.stroke();
-
-  // Zone icon and short name
-  const icon = getZoneIcon(zone.name);
-  const shortName = getShortZoneName(zone.name);
-
-  ctx.font = 'bold 36px "Segoe UI", system-ui, sans-serif';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${icon}  ${shortName}`, 28, h / 2 - 12);
-
-  // Subtitle showing status or mode
-  ctx.font = '600 20px "Segoe UI", system-ui, sans-serif';
-  ctx.fillStyle = isSkillMatched ? '#38BDF8' : statusColor.main;
-
-  let subtitle = statusColor.label;
-  if (isSkillMatched) {
-    subtitle = '★ Cần kỹ năng đang lọc';
-  } else if (heatmapMode === 'COVERAGE') {
-    subtitle = `Bao phủ SLA: ${Math.round((assignedCount / Math.max(1, effectiveTarget)) * 100)}%`;
-  } else if (heatmapMode === 'WORKLOAD') {
-    subtitle = assignedCount >= effectiveTarget ? 'Tải tối ưu' : 'Thiếu tải phục vụ';
-  } else if (status === ZONE_STATUS.UNDERSTAFFED) {
-    const missing = Math.max(0, effectiveTarget - assignedCount);
-    subtitle = `Thiếu ${missing} nhân sự định biên`;
-  }
-
-  ctx.fillText(subtitle, 28, h / 2 + 28);
-
-  // Occupancy ratio pill badge on the right
-  const badgeW = 126;
-  const badgeH = 58;
-  const badgeX = w - badgeW - 24;
-  const badgeY = (h - badgeH) / 2;
-
-  ctx.fillStyle = isSkillMatched ? '#0891B2' : statusColor.main;
-  ctx.beginPath();
-  ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 16);
-  ctx.fill();
-
-  ctx.font = 'bold 28px "Segoe UI", system-ui, sans-serif';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const ratioLabel = requiredStaff !== null
-    ? `${assignedCount}/${requiredStaff}`
-    : `${assignedCount}/${capacity}`;
-  ctx.fillText(ratioLabel, badgeX + badgeW / 2, h / 2);
+  const hasTarget=requiredStaff!=null;
+  const effectiveTarget=hasTarget?requiredStaff:capacity;
+  const status=getZoneStatus(assignedCount,capacity,requiredStaff);
+  const statusColor=getZoneStatusColor(status);
+  let subtitle=hasTarget?statusColor.label:'Chưa có định biên ca';
+  if(isSkillMatched) subtitle='Khớp kỹ năng đang lọc';
+  else if(heatmapMode==='COVERAGE') subtitle=hasTarget&&effectiveTarget>0?`Bao phủ ${Math.round(assignedCount/effectiveTarget*100)}%`:'Chưa có định biên ca';
+  else if(heatmapMode==='WORKLOAD') subtitle=hasTarget?`${assignedCount} phân công · cần ${requiredStaff}`:'Chưa có định biên ca';
+  else if(hasTarget&&assignedCount<requiredStaff) subtitle=`Thiếu ${requiredStaff-assignedCount} người`;
+  const canvas=createFloatingTagCanvas({
+    title:getShortZoneName(zone.name),subtitle,
+    metric:`${assignedCount} / ${effectiveTarget??'—'}`,
+    caption:hasTarget?'Đã xếp / Cần':'Đã xếp / Chỗ',
+    accent:getRoleTheme(zone.name).color,statusColor:statusColor.main,
+    selected:isSelected,matched:isSkillMatched,
+  });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -102,7 +48,10 @@ export function createZoneTagSprite(
   });
 
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(3.1, 0.85, 1);
+  sprite.scale.set(3.4, 3.4 * 192 / 720, 1);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  spriteMat.depthWrite = false;
+  spriteMat.toneMapped = false;
   return sprite;
 }
 
@@ -118,7 +67,6 @@ export function buildZoneDecal({
   sizeZ = 3.6,
   assignedCount = 0,
   isSelected = false,
-  heatmapMode = 'STAFFING',
   requiredStaff = null,
   isSkillMatched = false,
 }) {
@@ -126,7 +74,7 @@ export function buildZoneDecal({
   group.position.set(tx, ty, tz);
 
   const capacity = zone.capacity || 4;
-  const status = getZoneStatus(assignedCount, capacity);
+  const status = getZoneStatus(assignedCount, capacity, requiredStaff);
   const statusColor = getZoneStatusColor(status);
 
   // 1. Elevated Floor Pad

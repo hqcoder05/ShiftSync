@@ -1,12 +1,16 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Same-origin in the browser; Vite proxies development requests to Docker.
+// Production can supply VITE_API_URL or reverse-proxy /api and /ws.
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const api = axios.create({ baseURL: API_BASE_URL });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
   }
   return config;
 });
@@ -53,6 +57,7 @@ api.interceptors.response.use(
       }
 
       if (isRefreshing) {
+        originalRequest._retry = true;
         // Another request is already refreshing the token, wait for it
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -76,7 +81,6 @@ api.interceptors.response.use(
           if (res.data.refreshToken) {
             localStorage.setItem('refreshToken', res.data.refreshToken);
           }
-          api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           processQueue(null, newAccessToken);
           return api(originalRequest);

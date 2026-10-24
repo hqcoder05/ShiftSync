@@ -31,6 +31,11 @@ public class AttendanceDTO {
     private Double checkInLng;
     private Double checkOutLat;
     private Double checkOutLng;
-    private String checkInPhotoBase64;
-    private String checkOutPhotoBase64;
+    /**
+     * List endpoints deliberately expose only photo availability.  The binary
+     * proof is fetched from the dedicated, authorised photo endpoint on demand
+     * so a monthly attendance response never carries a Base64 image per row.
+     */
+    private boolean hasCheckInPhoto;
+    private boolean hasCheckOutPhoto;
 }

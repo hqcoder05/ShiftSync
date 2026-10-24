@@ -25,7 +25,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
 import java.time.LocalDate;
-import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
@@ -76,7 +75,7 @@ public class AttendanceService {
 
         validateGeofence(shift, config, request.getLatitude(), request.getLongitude());
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
         LocalDateTime shiftEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
 
@@ -116,7 +115,7 @@ public class AttendanceService {
                 .orElseGet(StoreConfiguration::new);
         validateGeofence(shift, config, latitude, longitude);
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
         LocalDateTime shiftEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
         if (shiftEnd.isBefore(shiftStart)) shiftEnd = shiftEnd.plusDays(1);
@@ -146,7 +145,7 @@ public class AttendanceService {
 
         Attendance attendance = Attendance.builder()
                 .shiftAssignment(assignment)
-                .checkInTime(OffsetDateTime.now())
+                .checkInTime(OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")))
                 .checkInLat(latitude)
                 .checkInLng(longitude)
                 .checkInPhoto(photo)
@@ -181,7 +180,7 @@ public class AttendanceService {
             }
         }
 
-        attendance.setCheckOutTime(OffsetDateTime.now());
+        attendance.setCheckOutTime(OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
         attendance.setCheckOutLat(latitude);
         attendance.setCheckOutLng(longitude);
         attendance.setCheckOutPhoto(photo);
@@ -226,7 +225,7 @@ public class AttendanceService {
         
         AttendanceStatus calculatedStatus = attendance.getStatus() == AttendanceStatus.EARLY_LEAVE ? AttendanceStatus.EARLY_LEAVE : AttendanceStatus.PRESENT;
         if (attendance.getCheckInTime() != null && calculatedStatus != AttendanceStatus.EARLY_LEAVE) {
-            if (attendance.getCheckInTime().toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
+            if (attendance.getCheckInTime().atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
                 calculatedStatus = AttendanceStatus.LATE;
             }
         }
@@ -265,6 +264,26 @@ public class AttendanceService {
         return attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(storeId, from, to).stream().map(this::toDTO).toList();
     }
 
+    @Transactional(readOnly = true)
+    public byte[] getAttendancePhoto(UUID attendanceId, UUID storeId, UUID staffId, boolean checkIn) {
+        Attendance attendance = attendanceRepository.findById(attendanceId)
+                .orElseThrow(() -> new BusinessException("Attendance not found", HttpStatus.NOT_FOUND));
+        ShiftAssignment assignment = attendance.getShiftAssignment();
+
+        if (storeId != null && !storeId.equals(assignment.getShift().getStore().getId())) {
+            throw new BusinessException("Attendance does not belong to the specified store", HttpStatus.NOT_FOUND);
+        }
+        if (staffId != null && !staffId.equals(assignment.getStaff().getId())) {
+            throw new BusinessException("You cannot access another employee's attendance proof", HttpStatus.FORBIDDEN);
+        }
+
+        byte[] photo = checkIn ? attendance.getCheckInPhoto() : attendance.getCheckOutPhoto();
+        if (photo == null || photo.length == 0) {
+            throw new BusinessException("Attendance photo not found", HttpStatus.NOT_FOUND);
+        }
+        return photo;
+    }
+
     private com.shiftsync.attendance.dto.AttendanceDTO toDTO(Attendance attendance) {
         ShiftAssignment assignment = attendance.getShiftAssignment();
         Shift shift = assignment.getShift();
@@ -272,7 +291,7 @@ public class AttendanceService {
         if (attendance.getStatus() == AttendanceStatus.LATE && attendance.getCheckInTime() != null
                 && shift.getShiftDate() != null && shift.getStartTime() != null) {
             LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
-            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime()).toMinutes());
         }
         return com.shiftsync.attendance.dto.AttendanceDTO.builder()
                 .id(attendance.getId()).shiftAssignmentId(assignment.getId()).shiftId(shift.getId())
@@ -286,11 +305,10 @@ public class AttendanceService {
                 .checkInTime(attendance.getCheckInTime()).checkOutTime(attendance.getCheckOutTime()).status(attendance.getStatus()).lateMinutes(lateMinutes)
                 .checkInLat(attendance.getCheckInLat()).checkInLng(attendance.getCheckInLng())
                 .checkOutLat(attendance.getCheckOutLat()).checkOutLng(attendance.getCheckOutLng())
-                .checkInPhotoBase64(toBase64(attendance.getCheckInPhoto())).checkOutPhotoBase64(toBase64(attendance.getCheckOutPhoto()))
+                .hasCheckInPhoto(attendance.getCheckInPhoto() != null && attendance.getCheckInPhoto().length > 0)
+                .hasCheckOutPhoto(attendance.getCheckOutPhoto() != null && attendance.getCheckOutPhoto().length > 0)
                 .build();
     }
-
-    private String toBase64(byte[] photo) { return photo == null ? null : Base64.getEncoder().encodeToString(photo); }
 
     private void validateGeofence(Shift shift, StoreConfiguration config, double latitude, double longitude) {
         if (shift.getStore().getLatitude() == null || shift.getStore().getLongitude() == null) {

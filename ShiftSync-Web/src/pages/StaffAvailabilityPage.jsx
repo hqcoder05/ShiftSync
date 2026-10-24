@@ -23,23 +23,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  ArrowRight,
-  Sparkles,
-  Send,
   CalendarCheck,
   Building2,
   CalendarDays,
-  Briefcase,
   Lock,
-  Unlock,
-  Check,
-  Info,
   ExternalLink,
   Printer
 } from 'lucide-react';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './StaffAvailabilityPage.css';
+import './staff-availability-redesign.css';
 
 const getRoleBadgeClass = (pos = '') => {
   const p = (pos || '').toLowerCase();
@@ -52,7 +46,6 @@ const getRoleBadgeClass = (pos = '') => {
 };
 
 const DOW_VI = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-const DOW_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 function getWeekDates(baseDate = new Date()) {
   const monday = new Date(baseDate);
@@ -232,7 +225,7 @@ export default function StaffAvailabilityPage() {
           const shiftsRes = await getMyShifts();
           const weekRangeIso = weekDatesFull.map(toISODate);
           shifts = (shiftsRes.data || []).filter((s) => weekRangeIso.includes(s.shiftDate));
-        } catch (e) {
+        } catch {
           // fallback
         }
         setAssignedShifts(shifts);
@@ -461,14 +454,6 @@ export default function StaffAvailabilityPage() {
     };
   }, [employees, availabilityMap, assignedShifts, weekDatesFull]);
 
-  /* ── Remind missing employees ── */
-  const handleRemindMissing = () => {
-    showToast(
-      'Đã gửi thông báo nhắc nhở! ',
-      `Hệ thống đã gửi thông báo đến ${missingCount} nhân viên chưa nộp lịch đăng ký tuần này.`
-    );
-  };
-
   /* ── Open Quick Assign Modal (For unassigned free slots) ── */
   const handleOpenAssignModal = (emp, slot, date) => {
     const matchedSkill = skills.find((sk) => sk.name.toLowerCase() === (emp.position || '').toLowerCase()) || skills[0];
@@ -522,15 +507,15 @@ export default function StaffAvailabilityPage() {
       <div className="avail-topbar">
         <div className="avail-title-block">
           <div className="avail-badge-category">
-            {isStaff ? 'LỊCH KHẢ DỤNG CỦA TÔI' : 'QUẢN LÝ LỊCH KHẢ DỤNG'}
+            {isStaff ? 'LỊCH LÀM VIỆC / CỦA TÔI' : 'VẬN HÀNH / NHÂN SỰ'}
           </div>
           <h1 className="avail-title">
-            {isStaff ? 'Lịch Đăng Ký Rảnh Của Tôi' : 'Tổng Hợp Lịch Đăng Ký Rảnh Của Nhân Viên'}
+            {isStaff ? 'Lịch rảnh của tôi' : 'Khả dụng nhân sự'}
           </h1>
           <p className="avail-subtitle">
             {isStaff
-              ? 'Xem và đăng ký các khung giờ bạn sẵn sàng nhận ca trong tuần để quản lý sắp xếp lịch làm việc hợp lý.'
-              : 'Theo dõi toàn bộ khung giờ làm việc nhân viên sẵn sàng nhận ca trong tuần, giúp quản lý phân công ca chính xác và không trùng lịch.'}
+              ? 'Xem và đăng ký khung giờ bạn có thể nhận ca trong tuần.'
+              : 'Theo dõi giờ rảnh đã đăng ký để phân công ca phù hợp và tránh trùng lịch.'}
           </p>
         </div>
 
@@ -581,7 +566,7 @@ export default function StaffAvailabilityPage() {
               title="Đến màn hình xếp ca làm việc"
             >
               <CalendarCheck size={16} />
-              <span>Màn Hình Xếp Ca</span>
+              <span>Đến bảng xếp ca</span>
             </button>
           )}
         </div>
@@ -629,10 +614,7 @@ export default function StaffAvailabilityPage() {
           <div className="avail-kpi-progress-bar">
             <div
               className="avail-kpi-progress-fill"
-              style={{
-                width: `${weeklyAnalytics.assignedRate}%`,
-                background: weeklyAnalytics.assignedRate >= 100 ? '#10b981' : 'linear-gradient(90deg, #6366f1, #3b82f6)'
-              }}
+              style={{ width: `${weeklyAnalytics.assignedRate}%` }}
             />
           </div>
           <div className="avail-kpi-subtext">
@@ -643,13 +625,15 @@ export default function StaffAvailabilityPage() {
         <div className="avail-kpi-card">
           <div className="avail-kpi-header">
             <span className="avail-kpi-title">Tình trạng bố trí ca</span>
-            <div className="avail-kpi-icon-wrap" style={{ background: weeklyAnalytics.freeSlotsCount === 0 ? '#ecfdf5' : '#fffbeb', color: weeklyAnalytics.freeSlotsCount === 0 ? '#059669' : '#d97706' }}>
-              {weeklyAnalytics.freeSlotsCount === 0 ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            <div className="avail-kpi-icon-wrap">
+              {weeklyAnalytics.declaredHours === 0 ? <Clock size={18} /> : weeklyAnalytics.freeSlotsCount === 0 ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             </div>
           </div>
-          <div className="avail-kpi-number" style={{ color: weeklyAnalytics.freeSlotsCount === 0 ? '#16a34a' : '#2563eb' }}>
-            {weeklyAnalytics.freeSlotsCount === 0 ? (
-              <span>100% Kín Lịch</span>
+          <div className="avail-kpi-number">
+            {weeklyAnalytics.declaredHours === 0 ? (
+              <span>Chưa có lịch rảnh</span>
+            ) : weeklyAnalytics.freeSlotsCount === 0 ? (
+              <span>Đã phân bổ</span>
             ) : (
               <>
                 {weeklyAnalytics.freeSlotsCount} <span className="avail-kpi-unit">ca còn rảnh</span>
@@ -657,8 +641,10 @@ export default function StaffAvailabilityPage() {
             )}
           </div>
           <div className="avail-kpi-subtext">
-            {weeklyAnalytics.freeSlotsCount === 0 ? (
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>Toàn bộ ca đăng ký đã được phân công</span>
+            {weeklyAnalytics.declaredHours === 0 ? (
+              <span>Chưa có giờ đăng ký trong tuần đang xem</span>
+            ) : weeklyAnalytics.freeSlotsCount === 0 ? (
+              <span>Không còn khung giờ rảnh chưa xếp ca</span>
             ) : (
               <span>{weeklyAnalytics.freeStaffCount} nhân viên sẵn sàng nhận thêm ca</span>
             )}
@@ -785,10 +771,20 @@ export default function StaffAvailabilityPage() {
         </div>
       </div>
 
+      {!loading && weeklyAnalytics.declaredHours === 0 && (
+        <div className="avail-empty-notice" role="status">
+          <span className="avail-empty-notice-icon" aria-hidden="true"><CalendarDays size={20} strokeWidth={1.8} /></span>
+          <div>
+            <strong>Chưa có lịch rảnh trong tuần này</strong>
+            <p>{isStaff ? 'Đăng ký khung giờ bạn có thể làm việc để quản lý xếp ca.' : 'Lịch khả dụng sẽ xuất hiện khi nhân viên gửi khung giờ có thể nhận ca.'}</p>
+          </div>
+        </div>
+      )}
+
       {/* ═══ TAB 1: WEEKLY MATRIX VIEW (Ma Trận Tuần) ═══ */}
       {viewTab === 'MATRIX' && (
         <div className="avail-table-container">
-          <div className="avail-table-wrap">
+          <div className="avail-table-wrap" role="region" aria-label="Ma trận khả dụng nhân sự, cuộn ngang để xem đủ bảy ngày" tabIndex={0}>
             <table className="avail-matrix-table">
               <thead>
                 <tr>

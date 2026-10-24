@@ -5,7 +5,7 @@
  */
 
 import * as THREE from 'three';
-import { buildIndoorPlant, materials } from './FurnitureBuilder';
+import { buildIndoorPlant, materials } from './FurnitureBuilder.js';
 
 // Reusable X-Ray Material for selective ghosting of exterior & interior walls
 const xrayWallMaterial = new THREE.MeshStandardMaterial({
@@ -16,6 +16,51 @@ const xrayWallMaterial = new THREE.MeshStandardMaterial({
   depthWrite: false,
   side: THREE.DoubleSide,
 });
+
+/**
+ * Procedural canvas tile texture generator for realistic store flooring
+ */
+export function createStoreTileTexture() {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    if (!canvas || !canvas.getContext) return null;
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Base ceramic warm tile tone
+    ctx.fillStyle = '#F4EDE4';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Grout lines
+    ctx.strokeStyle = '#D1C2B0';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, 506, 506);
+
+    // Subtle inner bevel
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(6, 6, 500, 500);
+
+    // Fine terrazzo speckles
+    ctx.fillStyle = 'rgba(168, 145, 126, 0.14)';
+    for (let i = 0; i < 400; i++) {
+      const rx = (i * 37) % 512;
+      const ry = (i * 73) % 512;
+      const size = (i % 3) + 1;
+      ctx.fillRect(rx, ry, size, size);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  } catch {
+    return null;
+  }
+}
 
 export function buildStoreEnvironment(layout = { length: 24, width: 16, height: 6 }, showWalls = true) {
   const group = new THREE.Group();
@@ -30,11 +75,17 @@ export function buildStoreEnvironment(layout = { length: 24, width: 16, height: 
   floorGroup.name = 'layer_floor';
   floorGroup.userData = { layer: 'floor' };
 
-  // 1.1 Main Circulation Floor (Terrazzo)
+  // 1.1 Main Circulation Floor (Ceramic / Terrazzo Tile)
+  const tileTexture = createStoreTileTexture();
+  if (tileTexture) {
+    tileTexture.repeat.set(len / 1.5, wid / 1.5);
+  }
+
   const mainFloorGeo = new THREE.PlaneGeometry(len, wid);
   const mainFloorMat = new THREE.MeshStandardMaterial({
-    color: 0xF5EBE0, // Warm terrazzo
-    roughness: 0.82,
+    color: 0xF8F4EE,
+    map: tileTexture || null,
+    roughness: 0.78,
     metalness: 0.05,
   });
   const mainFloor = new THREE.Mesh(mainFloorGeo, mainFloorMat);
@@ -177,6 +228,56 @@ export function buildStoreEnvironment(layout = { length: 24, width: 16, height: 
     westWall.receiveShadow = true;
     westWall.userData = { isWall: true, originalMat: frontWallMat };
     wallsGroup.add(westWall);
+
+    // Glass Entrance Double Doors (Center South Entrance)
+    const doorGroup = new THREE.Group();
+    doorGroup.name = 'entranceDoubleDoors';
+    doorGroup.position.set(0, 0, wid / 2);
+    doorGroup.userData = { isDoor: true, layer: 'walls' };
+
+    const doorGlassMat = new THREE.MeshStandardMaterial({
+      color: 0xBAE6FD,
+      transparent: true,
+      opacity: 0.38,
+      roughness: 0.08,
+      metalness: 0.1,
+    });
+    const doorFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x1E293B,
+      metalness: 0.8,
+      roughness: 0.3,
+    });
+    const doorHandleMat = new THREE.MeshStandardMaterial({
+      color: 0xE2E8F0,
+      metalness: 0.9,
+      roughness: 0.15,
+    });
+
+    const doorW = 1.2;
+    const doorH = 2.4;
+    [-doorW / 2 - 0.02, doorW / 2 + 0.02].forEach((dx, dIdx) => {
+      // Glass leaf
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.04), doorGlassMat);
+      leaf.position.set(dx, doorH / 2, 0);
+      doorGroup.add(leaf);
+
+      // Frame border
+      const frameTop = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.04, 0.05, 0.06), doorFrameMat);
+      frameTop.position.set(dx, doorH + 0.02, 0);
+      doorGroup.add(frameTop);
+
+      const frameSide = new THREE.Mesh(new THREE.BoxGeometry(0.05, doorH, 0.06), doorFrameMat);
+      frameSide.position.set(dIdx === 0 ? dx - doorW / 2 : dx + doorW / 2, doorH / 2, 0);
+      doorGroup.add(frameSide);
+
+      // Vertical stainless handle
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.95, 12), doorHandleMat);
+      const hx = dIdx === 0 ? dx + doorW * 0.38 : dx - doorW * 0.38;
+      handle.position.set(hx, 1.1, 0.05);
+      doorGroup.add(handle);
+    });
+
+    wallsGroup.add(doorGroup);
   }
 
   group.add(wallsGroup);
@@ -266,6 +367,39 @@ export function buildStoreEnvironment(layout = { length: 24, width: 16, height: 
   });
 
   furnitureGroup.add(storageRack);
+
+  // Interior Structural Columns (Architectural Load-bearing Pillars)
+  const colSize = 0.65;
+  const colH = h * 0.65;
+  const colMat = materials.warmWood;
+  const colTrimMat = new THREE.MeshStandardMaterial({ color: 0x1E293B, roughness: 0.6 });
+
+  [-len * 0.16, len * 0.16].forEach((cx, cIdx) => {
+    const colGroup = new THREE.Group();
+    colGroup.name = `column_${cIdx + 1}`;
+    colGroup.position.set(cx, 0, -wid * 0.08);
+    colGroup.userData = { isObstacle: true, isColumn: true };
+
+    // Column Shaft
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(colSize, colH, colSize), colMat);
+    shaft.position.y = colH / 2;
+    shaft.castShadow = true;
+    shaft.receiveShadow = true;
+    colGroup.add(shaft);
+
+    // Baseboard Collar
+    const baseCollar = new THREE.Mesh(new THREE.BoxGeometry(colSize + 0.08, 0.22, colSize + 0.08), colTrimMat);
+    baseCollar.position.y = 0.11;
+    colGroup.add(baseCollar);
+
+    // Capital Collar
+    const topCollar = new THREE.Mesh(new THREE.BoxGeometry(colSize + 0.08, 0.14, colSize + 0.08), colTrimMat);
+    topCollar.position.y = colH - 0.07;
+    colGroup.add(topCollar);
+
+    furnitureGroup.add(colGroup);
+  });
+
   group.add(furnitureGroup);
 
   // ── 5. FLOW LAYER (Service Wayfinding & Customer Circulation Arrows) ──
@@ -333,6 +467,8 @@ export function setEnvironmentLayersVisibility(envGroup, {
   showCeiling = true,
   showFurniture = true,
   showFlow = true,
+  showWorkstations = true,
+  showZones = true,
 }) {
   if (!envGroup) return;
   envGroup.traverse((child) => {
@@ -342,5 +478,7 @@ export function setEnvironmentLayersVisibility(envGroup, {
     else if (layer === 'ceiling') child.visible = showCeiling;
     else if (layer === 'furniture') child.visible = showFurniture;
     else if (layer === 'flow') child.visible = showFlow;
+    else if (layer === 'workstations') child.visible = showWorkstations;
+    else if (layer === 'zones') child.visible = showZones;
   });
 }

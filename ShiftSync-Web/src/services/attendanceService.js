@@ -20,3 +20,10 @@ export const getAttendanceQrCode = (storeId, shiftId) =>
 
 export const getMyAttendance = () =>
   api.get('/attendance/me');
+
+export const getAttendancePhoto = (attendanceId, kind, { storeId, mine = false } = {}) => {
+  const path = mine
+    ? `/attendance/me/${attendanceId}/photos/${kind}`
+    : `/stores/${storeId}/attendance/${attendanceId}/photos/${kind}`;
+  return api.get(path, { responseType: 'blob' });
+};

@@ -50,6 +50,18 @@ public class RealtimeEventPublisher {
      * Broadcast store-specific events (shifts, attendance, requests, marketplace)
      */
     public void publishStoreEvent(UUID storeId, String domain, String action, Object data) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                && org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { sendStoreEvent(storeId, domain, action, data); }
+                    });
+            return;
+        }
+        sendStoreEvent(storeId, domain, action, data);
+    }
+
+    private void sendStoreEvent(UUID storeId, String domain, String action, Object data) {
         try {
             java.util.Map<String, Object> payload = new java.util.HashMap<>();
             payload.put("domain", domain != null ? domain : "");

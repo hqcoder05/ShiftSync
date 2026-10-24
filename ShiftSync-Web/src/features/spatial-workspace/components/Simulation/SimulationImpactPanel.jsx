@@ -51,7 +51,7 @@ export default function SimulationImpactPanel({
             color: isImproved ? '#059669' : '#DC2626',
           }}
         >
-          {isImproved ? '✓ Tối ưu hơn' : '⚠️ Có rủi ro'}
+          {isImproved ? '✓ Tối ưu hơn' : ' Có rủi ro'}
         </span>
       </div>
 

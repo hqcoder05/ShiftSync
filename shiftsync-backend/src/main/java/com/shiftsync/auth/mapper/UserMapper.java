@@ -12,6 +12,7 @@ public class UserMapper {
         return UserDTO.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
+                .gender(user.getGender() == null ? "MALE" : user.getGender())
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .systemRole(user.getSystemRole())

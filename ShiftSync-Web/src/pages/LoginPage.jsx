@@ -128,7 +128,7 @@ export default function LoginPage() {
           <p className="login-brand-subtitle">Nền tảng Quản lý Ca làm & Lập lịch Thông minh</p>
         </div>
 
-        {/* 🌟 3D Mascot tương tác */}
+        {/*  3D Mascot tương tác */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: -15, overflow: 'visible' }}>
           <LoginMascot3DWeb
             status={mascotStatus}
@@ -238,7 +238,7 @@ export default function LoginPage() {
 
           <div className="login-quick-roles" style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px dashed #e2e8f0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px', textAlign: 'center' }}>
-              ⚡ Tài khoản thử nghiệm (Click để điền nhanh)
+               Tài khoản thử nghiệm (Click để điền nhanh)
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
               <button
@@ -246,42 +246,42 @@ export default function LoginPage() {
                 onClick={() => handleQuickFill('manager.pvd@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                🏢 <strong>QL Phạm Văn Đồng</strong><br /><span style={{ color: '#64748b' }}>manager.pvd@...</span>
+                 <strong>QL Phạm Văn Đồng</strong><br /><span style={{ color: '#64748b' }}>manager.pvd@...</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('manager.lm81@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                🏬 <strong>QL Landmark 81</strong><br /><span style={{ color: '#64748b' }}>manager.lm81@...</span>
+                 <strong>QL Landmark 81</strong><br /><span style={{ color: '#64748b' }}>manager.lm81@...</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('admin@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                👑 <strong>Quản trị viên</strong><br /><span style={{ color: '#64748b' }}>admin@shiftsync.com</span>
+                 <strong>Quản trị viên</strong><br /><span style={{ color: '#64748b' }}>admin@shiftsync.com</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('pvd.staff01@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                👤 <strong>Nhân viên PVD</strong><br /><span style={{ color: '#64748b' }}>pvd.staff01@...</span>
+                 <strong>Nhân viên PVD</strong><br /><span style={{ color: '#64748b' }}>pvd.staff01@...</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('lm81.staff01@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
               >
-                👤 <strong>Nhân viên LM81</strong><br /><span style={{ color: '#64748b' }}>lm81.staff01@...</span>
+                 <strong>Nhân viên LM81</strong><br /><span style={{ color: '#64748b' }}>lm81.staff01@...</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('pvd.staff02@shiftsync.com')}
                 style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', textAlign: 'left' }}
               >
-                🆕 <strong>NV Thu ngân</strong><br /><span style={{ color: '#92400e' }}>pvd.staff02@...</span>
+                 <strong>NV Thu ngân</strong><br /><span style={{ color: '#92400e' }}>pvd.staff02@...</span>
               </button>
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '6px' }}>

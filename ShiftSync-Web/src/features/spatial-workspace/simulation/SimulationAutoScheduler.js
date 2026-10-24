@@ -11,6 +11,7 @@
  */
 
 import { validateSkillForZone } from './SimulationValidator';
+import { getStaffId } from '../utils/staffIdentity';
 
 export function simulateAutoSchedule({
   availableEmployees = [],
@@ -61,10 +62,11 @@ export function simulateAutoSchedule({
 
     if (assignedZonePool) {
       assignedZonePool.allocated.push(emp);
+      const staffId = getStaffId(emp);
       allocatedStaff.push({
         ...emp,
-        id: emp.id || emp.staffId,
-        staffId: emp.staffId || emp.id,
+        id: emp.id || staffId,
+        staffId: staffId || emp.id,
         zoneId: assignedZonePool.zone.id,
         zoneName: assignedZonePool.zone.name,
         isSimulatedModified: true,

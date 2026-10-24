@@ -125,3 +125,11 @@ export const applyStoreTemplate = async (storeId, templateId) => {
   if (!storeId || !templateId) return null;
   return api.post(`/stores/${storeId}/apply-template/${templateId}`);
 };
+
+export const getWorkstationEquipment = (storeId, workstationId, signal) =>
+  api.get(`/stores/${storeId}/workstations/${workstationId}/equipment`, { signal });
+
+export const createWorkstationEquipment = (storeId, workstationId, payload) =>
+  api.post(`/stores/${storeId}/workstations/${workstationId}/equipment`, payload);
+export const updateWorkstationEquipment = (storeId, workstationId, equipmentId, payload) =>
+  api.put(`/stores/${storeId}/workstations/${workstationId}/equipment/${equipmentId}`, payload);
