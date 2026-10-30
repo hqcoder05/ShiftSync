@@ -123,17 +123,6 @@ export function WebSocketProvider({ children }) {
           });
         }
 
-        client.subscribe('/topic/notifications', (message) => {
-          try {
-            const data = JSON.parse(message.body);
-            if (data?.notification && (!data.userId || data.userId === currentUserId)) {
-              handleIncomingNotification(data.notification);
-            }
-          } catch (err) {
-            console.warn('[WebSocket] Error parsing global notification:', err);
-          }
-        });
-
         if (currentStoreId) {
           subscribeToStoreTopics(client, currentStoreId);
           window.dispatchEvent(new CustomEvent('store_connection_restored', { detail: { storeId: currentStoreId } }));

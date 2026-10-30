@@ -20,6 +20,7 @@ public class StoreConfigurationUpdateRequest {
 
     @NotNull
     @Min(0)
+    @jakarta.validation.constraints.Max(168)
     private Integer minRestHours;
 
     @NotNull
@@ -29,6 +30,10 @@ public class StoreConfigurationUpdateRequest {
     @NotNull
     @Min(0)
     private Integer availabilityDeadlineHours;
+
+    @Min(0)
+    @jakarta.validation.constraints.Max(60)
+    private Integer availabilityToleranceMinutes;
 
     @NotNull
     @Min(0)

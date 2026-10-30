@@ -44,6 +44,9 @@ public class AttendanceAdjustmentRequest {
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Column(name = "manager_note", length = 500)
+    private String note;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)

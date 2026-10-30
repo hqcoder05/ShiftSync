@@ -405,7 +405,7 @@ class SchedulingPhase53BackendClosureTest {
         }
 
         @Test
-        @DisplayName("A7: Auto-schedule purges existing draft shifts outside operating hours before execution")
+        @DisplayName("A7: Auto-schedule preserves and skips existing draft shifts outside operating hours")
         void testA7_AutoSchedulePurgesOutOfBoundsDraftShifts() {
             Shift validShift = createShift(startDate, LocalTime.of(9, 0), LocalTime.of(17, 0));
             validShift.setRequirements(Collections.singletonList(ShiftSkillRequirement.builder().skill(baristaSkill).requiredCount(1).build()));
@@ -421,9 +421,10 @@ class SchedulingPhase53BackendClosureTest {
 
             AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
 
-            // The out-of-bounds shift was deleted
-            verify(shiftRepository, atLeastOnce()).delete(outOfBoundsShift);
-            // Only valid shift demand processed
+            // Invalid existing draft data is preserved and excluded from this run.
+            verify(shiftRepository, never()).delete(outOfBoundsShift);
+            assertTrue(result.getValidationWarnings().stream().anyMatch(w -> w.contains("đã được giữ nguyên")));
+            // Only valid shift demand is processed.
             assertEquals(1, result.getTotalDemandSlots());
             assertEquals(1, result.getNewAssignmentsCreated());
         }
@@ -919,8 +920,9 @@ class SchedulingPhase53BackendClosureTest {
             Employment bob = createStaff("Bob", 40, baristaSkill, "BEGINNER");
             when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(Arrays.asList(alice, bob));
 
-            // Give Alice an existing 16h assignment earlier
-            Shift priorShift = createShift(startDate.minusDays(2), LocalTime.of(8, 0), LocalTime.of(16, 0));
+            // Hour score measures the target ISO week: give Alice another eight
+            // hours in that week, with enough rest from the target Monday shift.
+            Shift priorShift = createShift(startDate.plusDays(2), LocalTime.of(8, 0), LocalTime.of(16, 0));
             ShiftAssignment priorAss = ShiftAssignment.builder().id(UUID.randomUUID()).shift(priorShift).staff(alice.getUser()).build();
             when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any()))
                     .thenReturn(Collections.singletonList(priorAss));
@@ -1427,10 +1429,10 @@ class SchedulingPhase53BackendClosureTest {
             shift.setRequirements(Arrays.asList(reqBarista, reqCashier));
             when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate)).thenReturn(Collections.singletonList(shift));
 
-            // Staff 1 is a Barista, but contract max hours is 0 (violates HC4)
-            Employment baristaZeroHours = createStaff("Alice", 0, baristaSkill, "EXPERT");
+            // A valid four-hour contract cannot cover this eight-hour shift (HC4).
+            Employment baristaLimitedHours = createStaff("Alice", 4, baristaSkill, "EXPERT");
             // No staff has Cashier skill
-            when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(Collections.singletonList(baristaZeroHours));
+            when(employmentRepository.findByStoreIdAndStatus(storeId, EmploymentStatus.ACTIVE)).thenReturn(Collections.singletonList(baristaLimitedHours));
 
             AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
 

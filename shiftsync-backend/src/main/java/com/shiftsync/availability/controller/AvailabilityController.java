@@ -40,7 +40,7 @@ public class AvailabilityController {
     @Operation(summary = "Create an availability slot", description = "Declares a new free time slot for a specific day of the week.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Availability successfully created"),
-        @ApiResponse(responseCode = "400", description = "Invalid request payload or end time before start time"),
+        @ApiResponse(responseCode = "400", description = "Invalid day or equal start/end times; earlier end time means the next day"),
         @ApiResponse(responseCode = "409", description = "Time slot overlaps with existing availability")
     })
     public ResponseEntity<AvailabilityResponse> createAvailability(

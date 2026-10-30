@@ -23,7 +23,8 @@ class RealtimeEventPublisherTest {
         verifyNoInteractions(messaging);
         TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
         verify(messaging).convertAndSend(eq("/topic/store/" + store + "/attendance"), any(Object.class));
-        verify(messaging).convertAndSend(eq("/topic/attendance"), any(Object.class));
+        verify(messaging, never()).convertAndSend(eq("/topic/attendance"), any(Object.class));
+        verifyNoMoreInteractions(messaging);
     }
 
     @Test void rollbackDoesNotBroadcast() {

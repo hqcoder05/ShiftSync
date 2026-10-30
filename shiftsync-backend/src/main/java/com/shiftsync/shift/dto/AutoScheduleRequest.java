@@ -16,4 +16,7 @@ public class AutoScheduleRequest {
     @NotNull(message = "End date is required")
     @Schema(description = "End date of the schedule week", example = "2023-11-19")
     private LocalDate endDate;
+
+    @Schema(description = "Run the same scheduler but roll back all generated assignments and quota demand", example = "false")
+    private Boolean dryRun = false;
 }

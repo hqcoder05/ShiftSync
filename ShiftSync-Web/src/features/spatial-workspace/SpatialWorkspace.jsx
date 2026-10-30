@@ -124,6 +124,7 @@ export default function SpatialWorkspace({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [operationsRefreshKey, setOperationsRefreshKey] = useState(0);
   const [operationsLiveState, setOperationsLiveState] = useState({ lastUpdatedAt: null, label: '' });
+  const [realtimeFocusRequest, setRealtimeFocusRequest] = useState(null);
   const workspaceElement = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => {
@@ -211,6 +212,15 @@ export default function SpatialWorkspace({
     const summary = getOperationsEventSummary(event.type, event.detail);
     setOperationsLiveState({ lastUpdatedAt: summary.timestamp, label: summary.label });
     setOperationsRefreshKey((value) => value + 1);
+    const zoneId = event?.detail?.data?.zoneId;
+    const assignmentAction = /^ASSIGNMENT_(CREATED|MOVED|REMOVED|ZONE_SWAPPED)$/.test(summary.action);
+    // Attendance events now carry the assignment zone as well.  Focusing it
+    // keeps the visual cue tied to the operator's actual workstation instead
+    // of merely refreshing data elsewhere in the scene.
+    const attendanceEvent = event.type === 'store_attendance_updated';
+    if ((assignmentAction || attendanceEvent) && zoneId) {
+      setRealtimeFocusRequest({ zoneId: String(zoneId), label: summary.label, timestamp: summary.timestamp });
+    }
   }, [activeStoreId]);
 
   useEffect(() => {
@@ -633,6 +643,18 @@ export default function SpatialWorkspace({
     setSelectedZone(zone);
 
   }, [setCameraMode, setFollowingStaff]);
+
+  // A shift-assignment event has a physical zone. Focus it after React has accepted
+  // the event so the real-time cue and the refreshed occupancy refer to the same place.
+  useEffect(() => {
+    if (!realtimeFocusRequest) return;
+    const zone = zones.find((item) => String(item.id) === realtimeFocusRequest.zoneId);
+    if (zone) {
+      handleFocusZone(zone);
+      toast.info(realtimeFocusRequest.label, `Cập nhật tại ${zone.name}`);
+    }
+    setRealtimeFocusRequest(null);
+  }, [realtimeFocusRequest, zones, handleFocusZone]);
 
   const handleSceneZoneSelection = useCallback((zone, { focus = true } = {}) => {
     setSelectedZone(zone || null);
@@ -1530,6 +1552,9 @@ export default function SpatialWorkspace({
         unresolvedAssignmentsCount={unresolvedAssignmentsCount}
         isSimulating={isSimulating}
         costDelta={simulationImpact?.delta?.costDelta || 0}
+        isRealtimeConnected={isRealtimeConnected}
+        lastOperationsUpdatedAt={operationsLiveState.lastUpdatedAt}
+        latestOperationLabel={operationsLiveState.label}
         onOpenAttentionCenter={handleOpenAttentionCenter}
         onFocusUnderstaffedZone={handleFocusUnderstaffedZone}
       />}

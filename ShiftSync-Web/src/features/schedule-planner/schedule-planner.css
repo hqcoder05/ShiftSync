@@ -7,4 +7,5 @@
 
 
 .sp-date{position:relative;display:inline-flex;align-items:center;min-height:34px;padding:0 10px;background:var(--se-subtle);border:1px solid var(--se-border);border-radius:6px}.sp-date input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.sp-date:focus-within{outline:2px solid var(--se-accent)}.sp-sidebar li>.se-button{display:block;margin:6px 0 12px}
+.sp-auto-schedule-button{white-space:nowrap;font-weight:700}.sp-empty p{max-width:520px;margin:0 auto 14px;line-height:1.65}.sp-empty .se-button{justify-self:center;margin-top:8px}
 

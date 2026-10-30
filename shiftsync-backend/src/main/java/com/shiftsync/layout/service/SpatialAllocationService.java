@@ -39,14 +39,14 @@ public class SpatialAllocationService {
     private final StaffSkillRepository staffSkillRepository;
     private final SkillRepository skillRepository;
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
     public SpatialAllocationResultDto allocateZonesForShift(UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
         return allocateZonesForShift(shift.getStore().getId(), shiftId);
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
     public SpatialAllocationResultDto allocateZonesForShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));

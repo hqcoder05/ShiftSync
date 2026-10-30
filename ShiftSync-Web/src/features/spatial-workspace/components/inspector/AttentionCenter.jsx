@@ -70,6 +70,7 @@ export default function AttentionCenter({
           title: `Trạm chưa phân công: ${ws.name || ws.code}`,
           description: `Trạm tại ${ws.zoneName || 'khu vực chưa xác định'} chưa có nhân viên được phân công trong ca.`,
           impact: 'Quầy/trạm chưa được kích hoạt vận hành.',
+          nextStep: 'Mở trạm để kiểm tra yêu cầu vị trí và phân công nhân sự phù hợp.',
         });
       }
     });
@@ -92,6 +93,7 @@ export default function AttentionCenter({
           title: `Trống nhân sự: ${zone.name}`,
           description: `Chưa có phân công (Chỉ tiêu ca: ${target} nhân sự • Sức chứa quầy: ${cap} chỗ).`,
           impact: 'Nguy cơ gián đoạn phục vụ vị trí này trong ca trực.',
+          nextStep: `Bổ sung ${target} nhân sự hoặc điều chỉnh chỉ tiêu ca trước khi bắt đầu phục vụ.`,
         });
       } else if (count < target) {
         issues.push({
@@ -101,6 +103,7 @@ export default function AttentionCenter({
           title: `Thiếu định biên: ${zone.name}`,
           description: `Đã phân công ${count}/${target} nhân sự theo ca (Thiếu ${target - count} người • Sức chứa: ${cap}).`,
           impact: 'Dung lượng phục vụ giảm, thời gian xử lý đơn kéo dài.',
+          nextStep: `Bổ sung ${target - count} người cho khu vực này hoặc mở xếp ca tự động để xem phương án.`,
         });
       } else if (count > target || count > cap) {
         const surplus = count - target;
@@ -111,6 +114,7 @@ export default function AttentionCenter({
           title: `Dư thừa nhân sự: ${zone.name}`,
           description: `Đã phân công ${count}/${target} nhân sự (Dư ${surplus} người so với định biên ca • Sức chứa: ${cap}).`,
           impact: 'Lãng phí chi phí nhân công. Có thể điều chuyển sang quầy thiếu.',
+          nextStep: `Rà soát điều chuyển ${surplus} người sang khu vực đang thiếu trước khi đổi định biên.`,
         });
       }
     } else if (count > 0) {
@@ -121,6 +125,7 @@ export default function AttentionCenter({
         title: `Ngoài kế hoạch ca: ${zone.name}`,
         description: `Đã phân công ${count} nhân sự tại quầy không yêu cầu trong ca này.`,
         impact: 'Nên điều chuyển nhân sự sang các quầy trọng yếu đang thiếu.',
+        nextStep: 'Kiểm tra lại phân công hoặc thêm nhu cầu hợp lệ cho khu vực này.',
       });
     }
   });
@@ -150,8 +155,9 @@ export default function AttentionCenter({
           return <article key={issue.id} className={`ac-issue ac-issue--${tone}`}>
             <div className="ac-issue-top"><span className="ac-severity"><AlertTriangle size={12}/>{label}</span><span className="ac-kind">{issue.type==='WORKSTATION'?'Trạm làm việc':'Khu vực'}</span></div>
             <h4>{issue.workstation?.name||issue.workstation?.code||issue.zone?.name}</h4><p>{issue.description}</p>
-            <div className="ac-impact">{issue.impact}</div>
-            <div className="ac-issue-actions"><button type="button" onClick={()=>selectIssue(issue,true)}><Search size={13}/>Xem trong 3D</button><button type="button" className="ac-primary-link" onClick={()=>selectIssue(issue)}>{issue.type==='WORKSTATION'?'Chi tiết trạm':'Tìm ứng viên'}<ArrowUpRight size={14}/></button></div>
+            <div className="ac-impact"><strong>Tác động</strong>{issue.impact}</div>
+            <div className="ac-next-step"><strong>Hướng xử lý</strong><span>{issue.nextStep}</span></div>
+            <div className="ac-issue-actions"><button type="button" onClick={()=>selectIssue(issue,true)}><Search size={13}/>Focus trong 3D</button><button type="button" className="ac-primary-link" onClick={()=>selectIssue(issue)}>{issue.type==='WORKSTATION'?'Mở chi tiết trạm':'Mở khu vực'}<ArrowUpRight size={14}/></button></div>
           </article>;
         })}</div>}
       </section>

@@ -4,5 +4,7 @@ public enum SwapStatus {
     PENDING,
     APPROVED, // Manger approved
     REJECTED,
-    CANCELLED
+    CANCELLED,
+    /** At least one shift started before the request was resolved. */
+    EXPIRED
 }

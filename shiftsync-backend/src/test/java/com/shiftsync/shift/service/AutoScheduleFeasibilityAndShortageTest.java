@@ -632,7 +632,7 @@ class AutoScheduleFeasibilityAndShortageTest {
     @DisplayName("Scenario 15: ShiftController autoSchedule returns ResponseEntity<AutoScheduleResult> with 200 OK")
     void testShiftControllerAutoSchedule() {
         com.shiftsync.shift.controller.ShiftController controller =
-                new com.shiftsync.shift.controller.ShiftController(null, autoScheduleService);
+                new com.shiftsync.shift.controller.ShiftController(null, autoScheduleService, null);
 
         Shift shift = createShift(startDate, LocalTime.of(8, 0), LocalTime.of(12, 0));
         addRequirement(shift, baristaSkill, barZone, 1);
@@ -647,7 +647,7 @@ class AutoScheduleFeasibilityAndShortageTest {
         ));
 
         org.springframework.http.ResponseEntity<AutoScheduleResult> response =
-                controller.autoSchedule(storeId, createRequest());
+                controller.autoSchedule(storeId, createRequest(), null);
 
         assertNotNull(response);
         assertEquals(org.springframework.http.HttpStatus.OK, response.getStatusCode());

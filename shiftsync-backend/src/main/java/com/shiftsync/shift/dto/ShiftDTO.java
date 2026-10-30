@@ -13,6 +13,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class ShiftDTO {
     @Schema(description = "Shift ID")
     private UUID id;

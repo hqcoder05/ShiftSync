@@ -42,7 +42,7 @@ public class LeaveRequestService {
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     private final LeaveBalanceService leaveBalanceService;
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
         User staff = userRepository.findById(staffId)
                 .orElseThrow(() -> new BusinessException("Staff not found", HttpStatus.NOT_FOUND));
@@ -107,7 +107,7 @@ public class LeaveRequestService {
                 .map(this::mapToDTO).collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void cancelLeaveRequest(UUID storeId, UUID leaveId, UUID staffId) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
@@ -140,7 +140,7 @@ public class LeaveRequestService {
         } catch (Exception ignored) {}
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public LeaveApproveResponse approveLeaveRequest(UUID storeId, UUID leaveId, UUID managerId) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
@@ -235,7 +235,7 @@ public class LeaveRequestService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public LeaveRequestDTO rejectLeaveRequest(UUID storeId, UUID leaveId, UUID managerId, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));
@@ -278,7 +278,7 @@ public class LeaveRequestService {
         return mapToDTO(leaveRequest);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public LeaveRequestDTO updateLeaveReason(UUID storeId, UUID leaveId, UUID userId, String newReason, com.shiftsync.shared.security.SystemRole role) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveId)
                 .orElseThrow(() -> new BusinessException("Leave request not found", HttpStatus.NOT_FOUND));

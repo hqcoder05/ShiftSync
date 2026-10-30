@@ -13,6 +13,13 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
     List<LeaveRequest> findByStoreIdAndStatus(@org.springframework.data.repository.query.Param("storeId") UUID storeId, @org.springframework.data.repository.query.Param("status") LeaveStatus status);
     List<LeaveRequest> findByStaffId(UUID staffId);
 
+    @org.springframework.data.jpa.repository.Query("SELECT l FROM LeaveRequest l WHERE l.staff.id IN :staffIds AND l.status = :status AND l.startDate <= :endDate AND l.endDate >= :startDate ORDER BY l.staff.id, l.startDate, l.id")
+    List<LeaveRequest> findByStaffIdsAndStatusInPeriod(
+            @org.springframework.data.repository.query.Param("staffIds") List<UUID> staffIds,
+            @org.springframework.data.repository.query.Param("status") LeaveStatus status,
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
+
     @org.springframework.data.jpa.repository.Query("SELECT l FROM LeaveRequest l WHERE l.staff.id = :staffId AND l.status IN ('PENDING', 'APPROVED') AND l.startDate <= :endDate AND l.endDate >= :startDate")
     List<LeaveRequest> findOverlappingRequests(@org.springframework.data.repository.query.Param("staffId") UUID staffId, @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate, @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
 

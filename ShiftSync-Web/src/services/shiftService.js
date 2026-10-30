@@ -27,6 +27,9 @@ export const autoScheduleShifts = (storeId, startDateOrPayload, maybeEndDate) =>
   });
 };
 
+export const applyAutoSchedulePlan = (storeId, planId) =>
+  api.post(`/stores/${storeId}/shifts/auto-schedule/plans/${planId}/apply`);
+
 export const updateShiftRequirements = (storeId, shiftId, data) =>
   api.put(`/stores/${storeId}/shifts/${shiftId}/requirements`, data);
 

@@ -1069,6 +1069,11 @@
   fill: var(--ss-surf);
 }
 
+.db-chart .db-hour-planned { fill: var(--ss-ac); }
+.db-chart .db-hour-actual { fill: var(--ss-p3); }
+.db-chart .db-hour-value { fill: var(--ss-tx); font-size: 9px; font-weight: 700; }
+.db-chart-note { margin: 0 0 4px; color: var(--ss-mu); font-size: 11.5px; }
+
 /* Responsive Breakpoints */
 @media (max-width: 1200px) {
   .db-status-strip {

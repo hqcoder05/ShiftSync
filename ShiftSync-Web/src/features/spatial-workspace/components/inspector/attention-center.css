@@ -29,7 +29,11 @@
 .ac-kind{font-size:10px;color:var(--se-muted)}
 .ac-issue h4{margin:0;color:var(--se-text);font-size:15px;letter-spacing:-.02em;overflow-wrap:anywhere}
 .ac-issue p{margin:7px 0 12px;color:var(--se-muted);font-size:12px;line-height:1.6}
-.ac-impact{padding:9px 10px;border-radius:6px;background:var(--se-subtle);color:var(--se-muted);font-size:11px;line-height:1.6}
+.ac-impact,.ac-next-step{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;padding:9px 10px;border-radius:6px;color:var(--se-muted);font-size:11px;line-height:1.6}
+.ac-impact{background:var(--se-subtle)}
+.ac-next-step{margin-top:7px;border:1px solid color-mix(in srgb,var(--ac-tone) 35%,var(--se-border));background:color-mix(in srgb,var(--ac-tone) 8%,var(--se-surface));color:var(--se-text)}
+.ac-impact strong,.ac-next-step strong{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--se-muted)}
+.ac-next-step span{min-width:0}
 .ac-issue-actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:14px}
 .ac-issue-actions button{display:inline-flex;align-items:center;gap:6px;padding:7px 0;border:0;background:transparent;color:var(--se-muted);font-size:11px}
 .ac-issue-actions .ac-primary-link{font-weight:650;color:var(--se-text)}
@@ -56,4 +60,4 @@
 .ac-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;min-height:240px;padding:32px 16px;border:1px dashed var(--se-border);border-radius:12px;color:var(--se-muted)}
 .ac-empty h4{margin:16px 0 8px;font-size:15px;color:var(--se-text)}
 .ac-empty p{font-size:12px;line-height:1.7;margin:0;max-width:320px}
-@media(max-width:700px){.se-alert-dialog>header{padding:16px}.ac-context{padding:12px 16px}.ac-context>span{margin-left:23px;flex-basis:100%}.ac-layout{grid-template-columns:minmax(0,1fr);padding:16px;gap:24px}.ac-queue-heading small{display:none}.ac-coverage-number{font-size:34px}.ac-issue{padding:13px}.se-workspace .se-alert-dialog .se-inspector{height:calc(100dvh - 125px)!important}}
+@media(max-width:700px){.se-alert-dialog>header{padding:16px}.ac-context{padding:12px 16px}.ac-context>span{margin-left:23px;flex-basis:100%}.ac-layout{grid-template-columns:minmax(0,1fr);padding:16px;gap:24px}.ac-queue-heading small{display:none}.ac-coverage-number{font-size:34px}.ac-issue{padding:13px}.ac-impact,.ac-next-step{grid-template-columns:1fr;gap:2px}.se-workspace .se-alert-dialog .se-inspector{height:calc(100dvh - 125px)!important}}

@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@Transactional
+@Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
 class QuotaBudgetPersistenceTest {
     @Autowired StoreRepository stores;
     @Autowired HeadcountQuotaService quotas;

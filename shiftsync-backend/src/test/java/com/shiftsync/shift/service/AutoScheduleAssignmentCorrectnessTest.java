@@ -486,7 +486,7 @@ class AutoScheduleAssignmentCorrectnessTest {
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), newBaristaCandidate.getId())).thenReturn(false);
         doNothing().when(shiftValidationService).validateNoOverlapAndWeeklyHours(shift, newBaristaCandidate.getId(), null);
         when(staffSkillRepository.findByStaffId(newBaristaCandidate.getId())).thenReturn(List.of(createStaffSkill(newBaristaCandidate.getId(), baristaSkill)));
-        when(availabilityRepository.coversShiftTime(eq(newBaristaCandidate.getId()), any(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(newBaristaCandidate.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(eq(newBaristaCandidate.getId()), any())).thenReturn(false);
         when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(List.of(bAssignment));
 
@@ -540,7 +540,7 @@ class AutoScheduleAssignmentCorrectnessTest {
                 createStaffSkill(multiSkillStaff.getId(), baristaSkill),
                 createStaffSkill(multiSkillStaff.getId(), cashierSkill)
         ));
-        when(availabilityRepository.coversShiftTime(eq(multiSkillStaff.getId()), any(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(multiSkillStaff.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(eq(multiSkillStaff.getId()), any())).thenReturn(false);
         when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(List.of(bAssignment));
         when(shiftAssignmentRepository.save(any(ShiftAssignment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -762,7 +762,7 @@ class AutoScheduleAssignmentCorrectnessTest {
                 createStaffSkill(candidate.getId(), baristaSkill),
                 createStaffSkill(candidate.getId(), cashierSkill)
         ));
-        when(availabilityRepository.coversShiftTime(eq(candidate.getId()), any(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(candidate.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(eq(candidate.getId()), any())).thenReturn(false);
         when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(Collections.emptyList());
         when(shiftAssignmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -903,7 +903,7 @@ class AutoScheduleAssignmentCorrectnessTest {
 
         User candidate = createStaffUser("Candidate");
 
-        when(availabilityRepository.coversShiftTime(eq(candidate.getId()), any(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(candidate.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(eq(candidate.getId()), any())).thenReturn(false);
         when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(List.of(existing));
         when(staffSkillRepository.findByStaffId(candidate.getId())).thenReturn(List.of(createStaffSkill(candidate.getId(), baristaSkill)));
@@ -949,7 +949,7 @@ class AutoScheduleAssignmentCorrectnessTest {
 
         User multiStaff = createStaffUser("Multi Candidate");
 
-        when(availabilityRepository.coversShiftTime(eq(multiStaff.getId()), any(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(multiStaff.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(eq(multiStaff.getId()), any())).thenReturn(false);
         when(shiftAssignmentRepository.findByShiftId(shift.getId())).thenReturn(List.of(existing));
         when(staffSkillRepository.findByStaffId(multiStaff.getId())).thenReturn(List.of(
@@ -998,7 +998,7 @@ class AutoScheduleAssignmentCorrectnessTest {
         when(availabilityRepository.findByUser_IdIn(anyList())).thenReturn(List.of(createAvailability(candidate, (short) 1)));
         when(blackoutDateRepository.findByStaffIdInAndDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
         when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), any(), any())).thenReturn(Collections.emptyList());
-        when(leaveRequestRepository.findByStoreIdAndStatus(storeId, LeaveStatus.APPROVED)).thenReturn(List.of(leave));
+        when(leaveRequestRepository.findByStaffIdsAndStatusInPeriod(List.of(candidate.getId()), LeaveStatus.APPROVED, testDate, testDate)).thenReturn(List.of(leave));
 
         AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
 

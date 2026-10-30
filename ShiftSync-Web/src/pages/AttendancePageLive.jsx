@@ -189,6 +189,8 @@ export default function AttendancePageLive() {
   const [adjStatusFilter, setAdjStatusFilter] = useState('ALL');
   const [adjSearch, setAdjSearch] = useState('');
   const [showAdjModal, setShowAdjModal] = useState(false);
+  const [rejectingAdjustment, setRejectingAdjustment] = useState(null);
+  const [adjustmentRejectionNote, setAdjustmentRejectionNote] = useState('');
   const [adjForm, setAdjForm] = useState({
     date: toISODate(new Date()),
     actualCheckIn: '',
@@ -515,13 +517,26 @@ export default function AttendancePageLive() {
     };
   }, [fetchLeaves, fetchAdjustments]);
 
-  // Pending counts for subtabs
-  const pendingLeaveCount = leaveRequests.filter((r) => r.status === 'PENDING').length;
-  const pendingAdjCount = adjustments.filter((a) => a.status === 'PENDING').length;
+  const matchesSelectedEmployee = useCallback((record) => (
+    userFilter === 'All' || (record.staffName || '').trim() === userFilter.trim()
+  ), [userFilter]);
+
+  const employeeFilteredLeaves = useMemo(
+    () => leaveRequests.filter(matchesSelectedEmployee),
+    [leaveRequests, matchesSelectedEmployee],
+  );
+  const employeeFilteredAdjustments = useMemo(
+    () => adjustments.filter(matchesSelectedEmployee),
+    [adjustments, matchesSelectedEmployee],
+  );
+
+  // Pending counts follow the selected employee, matching all three page tabs.
+  const pendingLeaveCount = employeeFilteredLeaves.filter((r) => r.status === 'PENDING').length;
+  const pendingAdjCount = employeeFilteredAdjustments.filter((a) => a.status === 'PENDING').length;
 
   // Filtered lists
   const filteredLeaves = useMemo(() => {
-    return leaveRequests.filter((r) => {
+    return employeeFilteredLeaves.filter((r) => {
       const matchStatus = leaveStatusFilter === 'ALL' || r.status === leaveStatusFilter;
       const matchSearch =
         !leaveSearch ||
@@ -529,10 +544,10 @@ export default function AttendancePageLive() {
         (r.reason || '').toLowerCase().includes(leaveSearch.toLowerCase());
       return matchStatus && matchSearch;
     });
-  }, [leaveRequests, leaveStatusFilter, leaveSearch]);
+  }, [employeeFilteredLeaves, leaveStatusFilter, leaveSearch]);
 
   const filteredAdjustments = useMemo(() => {
-    return adjustments.filter((a) => {
+    return employeeFilteredAdjustments.filter((a) => {
       const matchStatus = adjStatusFilter === 'ALL' || a.status === adjStatusFilter;
       const matchSearch =
         !adjSearch ||
@@ -541,7 +556,7 @@ export default function AttendancePageLive() {
         (a.date || '').toLowerCase().includes(adjSearch.toLowerCase());
       return matchStatus && matchSearch;
     });
-  }, [adjustments, adjStatusFilter, adjSearch]);
+  }, [employeeFilteredAdjustments, adjStatusFilter, adjSearch]);
 
   // Leave Handlers
   const handleOpenApproveImpact = async (leaveId) => {
@@ -684,13 +699,15 @@ export default function AttendancePageLive() {
     }
   };
 
-  const handleRejectAdjustment = async (adjId) => {
+  const handleRejectAdjustment = async () => {
+    if (!rejectingAdjustment) return;
     const sId = storeId || localStorage.getItem('selectedStoreId');
-    const note = prompt('Lý do từ chối (tùy chọn):') || '';
     setActionLoading(true);
     try {
-      await rejectAdjustmentRequest(sId, adjId, { note });
+      await rejectAdjustmentRequest(sId, rejectingAdjustment.id, { note: adjustmentRejectionNote.trim() });
       toast.success('Đã từ chối giải trình chấm công.');
+      setRejectingAdjustment(null);
+      setAdjustmentRejectionNote('');
       await fetchAdjustments();
       window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId: sId } }));
     } catch (err) {
@@ -864,6 +881,17 @@ export default function AttendancePageLive() {
       return sum + (h || 0);
     }, 0);
   }, [visibleRows]);
+
+  // The operational queue only surfaces records that need a human decision.
+  // It does not infer attendance from scheduled shifts.
+  const attendanceQueue = useMemo(() => {
+    const todayIso = toISODate(new Date());
+    const late = visibleRows.filter((row) => getAttendanceStatus(row).key === 'late').length;
+    const missingCheckOut = visibleRows.filter((row) => (
+      Boolean(row.checkInTime) && !row.checkOutTime && Boolean(row.shiftDate) && row.shiftDate < todayIso
+    )).length;
+    return { late, missingCheckOut, adjustments: pendingAdjCount, leave: pendingLeaveCount };
+  }, [visibleRows, pendingAdjCount, pendingLeaveCount]);
 
   const flagged = (row) => row.status === 'LATE' || row.status === 'EARLY_LEAVE';
 
@@ -1049,6 +1077,26 @@ export default function AttendancePageLive() {
           <div><h2>{activeTab === 'attendance' ? 'Bảng chấm công' : activeTab === 'adjustments' ? 'Giải trình chấm công' : 'Đơn nghỉ phép'}</h2></div>
           {activeTab !== 'attendance' && <span className="att-pending-summary">{activeTab === 'leave' ? pendingLeaveCount : pendingAdjCount} yêu cầu chờ duyệt</span>}
         </div>
+        {isManager && (
+          <section className="att-operations-queue" aria-label="Việc cần xử lý">
+            <div className="att-queue-intro">
+              <span>Hàng đợi điều hành</span>
+              <strong>Việc cần xử lý</strong>
+            </div>
+            <button type="button" className={`att-queue-item ${attendanceQueue.late > 0 ? 'is-attention' : ''}`} onClick={() => handleTabChange('attendance')}>
+              <span>Đi trễ</span><strong>{attendanceQueue.late}</strong><small>cần rà soát</small>
+            </button>
+            <button type="button" className={`att-queue-item ${attendanceQueue.missingCheckOut > 0 ? 'is-attention' : ''}`} onClick={() => handleTabChange('attendance')}>
+              <span>Thiếu check-out</span><strong>{attendanceQueue.missingCheckOut}</strong><small>ca đã qua</small>
+            </button>
+            <button type="button" className={`att-queue-item ${attendanceQueue.adjustments > 0 ? 'is-pending' : ''}`} onClick={() => handleTabChange('adjustments')}>
+              <span>Giải trình</span><strong>{attendanceQueue.adjustments}</strong><small>chờ duyệt</small>
+            </button>
+            <button type="button" className={`att-queue-item ${attendanceQueue.leave > 0 ? 'is-pending' : ''}`} onClick={() => handleTabChange('leave')}>
+              <span>Đơn nghỉ</span><strong>{attendanceQueue.leave}</strong><small>chờ duyệt</small>
+            </button>
+          </section>
+        )}
         {/* ═══ TAB 1: CHẤM CÔNG TRỰC TIẾP (ATTENDANCE) ═══ */}
         {activeTab === 'attendance' && (
           <>
@@ -1230,34 +1278,6 @@ export default function AttendancePageLive() {
 
         {/* ── Error Banner ── */}
         {error && <div className="att-error-banner">{error}</div>}
-
-        {/* ── Late Alert Banner ── */}
-        {visibleRows.filter((r) => r.status === 'LATE').length > 0 && (
-          <div
-            style={{
-              backgroundColor: '#FEF2F2',
-              border: '1px solid #FCA5A5',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              color: '#991B1B',
-              fontSize: '13px',
-              fontWeight: '600',
-            }}
-          >
-            
-            <span>
-              Hệ thống phát hiện{' '}
-              <strong>
-                {visibleRows.filter((r) => r.status === 'LATE').length} lượt check-in đi trễ
-              </strong>{' '}
-              trong khoảng thời gian này. Hãy kiểm tra các mục có nhãn cảnh báo đỏ bên dưới.
-            </span>
-          </div>
-        )}
 
         {/* ═══ ATTENDANCE TABLE ═══ */}
         <div className="att-table-card">
@@ -1471,6 +1491,12 @@ export default function AttendancePageLive() {
         {activeTab === 'adjustments' && (
           <div className="tw-tab-content">
             <div className="tw-action-bar">
+              {userFilter !== 'All' && (
+                <div className="att-active-employee-filter">
+                  <span>Đang lọc theo <strong>{userFilter}</strong></span>
+                  <button type="button" onClick={() => setUserFilter('All')}>Xóa lọc</button>
+                </div>
+              )}
               <div className="tw-filter-group">
                 <div style={{ position: 'relative', width: '220px' }}>
                   <input
@@ -1523,9 +1549,9 @@ export default function AttendancePageLive() {
                 <thead>
                   <tr>
                     {isManager && <th>Nhân viên</th>}
-                    <th>Ngày làm việc</th>
-                    <th>Giờ vào đề xuất</th>
-                    <th>Giờ ra đề xuất</th>
+                    <th>Ngày ca</th>
+                    <th>Giờ vào đề nghị</th>
+                    <th>Giờ ra đề nghị</th>
                     <th>Lý do giải trình</th>
                     <th>Trạng thái</th>
                     {isManager && <th style={{ textAlign: 'right' }}>Thao tác</th>}
@@ -1535,7 +1561,9 @@ export default function AttendancePageLive() {
                   {filteredAdjustments.length === 0 ? (
                     <tr>
                       <td colSpan={isManager ? 7 : 6} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                        Không có yêu cầu giải trình chấm công nào.
+                        {userFilter === 'All'
+                          ? 'Không có yêu cầu giải trình chấm công nào phù hợp với bộ lọc.'
+                          : `Không có yêu cầu giải trình chấm công nào của ${userFilter} phù hợp với bộ lọc.`}
                       </td>
                     </tr>
                   ) : (
@@ -1548,9 +1576,25 @@ export default function AttendancePageLive() {
                               <strong>{a.staffName || 'Nhân viên'}</strong>
                             </td>
                           )}
-                          <td>{fmtShortDate(a.date)}</td>
-                          <td>{a.checkInTime ? fmtTimeAMPM(a.checkInTime) : '—'}</td>
-                          <td>{a.checkOutTime ? fmtTimeAMPM(a.checkOutTime) : '—'}</td>
+                          <td>
+                            <strong>{fmtShortDate(a.shiftDate || a.date || a.shift?.shiftDate)}</strong>
+                            {a.shiftStartTime && a.shiftEndTime && (
+                              <div className="att-adjustment-subtext">Ca {String(a.shiftStartTime).slice(0, 5)}–{String(a.shiftEndTime).slice(0, 5)}</div>
+                            )}
+                            {a.createdAt && (
+                              <div className="att-adjustment-subtext">Gửi lúc {fmtTimeAMPM(a.createdAt)}</div>
+                            )}
+                          </td>
+                          <td>
+                            {a.requestedCheckIn || a.checkInTime
+                              ? fmtTimeAMPM(a.requestedCheckIn || a.checkInTime)
+                              : <span className="att-adjustment-unspecified">Không đề nghị</span>}
+                          </td>
+                          <td>
+                            {a.requestedCheckOut || a.checkOutTime
+                              ? fmtTimeAMPM(a.requestedCheckOut || a.checkOutTime)
+                              : <span className="att-adjustment-unspecified">Không đề nghị</span>}
+                          </td>
                           <td style={{ maxWidth: '280px' }}>
                             <div>{a.reason || '—'}</div>
                             {a.note && (
@@ -1579,7 +1623,10 @@ export default function AttendancePageLive() {
                                   <button
                                     type="button"
                                     className="tw-btn-reject"
-                                    onClick={() => handleRejectAdjustment(a.id)}
+                                    onClick={() => {
+                                      setRejectingAdjustment(a);
+                                      setAdjustmentRejectionNote('');
+                                    }}
                                     disabled={actionLoading}
                                   >
                                     Từ chối
@@ -1604,6 +1651,12 @@ export default function AttendancePageLive() {
         {activeTab === 'leave' && (
           <div className="tw-tab-content">
             <div className="tw-action-bar">
+              {userFilter !== 'All' && (
+                <div className="att-active-employee-filter">
+                  <span>Đang lọc theo <strong>{userFilter}</strong></span>
+                  <button type="button" onClick={() => setUserFilter('All')}>Xóa lọc</button>
+                </div>
+              )}
               <div className="tw-filter-group">
                 <div style={{ position: 'relative', width: '220px' }}>
                   <input
@@ -2176,6 +2229,47 @@ export default function AttendancePageLive() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {rejectingAdjustment && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setRejectingAdjustment(null)}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-labelledby="att-reject-adjustment-title" onClick={(e) => e.stopPropagation()}>
+            <div className="att-modal-header">
+              <h3 id="att-reject-adjustment-title">Từ chối giải trình</h3>
+              <button
+                type="button"
+                className="att-modal-close"
+                aria-label="Đóng xác nhận"
+                onClick={() => setRejectingAdjustment(null)}
+                disabled={actionLoading}
+              >&times;</button>
+            </div>
+            <div className="att-reject-adjustment-body">
+              <p>
+                Bạn đang từ chối giải trình của <strong>{rejectingAdjustment.staffName || 'nhân viên'}</strong>
+                {rejectingAdjustment.shiftDate ? <> cho ca ngày <strong>{fmtShortDate(rejectingAdjustment.shiftDate)}</strong></> : null}.
+              </p>
+              <label htmlFor="att-rejection-note">Lý do từ chối <span>(không bắt buộc)</span></label>
+              <textarea
+                id="att-rejection-note"
+                className="att-time-input"
+                rows={3}
+                maxLength={500}
+                placeholder="Cho nhân viên biết cần bổ sung hoặc điều chỉnh điều gì..."
+                value={adjustmentRejectionNote}
+                onChange={(e) => setAdjustmentRejectionNote(e.target.value)}
+                disabled={actionLoading}
+              />
+              <div className="att-rejection-note-count">{adjustmentRejectionNote.length}/500 ký tự</div>
+            </div>
+            <div className="att-modal-actions">
+              <button type="button" className="att-cancel-btn" onClick={() => setRejectingAdjustment(null)} disabled={actionLoading}>Quay lại</button>
+              <button type="button" className="att-reject-confirm-btn" onClick={handleRejectAdjustment} disabled={actionLoading}>
+                {actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+              </button>
+            </div>
           </div>
         </div>
       )}

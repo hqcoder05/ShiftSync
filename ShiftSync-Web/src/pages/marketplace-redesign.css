@@ -42,6 +42,7 @@
 .mp-tabs-bar { gap: 14px; padding-bottom: 14px; }
 .mp-tab-btn { border: 1px solid transparent; }
 .mp-tab-btn.active { border-color: var(--ss-line); }
+.mp-open-scope{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:14px 0 18px}.mp-open-scope button{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--ss-line);border-radius:8px;background:var(--ss-surf);color:var(--ss-mu);font:600 12px var(--ss-font);cursor:pointer}.mp-open-scope button[aria-pressed=true]{border-color:var(--ss-ac);background:var(--ss-ac-soft);color:var(--ss-ac)}.mp-open-scope button span{font-variant-numeric:tabular-nums}.mp-open-scope p{width:100%;margin:2px 0 0;color:var(--ss-mu);font-size:11px;line-height:1.45}
 .mp-shift-card { padding: 22px; }
 .mp-card-main-row { grid-template-columns: minmax(0, 1fr) 250px; }
 .mp-card-right { border-left: 1px solid var(--ss-line); padding-left: 22px; }

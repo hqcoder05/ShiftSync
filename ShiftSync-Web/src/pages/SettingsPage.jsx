@@ -32,11 +32,10 @@ const DEFAULT_CONFIG = {
 
   // 2. Quy tắc lên lịch
   scheduleRulesEnabled: true,
-  minHoursSameDay: 4,
-  minHoursDiffDay: 12,
-  minRestHours: 12,
+  minRestHours: 8,
   maxHourPerWeek: 48,
   availabilityDeadlineHours: 24,
+  availabilityToleranceMinutes: null,
   maxConsecutiveDays: 6,
   maxDaysPerWeek: 5,
 
@@ -173,10 +172,10 @@ export default function SettingsPage() {
             closeTime: apiConfig.closeTime ? String(apiConfig.closeTime).slice(0, 5) : (baseConfig.closeTime || '22:00'),
             geofenceRadiusMeters: apiConfig.geofenceRadiusM ?? baseConfig.geofenceRadiusMeters,
             geofenceRadiusM: apiConfig.geofenceRadiusM ?? baseConfig.geofenceRadiusM,
-            minHoursDiffDay: apiConfig.minRestHours ?? baseConfig.minHoursDiffDay,
             minRestHours: apiConfig.minRestHours ?? baseConfig.minRestHours,
             maxHourPerWeek: apiConfig.maxHourPerWeek ?? baseConfig.maxHourPerWeek,
             availabilityDeadlineHours: apiConfig.availabilityDeadlineHours ?? baseConfig.availabilityDeadlineHours,
+            availabilityToleranceMinutes: apiConfig.availabilityToleranceMinutes ?? null,
             allowedCheckInMinutes: apiConfig.allowedCheckInMinutes ?? baseConfig.allowedCheckInMinutes,
             allowedCheckOutMinutes: apiConfig.allowedCheckOutMinutes ?? baseConfig.allowedCheckOutMinutes,
             lateGraceMinutes: apiConfig.lateGraceMinutes ?? baseConfig.lateGraceMinutes,
@@ -192,6 +191,11 @@ export default function SettingsPage() {
     if (cachedConfig) {
       try {
         const parsed = JSON.parse(cachedConfig);
+        // The coverage rule must reflect the persisted policy, never an old UI cache.
+        delete parsed.availabilityToleranceMinutes;
+        delete parsed.minRestHours;
+        delete parsed.minHoursSameDay;
+        delete parsed.minHoursDiffDay;
         baseConfig = { ...baseConfig, ...parsed };
       } catch {
         // ignore parse error
@@ -298,8 +302,8 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      localStorage.setItem(`${STORAGE_KEY_PREFIX}${selectedStoreId}`, JSON.stringify(config));
-
+      let storeOpen = config.openTime;
+      let storeClose = config.closeTime;
       const currentStore = stores.find(s => String(s.id) === String(selectedStoreId));
       if (selectedStoreId && !selectedStoreId.startsWith('store-')) {
         const parseCoord = (val, fallback) => {
@@ -315,8 +319,8 @@ export default function SettingsPage() {
           return fallback;
         };
 
-        const storeOpen = formatTime(config.openTime || currentStore?.openTime, '08:00:00');
-        const storeClose = formatTime(config.closeTime || currentStore?.closeTime, '22:00:00');
+        storeOpen = formatTime(config.openTime || currentStore?.openTime, '08:00:00');
+        storeClose = formatTime(config.closeTime || currentStore?.closeTime, '22:00:00');
 
         try {
           await updateStore(selectedStoreId, {
@@ -332,16 +336,17 @@ export default function SettingsPage() {
             openTime: storeOpen,
             closeTime: storeClose,
             maxHourPerWeek: Number(config.maxHourPerWeek || 48),
-            minRestHours: Number(config.minRestHours || config.minHoursDiffDay || 8),
+            minRestHours: Number(config.minRestHours ?? 8),
             geofenceRadiusM: Number(config.geofenceRadiusM || config.geofenceRadiusMeters || 100),
             availabilityDeadlineHours: Number(config.availabilityDeadlineHours || 24),
+            availabilityToleranceMinutes: config.availabilityToleranceMinutes,
             allowedCheckInMinutes: Number(config.allowedCheckInMinutes || 30),
             allowedCheckOutMinutes: Number(config.allowedCheckOutMinutes || 60),
             lateGraceMinutes: Number(config.lateGraceMinutes || 5),
             earlyLeaveGraceMinutes: Number(config.earlyLeaveGraceMinutes || 5),
           });
         } catch (apiErr) {
-          console.info('Backend updateStore / configuration notice:', apiErr.response?.data?.message || apiErr.message);
+          throw new Error(apiErr.response?.data?.message || apiErr.message);
         }
       }
 
@@ -377,6 +382,7 @@ export default function SettingsPage() {
         setInitialContractTypes(JSON.parse(JSON.stringify(contractTypes)));
       }
 
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${selectedStoreId}`, JSON.stringify(config));
       setInitialConfig({ ...config });
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} hôm nay`;
@@ -753,7 +759,7 @@ export default function SettingsPage() {
               <div>
                 <div className="sc-title-badge-row">
                   <h2 className="sc-ch-title">Quy tắc lên lịch</h2>
-                  <span className="sc-tag-pill blue">Tuân thủ Luật LĐ</span>
+                  <span className="sc-tag-pill blue">Quy tắc chung</span>
                 </div>
                 <p className="sc-ch-desc">
                   Thiết lập các giới hạn giờ làm và nghỉ ngơi để đảm bảo sức khỏe và ngăn chặn xung đột lịch làm việc tự động
@@ -761,74 +767,56 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className={`sc-toggle-switch ${config.scheduleRulesEnabled ? 'active' : ''}`}
-              onClick={() => setConfig({ ...config, scheduleRulesEnabled: !config.scheduleRulesEnabled })}
-              title="Bật/Tắt quy tắc lên lịch"
-            >
-              <div className="sc-toggle-circle" />
-            </button>
+            <span className="sc-tag-pill blue">Luôn kiểm tra khi phân công</span>
           </div>
 
-          <div className={`sc-card-body ${!config.scheduleRulesEnabled ? 'is-disabled' : ''}`}>
+          <div className="sc-card-body">
             <div className="sc-rules-2x2-grid">
-              {/* Rule Item 1 */}
+              {/* Rule Item 2 */}
               <div className="sc-rule-card">
                 <div className="sc-rc-content">
                   <div className="sc-rc-title-row">
-                    <span className="sc-rc-title">Số giờ tối thiểu giữa 2 ca trong cùng ngày</span>
+                    <span className="sc-rc-title">Giờ nghỉ tối thiểu giữa hai ca</span>
                   </div>
-                  <span className="sc-rc-desc">Khoảng đệm nghỉ giữa 2 ca liên tiếp</span>
+                  <span className="sc-rc-desc">Áp dụng cả cùng ngày, qua đêm và giữa các chi nhánh. Với nhân viên làm nhiều chi nhánh, dùng mức nghỉ cao nhất của các chi nhánh đang làm việc.</span>
                 </div>
 
                 <div className="sc-stepper-box">
                   <button
                     type="button"
                     className="sc-step-btn"
-                    onClick={() => setConfig({ ...config, minHoursSameDay: Math.max(1, config.minHoursSameDay - 1) })}
+                    aria-label="Giảm giờ nghỉ tối thiểu"
+                    onClick={() => setConfig({ ...config, minRestHours: Math.max(0, config.minRestHours - 1) })}
                   >
                     −
                   </button>
-                  <span className="sc-step-val">{config.minHoursSameDay}</span>
+                  <span className="sc-step-val">{config.minRestHours}</span>
                   <span className="sc-step-unit">giờ</span>
                   <button
                     type="button"
                     className="sc-step-btn"
-                    onClick={() => setConfig({ ...config, minHoursSameDay: config.minHoursSameDay + 1 })}
+                    aria-label="Tăng giờ nghỉ tối thiểu"
+                    onClick={() => setConfig({ ...config, minRestHours: Math.min(168, config.minRestHours + 1) })}
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              {/* Rule Item 2 */}
               <div className="sc-rule-card">
                 <div className="sc-rc-content">
-                  <div className="sc-rc-title-row">
-                    <span className="sc-rc-title">Số giờ tối thiểu giữa 2 ca khác ngày</span>
-                  </div>
-                  <span className="sc-rc-desc">Khoảng nghỉ làm chuyển qua đêm (turnaround)</span>
+                  <span className="sc-rc-title">Dung sai lịch rảnh khi xếp ca</span>
+                  <p className="sc-rc-desc">Áp dụng cho xếp tự động, phân công tay và duyệt đổi ca. 0 phút yêu cầu ca nằm hoàn toàn trong lịch rảnh; giá trị khác cho phép lệch ở hai đầu. Nhân viên tự nhận ca mở được phép ngoài lịch rảnh.</p>
+                  <p className="sc-rc-desc">Khung giờ kết thúc sớm hơn giờ bắt đầu được tính sang ngày hôm sau.</p>
                 </div>
-
-                <div className="sc-stepper-box">
-                  <button
-                    type="button"
-                    className="sc-step-btn"
-                    onClick={() => setConfig({ ...config, minHoursDiffDay: Math.max(4, config.minHoursDiffDay - 1) })}
-                  >
-                    −
-                  </button>
-                  <span className="sc-step-val">{config.minHoursDiffDay}</span>
-                  <span className="sc-step-unit">giờ</span>
-                  <button
-                    type="button"
-                    className="sc-step-btn"
-                    onClick={() => setConfig({ ...config, minHoursDiffDay: config.minHoursDiffDay + 1 })}
-                  >
-                    +
-                  </button>
-                </div>
+                <label className="sc-availability-policy-input">
+                  <span className="sc-rc-desc">Phút dung sai (0–60)</span>
+                  <input type="number" min="0" max="60" step="1" aria-label="Dung sai lịch rảnh (phút)"
+                    value={config.availabilityToleranceMinutes ?? ''}
+                    disabled={config.availabilityToleranceMinutes == null}
+                    placeholder="Chưa tải được"
+                    onChange={event => setConfig({ ...config, availabilityToleranceMinutes: Math.min(60, Math.max(0, Number(event.target.value))) })} />
+                </label>
               </div>
 
               {/* Rule Item 3 */}
@@ -925,8 +913,8 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="sc-cts-title">Trần giờ làm việc theo loại hợp đồng (Contract Types)</h3>
                   <p className="sc-cts-desc">
-                    Cấu hình trần giờ làm việc tối đa trong tuần (<code>max_weekly_hours</code>) cho từng đối tượng nhân sự.
-                    Hệ thống xếp lịch tự động sẽ căn cứ vào trần này để phân ca không vượt quá thỏa thuận hợp đồng.
+                    Cấu hình trần giờ làm việc tối đa trong tuần cho từng loại hợp đồng.
+                    Với nhân viên làm nhiều chi nhánh, tổng giờ ở mọi chi nhánh phải nằm trong hạn mức thấp nhất của các hợp đồng đang hoạt động; các hạn mức không được cộng dồn.
                   </p>
                 </div>
                 <button

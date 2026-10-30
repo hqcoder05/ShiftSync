@@ -72,7 +72,8 @@ public class AttendanceAdjustmentController {
     public ResponseEntity<AdjustmentResponseDTO> rejectRequest(
             @PathVariable UUID storeId,
             @PathVariable UUID requestId,
+            @RequestBody(required = false) java.util.Map<String, String> body,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(service.rejectRequest(storeId, requestId, userDetails.getId()));
+        return ResponseEntity.ok(service.rejectRequest(storeId, requestId, userDetails.getId(), body == null ? null : body.get("note")));
     }
 }

@@ -1,0 +1,8 @@
+java=21.0.12
+os=Windows 11
+arch=amd64
+processors=4
+maxHeap=2147483648
+OR-Tools=9.11.4210
+CP-SAT workers=4, timeout=5s, random_seed=42
+CPU=13th Gen Intel Core i5-1335U; 10 cores; 12 logical processors

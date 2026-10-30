@@ -71,6 +71,8 @@ public class NextAuditVerificationTest {
     @Autowired private AvailabilityRepository availabilityRepository;
     @Autowired private StoreConfigurationRepository storeConfigurationRepository;
     @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private com.shiftsync.skill.repository.SkillRepository skillRepository;
+    @Autowired private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Test
     public void testPAY001_NoShowEmployeeReceivesFullScheduledPay() {
@@ -232,6 +234,12 @@ public class NextAuditVerificationTest {
                 .status(ShiftStatus.PUBLISHED)
                 .build());
 
+        var skill = skillRepository.save(com.shiftsync.skill.entity.Skill.builder().store(reqStore).name("Coverage").build());
+        shift.setRequirements(java.util.List.of(com.shiftsync.shift.entity.ShiftSkillRequirement.builder().skill(skill).requiredCount(2).build()));
+        shiftRepository.saveAndFlush(shift);
+        for (User staff : java.util.List.of(staff1, staff2)) {
+            staffSkillRepository.save(com.shiftsync.skill.entity.StaffSkill.builder().staffId(staff.getId()).skillId(skill.getId()).build());
+        }
         WorkforceRequestCreateDTO reqDto = new WorkforceRequestCreateDTO();
         reqDto.setTargetStoreId(targetStore.getId());
         reqDto.setShiftId(shift.getId());

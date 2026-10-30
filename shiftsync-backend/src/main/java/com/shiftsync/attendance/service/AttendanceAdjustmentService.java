@@ -193,7 +193,7 @@ public class AttendanceAdjustmentService {
     }
 
     @Transactional
-    public AdjustmentResponseDTO rejectRequest(UUID storeId, UUID requestId, UUID managerId) {
+    public AdjustmentResponseDTO rejectRequest(UUID storeId, UUID requestId, UUID managerId, String note) {
         AttendanceAdjustmentRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Request not found", HttpStatus.NOT_FOUND));
 
@@ -216,6 +216,7 @@ public class AttendanceAdjustmentService {
         }
 
         request.setStatus(AdjustmentStatus.REJECTED);
+        request.setNote(note == null || note.isBlank() ? null : note.trim());
         request.setApprovedBy(manager);
         request.setApprovedAt(OffsetDateTime.now());
 
@@ -242,9 +243,13 @@ public class AttendanceAdjustmentService {
                 .staffId(request.getStaff().getId())
                 .staffName(request.getStaff().getFullName())
                 .shiftId(request.getShift().getId())
+                .shiftDate(request.getShift().getShiftDate())
+                .shiftStartTime(request.getShift().getStartTime())
+                .shiftEndTime(request.getShift().getEndTime())
                 .requestedCheckIn(request.getRequestedCheckIn())
                 .requestedCheckOut(request.getRequestedCheckOut())
                 .reason(request.getReason())
+                .note(request.getNote())
                 .status(request.getStatus())
                 .createdAt(request.getCreatedAt())
                 .approvedBy(request.getApprovedBy() != null ? request.getApprovedBy().getId() : null)

@@ -9,6 +9,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class ShiftAssignmentResponseDTO {
     private UUID id;
     private UUID shiftId;

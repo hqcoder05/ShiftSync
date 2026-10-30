@@ -48,8 +48,9 @@ services:
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env before starting Docker}
       - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS:-86400000}
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       - TZ=Asia/Ho_Chi_Minh
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
     depends_on:
       postgres:
         condition: service_healthy

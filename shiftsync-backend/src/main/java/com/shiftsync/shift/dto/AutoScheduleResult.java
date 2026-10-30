@@ -74,4 +74,26 @@ public class AutoScheduleResult {
 
     @Schema(description = "Number of existing non-AUTO assignments preserved before scheduling")
     private int existingNonAutoAssignments;
+
+    @Builder.Default
+    @Schema(description = "Non-destructive validation warnings generated before scheduling")
+    private List<String> validationWarnings = new ArrayList<>();
+
+    @Schema(description = "True when this response is a non-persistent dry-run")
+    private boolean dryRun;
+
+    @Schema(description = "Availability tolerance actually used for this run, in minutes; 0 means exact")
+    private int availabilityToleranceMinutes;
+
+    @Builder.Default
+    @Schema(description = "Complete resulting snapshots of the eligible draft shifts, including preserved assignments. Dry-run IDs are temporary and must never be used to mutate persisted data.")
+    private List<ShiftDTO> plannedShifts = new ArrayList<>();
+
+    private String inputVersion;
+    private UUID planId;
+    private java.time.OffsetDateTime planExpiresAt;
+    private boolean planApplied;
+
+    @Schema(description = "Order-independent metrics evaluated on the final plan after local repair; not an optimality or hard-constraint certificate")
+    private ScheduleQualityDTO quality;
 }

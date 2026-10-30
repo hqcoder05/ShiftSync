@@ -78,4 +78,15 @@
  .dp-demand-review{gap:10px}
 }
 
-.dp-coverage { display: grid; gap: 3px; padding-top: 6px; font-size: 11px; line-height: 1.4; color: var(--text-secondary, #64748b); }
+.dp-coverage { display: grid; gap: 5px; padding-top: 7px; font-size: 10px; line-height: 1.35; color: var(--text-secondary, #64748b); }
+.dp-coverage-source { width: max-content; max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: .02em; }
+.dp-coverage-source.is-saved { background: #e8f7ef; color: #087443; }
+.dp-coverage-source.is-suggested { background: #fff4db; color: #9a5a00; }
+.dp-coverage-source.is-unknown { background: #edf1f5; color: #536170; }
+.dp-coverage-facts { display: flex; flex-wrap: wrap; gap: 3px 6px; }
+.dp-coverage-facts span { white-space: nowrap; }
+.dp-coverage-facts strong { color: var(--text-primary, #17212b); font-weight: 800; }
+.dp-coverage-facts .is-shortage { color: #b42318; font-weight: 800; }
+.dp-coverage-facts .is-excess { color: #8a5a00; font-weight: 800; }
+.dp-coverage-facts .is-covered { color: #087443; font-weight: 800; }
+.dp-coverage-note { color: #8a5a00; }

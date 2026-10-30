@@ -4,6 +4,7 @@ import com.shiftsync.audit.service.AuditLogService;
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shared.exception.BusinessException;
+import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shift.entity.ShiftSwapRequest;
 import com.shiftsync.shift.enums.AssignmentSource;
@@ -30,6 +31,7 @@ public class ShiftSwapService {
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
+    private final ShiftAssignmentValidator assignmentValidator;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftSwapService(
@@ -41,7 +43,8 @@ public class ShiftSwapService {
             com.shiftsync.notification.service.NotificationService notificationService,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.employment.repository.EmploymentRepository employmentRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository,
+            ShiftAssignmentValidator assignmentValidator
     ) {
         this.auditLogService = auditLogService;
         this.shiftSwapRequestRepository = shiftSwapRequestRepository;
@@ -52,6 +55,16 @@ public class ShiftSwapService {
         this.employmentRepository = employmentRepository;
         this.attendanceRepository = attendanceRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.assignmentValidator = assignmentValidator;
+    }
+
+    public ShiftSwapService(AuditLogService auditLogService, ShiftSwapRequestRepository requests,
+            ShiftAssignmentRepository assignments, UserRepository users, ShiftValidationService validation,
+            com.shiftsync.notification.service.NotificationService notifications,
+            com.shiftsync.employment.repository.EmploymentRepository employment,
+            com.shiftsync.attendance.repository.AttendanceRepository attendance,
+            com.shiftsync.leave.repository.LeaveRequestRepository leave) {
+        this(auditLogService, requests, assignments, users, validation, notifications, employment, attendance, leave, null);
     }
 
     public ShiftSwapService(
@@ -66,7 +79,7 @@ public class ShiftSwapService {
              shiftValidationService, notificationService, null, null, null);
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public ShiftSwapRequest createSwapRequest(UUID fromStaffId, UUID fromShiftId, UUID toStaffId, UUID toShiftId) {
         if (fromStaffId.equals(toStaffId)) {
             throw new BusinessException("Cannot swap with yourself", HttpStatus.BAD_REQUEST);
@@ -85,6 +98,10 @@ public class ShiftSwapService {
         if (fromAssignment.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED || 
             toAssignment.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
             throw new BusinessException("Only published shifts can be swapped", HttpStatus.BAD_REQUEST);
+        }
+
+        if (hasStarted(fromAssignment.getShift()) || hasStarted(toAssignment.getShift())) {
+            throw new BusinessException("Cannot create a swap request for shifts that have already started or occurred in the past.", HttpStatus.BAD_REQUEST);
         }
 
         if (attendanceRepository != null && 
@@ -131,10 +148,12 @@ public class ShiftSwapService {
 
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void respondToSwapRequest(UUID requestId, UUID toStaffId, boolean accept) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        expireIfPast(request);
 
         if (!request.getToStaff().getId().equals(toStaffId)) {
             throw new BusinessException("You are not the target of this swap request", HttpStatus.FORBIDDEN);
@@ -178,10 +197,12 @@ public class ShiftSwapService {
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void managerApproveSwapRequest(UUID requestId, UUID managerId) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        expireIfPast(request);
 
         if (request.getStatus() != SwapStatus.PENDING) {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
@@ -206,25 +227,22 @@ public class ShiftSwapService {
             throw new BusinessException("One or both shifts are no longer published", HttpStatus.BAD_REQUEST);
         }
 
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        java.time.LocalDateTime fromStart = java.time.LocalDateTime.of(request.getFromShift().getShiftDate(), request.getFromShift().getStartTime());
-        java.time.LocalDateTime toStart = java.time.LocalDateTime.of(request.getToShift().getShiftDate(), request.getToShift().getStartTime());
-
-        if (fromStart.isBefore(now) || toStart.isBefore(now)) {
-            throw new BusinessException("Cannot approve a swap for shifts that have already started or occurred in the past.", HttpStatus.BAD_REQUEST);
+        if (assignmentValidator != null) {
+            assignmentValidator.validateAvailabilityAndTimeOff(request.getToShift(), request.getFromStaff().getId());
+            assignmentValidator.validateAvailabilityAndTimeOff(request.getFromShift(), request.getToStaff().getId());
         }
 
         // Leave conflict check on swapped dates
         if (leaveRequestRepository != null) {
             boolean fromStaffOnLeave = leaveRequestRepository.findOverlappingRequests(
-                    request.getFromStaff().getId(), request.getToShift().getShiftDate(), request.getToShift().getShiftDate())
+                    request.getFromStaff().getId(), request.getToShift().getShiftDate(), ShiftDateRange.lastWorkingDate(request.getToShift()))
                     .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
             if (fromStaffOnLeave) {
                 throw new BusinessException(request.getFromStaff().getFullName() + " has approved leave on target shift date", HttpStatus.BAD_REQUEST);
             }
 
             boolean toStaffOnLeave = leaveRequestRepository.findOverlappingRequests(
-                    request.getToStaff().getId(), request.getFromShift().getShiftDate(), request.getFromShift().getShiftDate())
+                    request.getToStaff().getId(), request.getFromShift().getShiftDate(), ShiftDateRange.lastWorkingDate(request.getFromShift()))
                     .stream().anyMatch(l -> l.getStatus() == com.shiftsync.leave.enums.LeaveStatus.APPROVED);
             if (toStaffOnLeave) {
                 throw new BusinessException(request.getToStaff().getFullName() + " has approved leave on target shift date", HttpStatus.BAD_REQUEST);
@@ -290,10 +308,12 @@ public class ShiftSwapService {
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void managerRejectSwapRequest(UUID requestId, UUID managerId) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        expireIfPast(request);
 
         if (request.getStatus() != SwapStatus.PENDING) {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
@@ -336,10 +356,12 @@ public class ShiftSwapService {
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void cancelSwapRequest(UUID requestId, UUID userId) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
+
+        expireIfPast(request);
 
         if (request.getStatus() != SwapStatus.PENDING) {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
@@ -385,14 +407,16 @@ public class ShiftSwapService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public java.util.List<com.shiftsync.shift.dto.ShiftSwapRequestDTO> getMySwapRequests(UUID staffId) {
-        return shiftSwapRequestRepository.findByFromStaffIdOrToStaffId(staffId, staffId).stream()
+        java.util.List<ShiftSwapRequest> requests = shiftSwapRequestRepository.findByFromStaffIdOrToStaffId(staffId, staffId);
+        requests.forEach(this::expireIfPastSilently);
+        return requests.stream()
                 .map(this::mapToDTO)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public java.util.List<com.shiftsync.shift.dto.ShiftSwapRequestDTO> getStoreSwapRequests(UUID storeId, SwapStatus status) {
         java.util.List<ShiftSwapRequest> requests;
         if (status != null) {
@@ -400,9 +424,33 @@ public class ShiftSwapService {
         } else {
             requests = shiftSwapRequestRepository.findByFromShiftId_StoreId(storeId);
         }
+        requests.forEach(this::expireIfPastSilently);
         return requests.stream()
                 .map(this::mapToDTO)
                 .toList();
+    }
+
+    private boolean hasStarted(Shift shift) {
+        if (shift == null || shift.getShiftDate() == null || shift.getStartTime() == null) {
+            return false;
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        return !java.time.LocalDateTime.of(shift.getShiftDate(), shift.getStartTime()).isAfter(now);
+    }
+
+    private void expireIfPast(ShiftSwapRequest request) {
+        if (request.getStatus() == SwapStatus.PENDING && (hasStarted(request.getFromShift()) || hasStarted(request.getToShift()))) {
+            request.setStatus(SwapStatus.EXPIRED);
+            shiftSwapRequestRepository.save(request);
+            throw new BusinessException("This swap request has expired because at least one shift has already started.", HttpStatus.CONFLICT);
+        }
+    }
+
+    private void expireIfPastSilently(ShiftSwapRequest request) {
+        if (request.getStatus() == SwapStatus.PENDING && (hasStarted(request.getFromShift()) || hasStarted(request.getToShift()))) {
+            request.setStatus(SwapStatus.EXPIRED);
+            shiftSwapRequestRepository.save(request);
+        }
     }
 
     private com.shiftsync.shift.dto.ShiftSwapRequestDTO mapToDTO(ShiftSwapRequest swap) {

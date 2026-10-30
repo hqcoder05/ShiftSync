@@ -560,7 +560,7 @@ public class HeadcountQuotaService {
     /**
      * GET /api/headcount-quotas/weekly?branchId=&weekStart=
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public WeeklyMatrixQuotaResponse getWeeklyQuotas(UUID branchId, LocalDate weekStart) {
         Store store = storeRepository.findById(branchId).orElse(null);
         String storeName = store != null ? store.getName() : "ShiftSync Store";
@@ -913,7 +913,7 @@ public class HeadcountQuotaService {
      * PUT /api/headcount-quotas/{quotaId}
      * Updates quota count or Min/Target/Max inline.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void updateQuota(String quotaId, UpdateQuotaRequest req) {
         if (req == null) return;
         UUID branchId = req.getBranchId();
@@ -995,7 +995,7 @@ public class HeadcountQuotaService {
     /**
      * POST /api/headcount-quotas/auto-fill
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void autoFillQuotas(AutoFillQuotaRequest req) {
         if (req == null || req.getBranchId() == null) {
             throw new BusinessException("Branch ID is required", HttpStatus.BAD_REQUEST);
@@ -1064,7 +1064,7 @@ public class HeadcountQuotaService {
      * POST /api/headcount-quotas/apply-to-scheduler
      * Synchronizes headcount quota demand to scheduler shifts without overwriting custom quota requirements.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public Map<String, Object> applyToScheduler(ApplySchedulerRequest req) {
         if (req == null || req.getBranchId() == null) {
             throw new BusinessException("Branch ID is required", HttpStatus.BAD_REQUEST);
@@ -1182,7 +1182,7 @@ public class HeadcountQuotaService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void updateMonthlyBudget(UUID branchId, long budget) {
         if (branchId == null || budget <= 0) {
             throw new BusinessException("Ngân sách phải lớn hơn 0 và có chi nhánh hợp lệ.", HttpStatus.BAD_REQUEST);

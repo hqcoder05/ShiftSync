@@ -46,7 +46,7 @@ public class MarketplaceService {
     @Autowired(required = false)
     private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
@@ -119,7 +119,7 @@ public class MarketplaceService {
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void unpublishFromMarketplace(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
@@ -183,7 +183,7 @@ public class MarketplaceService {
                     .sum();
             int assignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
 
-            if (requiredCount > 0 && assignedCount >= requiredCount) {
+            if (assignedCount >= Math.max(1, requiredCount)) {
                 throw new BusinessException("Ca này đã có người nhanh tay nhận mất!", HttpStatus.CONFLICT);
             }
 
@@ -203,20 +203,7 @@ public class MarketplaceService {
                 throw new BusinessException("Employment Inactive: Staff does not work at this store or is suspended", HttpStatus.BAD_REQUEST);
             }
 
-            // Determine which skill requirement is missing
-            List<ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shiftId);
-            UUID targetSkillId = null;
-            if (shift.getRequirements() != null) {
-                for (ShiftSkillRequirement req : shift.getRequirements()) {
-                    long count = existingAssignments.stream()
-                            .filter(a -> req.getSkill() != null && req.getSkill().getId().equals(a.getRequiredSkillId()))
-                            .count();
-                    if (count < req.getRequiredCount()) {
-                        targetSkillId = req.getSkill() != null ? req.getSkill().getId() : null;
-                        break;
-                    }
-                }
-            }
+            UUID targetSkillId = shiftAssignmentValidator.selectClaimSkill(shift, staffId);
 
             // Create assignment
             ShiftAssignment assignment = ShiftAssignment.builder()

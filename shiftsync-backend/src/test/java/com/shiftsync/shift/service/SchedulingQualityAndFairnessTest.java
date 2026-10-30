@@ -202,6 +202,80 @@ class SchedulingQualityAndFairnessTest {
                 .build();
     }
 
+    @Test
+    void test19_FairnessMustNotHideScarceSkillAlternatives() {
+        startDate=LocalDate.of(2026,10,26);endDate=startDate.plusDays(2);
+        Skill generic=Skill.builder().id(new UUID(0,1)).name("Generic").build();
+        Skill rare=Skill.builder().id(new UUID(0,2)).name("Rare").build();
+        Shift early=createShift(startDate,LocalTime.of(9,0),LocalTime.of(17,0));
+        Shift target=createShift(endDate,LocalTime.of(9,0),LocalTime.of(17,0));
+        addRequirement(target,generic,null,1);addRequirement(target,rare,null,1);
+        var fullTime=createStaff("FT",48);var multiSkilled=createStaff("PT multi",24);
+        List<Employment> staff=new ArrayList<>(List.of(fullTime,multiSkilled));
+        List<StaffSkill> skills=new ArrayList<>(List.of(assignSkill(fullTime,generic),assignSkill(multiSkilled,generic),assignSkill(multiSkilled,rare)));
+        // Twenty already-filled unrelated roles exhaust the old one-swap repair budget.
+        // Each employee has 7.5h in each prior week and an 8h contract, so the fixture
+        // respects weekly limits and their current-week utilization sorts before PT.
+        for(int index=0;index<20;index++) {
+            var employee=createStaff("Independent "+index,8);staff.add(employee);
+            var skill=Skill.builder().id(UUID.randomUUID()).name("Independent "+index).build();
+            skills.add(assignSkill(employee,skill));addRequirement(early,skill,null,1);
+        }
+        List<ShiftAssignment> history=new ArrayList<>();
+        for(var employee:staff) {
+            for(int week=0;week<4;week++) {
+                Shift previous=Shift.builder().id(UUID.randomUUID()).shiftDate(LocalDate.of(2026,10,1).plusWeeks(week))
+                        .startTime(LocalTime.of(6,0)).endTime(employee==fullTime?LocalTime.of(21,0):LocalTime.of(13,30)).build();
+                history.add(ShiftAssignment.builder().id(UUID.randomUUID()).staff(employee.getUser()).shift(previous).source(AssignmentSource.MANUAL).build());
+            }
+        }
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId,startDate,endDate)).thenReturn(List.of(early,target));
+        when(employmentRepository.findByStoreIdAndStatus(storeId,EmploymentStatus.ACTIVE)).thenReturn(staff);
+        when(staffSkillRepository.findByStaffIdIn(anyList())).thenReturn(skills);
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(),any(),any())).thenAnswer(call->{
+            LocalDate from=call.getArgument(1),to=call.getArgument(2);
+            return history.stream().filter(a->!a.getShift().getShiftDate().isBefore(from)&&!a.getShift().getShiftDate().isAfter(to)).toList();
+        });
+        var result=autoScheduleService.autoSchedule(storeId,createRequest());
+        assertEquals(22,result.getNewAssignmentsCreated());assertEquals(0,result.getShortageSlots());
+        assertEquals(0,result.getFeasibility().getLocalRepairRescuedCount(),"MRV must preserve both generic candidates and allocate the scarce skill directly");
+        @SuppressWarnings("unchecked") ArgumentCaptor<List<ShiftAssignment>> saved=ArgumentCaptor.forClass(List.class);
+        verify(shiftAssignmentRepository).saveAll(saved.capture());
+        var targetAssignments=saved.getValue().stream().filter(a->a.getShift()==target).toList();
+        assertTrue(targetAssignments.stream().anyMatch(a->a.getStaff()==fullTime.getUser()&&generic.getId().equals(a.getRequiredSkillId())));
+        assertTrue(targetAssignments.stream().anyMatch(a->a.getStaff()==multiSkilled.getUser()&&rare.getId().equals(a.getRequiredSkillId())));
+    }
+
+    private AutoScheduleService.StaffData repairPerson(Employment employment,List<StaffSkill> skills,Shift existing) {
+        var person=new AutoScheduleService.StaffData();person.setEmployment(employment);person.setSkills(skills);
+        List<Availability> availability=new ArrayList<>();
+        for(short day=0;day<7;day++) availability.add(Availability.builder().dayOfWeek(day).startTime(LocalTime.MIN).endTime(LocalTime.MAX).build());
+        person.setAvailabilities(availability);person.setBlackoutDates(List.of());person.setApprovedLeaveDates(Set.of());
+        person.setCurrentSchedule(new ArrayList<>(existing==null?List.of():List.of(existing)));
+        person.setAssignedHours(existing==null?0:8);person.setMonthlyAssignedHours(existing==null?0:8);return person;
+    }
+
+    @Test void test20_RepairBudgetSkipsEmployeesWithoutTheVacantSkill() {
+        Shift target=createShift(startDate.plusDays(2),LocalTime.of(9,0),LocalTime.of(17,0));
+        var generic=baristaSkill;var rare=cashierSkill;
+        Map<UUID,AutoScheduleService.StaffData> people=new HashMap<>();List<ShiftAssignment> assignments=new ArrayList<>();
+        for(int index=0;index<20;index++) {
+            var employment=createStaff("Unrelated "+index,8);var skill=Skill.builder().id(UUID.randomUUID()).build();
+            Shift early=createShift(startDate,LocalTime.of(9,0),LocalTime.of(17,0));
+            people.put(employment.getUser().getId(),repairPerson(employment,List.of(assignSkill(employment,skill)),early));
+            assignments.add(ShiftAssignment.builder().id(UUID.randomUUID()).staff(employment.getUser()).shift(early).requiredSkillId(skill.getId()).source(AssignmentSource.AUTO).build());
+        }
+        var multi=createStaff("Multi skilled",24);var fullTime=createStaff("Backfill",48);
+        people.put(multi.getUser().getId(),repairPerson(multi,List.of(assignSkill(multi,generic),assignSkill(multi,rare)),target));
+        people.put(fullTime.getUser().getId(),repairPerson(fullTime,List.of(assignSkill(fullTime,generic)),null));
+        assignments.add(ShiftAssignment.builder().id(UUID.randomUUID()).staff(multi.getUser()).shift(target).requiredSkillId(generic.getId()).source(AssignmentSource.AUTO).build());
+        var remaining=autoScheduleService.attemptLocalRepair(List.of(new AutoScheduleService.Slot(target,rare.getId())),assignments,people,
+                SchedulerConfiguration.builder().build(),StoreConfiguration.builder().minRestHours(0).build());
+        assertTrue(remaining.isEmpty());assertEquals(22,assignments.size());
+        assertTrue(assignments.stream().anyMatch(a->a.getStaff()==multi.getUser()&&rare.getId().equals(a.getRequiredSkillId())));
+        assertTrue(assignments.stream().anyMatch(a->a.getStaff()==fullTime.getUser()&&generic.getId().equals(a.getRequiredSkillId())));
+    }
+
     // =========================================================================
     // TEST 01: Fairness candidate validity (high vs low workload, both valid)
     // =========================================================================

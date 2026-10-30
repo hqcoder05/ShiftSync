@@ -104,7 +104,7 @@ class ShiftAssignmentServiceTest {
         
         doNothing().when(shiftValidationService).validateNoOverlapAndWeeklyHours(shift, staffId, null);
         
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
         
         when(shiftAssignmentRepository.countByShiftId(shiftId)).thenReturn(1L); // 1 assigned, 2 max
@@ -135,7 +135,7 @@ class ShiftAssignmentServiceTest {
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
         
         // Return empty skill list
@@ -152,7 +152,7 @@ class ShiftAssignmentServiceTest {
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
         
         // Return expired skill
@@ -187,7 +187,7 @@ class ShiftAssignmentServiceTest {
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
         
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(false);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.assignStaffToShift(storeId, shiftId, staffId));
         assertTrue(ex.getMessage().contains("outside registered availability"));
@@ -202,7 +202,7 @@ class ShiftAssignmentServiceTest {
         
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         
         when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(true);
 
@@ -220,7 +220,7 @@ class ShiftAssignmentServiceTest {
         
         when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(shiftAssignmentRepository.existsByShiftIdAndStaffId(shiftId, staffId)).thenReturn(false);
-        when(availabilityRepository.coversShiftTime(eq(staffId), anyShort(), any(), any())).thenReturn(true);
+        when(availabilityRepository.findByUserId(staffId)).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder().dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue() % 7)).startTime(shift.getStartTime()).endTime(shift.getEndTime()).build()));
         when(blackoutDateRepository.existsByStaffIdAndDate(staffId, shift.getShiftDate())).thenReturn(false);
         
         when(shiftAssignmentRepository.countByShiftId(shiftId)).thenReturn(2L); // 2 assigned, 2 max -> FULL

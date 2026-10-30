@@ -65,13 +65,13 @@ public class AvailabilityService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public AvailabilityResponse createAvailability(String email, AvailabilityRequest request) {
         validateTimeRange(request);
         User user = getUserByEmail(email);
         
-        if (availabilityRepository.hasOverlappingSlot(user.getId(), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), null)) {
-            throw new BusinessException("Time slot overlaps with existing availability on this day", HttpStatus.CONFLICT);
+        if (AvailabilityCoverage.overlaps(availabilityRepository.findByUserId(user.getId()), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), null)) {
+            throw new BusinessException("Khung giờ trùng với lịch rảnh đã đăng ký, kể cả phần qua đêm.", HttpStatus.CONFLICT);
         }
 
         Availability availability = Availability.builder()
@@ -84,7 +84,7 @@ public class AvailabilityService {
         return AvailabilityMapper.toDTO(availabilityRepository.save(availability));
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public AvailabilityResponse updateAvailability(UUID id, String email, AvailabilityRequest request) {
         validateTimeRange(request);
         User user = getUserByEmail(email);
@@ -96,8 +96,8 @@ public class AvailabilityService {
             throw new BusinessException("You don't have permission to modify this record", HttpStatus.FORBIDDEN);
         }
 
-        if (availabilityRepository.hasOverlappingSlot(user.getId(), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), id)) {
-            throw new BusinessException("Time slot overlaps with existing availability on this day", HttpStatus.CONFLICT);
+        if (AvailabilityCoverage.overlaps(availabilityRepository.findByUserId(user.getId()), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), id)) {
+            throw new BusinessException("Khung giờ trùng với lịch rảnh đã đăng ký, kể cả phần qua đêm.", HttpStatus.CONFLICT);
         }
 
         availability.setDayOfWeek(request.getDayOfWeek());
@@ -107,7 +107,7 @@ public class AvailabilityService {
         return AvailabilityMapper.toDTO(availabilityRepository.save(availability));
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void deleteAvailability(UUID id, String email) {
         User user = getUserByEmail(email);
         
@@ -127,8 +127,10 @@ public class AvailabilityService {
     }
 
     private void validateTimeRange(AvailabilityRequest request) {
-        if (!request.getEndTime().isAfter(request.getStartTime())) {
-            throw new BusinessException("End time must be strictly after start time", HttpStatus.BAD_REQUEST);
+        if (request.getDayOfWeek() == null || request.getDayOfWeek() < 0 || request.getDayOfWeek() > 6
+                || request.getStartTime() == null || request.getEndTime() == null
+                || request.getEndTime().equals(request.getStartTime())) {
+            throw new BusinessException("Ngày trong tuần phải từ 0 đến 6 và giờ bắt đầu phải khác giờ kết thúc.", HttpStatus.BAD_REQUEST);
         }
     }
 }

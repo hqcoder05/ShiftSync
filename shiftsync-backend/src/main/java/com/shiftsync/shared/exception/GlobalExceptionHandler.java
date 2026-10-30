@@ -156,6 +156,13 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(org.springframework.dao.ConcurrencyFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleConcurrentScheduleChange(org.springframework.dao.ConcurrencyFailureException ex) {
+        logger.warn("Concurrent transaction rejected: {}", ex.getClass().getSimpleName());
+        return new ResponseEntity<>(buildResponse("CONCURRENT_MODIFICATION",
+                "Dữ liệu vừa thay đổi trong một thao tác khác. Vui lòng tải lại lịch và thử lại.", null), HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler({
         org.springframework.orm.ObjectOptimisticLockingFailureException.class,
         jakarta.persistence.OptimisticLockException.class

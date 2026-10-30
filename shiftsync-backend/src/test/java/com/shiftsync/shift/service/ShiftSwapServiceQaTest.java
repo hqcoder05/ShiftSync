@@ -42,7 +42,6 @@ class ShiftSwapServiceQaTest {
         UUID managerId = UUID.randomUUID();
 
         Store store = Store.builder().id(UUID.randomUUID()).build();
-        User manager = User.builder().id(managerId).systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build();
         
         Shift pastShift = Shift.builder()
                 .store(store)
@@ -67,13 +66,37 @@ class ShiftSwapServiceQaTest {
                 .build();
 
         when(shiftSwapRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
-        when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> {
             shiftSwapService.managerApproveSwapRequest(requestId, managerId);
         });
 
-        assertEquals("Cannot approve a swap for shifts that have already started or occurred in the past.", ex.getMessage());
-        assertEquals(SwapStatus.PENDING, request.getStatus());
+        assertEquals("This swap request has expired because at least one shift has already started.", ex.getMessage());
+        assertEquals(SwapStatus.EXPIRED, request.getStatus());
+        verify(shiftSwapRequestRepository).save(request);
+    }
+
+    @Test
+    void getStoreSwapRequests_ExpiresPastPendingRequest() {
+        UUID storeId = UUID.randomUUID();
+        Shift pastShift = Shift.builder()
+                .store(Store.builder().id(storeId).build())
+                .shiftDate(LocalDate.now().minusDays(1))
+                .startTime(LocalTime.of(8, 0))
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+        ShiftSwapRequest request = ShiftSwapRequest.builder()
+                .id(UUID.randomUUID())
+                .status(SwapStatus.PENDING)
+                .fromShift(pastShift)
+                .build();
+
+        when(shiftSwapRequestRepository.findByFromShiftId_StoreId(storeId)).thenReturn(java.util.List.of(request));
+
+        var result = shiftSwapService.getStoreSwapRequests(storeId, null);
+
+        assertEquals(1, result.size());
+        assertEquals(SwapStatus.EXPIRED, result.getFirst().getStatus());
+        verify(shiftSwapRequestRepository).save(request);
     }
 }

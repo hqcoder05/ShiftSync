@@ -40,7 +40,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.UUID;
 
 @Service
-@Transactional
+@Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
 public class ShiftAssignmentService {
 
     private final ShiftRepository shiftRepository;
@@ -56,6 +56,8 @@ public class ShiftAssignmentService {
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
     @Autowired(required = false)
     private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
+    @Autowired(required = false)
+    private com.shiftsync.shared.transaction.SerializableRetry serializableRetry;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftAssignmentService(
@@ -101,7 +103,7 @@ public class ShiftAssignmentService {
              staffSkillRepository, storeZoneRepository, skillRepository, null);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date) {
         if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
@@ -204,7 +206,7 @@ public class ShiftAssignmentService {
                     currentAssigned = existingAssignments.size();
                 }
 
-                if (currentAssigned < req.getRequiredCount() || force) {
+                if (currentAssigned < req.getRequiredCount()) {
                     candidateReqs.add(req);
                 }
             }
@@ -313,8 +315,19 @@ public class ShiftAssignmentService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NEVER)
     public void unassignStaffFromShift(UUID storeId, UUID shiftId, UUID staffId) {
+        if (serializableRetry == null) {
+            unassignStaffFromShiftInTransaction(storeId, shiftId, staffId);
+            return;
+        }
+        serializableRetry.execute(() -> {
+            unassignStaffFromShiftInTransaction(storeId, shiftId, staffId);
+            return null;
+        });
+    }
+
+    private void unassignStaffFromShiftInTransaction(UUID storeId, UUID shiftId, UUID staffId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
         checkDateNotLocked(storeId, shift.getShiftDate());
@@ -342,8 +355,13 @@ public class ShiftAssignmentService {
                 assignment.getZone() == null ? null : assignment.getZone().getId());
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NEVER)
     public ShiftZoneSwapResponseDTO swapStaffZones(UUID storeId, UUID shiftId, ShiftZoneSwapRequest request) {
+        if (serializableRetry == null) return swapStaffZonesInTransaction(storeId, shiftId, request);
+        return serializableRetry.execute(() -> swapStaffZonesInTransaction(storeId, shiftId, request));
+    }
+
+    private ShiftZoneSwapResponseDTO swapStaffZonesInTransaction(UUID storeId, UUID shiftId, ShiftZoneSwapRequest request) {
         if (request == null || request.getStaffAId() == null || request.getStaffBId() == null) {
             throw new BusinessException("Both staff IDs are required for zone swap", HttpStatus.BAD_REQUEST);
         }

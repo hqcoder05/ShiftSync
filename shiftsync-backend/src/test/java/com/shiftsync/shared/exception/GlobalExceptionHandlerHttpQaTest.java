@@ -31,6 +31,15 @@ public class GlobalExceptionHandlerHttpQaTest {
 
     @RestController
     static class DummyController {
+        @PostMapping("/api/test/scheduling-conflict")
+        public String schedulingConflict() {
+            throw new org.springframework.dao.CannotSerializeTransactionException("private database details");
+        }
+
+        @PostMapping("/api/test/optimistic-conflict")
+        public String optimisticConflict() {
+            throw new org.springframework.orm.ObjectOptimisticLockingFailureException("Shift", "test-id");
+        }
         @GetMapping("/api/test/param")
         public String testParam(@RequestParam String requiredParam) {
             return "ok";
@@ -55,6 +64,21 @@ public class GlobalExceptionHandlerHttpQaTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void serializableConflictReturnsRetryable409WithoutDatabaseDetails() throws Exception {
+        mockMvc.perform(post("/api/test/scheduling-conflict"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONCURRENT_MODIFICATION"))
+                .andExpect(jsonPath("$.message").value("Dữ liệu vừa thay đổi trong một thao tác khác. Vui lòng tải lại lịch và thử lại."));
+    }
+
+    @Test
+    void optimisticConflictKeepsItsSpecific409Response() throws Exception {
+        mockMvc.perform(post("/api/test/optimistic-conflict"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OPTIMISTIC_LOCK_CONFLICT"));
     }
 
     @Test

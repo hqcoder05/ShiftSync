@@ -772,6 +772,22 @@
   flex: 1;
 }
 
+.sc-availability-policy-input {
+  display: grid;
+  gap: 6px;
+  flex: 0 0 130px;
+}
+
+.sc-availability-policy-input input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sc-text-main);
+  font: inherit;
+}
+
 .sc-rc-title-row {
   display: flex;
   align-items: center;

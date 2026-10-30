@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -164,12 +165,12 @@ class AutoScheduleServiceTest {
         
         LocalDate isoStart = targetDate.with(java.time.DayOfWeek.MONDAY);
         LocalDate isoEnd = targetDate.with(java.time.DayOfWeek.SUNDAY);
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart), eq(isoEnd)))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart.minusDays(1)), eq(isoEnd)))
                 .thenReturn(List.of(assignC, assignB));
                 
         LocalDate monthStart = targetDate.withDayOfMonth(1);
         LocalDate monthEnd = targetDate.withDayOfMonth(targetDate.lengthOfMonth());
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(monthStart), eq(monthEnd)))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(monthStart.minusDays(1)), eq(monthEnd)))
                 .thenReturn(List.of(assignC, assignB));
 
         // Act
@@ -369,9 +370,9 @@ class AutoScheduleServiceTest {
 
         LocalDate isoStart = targetDate.with(java.time.DayOfWeek.MONDAY); // 2026-08-24
         LocalDate isoEnd = targetDate.with(java.time.DayOfWeek.SUNDAY); // 2026-08-30
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart), eq(isoEnd)))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart.minusDays(1)), eq(isoEnd)))
                 .thenReturn(List.of(yesterdayAssignment));
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(targetDate.withDayOfMonth(1)), eq(targetDate.withDayOfMonth(targetDate.lengthOfMonth()))))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(targetDate.withDayOfMonth(1).minusDays(1)), eq(targetDate.withDayOfMonth(targetDate.lengthOfMonth()))))
                 .thenReturn(List.of(yesterdayAssignment));
 
         // Act
@@ -416,9 +417,9 @@ class AutoScheduleServiceTest {
 
         LocalDate isoStart = startWed.with(java.time.DayOfWeek.MONDAY);
         LocalDate isoEnd = endFri.with(java.time.DayOfWeek.SUNDAY);
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart), eq(isoEnd)))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(isoStart.minusDays(1)), eq(isoEnd)))
                 .thenReturn(List.of(assignMon, assignTue));
-        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(startWed.withDayOfMonth(1)), eq(startWed.withDayOfMonth(startWed.lengthOfMonth()))))
+        when(shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(anyList(), eq(startWed.withDayOfMonth(1).minusDays(1)), eq(startWed.withDayOfMonth(startWed.lengthOfMonth()))))
                 .thenReturn(List.of(assignMon, assignTue));
 
         // Act
@@ -635,8 +636,21 @@ class AutoScheduleServiceTest {
         StoreConfiguration storeConfig = StoreConfiguration.builder().minRestHours(0).build();
         SchedulerConfiguration schedConfig = SchedulerConfiguration.builder().build();
 
+        // Keep an immutable business baseline: repair mutates the original assignment object.
+        ShiftAssignment previous=ShiftAssignment.builder().shift(shiftA).staff(userX).requiredSkillId(skillAId)
+                .source(com.shiftsync.shift.enums.AssignmentSource.AUTO).build();
         // Act
         service.attemptLocalRepair(unassignedSlots, currentAssignments, staffMap, schedConfig, storeConfig);
+
+        var quality=ScheduleQualityEvaluator.evaluate(List.of(
+                        com.shiftsync.shift.dto.RequirementCoverageDTO.builder().shiftId(shiftA.getId()).shiftDate(date).startTime(shiftA.getStartTime()).endTime(shiftA.getEndTime()).requiredCount(1).assignedCount(1).build(),
+                        com.shiftsync.shift.dto.RequirementCoverageDTO.builder().shiftId(shiftB.getId()).shiftDate(date).startTime(shiftB.getStartTime()).endTime(shiftB.getEndTime()).requiredCount(1).assignedCount(1).build()),
+                List.of(new ScheduleQualityEvaluator.Person(userX.getId(),48,staffXData.getCurrentSchedule()),
+                        new ScheduleQualityEvaluator.Person(userY.getId(),48,staffYData.getCurrentSchedule())),
+                List.of(previous),currentAssignments,java.time.YearMonth.from(date),java.time.YearMonth.from(date));
+        assertEquals(8,quality.getCoveredHours());assertEquals(0,quality.getUnfilledSlots());
+        assertEquals(0,quality.getAutoAssignmentsKept());assertEquals(2,quality.getAutoAssignmentsAdded());assertEquals(1,quality.getAutoAssignmentsRemoved());
+        assertEquals(0,quality.getMonthlyLoads().getFirst().getNormalizedLoadStdDev(),1e-12);
 
         // Assert: Sau swap, currentAssignments có 2 phần tử (assignment được sửa + backfill mới)
         assertEquals(2, currentAssignments.size(), "Sau swap, phải có 2 assignments (X→B + Y→A)");
@@ -999,11 +1013,10 @@ class AutoScheduleServiceTest {
     // ==========================================
 
     /**
-     * Kiểm tra fairness cap trong findValidCandidates: khi 1 nhân viên đã làm nhiều giờ hơn
-     * 1.3× trung bình nhóm, họ phải bị loại khỏi danh sách ứng viên (khi vẫn còn ứng viên khác).
+     * High monthly workload reduces fairness score but cannot remove hard-feasible alternatives.
      */
     @Test
-    void testFairnessCap_FiltersOverloadedCandidate() {
+    void testFairnessRanksButDoesNotExcludeFeasibleCandidates() {
         UUID sId = UUID.randomUUID();
         LocalDate shiftDate = LocalDate.of(2026, 9, 14); // Monday
         short shiftDay = (short) (shiftDate.getDayOfWeek().getValue() % 7);
@@ -1070,11 +1083,14 @@ class AutoScheduleServiceTest {
         List<AutoScheduleService.StaffData> candidates = service.findValidCandidates(
                 slot, List.of(staffA, staffB, staffC), 0);
 
-        // Staff C phải bị loại bởi fairness cap
-        assertEquals(2, candidates.size(), "Fairness cap phải loại Staff C ra khỏi danh sách ứng viên");
+        // Monthly workload is a scoring preference, not a hard constraint.
+        assertEquals(3, candidates.size(), "Every hard-feasible candidate must remain available to MRV");
         org.junit.jupiter.api.Assertions.assertTrue(
-                candidates.stream().noneMatch(e -> e.getEmployment().getUser().getId().equals(userC.getId())),
-                "Staff C không được xuất hiện trong danh sách ứng viên");
+                candidates.stream().anyMatch(e -> e.getEmployment().getUser().getId().equals(userC.getId())),
+                "High monthly workload alone must not hide a feasible employee");
+        SchedulerConfiguration fairnessOnly=SchedulerConfiguration.builder().fairnessWeight(BigDecimal.ONE)
+                .skillWeight(BigDecimal.ZERO).hourWeight(BigDecimal.ZERO).restTimeWeight(BigDecimal.ZERO).availabilityWeight(BigDecimal.ZERO).build();
+        assertTrue(service.calculateScore(staffA,slot,fairnessOnly,0)>service.calculateScore(staffC,slot,fairnessOnly,0));
     }
 
     /**

@@ -28,7 +28,9 @@ import {getStoreConfiguration} from '../services/storeConfigService';
 import {newShiftDefaults,validateShiftForm,shiftRegistrationDeadline} from '../utils/shiftForm.js';
 import SchedulePlanner from '../features/schedule-planner/SchedulePlanner.jsx';
 import AutoSchedulerVisualization from '../features/auto-scheduler/AutoSchedulerVisualization.jsx';
-import {shiftsInWindow} from '../features/auto-scheduler/visualizationModel.js';
+import {assignmentChanges, replayShifts, shiftsInWindow} from '../features/auto-scheduler/visualizationModel.js';
+import {assignmentsOf} from '../features/schedule-planner/plannerModel.js';
+import ScheduleReveal from '../features/auto-scheduler/ScheduleReveal.jsx';
 
 /* ── Helpers ────────────────────────────────────────────── */
 // Pastel colour palette for schedule views
@@ -130,6 +132,24 @@ export const getSkillColor = (sk) => {
 };
 
 const colorFor = (name = '') => defaultColorFor(name);
+
+const formatScheduleMutationError = (message, form = {}) => {
+  const rawMessage = String(message || '');
+  const dateLabel = form.shiftDate
+    ? form.shiftDate.split('-').reverse().join('/')
+    : 'ngày đã chọn';
+  const start = String(form.startTime || '').slice(0, 5);
+  const end = String(form.endTime || '').slice(0, 5);
+  const timeLabel = start && end ? ` ${start}–${end}` : '';
+
+  if (rawMessage.toLowerCase().includes('outside registered availability')) {
+    return `Nhân viên chưa đăng ký khả dụng cho ca${timeLabel} ngày ${dateLabel}. Hãy cập nhật mục Khả dụng nhân sự hoặc chọn nhân viên/khung giờ khác.`;
+  }
+  if (rawMessage.toLowerCase().includes('blackout date')) {
+    return `Nhân viên đã đánh dấu không thể làm việc ngày ${dateLabel}. Hãy chọn nhân viên hoặc ngày khác.`;
+  }
+  return rawMessage || 'Không thể lưu ca làm việc. Vui lòng thử lại.';
+};
 
 // DOW labels in Vietnamese
 const DOW_VI = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -352,6 +372,7 @@ export default function SchedulePage() {
   const [assignments, setAssignments] = useState({});
   const [allShifts, setAllShifts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [publishingSchedule, setPublishingSchedule] = useState(false);
   const [error, setError] = useState('');
 
 
@@ -367,6 +388,7 @@ export default function SchedulePage() {
     endDate: '',
   });
   const [autoVisualization, setAutoVisualization] = useState(null);
+  const [matrixAutoReplay, setMatrixAutoReplay] = useState(null);
   const autoVisualizationLock = useRef(false);
 
   /* -- navigation state -- */
@@ -513,6 +535,16 @@ export default function SchedulePage() {
   },[location.pathname,location.search,navigate,weekDatesFull]);
   const today = currentDate;
   const displayedDates = viewMode === 'Ngày' ? [currentDate] : weekDatesFull;
+  const publishSummary = useMemo(() => {
+    const startDate = toISODate(displayedDates[0]);
+    const endDate = toISODate(displayedDates.at(-1));
+    const shiftsInRange = allShifts.filter((shift) => shift.shiftDate >= startDate && shift.shiftDate <= endDate);
+    const draftCount = shiftsInRange.filter((shift) => !shift.status || shift.status === 'DRAFT').length;
+    const publishedCount = shiftsInRange.filter((shift) => shift.status === 'PUBLISHED').length;
+    const todayIso = toISODate(new Date());
+    const completedCount = shiftsInRange.filter((shift) => shift.status === 'COMPLETED' || (shift.status === 'PUBLISHED' && shift.shiftDate < todayIso)).length;
+    return { total: shiftsInRange.length, draftCount, publishedCount, completedCount };
+  }, [allShifts, displayedDates]);
 
   /* ── Date Navigator & Calendar Popover Handlers ── */
   const openCalendarPopover = () => {
@@ -630,6 +662,7 @@ export default function SchedulePage() {
     if (String(nextStoreId) === String(storeId)) return;
     if (!stores.some(store => String(store.id) === String(nextStoreId))) return;
     setStoreId(nextStoreId);
+    setMatrixAutoReplay(null);
     setSelected3DShiftId(null);
     setStoreZones([]);
     setEmployees([]);
@@ -791,7 +824,7 @@ export default function SchedulePage() {
     // The schedule board needs the complete active-store roster so empty rows,
     // assignment rendering, filters, and headcounts are not truncated by the
     // employment endpoint's default 20-item page.
-    Promise.all([getStaffByStore(storeId, 0, 100), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
+    return Promise.all([getStaffByStore(storeId, 0, 100), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
       .then(([staffRes, shiftsRes, skillsRes]) => {
         const loadedSkills = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
         if (loadedSkills.length > 0) {
@@ -1341,7 +1374,7 @@ export default function SchedulePage() {
       notifyShiftUpdates();
       await loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Tạo lịch thất bại');
+      setError(formatScheduleMutationError(err.response?.data?.message, registerForm));
     } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
@@ -1399,7 +1432,7 @@ export default function SchedulePage() {
       // field (requirements, assignment metadata and persisted note).
       await loadData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Cập nhật ca làm việc thất bại');
+      setError(formatScheduleMutationError(err.response?.data?.message, registerForm));
     } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
@@ -1589,18 +1622,32 @@ export default function SchedulePage() {
   const handlePrint = () => window.print();
 
   const handlePublish = async () => {
+    if (publishingSchedule) return;
     const dateFrom = toISODate(displayedDates[0]);
     const dateTo = toISODate(displayedDates[displayedDates.length - 1]);
+    setPublishingSchedule(true);
     try {
-      await publishShifts(storeId, dateFrom, dateTo);
-      showToast(
-        'Xuất bản thành công! ',
-        `Lịch làm việc từ ${fmtFull(displayedDates[0])} đến ${fmtFull(displayedDates[displayedDates.length - 1])} đã được xuất bản và thông báo đến nhân viên.`
-      );
-      loadData();
+      const { data: result } = await publishShifts(storeId, dateFrom, dateTo);
+      const publishedCount = Number(result?.publishedCount ?? 0);
+      const alreadyPublishedCount = Number(result?.alreadyPublishedCount ?? 0);
+      const totalShifts = Number(result?.totalShifts ?? 0);
+      if (publishedCount > 0) {
+        showToast(
+          'Đã xuất bản lịch',
+          `Đã công bố ${publishedCount}/${totalShifts} ca; ${result?.notifiedStaffCount ?? 0} nhân viên được thông báo.${alreadyPublishedCount ? ` ${alreadyPublishedCount} ca đã công bố từ trước.` : ''}`
+        );
+      } else {
+        showToast(
+          'Lịch đã được xuất bản',
+          totalShifts ? `${alreadyPublishedCount} ca trong khoảng đang ở trạng thái đã xuất bản.` : 'Khoảng thời gian này chưa có ca để xuất bản.'
+        );
+      }
+      await loadData();
       notifyShiftUpdates();
     } catch (err) {
       showToast('Lỗi xuất bản', err.response?.data?.message || 'Không thể xuất bản lịch làm việc. Vui lòng thử lại.');
+    } finally {
+      setPublishingSchedule(false);
     }
   };
 
@@ -1612,7 +1659,7 @@ export default function SchedulePage() {
       const response = await getShiftsForStore(storeId);
       const before = shiftsInWindow(response.data, startDate, endDate);
       const store = stores.find(s => String(s.id) === String(storeId));
-      setAutoVisualization({storeId, storeName: store?.name || 'Cửa hàng', storeCategory: store?.category || 'OTHER', layout: storeLayout, zones: storeZones, employees, skills, before, startDate, endDate});
+      setAutoVisualization({storeId, storeName: store?.name || 'Cửa hàng', storeCategory: store?.category || 'OTHER', layout: storeLayout, zones: storeZones, employees, skills, before, startDate, endDate, replayOnBoard: !['3D', 'Planner'].includes(viewMode)});
       setShowAutoScheduleModal(false);
     } catch (err) {
       showToast('Không tải được lịch hiện tại', err.response?.data?.message || 'Chưa chạy xếp lịch. Vui lòng thử lại.');
@@ -1620,14 +1667,58 @@ export default function SchedulePage() {
   };
   const handleRunAutoSchedule = () => prepareAutoVisualization(toISODate(weekDatesFull[0]), toISODate(weekDatesFull[weekDatesFull.length - 1]));
 
+  const matrixReplayChanges = useMemo(() => matrixAutoReplay ? assignmentChanges(matrixAutoReplay.before, matrixAutoReplay.after) : [], [matrixAutoReplay]);
+  useEffect(() => {
+    if (loading || !matrixAutoReplay?.playing || matrixAutoReplay.step >= matrixReplayChanges.length) return;
+    const timer = setTimeout(() => setMatrixAutoReplay(current => {
+      if (!current) return current;
+      const step = current.step + 1;
+      return { ...current, step, playing: step < matrixReplayChanges.length };
+    }), 1500);
+    return () => clearTimeout(timer);
+  }, [matrixAutoReplay, matrixReplayChanges.length, loading]);
+  const replayMatrixAssignments = useMemo(() => {
+    if (!matrixAutoReplay) return assignments;
+    const shifts = replayShifts(matrixAutoReplay.before, matrixAutoReplay.after, matrixReplayChanges, matrixAutoReplay.step);
+    const replayShiftIds = new Set([...matrixAutoReplay.before, ...matrixAutoReplay.after].map(shift => shift.id));
+    const map = {};
+    Object.entries(assignments).forEach(([staffId, days]) => {
+      Object.entries(days).forEach(([iso, dayShifts]) => {
+        const remaining = dayShifts.filter(shift => !replayShiftIds.has(shift.id));
+        if (remaining.length) {
+          if (!map[staffId]) map[staffId] = {};
+          map[staffId][iso] = remaining;
+        }
+      });
+    });
+    shifts.forEach(shift => assignmentsOf(shift).forEach(assignment => {
+      const staffId = assignment.staffId;
+      const iso = shift.shiftDate || shift.date;
+      if (!staffId || !iso) return;
+      const emp = employees.find(person => String(person.staffId || person.id) === String(staffId));
+      const positionName = resolveShiftPositionName(shift, assignment, skills, emp);
+      const item = { ...shift, ...assignment, id: shift.id, staffId, assignedStaffId: staffId, positionName, skillName: positionName, zoneName: assignment.zoneName };
+      if (!map[staffId]) map[staffId] = {};
+      if (!map[staffId][iso]) map[staffId][iso] = [];
+      map[staffId][iso].push(item);
+    }));
+    return map;
+  }, [matrixAutoReplay, matrixReplayChanges, assignments, employees, skills]);
+  const activeMatrixReplayChange = matrixAutoReplay?.step ? matrixReplayChanges[matrixAutoReplay.step - 1] : null;
+  const activeMatrixReplayDate = activeMatrixReplayChange && [...matrixAutoReplay.after, ...matrixAutoReplay.before].find(shift => shift.id === activeMatrixReplayChange.shiftId);
+  useEffect(() => {
+    if (!activeMatrixReplayChange || !matrixAutoReplay) return;
+    const changedShift = [...matrixAutoReplay.after, ...matrixAutoReplay.before].find(shift => shift.id === activeMatrixReplayChange.shiftId);
+    const date = changedShift?.shiftDate || changedShift?.date;
+    if (date && !weekDatesFull.some(day => toISODate(day) === date)) setCurrentDate(new Date(`${date}T12:00:00`));
+  }, [activeMatrixReplayChange, matrixAutoReplay, weekDatesFull]);
+
   /* ── Render ────────────────────────────────────── */
   return (
     <div className={`sch-page ${['3D','Planner'].includes(viewMode) && scheduleSubTab === 'board' ? 'sch-page--explorer' : ''}`}>
       {scheduleSubTab === 'board' && <header className="sch-page-heading">
         <div className="sch-page-heading-copy">
-          <span className="sch-page-eyebrow">VẬN HÀNH / NHÂN SỰ</span>
           <h1>Lịch làm việc</h1>
-          <p>Xem phân công, điều chỉnh ca và theo dõi nhu cầu nhân sự theo từng ngày.</p>
         </div>
         <div className="sch-page-metrics" aria-label="Tổng quan lịch làm việc">
           <div><strong>{employees.length}</strong><span>Nhân viên</span></div>
@@ -1691,10 +1782,15 @@ export default function SchedulePage() {
               <Compass size={13} />
               <span>Không gian 3D</span>
             </button>
-            <button type="button" className={`sch-toggle-btn ${viewMode === 'Planner' ? 'active' : ''}`} onClick={()=>setViewMode('Planner')}>3D Schedule Planner</button>
+            <button type="button" className={`sch-toggle-btn ${viewMode === 'Planner' ? 'active' : ''}`} onClick={()=>setViewMode('Planner')} title="Lập kế hoạch theo vị trí trong không gian 3D">Lập kế hoạch 3D</button>
           </div>
 
           <div className="sch-header-right">
+            <div className="sch-schedule-state-summary" aria-label="Trạng thái lịch trong khoảng đang xem">
+              <span className="is-draft"><b>{publishSummary.draftCount}</b> nháp</span>
+              <span className="is-published"><b>{publishSummary.publishedCount}</b> đã công bố</span>
+              {publishSummary.completedCount > 0 && <span className="is-completed"><b>{publishSummary.completedCount}</b> đã qua</span>}
+            </div>
             {pendingCrossStoreRequests.length > 0 && (
               <button
                 type="button"
@@ -1767,10 +1863,10 @@ export default function SchedulePage() {
                   });
                   setShowAutoScheduleModal(true);
                 }}
-                title="Gợi ý xếp ca tự động bằng AI"
+                title="Xếp nhân sự tự động và lưu kết quả trên máy chủ"
               >
                 <img src={iconAi} alt="AI" className="sch-ai-btn-icon" />
-                <span>{autoScheduling ? 'Đang xếp...' : 'Gợi ý AI'}</span>
+                <span>{autoScheduling ? 'Đang xếp...' : 'Xếp tự động'}</span>
               </button>
 
               <div className="sch-publish-divider" />
@@ -1779,13 +1875,15 @@ export default function SchedulePage() {
                 type="button"
                 className="sch-capsule-btn sch-capsule-publish-btn"
                 onClick={handlePublish}
-                title="Xuất bản lịch tuần này"
+                disabled={publishingSchedule || publishSummary.draftCount === 0}
+                aria-busy={publishingSchedule}
+                title={publishSummary.draftCount ? `Xuất bản ${publishSummary.draftCount} ca nháp` : 'Không còn ca nháp trong khoảng đang xem'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
-                <span>Lịch xuất bản</span>
+                <span>{publishingSchedule ? 'Đang xuất bản…' : publishSummary.draftCount ? `Công bố ${publishSummary.draftCount} ca` : publishSummary.total ? `Đã xuất bản ${publishSummary.publishedCount}/${publishSummary.total}` : 'Chưa có ca'}</span>
               </button>
             </div>
           </div>
@@ -1977,7 +2075,7 @@ export default function SchedulePage() {
         {error && <p className="sch-error">{error}</p>}
 
         {/* Schedule View: 3D Spatial View vs 2D Matrix Table */}
-        {viewMode === 'Planner'?<SchedulePlanner key={storeId} storeId={storeId} storeName={stores.find(s=>String(s.id)===String(storeId))?.name||'Cửa hàng'} storeCategory={stores.find(s=>String(s.id)===String(storeId))?.category||'OTHER'} layout={storeLayout} zones={storeZones} employees={employees} skills={skills} shifts={allShifts} date={toISODate(currentDate)} onDateChange={value=>setCurrentDate(new Date(`${value}T12:00:00`))} onExit={()=>setViewMode('Tuần')} onReload={loadData}/>:viewMode === '3D' ? (
+        {viewMode === 'Planner'?<SchedulePlanner key={storeId} storeId={storeId} storeName={stores.find(s=>String(s.id)===String(storeId))?.name||'Cửa hàng'} storeCategory={stores.find(s=>String(s.id)===String(storeId))?.category||'OTHER'} layout={storeLayout} zones={storeZones} employees={employees} skills={skills} shifts={allShifts} date={toISODate(currentDate)} onDateChange={value=>setCurrentDate(new Date(`${value}T12:00:00`))} onExit={()=>setViewMode('Tuần')} onReload={loadData} onOpenAutoSchedule={handleRunAutoSchedule} isAutoScheduling={autoScheduling}/>:viewMode === '3D' ? (
           <div className="sch-explorer-stage">
             {/* 3D Canvas Spatial Model - Full Expanded Height & Width */}
             <div className="sch-explorer-frame">
@@ -2016,11 +2114,39 @@ export default function SchedulePage() {
                 <span className="sch-board-kicker">BẢNG PHÂN CÔNG</span>
                 <h2>{viewMode === 'Ngày' ? 'Lịch theo ngày' : 'Lịch theo tuần'}</h2>
               </div>
-              <div className="sch-pattern-legend">
-                <span className="sch-pattern-swatch" aria-hidden="true" />
-                Màu và sọc chéo thể hiện vị trí làm việc
+              <div className="sch-board-caption-actions">
+                {viewMode !== 'Ngày' && isManager && !matrixAutoReplay && <button type="button" className="sch-board-auto-btn" onClick={handleRunAutoSchedule} disabled={autoScheduling}>{autoScheduling ? 'Đang chuẩn bị…' : '✨ Xếp ca tự động'}</button>}
+                <div className="sch-pattern-legend">
+                  <span className="sch-pattern-swatch" aria-hidden="true" />
+                  Màu và sọc chéo thể hiện vị trí làm việc
+                </div>
               </div>
             </div>
+            {matrixAutoReplay && <section className="sch-matrix-playback" aria-label="Animation xếp ca trên bảng tuần">
+              <div className="sch-matrix-playback-info">
+                <span className={`sch-matrix-playback-icon ${matrixAutoReplay.playing ? 'is-playing' : ''}`} aria-hidden="true">✦</span>
+                <div className="sch-matrix-playback-copy">
+                  <strong>{matrixAutoReplay.playing ? 'Đang phát lại xếp ca' : matrixAutoReplay.step >= matrixReplayChanges.length ? 'Đã phát xong' : 'Đang tạm dừng'}</strong>
+                  <span role="status">{activeMatrixReplayChange ? `${activeMatrixReplayChange.type === 'added' ? 'Đã xếp' : 'Đã bỏ'} ${activeMatrixReplayChange.assignment.staffName || employees.find(person => String(person.staffId || person.id) === String(activeMatrixReplayChange.assignment.staffId))?.fullName || 'nhân viên'}${activeMatrixReplayDate?.shiftDate ? ` · ${activeMatrixReplayDate.shiftDate.split('-').reverse().join('/')}` : ''}` : 'Sẵn sàng phát lại các phân công đã lưu'}</span>
+                </div>
+              </div>
+              <div className="sch-matrix-playback-timeline">
+                <div className="sch-matrix-playback-progress-label"><span>Tiến trình</span><strong>{matrixAutoReplay.step} / {matrixReplayChanges.length}</strong></div>
+                <input aria-label="Bước animation xếp ca" type="range" min="0" max={matrixReplayChanges.length} value={matrixAutoReplay.step} style={{'--replay-progress': `${matrixReplayChanges.length ? matrixAutoReplay.step / matrixReplayChanges.length * 100 : 0}%`}} onChange={event => setMatrixAutoReplay(current => ({ ...current, step: Number(event.target.value), playing: false }))} />
+              </div>
+              <div className="sch-matrix-playback-controls">
+                <label className="sch-replay-motion-mode">Hiệu ứng
+                  <select aria-label="Hiệu ứng xếp ca" value={matrixAutoReplay.motionMode || 'system'} onChange={event => setMatrixAutoReplay(current => ({...current, motionMode: event.target.value}))}>
+                    <option value="system">{window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Hệ thống: giảm chuyển động' : 'Theo hệ thống'}</option>
+                    <option value="full">Bay thẻ ca</option>
+                    <option value="reduced">Hiện nhẹ</option>
+                  </select>
+                </label>
+                <button type="button" className="sch-matrix-playback-primary" onClick={() => setMatrixAutoReplay(current => ({ ...current, step: current.step >= matrixReplayChanges.length ? 0 : current.step, playing: !(current.playing && current.step < matrixReplayChanges.length) }))} disabled={!matrixReplayChanges.length}><span aria-hidden="true">{matrixAutoReplay.playing ? 'Ⅱ' : '▶'}</span> {matrixAutoReplay.playing ? 'Tạm dừng' : matrixAutoReplay.step >= matrixReplayChanges.length ? 'Phát lại' : 'Tiếp tục'}</button>
+                <button type="button" onClick={() => setMatrixAutoReplay(current => ({ ...current, step: 0, playing: false }))}>Về đầu</button>
+                <button type="button" className="sch-matrix-playback-close" onClick={() => setMatrixAutoReplay(null)} aria-label="Đóng animation">×</button>
+              </div>
+            </section>}
             {viewMode === 'Ngày' && (
               <div className="sch-day-nav-pills-bar">
                 <span className="sch-day-nav-label">Chọn ngày:</span>
@@ -2074,7 +2200,7 @@ export default function SchedulePage() {
                     return (
                       <th
                         key={iso}
-                        className="sch-th-center sch-col-date-header"
+                        className={`sch-th-center sch-col-date-header ${(activeMatrixReplayDate?.shiftDate || activeMatrixReplayDate?.date) === iso ? 'sch-replay-heading-active' : ''}`}
                         onClick={() => {
                           if (viewMode === 'Tuần') {
                             setCurrentDate(d);
@@ -2114,7 +2240,8 @@ export default function SchedulePage() {
                 const unassignedShiftsByDate = {};
                 displayedDates.forEach((d) => {
                   const iso = toISODate(d);
-                  const dayShifts = allShifts.filter((s) => s.shiftDate === iso);
+                  // Keep the original demand row as the flight origin throughout replay.
+                  const dayShifts = (matrixAutoReplay?.before || allShifts).filter((s) => s.shiftDate === iso);
                   const unassignedInDay = dayShifts.filter((shift) => {
                     const totalAssigned =
                       (Array.isArray(shift.shiftAssignments) ? shift.shiftAssignments.length : 0) +
@@ -2141,7 +2268,7 @@ export default function SchedulePage() {
                             Nhu cầu định biên
                           </div>
                           <div className="sch-emp-role" style={{ color: '#0d9488' }}>
-                            Ca DRAFT chờ xếp
+                            {matrixAutoReplay ? 'Nhu cầu trước khi xếp' : 'Ca DRAFT chờ xếp'}
                           </div>
                         </div>
                       </div>
@@ -2186,7 +2313,7 @@ export default function SchedulePage() {
                   const hasSubmittedAvail = staffWithAvailability.has(empId);
 
                   return (
-                    <tr key={empId}>
+                    <tr key={empId} className={activeMatrixReplayChange && String(activeMatrixReplayChange.assignment.staffId) === String(empId) ? 'sch-replay-row-active' : ''}>
                       {/* Employee info cell */}
                       <td className="sch-col-emp">
                         <div
@@ -2225,7 +2352,7 @@ export default function SchedulePage() {
                       {/* Shift cells */}
                       {displayedDates.map((d) => {
                         const iso = toISODate(d);
-                        const rawCellShifts = assignments[empId]?.[iso] || [];
+                        const rawCellShifts = replayMatrixAssignments[empId]?.[iso] || [];
 
                         const cellShifts = selectedSkills.includes('ALL')
                           ? rawCellShifts
@@ -2244,8 +2371,10 @@ export default function SchedulePage() {
                             });
                         const isEmpty = cellShifts.length === 0;
 
+                        const isReplayCell = activeMatrixReplayChange && String(activeMatrixReplayChange.assignment.staffId) === String(empId) && (activeMatrixReplayDate?.shiftDate || activeMatrixReplayDate?.date) === iso;
                         return (
-                          <td key={iso} className="sch-cell">
+                          <td key={iso} className={`sch-cell ${isReplayCell ? 'sch-cell-replay-active' : ''}`}>
+                            {isReplayCell && <span key={matrixAutoReplay.step} className={`sch-replay-cell-flash ${activeMatrixReplayChange.type === 'removed' ? 'is-removed' : ''}`} aria-hidden="true" />}
                             {/* Shift chip hiển thị đúng màu và tên vị trí nhân viên đảm nhiệm */}
                             {cellShifts.map((s, sIdx) => {
                               const shiftPosName = (s.positionName && s.positionName !== 'Nhân viên')
@@ -2255,6 +2384,7 @@ export default function SchedulePage() {
                               const hasManagerNote = Boolean(s.note && s.note.trim().length > 0);
                               const chipKey = s.id ? `${s.id}-${empId}-${iso}` : `shift-${empId}-${iso}-${sIdx}`;
                               const isMenuOpen = menuFor?.shift?.id === s.id && menuFor.empId === empId && menuFor.dateIso === iso;
+                              const isRevealing = Boolean(isReplayCell && activeMatrixReplayChange?.type === 'added' && activeMatrixReplayChange.shiftId === s.id);
 
                               return (
                                 <div
@@ -2262,8 +2392,9 @@ export default function SchedulePage() {
                                   className="sch-shift-wrap"
                                   ref={isMenuOpen ? menuRef : null}
                                 >
+                                  <ScheduleReveal active={isRevealing} replayKey={matrixAutoReplay?.step} motionMode={matrixAutoReplay?.motionMode || 'system'}>
                                   <div
-                                    className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''}`}
+                                    className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''} ${isRevealing ? 'sch-shift-replay-enter' : ''}`}
                                     style={{
                                       background: `repeating-linear-gradient(
                                         135deg,
@@ -2310,6 +2441,7 @@ export default function SchedulePage() {
                                     )}
                                   </div>
 
+                                  </ScheduleReveal>
                                   {isMenuOpen && (
                                     <div
                                       className="sch-shift-menu"
@@ -2985,14 +3117,14 @@ export default function SchedulePage() {
         />
       )}
 
-      {/* ═══ MODAL: Tự động xếp ca làm việc (AI Scheduler) ═══ */}
+      {/* ═══ MODAL: Mở phân tích xếp ca tự động ═══ */}
       {showAutoScheduleModal && (
         <div className="sch-modal-overlay" onClick={() => setShowAutoScheduleModal(false)}>
           <div className="sch-modal sch-auto-schedule-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sch-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 
-                <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a' }}>Tự động xếp ca làm việc (AI Scheduler)</h2>
+                <h2 style={{ fontSize: 18, margin: 0, color: '#0f172a' }}>Phân tích xếp ca tự động</h2>
               </div>
               <button
                 type="button"
@@ -3002,7 +3134,7 @@ export default function SchedulePage() {
             </div>
 
             <p style={{ margin: '8px 0 16px', fontSize: 13, color: '#64748b' }}>
-              Hệ thống sẽ chạy thuật toán phân bổ thông minh dựa trên định biên nhân sự đã thiết lập.
+              Bước này chỉ mở bảng so sánh cho khoảng ngày đã chọn. Tại bước sau, bạn có thể thử phương án không lưu hoặc chạy và lưu kết quả thật.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
@@ -3043,15 +3175,15 @@ export default function SchedulePage() {
                   {allShifts.reduce((sum, s) => {
                     const reqs = s.skillRequirements || [];
                     return sum + reqs.reduce((acc, r) => acc + (r.requiredStaff || r.requiredCount || 1), 0);
-                  }, 0) || 48}
+                  }, 0)}
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Vị trí nhân sự yêu cầu</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Nhu cầu vị trí đã khai báo</div>
               </div>
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 10px', textAlign: 'center' }}>
                 <div style={{ fontSize: 24, fontWeight: 800, color: '#0d9488' }}>
                   {employees.length}
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Nhân viên khả dụng</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Nhân viên tại cửa hàng</div>
               </div>
             </div>
 
@@ -3094,14 +3226,14 @@ export default function SchedulePage() {
                 }}
                 style={{ background: '#0d9488', color: '#fff', padding: '9px 20px', borderRadius: 8, fontWeight: 700 }}
               >
-                {autoScheduling ? 'Đang tải lịch...' : 'Xem trước vị trí'}
+                {autoScheduling ? 'Đang mở bảng phân tích…' : 'Mở phân tích phương án'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {autoVisualization && <AutoSchedulerVisualization snapshot={autoVisualization} onClose={() => setAutoVisualization(null)} onSaved={() => {loadData(); notifyShiftUpdates();}}/>}
+      {autoVisualization && <AutoSchedulerVisualization snapshot={autoVisualization} onClose={() => setAutoVisualization(null)} onSaved={async () => {await loadData(); notifyShiftUpdates();}} onReplayOnBoard={({before, after, startDate}) => { setViewMode('Tuần'); setScheduleSubTab('board'); setCurrentDate(new Date(`${startDate}T12:00:00`)); setSelectedEmployees(['ALL']); setSelectedSkills(['ALL']); setMatrixAutoReplay({before, after, step: 0, playing: true}); setAutoVisualization(null); }}/>}
 
     </div>
   );

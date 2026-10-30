@@ -164,7 +164,8 @@ public class DigitalTwinConcurrencyIntegrationTest {
                         .targetZoneForBId(zoneA.getId())
                         .build());
                 successCount.incrementAndGet();
-            } catch (Exception ignored) {
+            } catch (Exception failure) {
+                failure.printStackTrace();
             } finally {
                 doneLatch.countDown();
             }
@@ -181,7 +182,8 @@ public class DigitalTwinConcurrencyIntegrationTest {
                         .targetZoneForBId(zoneB.getId())
                         .build());
                 successCount.incrementAndGet();
-            } catch (Exception ignored) {
+            } catch (Exception failure) {
+                failure.printStackTrace();
             } finally {
                 doneLatch.countDown();
             }

@@ -11,5 +11,6 @@ public class ShiftAssignmentCreateRequest {
 
     private UUID zoneId;
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "Override recurring availability only; skills, capacity, leave, blackout, overlap and hour limits still apply")
     private Boolean force;
 }

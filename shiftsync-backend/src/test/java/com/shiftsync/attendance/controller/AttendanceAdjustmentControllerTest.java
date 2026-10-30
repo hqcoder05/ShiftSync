@@ -113,14 +113,14 @@ public class AttendanceAdjustmentControllerTest {
                 .approvedBy(managerUser.getId())
                 .build();
 
-        when(service.rejectRequest(storeId, requestId, managerUser.getId())).thenReturn(responseDTO);
+        when(service.rejectRequest(storeId, requestId, managerUser.getId(), null)).thenReturn(responseDTO);
 
-        ResponseEntity<AdjustmentResponseDTO> response = controller.rejectRequest(storeId, requestId, managerUser);
+        ResponseEntity<AdjustmentResponseDTO> response = controller.rejectRequest(storeId, requestId, null, managerUser);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(com.shiftsync.attendance.enums.AdjustmentStatus.REJECTED, response.getBody().getStatus());
-        verify(service, times(1)).rejectRequest(storeId, requestId, managerUser.getId());
+        verify(service, times(1)).rejectRequest(storeId, requestId, managerUser.getId(), null);
     }
 }
 

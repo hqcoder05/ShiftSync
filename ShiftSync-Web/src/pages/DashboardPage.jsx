@@ -13,6 +13,7 @@ import { getStoreAdjustmentRequests, approveAdjustmentRequest, rejectAdjustmentR
 import { getStoreLayout, getStoreZones } from "../services/layoutService";
 import { getAvatarForEmployee } from "../components/avatarConfigs";
 import { toast } from "../context/ToastContext";
+import { getChartBuckets, getChartRange, toChartISO } from "../components/dashboard/chartPeriods";
 
 const fmtISO = (d) => {
   const y = d.getFullYear();
@@ -56,6 +57,7 @@ function resolvePositionId(shift, assign, positions) {
 
 export default function DashboardPage() {
   const [date, setDate] = useState(() => new Date());
+  const [chartPeriod, setChartPeriod] = useState("week");
   const [employeeId, setEmployeeId] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState(() => localStorage.getItem("selectedStoreId") || "");
   const [stores, setStores] = useState([]);
@@ -70,6 +72,8 @@ export default function DashboardPage() {
   const [pendingSwap, setPendingSwap] = useState([]);
   const [pendingAdj, setPendingAdj] = useState([]);
   const [dataLoadErrors, setDataLoadErrors] = useState([]);
+
+  const chartRange = useMemo(() => getChartRange(date, chartPeriod), [date, chartPeriod]);
 
   // In-flight mutation guard for optimistic updates
   const mutatingRef = useRef(false);
@@ -128,7 +132,7 @@ export default function DashboardPage() {
     try {
       const [shiftRes, attRes, reqRes, leaveRes, swapRes, adjRes] = await Promise.allSettled([
         getShiftsForStore(selectedStoreId),
-        getStoreAttendance(selectedStoreId),
+        getStoreAttendance(selectedStoreId, toChartISO(chartRange.start), toChartISO(chartRange.end)),
         getRequests(),
         getStoreLeaveRequests(selectedStoreId, "PENDING"),
         getStoreSwapRequests(selectedStoreId, "PENDING"),
@@ -163,7 +167,7 @@ export default function DashboardPage() {
     } catch (err) {
       console.warn("Error reloading dashboard live data:", err);
     }
-  }, [selectedStoreId]);
+  }, [selectedStoreId, chartRange.start, chartRange.end]);
 
   useEffect(() => {
     reloadLiveData();
@@ -467,19 +471,17 @@ export default function DashboardPage() {
     }
   }, [pendingSwap, pendingAdj, pendingLeave, generalRequests, selectedStoreId]);
 
-  // 11. Week Arrays for Charts (7 days centered around selected date)
-  const week = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(date);
-      d.setDate(d.getDate() + i - 3);
-      return d;
-    });
-  }, [date]);
+  // 11. Period buckets: daily for a week, weekly for a month, monthly for a quarter/year.
+  const chartBuckets = useMemo(() => getChartBuckets(date, chartPeriod), [date, chartPeriod]);
 
   const assignedData = useMemo(() => {
-    return week.map((day) => {
-      const dISO = fmtISO(day);
-      const dayShifts = shifts.filter((s) => s.shiftDate === dISO || s.date === dISO);
+    return chartBuckets.map((bucket) => {
+      const startISO = fmtISO(bucket.start);
+      const endISO = fmtISO(bucket.end);
+      const dayShifts = shifts.filter((s) => {
+        const shiftDate = s.shiftDate || s.date;
+        return shiftDate >= startISO && shiftDate <= endISO;
+      });
 
       const counts = {};
       positions.forEach((p) => { counts[p.id] = 0; });
@@ -505,14 +507,18 @@ export default function DashboardPage() {
         }
       });
 
-      return { day, counts };
+      return { day: bucket.day, label: bucket.label, isAnchor: bucket.isAnchor, counts };
     });
-  }, [week, shifts, positions, selectedEmp]);
+  }, [chartBuckets, shifts, positions, selectedEmp]);
 
   const hoursData = useMemo(() => {
-    return week.map((day) => {
-      const dISO = fmtISO(day);
-      const dayShifts = shifts.filter((s) => s.shiftDate === dISO || s.date === dISO);
+    return chartBuckets.map((bucket) => {
+      const startISO = fmtISO(bucket.start);
+      const endISO = fmtISO(bucket.end);
+      const dayShifts = shifts.filter((s) => {
+        const shiftDate = s.shiftDate || s.date;
+        return shiftDate >= startISO && shiftDate <= endISO;
+      });
 
       let planned = 0;
       dayShifts.forEach((s) => {
@@ -527,18 +533,18 @@ export default function DashboardPage() {
             if (selectedEmp && empName !== selectedEmp.name && assignEmpId !== selectedEmp.id) return;
             planned += dur;
           });
-        } else {
+        } else if (s.staffId || s.staffName) {
           const empName = s.staffName;
           const shiftEmpId = String(s.staffId || "");
           if (selectedEmp && empName !== selectedEmp.name && shiftEmpId !== selectedEmp.id) return;
-          planned += dur * (s.requiredStaff || 1);
+          planned += dur;
         }
       });
 
       let actual = 0;
       const dayAtt = attendanceList.filter((a) => {
         const aDate = a.shiftDate || a.date || a.attendanceDate || (a.checkInTime ? fmtISO(new Date(a.checkInTime)) : "");
-        return aDate === dISO;
+        return aDate >= startISO && aDate <= endISO;
       });
 
       dayAtt.forEach((a) => {
@@ -550,18 +556,18 @@ export default function DashboardPage() {
           const durMs = new Date(a.checkOutTime) - new Date(a.checkInTime);
           const h = Math.max(0, durMs / (1000 * 60 * 60));
           actual += h;
-        } else if (a.status === "PRESENT") {
-          actual += 8;
         }
       });
 
       return {
-        day,
+        day: bucket.day,
+        label: bucket.label,
+        isAnchor: bucket.isAnchor,
         planned: Math.round(planned * 10) / 10,
         actual: Math.round(actual * 10) / 10,
       };
     });
-  }, [week, shifts, attendanceList, selectedEmp]);
+  }, [chartBuckets, shifts, attendanceList, selectedEmp]);
 
   // 12. KPIs Calculation
   const kpis = useMemo(() => {
@@ -653,9 +659,9 @@ export default function DashboardPage() {
   // 14. CSV Export
   const handleExport = useCallback(() => {
     try {
-      const headers = ["Ngày", "Lịch xếp (giờ)", "Thực làm (giờ)"];
+      const headers = ["Khoảng thời gian", "Đã phân công (giờ)", "Thực làm (giờ)"];
       const rows = hoursData.map((h) => [
-        fmtISO(h.day),
+        h.label,
         h.planned,
         h.actual,
       ]);
@@ -687,6 +693,8 @@ export default function DashboardPage() {
       employeeId={employeeId}
       onEmployeeChange={setEmployeeId}
       onDateChange={setDate}
+      chartPeriod={chartPeriod}
+      onChartPeriodChange={setChartPeriod}
       onExport={handleExport}
       onOptimisticAction={handleOptimisticAction}
       storeName={currentStore.name}

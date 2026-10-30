@@ -82,7 +82,7 @@ public class SecurityTestController {
             return userRepository.save(newUser);
         });
 
-        String token = jwtTokenProvider.generateToken(user.getEmail(), user.getSystemRole().name());
+        String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getSystemRole().name());
 
         Map<String, String> response = new HashMap<>();
         response.put("email", email);

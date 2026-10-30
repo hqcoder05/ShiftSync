@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
+import { getStoreConfiguration } from '../services/storeConfigService';
 import { getStaffByStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import {
@@ -86,8 +87,10 @@ const calcSlotHours = (startTime, endTime) => {
   const [sh, sm] = startStr.split(':').map(Number);
   const [eh, em] = endStr.split(':').map(Number);
   const diff = (eh * 60 + em) - (sh * 60 + sm);
-  return diff > 0 ? (diff / 60) : 8;
+  return (diff < 0 ? diff + 24 * 60 : diff) / 60;
 };
+
+const slotTimeLabel = (slot) => `${fmtTime(slot.startTime)} – ${fmtTime(slot.endTime)}${fmtTime(slot.endTime) < fmtTime(slot.startTime) ? ' (+1 ngày)' : ''}`;
 
 export default function StaffAvailabilityPage() {
   const navigate = useNavigate();
@@ -105,6 +108,7 @@ export default function StaffAvailabilityPage() {
   const [availabilityMap, setAvailabilityMap] = useState({}); // { staffId: [slots] }
   const [assignedShifts, setAssignedShifts] = useState([]); // ShiftDTO list
   const [loading, setLoading] = useState(false);
+  const [availabilityToleranceMinutes, setAvailabilityToleranceMinutes] = useState(null);
 
   /* -- Filters -- */
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -138,6 +142,10 @@ export default function StaffAvailabilityPage() {
 
   const handleCreateAvailability = async (e) => {
     e.preventDefault();
+    if (createForm.startTime === createForm.endTime) {
+      showToast('Khung giờ không hợp lệ', 'Giờ bắt đầu phải khác giờ kết thúc.');
+      return;
+    }
     try {
       await createAvailability({
         dayOfWeek: Number(createForm.dayOfWeek),
@@ -183,6 +191,15 @@ export default function StaffAvailabilityPage() {
   }, []);
 
   /* ── Load Skills ── */
+  useEffect(() => {
+    let cancelled = false;
+    setAvailabilityToleranceMinutes(null);
+    if (storeId) getStoreConfiguration(storeId)
+      .then(response => { if (!cancelled) setAvailabilityToleranceMinutes(response.data.availabilityToleranceMinutes ?? null); })
+      .catch(() => { if (!cancelled) setAvailabilityToleranceMinutes(null); });
+    return () => { cancelled = true; };
+  }, [storeId]);
+
   useEffect(() => {
     if (!storeId) return;
     getSkillsByStore(storeId)
@@ -516,6 +533,13 @@ export default function StaffAvailabilityPage() {
             {isStaff
               ? 'Xem và đăng ký khung giờ bạn có thể nhận ca trong tuần.'
               : 'Theo dõi giờ rảnh đã đăng ký để phân công ca phù hợp và tránh trùng lịch.'}
+          </p>
+          <p className="avail-subtitle">
+            {availabilityToleranceMinutes == null
+              ? 'Chưa tải được chính sách lịch rảnh của chi nhánh.'
+              : availabilityToleranceMinutes === 0
+                ? 'Xếp ca theo đúng khung giờ rảnh; giờ kết thúc sớm hơn giờ bắt đầu là sang ngày hôm sau.'
+                : `Chi nhánh cho phép lệch tối đa ${availabilityToleranceMinutes} phút ở hai đầu khung giờ rảnh khi xếp tự động, phân công tay và duyệt đổi ca.`}
           </p>
         </div>
 
@@ -929,7 +953,7 @@ export default function StaffAvailabilityPage() {
                               ) : (
                                 <div className="avail-slots-container">
                                   {daySlots.map((slot) => {
-                                    const timeStr = `${fmtTime(slot.startTime)} – ${fmtTime(slot.endTime)}`;
+                                    const timeStr = slotTimeLabel(slot);
                                     const hours = calcSlotHours(slot.startTime, slot.endTime);
                                     const isAssigned = !!assignedShift;
 
@@ -1133,7 +1157,7 @@ export default function StaffAvailabilityPage() {
                                 <div className={`avail-ts-emp-pos ${getRoleBadgeClass(emp.position)}`}>{emp.position || 'Nhân viên'}</div>
                                 <div className="avail-ts-time-pill">
                                   <Clock size={11} />
-                                  <span>{fmtTime(mSlot.startTime)} – {fmtTime(mSlot.endTime)}</span>
+                                  <span>{slotTimeLabel(mSlot)}</span>
                                 </div>
                               </div>
                             </div>
@@ -1198,7 +1222,7 @@ export default function StaffAvailabilityPage() {
                                 <div className={`avail-ts-emp-pos ${getRoleBadgeClass(emp.position)}`}>{emp.position || 'Nhân viên'}</div>
                                 <div className="avail-ts-time-pill">
                                   <Clock size={11} />
-                                  <span>{fmtTime(aSlot.startTime)} – {fmtTime(aSlot.endTime)}</span>
+                                  <span>{slotTimeLabel(aSlot)}</span>
                                 </div>
                               </div>
                             </div>
@@ -1267,7 +1291,7 @@ export default function StaffAvailabilityPage() {
                 <div className="avail-summary-row">
                   <span className="avail-summary-label">Khung giờ rảnh:</span>
                   <span className="avail-summary-val highlight">
-                    {fmtTime(quickAssignModal.slot.startTime)} – {fmtTime(quickAssignModal.slot.endTime)}
+                    {slotTimeLabel(quickAssignModal.slot)}
                   </span>
                 </div>
                 <div className="avail-summary-row">
@@ -1375,7 +1399,7 @@ export default function StaffAvailabilityPage() {
                 <div className="avail-summary-row">
                   <span className="avail-summary-label">Giờ rảnh đã đăng ký:</span>
                   <span className="avail-summary-val">
-                    {fmtTime(shiftDetailModal.slot.startTime)} – {fmtTime(shiftDetailModal.slot.endTime)}
+                    {slotTimeLabel(shiftDetailModal.slot)}
                   </span>
                 </div>
                 <div className="avail-summary-row">
@@ -1476,6 +1500,9 @@ export default function StaffAvailabilityPage() {
                 </div>
               </div>
 
+              <p className="avail-modal-sub" role="status">{createForm.endTime < createForm.startTime
+                ? `Kết thúc lúc ${createForm.endTime} ngày hôm sau (${calcSlotHours(createForm.startTime, createForm.endTime)} giờ).`
+                : 'Ngày trong tuần là ngày bắt đầu. Giờ kết thúc sớm hơn giờ bắt đầu được tính sang ngày hôm sau.'}</p>
               <div className="avail-modal-actions">
                 <button
                   type="button"

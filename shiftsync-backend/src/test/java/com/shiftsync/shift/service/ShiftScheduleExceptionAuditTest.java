@@ -407,8 +407,8 @@ public class ShiftScheduleExceptionAuditTest {
             UUID requestId = UUID.randomUUID();
             LocalDate dateA = LocalDate.now().plusDays(2);
             LocalDate dateB = LocalDate.now().plusDays(3);
-            Shift shiftA = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(dateA).startTime(java.time.LocalTime.of(8,0)).status(ShiftStatus.PUBLISHED).build();
-            Shift shiftB = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(dateB).startTime(java.time.LocalTime.of(8,0)).status(ShiftStatus.PUBLISHED).build();
+            Shift shiftA = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(dateA).startTime(java.time.LocalTime.of(8,0)).endTime(java.time.LocalTime.of(16,0)).status(ShiftStatus.PUBLISHED).build();
+            Shift shiftB = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(dateB).startTime(java.time.LocalTime.of(8,0)).endTime(java.time.LocalTime.of(16,0)).status(ShiftStatus.PUBLISHED).build();
 
             ShiftSwapRequest req = ShiftSwapRequest.builder()
                     .id(requestId)

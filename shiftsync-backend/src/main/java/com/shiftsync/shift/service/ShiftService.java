@@ -167,7 +167,7 @@ public class ShiftService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO createShift(UUID storeId, ShiftCreateRequest request) {
         checkDateNotLocked(storeId, request.getShiftDate());
         Store store = storeRepository.findById(storeId)
@@ -214,7 +214,7 @@ public class ShiftService {
         return mapToDTO(savedShift);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO setShiftRequirements(UUID storeId, UUID shiftId, List<ShiftRequirementRequest> requirements) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
@@ -242,6 +242,14 @@ public class ShiftService {
 
         List<StoreZone> storeZones = storeZoneRepository.findByStoreId(storeId);
 
+        // Preserve an existing requirement for the same skill. Replacing the whole
+        // collection makes Hibernate queue an INSERT before the orphan DELETE and
+        // violates the unique (shift_id, skill_id) constraint when a create form
+        // already supplied a default role requirement.
+        Map<UUID, ShiftSkillRequirement> existingBySkillId = shift.getRequirements().stream()
+                .filter(existing -> existing.getSkill() != null && existing.getSkill().getId() != null)
+                .collect(Collectors.toMap(existing -> existing.getSkill().getId(), existing -> existing));
+
         List<ShiftSkillRequirement> newRequirements = requirements.stream().map(req -> {
             Skill skill = skillRepository.findByIdAndStoreId(req.getSkillId(), storeId)
                     .orElseThrow(() -> new BusinessException("Skill not found in this store: " + req.getSkillId(), HttpStatus.NOT_FOUND));
@@ -260,12 +268,14 @@ public class ShiftService {
                         .orElse(null);
             }
 
-            return ShiftSkillRequirement.builder()
-                    .shift(shift)
-                    .skill(skill)
-                    .zone(zone)
-                    .requiredCount(req.getRequiredCount())
-                    .build();
+            ShiftSkillRequirement requirement = existingBySkillId.remove(req.getSkillId());
+            if (requirement == null) {
+                requirement = ShiftSkillRequirement.builder().shift(shift).build();
+            }
+            requirement.setSkill(skill);
+            requirement.setZone(zone);
+            requirement.setRequiredCount(req.getRequiredCount());
+            return requirement;
         }).collect(Collectors.toList());
 
         shift.setRequirements(newRequirements);
@@ -273,7 +283,7 @@ public class ShiftService {
         return mapToDTO(shiftRepository.save(shift));
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public BulkDemandPlanningResponse saveBulkDemandPlanning(UUID storeId, BulkDemandPlanningRequest request) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
@@ -411,66 +421,64 @@ public class ShiftService {
     }
 
 
-    @Transactional
-    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
+    public com.shiftsync.shift.dto.ShiftPublishResultDTO publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
+        if (startDate.isAfter(endDate)) {
+            throw new BusinessException("Start date must be on or before end date", HttpStatus.BAD_REQUEST);
+        }
+
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
+        java.util.Set<java.util.UUID> newlyPublishedShiftIds = new java.util.HashSet<>();
 
-        int publishedCount = 0;
         for (Shift shift : shifts) {
-
             checkDateNotLocked(storeId, shift.getShiftDate());
-            if (shift.getStatus() == ShiftStatus.DRAFT) {
-
-                if (store.getOpenTime() != null && shift.getStartTime().isBefore(store.getOpenTime())) {
-                    throw new BusinessException("Shift " + shift.getId() + " start time is before store open time", HttpStatus.BAD_REQUEST);
-                }
-                if (store.getCloseTime() != null && shift.getEndTime().isAfter(store.getCloseTime())) {
-                    throw new BusinessException("Shift " + shift.getId() + " end time is after store close time", HttpStatus.BAD_REQUEST);
-                }
-                shift.setStatus(ShiftStatus.PUBLISHED);
-                publishedCount++;
-
-                List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shift.getId());
-                for (ShiftAssignment sa : assignments) {
-                    try {
-                        notificationService.sendNotification(
-                                sa.getStaff().getId(),
-                                com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED, "Lịch làm việc đã xuất bản",
-                                "Lịch làm việc tuần mới đã được công bố. Ca của bạn: ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
-                                java.util.Map.of("shiftId", shift.getId().toString())
-                        );
-                    } catch (Exception ignored) {
-                    }
-                }
+            if (shift.getStatus() != ShiftStatus.DRAFT) {
+                continue;
             }
+            if (store.getOpenTime() != null && shift.getStartTime().isBefore(store.getOpenTime())) {
+                throw new BusinessException("Shift " + shift.getId() + " start time is before store open time", HttpStatus.BAD_REQUEST);
+            }
+            if (store.getCloseTime() != null && shift.getEndTime().isAfter(store.getCloseTime())) {
+                throw new BusinessException("Shift " + shift.getId() + " end time is after store close time", HttpStatus.BAD_REQUEST);
+            }
+            shift.setStatus(ShiftStatus.PUBLISHED);
+            newlyPublishedShiftIds.add(shift.getId());
         }
 
-                if (publishedCount > 0) {
-            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null,
-                java.util.Map.of("startDate", startDate.toString(), "endDate", endDate.toString(), "publishedCount", publishedCount));
-
+        int notifiedStaffCount = 0;
+        if (!newlyPublishedShiftIds.isEmpty()) {
             shiftRepository.saveAll(shifts);
+            auditLogService.log(managerId, "PUBLISH_SCHEDULE", "Store", storeId, null,
+                    java.util.Map.of("startDate", startDate.toString(), "endDate", endDate.toString(), "publishedCount", newlyPublishedShiftIds.size()));
 
-            // Hook: FR-19 SCHEDULE_PUBLISHED
-            java.util.List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate);
             java.util.Set<java.util.UUID> notifiedStaffIds = new java.util.HashSet<>();
-            for (ShiftAssignment sa : assignments) {
-                if (notifiedStaffIds.add(sa.getStaff().getId())) {
-                    notificationService.sendNotification(
-                        sa.getStaff().getId(),
-                        com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
-                        "Schedule Published",
-                        "The schedule from " + startDate + " to " + endDate + " has been published.",
-                        null
-                    );
+            for (ShiftAssignment assignment : shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate)) {
+                if (!newlyPublishedShiftIds.contains(assignment.getShift().getId()) || !notifiedStaffIds.add(assignment.getStaff().getId())) {
+                    continue;
                 }
+                notificationService.sendNotification(
+                        assignment.getStaff().getId(),
+                        com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
+                        "Lịch làm việc đã xuất bản",
+                        "Lịch làm việc tuần mới đã được công bố.",
+                        java.util.Map.of("shiftId", assignment.getShift().getId().toString()));
             }
+            notifiedStaffCount = notifiedStaffIds.size();
         }
+
+        return com.shiftsync.shift.dto.ShiftPublishResultDTO.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .totalShifts(shifts.size())
+                .publishedCount(newlyPublishedShiftIds.size())
+                .alreadyPublishedCount((int) shifts.stream().filter(shift -> shift.getStatus() == ShiftStatus.PUBLISHED).count() - newlyPublishedShiftIds.size())
+                .notifiedStaffCount(notifiedStaffCount)
+                .build();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
@@ -573,7 +581,7 @@ public class ShiftService {
         if (shift.getRequirements().isEmpty()) shift.getRequirements().add(requirement);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void deleteShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));

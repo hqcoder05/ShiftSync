@@ -59,8 +59,9 @@ class JwtAuthFilterTest {
         when(jwtTokenProvider.validateToken("valid-header-jwt")).thenReturn(true);
         when(jwtTokenProvider.isQrAttendanceToken("valid-header-jwt")).thenReturn(false);
         when(redisTemplate.hasKey("blacklist:valid-header-jwt")).thenReturn(false);
-        when(jwtTokenProvider.getEmailFromToken("valid-header-jwt")).thenReturn("admin@test.com");
-        when(customUserDetailsService.loadUserByUsername("admin@test.com")).thenReturn(userDetails);
+        java.util.UUID id = java.util.UUID.randomUUID();
+        when(jwtTokenProvider.getUserIdFromToken("valid-header-jwt")).thenReturn(id);
+        when(customUserDetailsService.loadUserById(id)).thenReturn(userDetails);
 
         jwtAuthFilter.doFilterInternal(request, response, filterChain);
 

@@ -37,6 +37,10 @@ public class StoreConfiguration {
     @Builder.Default
     private Integer availabilityDeadlineHours = 24;
 
+    @Column(name = "availability_tolerance_minutes", nullable = false)
+    @Builder.Default
+    private Integer availabilityToleranceMinutes = 0;
+
     @Column(name = "allowed_check_in_minutes", nullable = false)
     @Builder.Default
     private Integer allowedCheckInMinutes = 30;

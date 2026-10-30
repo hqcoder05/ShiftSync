@@ -2,6 +2,8 @@ package com.shiftsync.shift.service;
 
 import com.shiftsync.audit.service.AuditLogService;
 import com.shiftsync.shift.dto.ShiftCreateRequest;
+import com.shiftsync.shift.dto.ShiftPublishResultDTO;
+import com.shiftsync.shift.enums.ShiftStatus;
 import com.shiftsync.shift.entity.Shift;
 import com.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shift.repository.ShiftRepository;
@@ -119,4 +121,32 @@ class ShiftServiceAssignmentDelegationTest {
         verify(shiftAssignmentRepository,never()).deleteAll(anyIterable());
         verify(shiftAssignmentService,never()).assignStaffToShift(any(),any(),any());
     }
+
+    @Test
+    void publishShiftsReturnsChangedAndAlreadyPublishedCountsWithoutDuplicateNotifications() {
+        Store store = Store.builder().id(storeId).openTime(LocalTime.of(6, 0)).closeTime(LocalTime.of(23, 0)).build();
+        LocalDate date = LocalDate.of(2026, 11, 1);
+        Shift draft = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(date)
+                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(16, 0)).status(ShiftStatus.DRAFT).build();
+        Shift published = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(date)
+                .startTime(LocalTime.of(16, 0)).endTime(LocalTime.of(22, 0)).status(ShiftStatus.PUBLISHED).build();
+
+        when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, date, date)).thenReturn(java.util.List.of(draft, published));
+        when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any()))
+                .thenReturn(false);
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, date, date)).thenReturn(java.util.List.of());
+
+        ShiftPublishResultDTO result = service.publishShifts(storeId, date, date, UUID.randomUUID());
+
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.getTotalShifts());
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.getPublishedCount());
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.getAlreadyPublishedCount());
+        org.junit.jupiter.api.Assertions.assertEquals(0, result.getNotifiedStaffCount());
+        org.junit.jupiter.api.Assertions.assertEquals(ShiftStatus.PUBLISHED, draft.getStatus());
+        verify(shiftRepository).saveAll(java.util.List.of(draft, published));
+        verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any());
+    }
+
+
 }

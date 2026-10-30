@@ -223,7 +223,8 @@ public class PostFixDataIntegrityVerificationTest {
         final User finalManager = userRepository.save(manager);
         final UUID managerId = finalManager.getId();
 
-        Shift shift = Shift.builder().store(finalStoreA).shiftDate(LocalDate.now()).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).status(ShiftStatus.PUBLISHED).availabilityDeadline(LocalDate.now().atTime(0, 0).atZone(ZoneOffset.UTC)).build();
+        LocalDate futureShiftDate = LocalDate.now().plusDays(1);
+        Shift shift = Shift.builder().store(finalStoreA).shiftDate(futureShiftDate).startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).status(ShiftStatus.PUBLISHED).availabilityDeadline(futureShiftDate.atTime(0, 0).atZone(ZoneOffset.UTC)).build();
         final Shift finalShift = shiftRepository.save(shift);
 
         Skill skill = Skill.builder().name("Barista").description("Makes coffee").store(finalStoreA).build();

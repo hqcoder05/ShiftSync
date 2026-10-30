@@ -154,8 +154,7 @@ public class AttendanceService {
 
         Attendance saved = attendanceRepository.save(attendance);
         try {
-            UUID storeId = assignment.getShift().getStore().getId();
-            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "CHECK_IN", "staffId", assignment.getStaff().getId()));
+            publishAttendanceEvent("CHECK_IN", assignment, saved.getId());
         } catch (Exception ignored) {}
         return saved;
     }
@@ -186,8 +185,7 @@ public class AttendanceService {
         attendance.setCheckOutPhoto(photo);
         Attendance saved = attendanceRepository.save(attendance);
         try {
-            UUID storeId = attendance.getShiftAssignment().getShift().getStore().getId();
-            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "CHECK_OUT", "staffId", attendance.getShiftAssignment().getStaff().getId()));
+            publishAttendanceEvent("CHECK_OUT", attendance.getShiftAssignment(), saved.getId());
         } catch (Exception ignored) {}
         return saved;
     }
@@ -233,9 +231,27 @@ public class AttendanceService {
 
         com.shiftsync.attendance.dto.AttendanceDTO result = toDTO(attendanceRepository.save(attendance));
         try {
-            realtimeEventPublisher.publishStoreEvent(storeId, "attendance", java.util.Map.of("action", "UPDATE", "attendanceId", attendanceId));
+            publishAttendanceEvent("UPDATE", attendance.getShiftAssignment(), attendanceId);
         } catch (Exception ignored) {}
         return result;
+    }
+
+    /**
+     * Carries the physical assignment context needed by the spatial workspace to
+     * refresh and focus the affected zone.  The event remains backwards
+     * compatible for consumers that only read the action or staff identifier.
+     */
+    private void publishAttendanceEvent(String action, ShiftAssignment assignment, UUID attendanceId) {
+        UUID storeId = assignment.getShift().getStore().getId();
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("action", action);
+        data.put("attendanceId", attendanceId.toString());
+        data.put("staffId", assignment.getStaff().getId().toString());
+        data.put("shiftId", assignment.getShift().getId().toString());
+        if (assignment.getZone() != null) {
+            data.put("zoneId", assignment.getZone().getId().toString());
+        }
+        realtimeEventPublisher.publishStoreEvent(storeId, "attendance", data);
     }
 
     @Transactional

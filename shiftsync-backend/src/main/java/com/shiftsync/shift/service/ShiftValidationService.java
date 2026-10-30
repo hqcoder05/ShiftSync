@@ -18,45 +18,44 @@ public class ShiftValidationService {
 
     private final ShiftRepository shiftRepository;
     private final EmploymentRepository employmentRepository;
+    private final com.shiftsync.store.repository.StoreConfigurationRepository storeConfigurationRepository;
 
     public void validateNoOverlapAndWeeklyHours(Shift newShift, UUID staffId, UUID excludedShiftId) {
-        java.time.LocalDate startOfWeek = newShift.getShiftDate().with(java.time.DayOfWeek.MONDAY);
-        java.time.LocalDate endOfWeek = newShift.getShiftDate().with(java.time.DayOfWeek.SUNDAY);
+        List<Employment> employments=employmentRepository.findByUserIdAndStatus(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+        int MAX_WEEKLY_HOURS=StaffContractLimit.weeklyHours(employments);
+        java.util.Set<UUID> storeIds=new java.util.HashSet<>();
+        if(newShift.getStore()!=null) storeIds.add(newShift.getStore().getId());
+        for(var employment:employments) if(employment.getStore()!=null) storeIds.add(employment.getStore().getId());
+        var configs=storeIds.isEmpty() ? java.util.Map.<UUID,com.shiftsync.store.entity.StoreConfiguration>of()
+                : storeConfigurationRepository.findByStoreIdIn(storeIds).stream().collect(java.util.stream.Collectors.toMap(
+                        com.shiftsync.store.entity.StoreConfiguration::getStoreId,config->config));
+        int restHours=StaffRestPolicy.hours(employments,newShift.getStore()==null?null:newShift.getStore().getId(),configs);
+        java.time.LocalDate startOfWeek = ShiftTimeRange.weekStart(newShift.getShiftDate());
+        java.time.LocalDate endOfWeek = ShiftTimeRange.weekStart(ShiftDateRange.lastWorkingDate(newShift)).plusDays(6);
+        java.time.LocalDate queryStart=startOfWeek.minusDays(1);
+        java.time.LocalDate restStart=ShiftTimeRange.start(newShift).minusHours(restHours).toLocalDate().minusDays(1);
+        if(restStart.isBefore(queryStart)) queryStart=restStart;
+        java.time.LocalDate restEnd=ShiftTimeRange.end(newShift).plusHours(restHours).toLocalDate();
+        if(restEnd.isAfter(endOfWeek)) endOfWeek=restEnd;
 
-        List<Shift> activeShifts = shiftRepository.findActiveShiftsForStaffInPeriod(staffId, startOfWeek, endOfWeek);
+        // Include Sunday shifts carrying work into Monday, and all weeks touched
+        // by the new shift. Query spans every store employing this staff member.
+        List<Shift> activeShifts = shiftRepository.findActiveShiftsForStaffInPeriod(staffId, queryStart, endOfWeek)
+                .stream().filter(s -> excludedShiftId == null || !excludedShiftId.equals(s.getId())).toList();
 
-        double totalHoursThisWeek = 0;
         for (Shift s : activeShifts) {
-            // Exclude the shift being swapped out
-            if (excludedShiftId != null && s.getId().equals(excludedShiftId)) {
-                continue;
+            if (ShiftTimeRange.overlaps(newShift, s)) {
+                String msg = String.format("Ca làm việc bị trùng giờ với ca đã phân công từ %s đến %s.",
+                        ShiftTimeRange.start(s), ShiftTimeRange.end(s));
+                throw new BusinessException(msg, HttpStatus.CONFLICT);
             }
-
-            if (s.getShiftDate().equals(newShift.getShiftDate())) {
-                boolean overlap = newShift.getStartTime().isBefore(s.getEndTime()) && newShift.getEndTime().isAfter(s.getStartTime());
-                if (overlap) {
-                    String msg = String.format("Ca làm việc bị trùng giờ (%s - %s) với ca làm bạn đã có trong ngày (%s - %s).",
-                            newShift.getStartTime().toString().substring(0, 5), newShift.getEndTime().toString().substring(0, 5),
-                            s.getStartTime().toString().substring(0, 5), s.getEndTime().toString().substring(0, 5));
-                    throw new BusinessException(msg, HttpStatus.CONFLICT);
-                }
-            }
-
-            // Calculate duration in hours
-            java.time.Duration duration = java.time.Duration.between(s.getStartTime(), s.getEndTime());
-            totalHoursThisWeek += duration.toMinutes() / 60.0;
         }
 
-        // Add new shift hours
-        java.time.Duration newDuration = java.time.Duration.between(newShift.getStartTime(), newShift.getEndTime());
-        totalHoursThisWeek += newDuration.toMinutes() / 60.0;
+        if(!ShiftTimeRange.hasRequiredRest(activeShifts,newShift,restHours)) {
+            throw new BusinessException("Cần nghỉ ít nhất " + restHours + " giờ giữa hai ca, kể cả ca ở chi nhánh khác.",HttpStatus.BAD_REQUEST);
+        }
 
-        Employment employment = employmentRepository.findByUserIdAndStatus(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
-                .stream().findFirst()
-                .orElseThrow(() -> new BusinessException("Active employment not found for staff", HttpStatus.BAD_REQUEST));
-        int MAX_WEEKLY_HOURS = employment.getContractType().getMaxWeeklyHours();
-
-        if (totalHoursThisWeek > MAX_WEEKLY_HOURS) {
+        if (!ShiftTimeRange.fitsWeeklyLimit(activeShifts, newShift, MAX_WEEKLY_HOURS)) {
             throw new BusinessException("Nhận thêm ca này sẽ vượt quá số giờ làm việc tối đa trong tuần (" + MAX_WEEKLY_HOURS + " giờ/tuần)", HttpStatus.BAD_REQUEST);
         }
     }

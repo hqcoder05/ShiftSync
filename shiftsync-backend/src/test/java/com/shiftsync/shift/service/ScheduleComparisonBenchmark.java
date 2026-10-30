@@ -200,12 +200,6 @@ public class ScheduleComparisonBenchmark {
         AutoScheduleService greedyService = new AutoScheduleService(
                 null, null, null, null, null, null, null, null);
 
-        // Snapshot trung binh monthlyAssignedHours cua TOAN BO staffMap, tinh 1 lan duy nhat khi bat dau
-        double teamMonthlyAvg = staffMap.values().stream()
-                .mapToDouble(AutoScheduleService.StaffData::getMonthlyAssignedHours)
-                .average()
-                .orElse(0.0);
-
         List<AutoScheduleService.Slot> remainingSlots = new ArrayList<>(slots);
         List<ShiftAssignment> newAssignments = new ArrayList<>();
         List<AutoScheduleService.Slot> unassignedSlots = new ArrayList<>();
@@ -219,7 +213,7 @@ public class ScheduleComparisonBenchmark {
 
             for (AutoScheduleService.Slot s : remainingSlots) {
                 List<AutoScheduleService.StaffData> candidates =
-                        greedyService.findValidCandidates(s, staffMap.values(), minRestHours, teamMonthlyAvg);
+                        greedyService.findValidCandidates(s, staffMap.values(), minRestHours);
                 if (bestSlot == null || candidates.size() < minCandidates) {
                     bestSlot = s;
                     bestCandidates = candidates;
@@ -743,9 +737,10 @@ public class ScheduleComparisonBenchmark {
             int minCandidates = Integer.MAX_VALUE;
 
             for (AutoScheduleService.Slot s : remainingSlots) {
-                // Truoc fix: khong co soft fairness cap (truyen teamMonthlyAvg = 0.0)
+                // Both harness variants now preserve the hard-feasible domain.
+                // This legacy comparison does not reproduce the retired fairness cap.
                 List<AutoScheduleService.StaffData> candidates =
-                        greedyService.findValidCandidates(s, staffMap.values(), minRestHours, 0.0);
+                        greedyService.findValidCandidates(s, staffMap.values(), minRestHours);
 
                 if (bestSlot == null || candidates.size() < minCandidates) {
                     bestSlot = s;

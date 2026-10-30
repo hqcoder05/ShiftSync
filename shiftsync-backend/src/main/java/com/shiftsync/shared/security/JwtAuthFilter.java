@@ -62,8 +62,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (Boolean.TRUE.equals(redisTemplate.hasKey("blacklist:" + jwt))) {
                     log.warn("Token is blacklisted (user logged out)");
                 } else {
-                    String email = jwtTokenProvider.getEmailFromToken(jwt);
-                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
+                    UserDetails userDetails = customUserDetailsService.loadUserById(jwtTokenProvider.getUserIdFromToken(jwt));
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());

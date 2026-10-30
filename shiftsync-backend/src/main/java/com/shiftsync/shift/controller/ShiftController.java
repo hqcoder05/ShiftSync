@@ -6,6 +6,7 @@ import com.shiftsync.shift.dto.AutoScheduleRequest;
 import com.shiftsync.shift.dto.ShiftCreateRequest;
 import com.shiftsync.shift.dto.ShiftDTO;
 import com.shiftsync.shift.dto.ShiftPublishRequest;
+import com.shiftsync.shift.dto.ShiftPublishResultDTO;
 import com.shiftsync.shift.dto.ShiftRequirementRequest;
 import com.shiftsync.shift.enums.ShiftStatus;
 import com.shiftsync.shift.service.AutoScheduleService;
@@ -31,6 +32,7 @@ public class ShiftController {
 
     private final ShiftService shiftService;
     private final AutoScheduleService autoScheduleService;
+    private final com.shiftsync.shift.service.SchedulingPlanService schedulingPlanService;
 
     @Operation(summary = "Get all shifts for a store with optional date and status filter")
     @PreAuthorize("@storeAccessService.canAccessStore(authentication, #storeId)")
@@ -86,12 +88,13 @@ public class ShiftController {
     @Operation(summary = "Publish shifts for a specific date range")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/publish")
-    public ResponseEntity<Void> publishShifts(
+    public ResponseEntity<ShiftPublishResultDTO> publishShifts(
             @PathVariable UUID storeId,
             @Valid @RequestBody ShiftPublishRequest request, 
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
-        shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null);
-        return ResponseEntity.noContent().build();
+        ShiftPublishResultDTO result = shiftService.publishShifts(
+                storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null);
+        return ResponseEntity.ok(result);
     }
 
     @Operation(summary = "Auto-schedule shifts for a specific date range")
@@ -99,9 +102,20 @@ public class ShiftController {
     @PostMapping("/auto-schedule")
     public ResponseEntity<com.shiftsync.shift.dto.AutoScheduleResult> autoSchedule(
             @PathVariable UUID storeId,
-            @Valid @RequestBody AutoScheduleRequest request) {
-        com.shiftsync.shift.dto.AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, request);
+            @Valid @RequestBody AutoScheduleRequest request,
+            @AuthenticationPrincipal CustomUserDetails actor) {
+        com.shiftsync.shift.dto.AutoScheduleResult result = Boolean.TRUE.equals(request.getDryRun())
+                ? schedulingPlanService.preview(storeId,request,actor==null?null:actor.getId())
+                : autoScheduleService.autoSchedule(storeId, request);
         return ResponseEntity.ok(result);
+    }
+
+    @Operation(summary="Apply the exact stored preview if its input is unchanged")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @PostMapping("/auto-schedule/plans/{planId}/apply")
+    public ResponseEntity<com.shiftsync.shift.dto.AutoScheduleResult> applyAutoSchedulePlan(
+            @PathVariable UUID storeId,@PathVariable UUID planId,@AuthenticationPrincipal CustomUserDetails actor) {
+        return ResponseEntity.ok(schedulingPlanService.apply(storeId,planId,actor==null?null:actor.getId()));
     }
 
     @Operation(summary = "Update an existing shift")

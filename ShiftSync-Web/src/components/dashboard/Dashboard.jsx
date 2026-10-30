@@ -22,6 +22,7 @@ import { AssignedChart, HoursChart } from "./charts";
 import DashboardSpatialSummary from "../spatial/DashboardSpatialSummary";
 import Avatar3DWeb from "../Avatar3DWeb";
 import { getAvatarForEmployee } from "../avatarConfigs";
+import { formatChartRange, shiftChartAnchor } from "./chartPeriods";
 import "./dashboard.css";
 import "./dashboard-redesign.css";
 
@@ -44,6 +45,8 @@ export default function Dashboard({
   employeeId = "",
   onEmployeeChange,
   onDateChange,
+  chartPeriod = "week",
+  onChartPeriodChange,
   onExport,
   onOptimisticAction,
   storeName = "",
@@ -74,6 +77,9 @@ export default function Dashboard({
     onDateChange(d);
   };
 
+  const shiftChartPeriod = (amount) => onDateChange(shiftChartAnchor(date, chartPeriod, amount));
+  const chartRangeLabel = formatChartRange(date, chartPeriod);
+
   const handleAction = async (item, action) => {
     if (!onOptimisticAction || processingId) return;
     setProcessingId(item.id);
@@ -89,6 +95,9 @@ export default function Dashboard({
     (a) => !a.action?.includes("trễ") && !a.action?.includes("vắng"),
   ).length;
   const lateCount = attendance.filter((a) => a.action?.includes("trễ")).length;
+  const attendanceExceptions = attendance.filter(
+    (a) => a.action?.includes("trễ") || a.action?.includes("vắng"),
+  );
   const plannedHours = sum(hours.map((h) => h.planned || 0));
   const actualHours = sum(hours.map((h) => h.actual || 0));
   const hasHoursData = plannedHours > 0 || actualHours > 0;
@@ -347,10 +356,10 @@ export default function Dashboard({
           <section className="db-card db-chart-card">
             <div className="db-card-header">
               <div className="db-card-title-group">
-                <span className="db-section-kicker">XU HƯỚNG 7 NGÀY</span>
-                <h2>Nhịp làm việc trong tuần</h2>
+                <span className="db-section-kicker">XU HƯỚNG {chartPeriod === "week" ? "THEO TUẦN" : chartPeriod === "month" ? "THEO THÁNG" : chartPeriod === "quarter" ? "THEO QUÝ" : "THEO NĂM"}</span>
+                <h2>Nhịp làm việc</h2>
                 <p className="db-section-desc">
-                  So sánh lịch xếp với thời gian làm thực tế.
+                  {chartPeriod === "week" ? "Giờ theo từng ngày." : chartPeriod === "month" ? "Tổng giờ theo từng tuần trong tháng." : "Tổng giờ theo từng tháng."} Kỳ xem: {chartRangeLabel}.
                 </p>
                 <div
                   className="db-subtabs"
@@ -376,6 +385,32 @@ export default function Dashboard({
                     <span>Số ca theo vị trí</span>
                   </button>
                 </div>
+                <div className="db-chart-period-controls" aria-label="Chọn kỳ biểu đồ">
+                  <div className="db-chart-period-options" role="group" aria-label="Khoảng thời gian">
+                    {[
+                      { value: "week", label: "Tuần" },
+                      { value: "month", label: "Tháng" },
+                      { value: "quarter", label: "Quý" },
+                      { value: "year", label: "Năm" },
+                    ].map((period) => (
+                      <button
+                        key={period.value}
+                        type="button"
+                        className={chartPeriod === period.value ? "active" : ""}
+                        aria-pressed={chartPeriod === period.value}
+                        onClick={() => onChartPeriodChange(period.value)}
+                      >
+                        {period.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="db-chart-period-nav">
+                    <button type="button" className="db-icon-btn" aria-label="Kỳ trước" onClick={() => shiftChartPeriod(-1)}><ChevronLeft size={15} /></button>
+                    <strong>{chartRangeLabel}</strong>
+                    <button type="button" className="db-icon-btn" aria-label="Kỳ sau" onClick={() => shiftChartPeriod(1)}><ChevronRight size={15} /></button>
+                    <button type="button" className="db-today-btn" onClick={() => onDateChange(new Date())}>Kỳ hiện tại</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -386,8 +421,7 @@ export default function Dashboard({
                 </span>
                 <strong>Chưa có dữ liệu cho biểu đồ này</strong>
                 <p>
-                  Khi có lịch ca hoặc lượt chấm công, xu hướng 7 ngày sẽ xuất
-                  hiện tại đây.
+                  Chưa có ca được phân công hoặc giờ chấm công trong kỳ {chartRangeLabel}.
                 </p>
                 <Link to="/schedule">
                   Mở lịch làm việc <ArrowUpRight size={15} aria-hidden="true" />
@@ -398,13 +432,18 @@ export default function Dashboard({
                 <div className="db-chart-legend">
                   <span>
                     <i style={{ background: "var(--ss-ac)" }} />
-                    Lịch xếp: <b>{plannedHours}h</b>
+                    Đã phân công: <b>{plannedHours}h</b>
                   </span>
                   <span>
                     <i style={{ background: "var(--ss-p3)" }} />
                     Thực làm: <b>{actualHours}h</b>
                   </span>
                 </div>
+                {plannedHours > 0 && actualHours === 0 && (
+                  <p className="db-chart-note">
+                    Chưa có giờ chấm công ghi nhận trong kỳ này. Ca chưa phân công không được tính vào tổng giờ đã phân công.
+                  </p>
+                )}
                 <HoursChart days={hours} today={date} />
               </>
             ) : (
@@ -506,24 +545,24 @@ export default function Dashboard({
           <section className="db-card db-attendance-card">
             <div className="db-card-header">
               <div className="db-card-title-group">
-                <span className="db-section-kicker">HIỆN DIỆN THỰC TẾ</span>
+                <span className="db-section-kicker">NGOẠI LỆ CẦN RÀ SOÁT</span>
                 <h2>
                   Điểm danh {isToday ? "hôm nay" : dm(date)}{" "}
-                  {attendance.length > 0 && (
+                  {attendanceExceptions.length > 0 && (
                     <span className="db-count-badge muted">
-                      {attendance.length}
+                      {attendanceExceptions.length}
                     </span>
                   )}
                 </h2>
               </div>
               <Link to="/attendance" className="db-card-link">
-                Bảng chấm công <ArrowUpRight size={15} aria-hidden="true" />
+                Mở chấm công <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
             </div>
 
             <div className="db-attendance-list">
-              {attendance.length ? (
-                attendance.map((f) => {
+              {attendanceExceptions.length ? (
+                attendanceExceptions.map((f) => {
                   const avatarKey =
                     f.avatarId || getAvatarForEmployee(f.employee);
                   let badgeType = "on-time";
@@ -557,8 +596,8 @@ export default function Dashboard({
                   <span className="db-empty-icon">
                     <Fingerprint size={20} aria-hidden="true" />
                   </span>
-                  <strong>Chưa có lượt điểm danh</strong>
-                  <p>Dữ liệu sẽ xuất hiện khi nhân sự bắt đầu ca.</p>
+                  <strong>Không có ngoại lệ điểm danh</strong>
+                  <p>Các lượt đi trễ hoặc vắng mặt sẽ xuất hiện tại đây.</p>
                 </div>
               )}
             </div>

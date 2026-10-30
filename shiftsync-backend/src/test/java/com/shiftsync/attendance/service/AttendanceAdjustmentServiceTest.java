@@ -292,7 +292,7 @@ public class AttendanceAdjustmentServiceTest {
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
         when(requestRepository.save(any())).thenReturn(request);
 
-        AdjustmentResponseDTO result = service.rejectRequest(store.getId(), request.getId(), manager.getId());
+        AdjustmentResponseDTO result = service.rejectRequest(store.getId(), request.getId(), manager.getId(), null);
 
         assertEquals(AdjustmentStatus.REJECTED, result.getStatus());
         verify(attendanceRepository, never()).save(any()); // Attendance not modified

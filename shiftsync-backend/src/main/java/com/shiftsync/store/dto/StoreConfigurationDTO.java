@@ -33,6 +33,9 @@ public class StoreConfigurationDTO {
     @Schema(description = "Deadline to submit availability before shift (hours)")
     private Integer availabilityDeadlineHours;
 
+    @Schema(description = "Availability coverage tolerance at each boundary in minutes; 0 means exact")
+    private Integer availabilityToleranceMinutes;
+
     @Schema(description = "Allowed check-in minutes before shift")
     private Integer allowedCheckInMinutes;
 

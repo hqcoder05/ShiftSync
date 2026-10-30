@@ -52,6 +52,8 @@ public class PostFixVerificationTest {
     @Autowired private WorkforceRequestRepository workforceRequestRepository;
     @Autowired private WorkforceProposalRepository workforceProposalRepository;
     @Autowired private ShiftAssignmentRepository shiftAssignmentRepository;
+    @Autowired private com.shiftsync.skill.repository.SkillRepository skillRepository;
+    @Autowired private com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
 
     @Test
     public void testWORKFORCE001_Concurrency() throws InterruptedException {
@@ -93,6 +95,12 @@ public class PostFixVerificationTest {
                 .status(ShiftStatus.PUBLISHED)
                 .build());
 
+        var skill = skillRepository.save(com.shiftsync.skill.entity.Skill.builder().store(reqStore).name("Coverage").build());
+        shift.setRequirements(java.util.List.of(com.shiftsync.shift.entity.ShiftSkillRequirement.builder().skill(skill).requiredCount(2).build()));
+        shiftRepository.saveAndFlush(shift);
+        for (User staff : java.util.List.of(staff1, staff2, staff3)) {
+            staffSkillRepository.save(com.shiftsync.skill.entity.StaffSkill.builder().staffId(staff.getId()).skillId(skill.getId()).build());
+        }
         WorkforceRequestCreateDTO reqDto = new WorkforceRequestCreateDTO();
         reqDto.setTargetStoreId(targetStore.getId());
         reqDto.setShiftId(shift.getId());

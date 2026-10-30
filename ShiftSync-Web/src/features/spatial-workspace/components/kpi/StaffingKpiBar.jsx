@@ -1,213 +1,65 @@
+import {AlertTriangle, CheckCircle2, ChevronRight, MapPin, Radio, Users} from 'lucide-react';
+import './staffing-kpi-bar.css';
+
 /**
- * StaffingKpiBar.jsx
- * High-density operational KPI ribbon docked right below the Command Header.
- * 
- * Displays:
- * - Coverage SLA % (Optimal >= 90%, Warning 70-89%, Critical < 70%)
- * - Active Staff / Required Total
- * - Understaffed Zones indicator (clickable to trigger Attention Center)
- * - Open Shifts count
- * - Estimated Labor Cost / Delta
- * - Overall Staffing Health Status
+ * The real-time operations strip deliberately speaks in operational facts,
+ * not inferred attendance. "Đã phân công" is schedule data; attendance
+ * stays visible in the canvas/employee card where it can be sourced safely.
  */
-
-import React from 'react';
-import {
-  TrendingUp,
-  AlertTriangle,
-  Users,
-  CheckCircle2,
-  DollarSign,
-  Briefcase,
-  Layers,
-  MapPin,
-  ArrowUpRight,
-  ArrowDownRight,
-} from 'lucide-react';
-
 export default function StaffingKpiBar({
   coveragePercent = 100,
   activeStaffCount = 0,
   requiredStaffCount = 0,
-  maxStoreCapacity = 0,
   understaffedZonesCount = 0,
   openShiftsCount = 0,
   unresolvedAssignmentsCount = 0,
-  estimatedCost = 0,
-  costDelta = 0,
-  isSimulating = false,
+  isRealtimeConnected = false,
+  lastOperationsUpdatedAt = null,
+  latestOperationLabel = '',
   onOpenAttentionCenter,
   onFocusUnderstaffedZone,
 }) {
-  const isCoverageOptimal = coveragePercent >= 90;
-  const isCoverageWarning = coveragePercent >= 70 && coveragePercent < 90;
-  const coverageColor = isCoverageOptimal ? '#10B981' : isCoverageWarning ? '#F59E0B' : '#EF4444';
-  const coverageBg = isCoverageOptimal
-    ? 'rgba(16, 185, 129, 0.12)'
-    : isCoverageWarning
-    ? 'rgba(245, 158, 11, 0.12)'
-    : 'rgba(239, 68, 68, 0.14)';
+  const needsAttention = understaffedZonesCount > 0 || openShiftsCount > 0 || unresolvedAssignmentsCount > 0;
+  const connectionLabel = isRealtimeConnected ? 'Trực tiếp' : 'Mất kết nối';
+  const updatedLabel = lastOperationsUpdatedAt
+    ? new Intl.DateTimeFormat('vi-VN', {hour: '2-digit', minute: '2-digit', second: '2-digit'}).format(new Date(lastOperationsUpdatedAt))
+    : 'Chưa có sự kiện mới';
 
   return (
-    <div className="se-kpi-ribbon"
-      style={{
-        height: 38,
-        backgroundColor: '#1E293B',
-        borderBottom: '1px solid #334155',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 16px',
-        fontSize: 12,
-        color: 'var(--se-text)',
-        zIndex: 25,
-        userSelect: 'none',
-      }}
-    >
-      {/* Left: Primary Staffing Health Telemetry */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        {/* Coverage SLA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--se-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Độ bao phủ ca:
-          </span>
-          <div
-            style={{
-              padding: '2px 8px',
-              borderRadius: 6,
-              backgroundColor: coverageBg,
-              color: coverageColor,
-              fontWeight: 800,
-              fontSize: 12.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            {isCoverageOptimal ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-            <span>{coveragePercent}%</span>
-          </div>
-        </div>
-
-        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
-
-        {/* Active Staff vs Target */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Users size={14} color="var(--se-muted)" />
-          <span style={{ color: 'var(--se-muted)' }}>Đã phân công:</span>
-          <strong style={{ color: 'var(--se-text)', fontWeight: 700 }}>{activeStaffCount}</strong>
-          {requiredStaffCount > 0 && (
-            <span style={{ color: 'var(--se-muted)', fontWeight: 600 }}>/ {requiredStaffCount} chỉ tiêu ca</span>
-          )}
-        </div>
-
-        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
-
-        {/* Understaffed Zones Warning Pill */}
-        <div
-          onClick={() => {
-            if (understaffedZonesCount > 0) {
-              onFocusUnderstaffedZone?.();
-            } else {
-              onOpenAttentionCenter?.();
-            }
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            cursor: 'pointer',
-            padding: '2px 8px',
-            borderRadius: 6,
-            backgroundColor:
-              understaffedZonesCount > 0 ? 'rgba(239, 68, 68, 0.16)' : 'rgba(16, 185, 129, 0.1)',
-            color: understaffedZonesCount > 0 ? '#F87171' : '#34D399',
-            fontWeight: 600,
-            transition: 'all 0.15s ease',
-          }}
-          title={
-            understaffedZonesCount > 0
-              ? 'Click để phóng to phân khu thiếu nhân sự'
-              : 'Tất cả phân khu đều đạt chuẩn chỉ tiêu'
-          }
-        >
-          <Layers size={13} />
-          <span>
-            {understaffedZonesCount > 0
-              ? `${understaffedZonesCount} Phân khu thiếu`
-              : 'Phân khu đạt chuẩn'}
-          </span>
-        </div>
-
-        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
-
-        {/* Spatial assignment integrity */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '2px 8px',
-            borderRadius: 6,
-            backgroundColor: unresolvedAssignmentsCount > 0 ? 'rgba(245, 158, 11, 0.16)' : 'rgba(148, 163, 184, 0.1)',
-            color: unresolvedAssignmentsCount > 0 ? '#FBBF24' : 'var(--se-muted)',
-            fontWeight: 600,
-          }}
-          title="Assignment của ca hiện tại chưa có phân khu không gian"
-        >
-          <MapPin size={13} />
-          <span>
-            {unresolvedAssignmentsCount > 0
-              ? `${unresolvedAssignmentsCount} chưa xác định vị trí`
-              : 'Vị trí đã xác định'}
-          </span>
-        </div>
-
-        <div style={{ width: 1, height: 16, backgroundColor: 'var(--se-border)' }} />
-
-        {/* Open Shifts Count */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Briefcase size={14} color="var(--se-muted)" />
-          <span style={{ color: 'var(--se-muted)' }}>Ca chưa gán:</span>
-          <span
-            style={{
-              fontWeight: 700,
-              color: openShiftsCount > 0 ? '#FBBF24' : 'var(--se-muted)',
-            }}
-          >
-            {openShiftsCount} ca
-          </span>
-        </div>
+    <section className="se-operations-strip" aria-label="Tình hình vận hành theo ca">
+      <div className="se-operations-strip__signal" title={latestOperationLabel || `Cập nhật: ${updatedLabel}`}>
+        <Radio size={14} aria-hidden="true" />
+        <span>{connectionLabel}</span>
+        <small>{latestOperationLabel || `Cập nhật ${updatedLabel}`}</small>
       </div>
 
-      {/* Right: Labor Cost & Simulation Delta */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        {isSimulating && costDelta !== 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 11.5,
-              fontWeight: 700,
-              color: costDelta > 0 ? '#F87171' : '#34D399',
-            }}
-          >
-            {costDelta > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-            <span>Biến động chi phí: {costDelta > 0 ? `+${costDelta.toLocaleString()} ₫` : `${costDelta.toLocaleString()} ₫`}</span>
-          </div>
-        )}
-
-        {estimatedCost > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
-            <DollarSign size={13} color="var(--se-muted)" />
-            <span style={{ color: 'var(--se-muted)' }}>Ước tính chi phí ca:</span>
-            <span style={{ fontWeight: 700, color: 'var(--se-text)' }}>
-              {estimatedCost.toLocaleString()} ₫
-            </span>
-          </div>
-        )}
+      <div className="se-operations-strip__facts">
+        <div className="se-operation-fact se-operation-fact--coverage">
+          <span>Độ phủ</span><strong>{coveragePercent}%</strong>
+        </div>
+        <div className="se-operation-fact">
+          <Users size={14} aria-hidden="true" />
+          <span>Đã phân công</span><strong>{activeStaffCount}/{requiredStaffCount || '—'}</strong>
+        </div>
+        <button
+          type="button"
+          className={`se-operation-fact se-operation-fact--action ${understaffedZonesCount > 0 ? 'is-critical' : ''}`}
+          onClick={understaffedZonesCount > 0 ? onFocusUnderstaffedZone : onOpenAttentionCenter}
+        >
+          <MapPin size={14} aria-hidden="true" />
+          <span>{understaffedZonesCount > 0 ? `${understaffedZonesCount} khu vực thiếu` : 'Khu vực đủ người'}</span>
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+        {openShiftsCount > 0 && <button type="button" className="se-operation-fact se-operation-fact--action is-warning" onClick={onOpenAttentionCenter}>
+          <AlertTriangle size={14} aria-hidden="true" /><span>{openShiftsCount} vị trí cần bù</span><ChevronRight size={14} aria-hidden="true" />
+        </button>}
       </div>
-    </div>
+
+      <button type="button" className={`se-operations-strip__attention ${needsAttention ? 'has-alerts' : ''}`} onClick={onOpenAttentionCenter}>
+        {needsAttention ? <AlertTriangle size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
+        <span>{needsAttention ? 'Xem việc cần xử lý' : 'Tình hình ổn định'}</span>
+        <ChevronRight size={14} aria-hidden="true" />
+      </button>
+    </section>
   );
 }

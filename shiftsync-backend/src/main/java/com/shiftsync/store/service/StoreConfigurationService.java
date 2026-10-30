@@ -41,7 +41,7 @@ public class StoreConfigurationService {
         return mapToDTO(store, config);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public StoreConfigurationDTO updateStoreConfiguration(UUID storeId, StoreConfigurationUpdateRequest request, UUID actorId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
@@ -66,6 +66,9 @@ public class StoreConfigurationService {
         config.setMinRestHours(request.getMinRestHours());
         config.setGeofenceRadiusM(request.getGeofenceRadiusM());
         config.setAvailabilityDeadlineHours(request.getAvailabilityDeadlineHours());
+        if (request.getAvailabilityToleranceMinutes() != null) {
+            config.setAvailabilityToleranceMinutes(request.getAvailabilityToleranceMinutes());
+        }
         config.setAllowedCheckInMinutes(request.getAllowedCheckInMinutes());
         config.setAllowedCheckOutMinutes(request.getAllowedCheckOutMinutes());
         config.setLateGraceMinutes(request.getLateGraceMinutes());
@@ -88,6 +91,7 @@ public class StoreConfigurationService {
                 .minRestHours(config.getMinRestHours())
                 .geofenceRadiusM(config.getGeofenceRadiusM())
                 .availabilityDeadlineHours(config.getAvailabilityDeadlineHours())
+                .availabilityToleranceMinutes(config.getAvailabilityToleranceMinutes())
                 .allowedCheckInMinutes(config.getAllowedCheckInMinutes())
                 .allowedCheckOutMinutes(config.getAllowedCheckOutMinutes())
                 .lateGraceMinutes(config.getLateGraceMinutes())

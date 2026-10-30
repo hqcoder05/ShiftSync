@@ -323,8 +323,8 @@ class SchedulingPhase51ForensicVerificationTest {
     }
 
     @Test
-    @DisplayName("SCENARIO 06: AutoSchedule cleans up legacy out-of-bounds draft shifts before scheduling")
-    void test06_AutoScheduleCleansUpOutOfBoundsDraftShifts() {
+    @DisplayName("SCENARIO 06: AutoSchedule preserves legacy out-of-bounds draft shifts and reports them")
+    void test06_AutoSchedulePreservesOutOfBoundsDraftShifts() {
         Shift validShift = createShift(startDate, LocalTime.of(8, 0), LocalTime.of(16, 0));
         addRequirement(validShift, baristaSkill, barZone, 1);
 
@@ -342,10 +342,11 @@ class SchedulingPhase51ForensicVerificationTest {
 
         AutoScheduleResult result = autoScheduleService.autoSchedule(storeId, createRequest());
 
-        verify(shiftRepository).delete(outOfBoundsShift);
-        verify(shiftRepository, never()).delete(validShift);
+        verify(shiftRepository, never()).delete(any(Shift.class));
         assertEquals(1, result.getTotalDemandSlots());
         assertEquals(1, result.getTotalAssignedSlots());
+        assertEquals(1, result.getValidationWarnings().size());
+        assertTrue(result.getValidationWarnings().getFirst().contains("được giữ nguyên"));
     }
 
     // =========================================================================
@@ -981,7 +982,9 @@ class SchedulingPhase51ForensicVerificationTest {
         shiftA.setStore(sA);
         addRequirement(shiftA, baristaSkill, barZone, 1);
 
-        Shift shiftB = createShift(startDate, LocalTime.of(7, 0), LocalTime.of(15, 0));
+        // Keep the schedule valid for either mocked operating-hours response. The
+        // concurrency assertion is about store data isolation, not boundary rules.
+        Shift shiftB = createShift(startDate, LocalTime.of(8, 0), LocalTime.of(16, 0));
         shiftB.setStore(sB);
         addRequirement(shiftB, cashierSkill, posZone, 1);
 

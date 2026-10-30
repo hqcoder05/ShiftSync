@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface StoreConfigurationRepository extends JpaRepository<StoreConfiguration, UUID> {
     Optional<StoreConfiguration> findByStoreId(UUID storeId);
+    java.util.List<StoreConfiguration> findByStoreIdIn(java.util.Collection<UUID> storeIds);
 }

@@ -15,6 +15,9 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     List<Employment> findByUserIdAndStatus(UUID staffId, EmploymentStatus status);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "contractType"})
+    List<Employment> findByUserIdInAndStatus(List<UUID> staffIds, EmploymentStatus status);
+
     List<Employment> findByUserIdAndStoreIdAndStatus(UUID userId, UUID storeId, EmploymentStatus status);
 
     Page<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status, Pageable pageable);
