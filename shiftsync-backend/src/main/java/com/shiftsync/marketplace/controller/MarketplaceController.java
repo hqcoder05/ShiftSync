@@ -22,6 +22,7 @@ public class MarketplaceController {
 
     private final MarketplaceService marketplaceService;
     private final com.shiftsync.shift.service.ShiftService shiftService;
+    private final com.shiftsync.shared.transaction.SerializableRetry serializableRetry;
 
     @Operation(summary = "Publish an understaffed shift to the Marketplace")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
@@ -29,7 +30,10 @@ public class MarketplaceController {
     public ResponseEntity<Void> publishOpenShift(
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId) {
-        marketplaceService.publishToMarketplace(storeId, shiftId);
+        serializableRetry.execute(() -> {
+            marketplaceService.publishToMarketplace(storeId, shiftId);
+            return null;
+        });
         return ResponseEntity.noContent().build();
     }
 
@@ -39,7 +43,10 @@ public class MarketplaceController {
     public ResponseEntity<Void> unpublishOpenShift(
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId) {
-        marketplaceService.unpublishFromMarketplace(storeId, shiftId);
+        serializableRetry.execute(() -> {
+            marketplaceService.unpublishFromMarketplace(storeId, shiftId);
+            return null;
+        });
         return ResponseEntity.noContent().build();
     }
 
@@ -60,7 +67,10 @@ public class MarketplaceController {
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId,
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
-        marketplaceService.claimOpenShift(storeId, shiftId, userDetails.getId());
+        serializableRetry.execute(() -> {
+            marketplaceService.claimOpenShift(storeId, shiftId, userDetails.getId());
+            return null;
+        });
         return ResponseEntity.noContent().build();
     }
 }

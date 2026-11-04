@@ -63,6 +63,7 @@ class SchedulingPostgresIntegrationTest {
     @Autowired ShiftValidationService timeValidator;
     @Autowired com.shiftsync.availability.service.AvailabilityService availabilityService;
     @Autowired com.shiftsync.marketplace.service.MarketplaceService marketplace;
+    @Autowired com.shiftsync.marketplace.controller.MarketplaceController marketplaceController;
     @Autowired LeaveRequestRepository leaves;
     @Autowired TransactionTemplate tx;
     @Autowired com.shiftsync.payroll.service.CompensationPeriodGuard compensationGuard;
@@ -1299,12 +1300,20 @@ class SchedulingPostgresIntegrationTest {
                 .when(payrollPeriods).existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(eq(store),any(),any(),any());
         var pool=Executors.newFixedThreadPool(2);
         try {
-            var publication=pool.submit(()->{Thread.currentThread().setName("market-race");marketplace.publishToMarketplace(store,shift);});
+            var publication=pool.submit(()->{
+                Thread.currentThread().setName("market-race");
+                var principal=new com.shiftsync.shared.security.CustomUserDetails(com.shiftsync.auth.entity.User.builder()
+                        .id(admin).systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build());
+                org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                        new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
+                try { marketplaceController.publishOpenShift(store,shift); }
+                finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+            });
             assertTrue(checked.await(15,TimeUnit.SECONDS));
             var confirmation=pool.submit(()->{
                 var principal=new com.shiftsync.shared.security.CustomUserDetails(com.shiftsync.auth.entity.User.builder().id(admin).systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build());
                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
-                try {payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin);}
+                try {serializableRetry.execute(()->{payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin);return null;});}
                 finally {org.springframework.security.core.context.SecurityContextHolder.clearContext();}
             });
             assertThrows(TimeoutException.class,()->confirmation.get(300,TimeUnit.MILLISECONDS));
