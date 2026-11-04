@@ -1020,7 +1020,7 @@ class SchedulingPostgresIntegrationTest {
                 var principal=new com.shiftsync.shared.security.CustomUserDetails(user);
                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                         new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
-                try { payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin); }
+                try { serializableRetry.execute(()->{payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin);return null;}); }
                 finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
             });
             assertThrows(TimeoutException.class,()->confirmation.get(300,TimeUnit.MILLISECONDS));
@@ -1051,7 +1051,7 @@ class SchedulingPostgresIntegrationTest {
                         .id(admin).systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build());
                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                         new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
-                try { payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin); }
+                try { serializableRetry.execute(()->{payrollCalculator.updatePayrollPeriodStatus(store,period,com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,admin);return null;}); }
                 finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
             });
             assertThrows(TimeoutException.class,()->confirmation.get(300,TimeUnit.MILLISECONDS));
