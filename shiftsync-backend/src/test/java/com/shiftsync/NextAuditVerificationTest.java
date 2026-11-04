@@ -46,6 +46,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -180,8 +181,8 @@ public class NextAuditVerificationTest {
         // Create EARLY_LEAVE attendance
         Attendance attendance = attendanceRepository.save(Attendance.builder()
                 .shiftAssignment(assignment)
-                .checkInTime(OffsetDateTime.now().withHour(8).withMinute(0))
-                .checkOutTime(OffsetDateTime.now().withHour(10).withMinute(0)) // Left 2 hours early
+                .checkInTime(OffsetDateTime.of(shiftDate, LocalTime.of(8, 0), ZoneOffset.ofHours(7)))
+                .checkOutTime(OffsetDateTime.of(shiftDate, LocalTime.of(10, 0), ZoneOffset.ofHours(7))) // Left 2 hours early
                 .status(AttendanceStatus.EARLY_LEAVE)
                 .build());
 
@@ -190,7 +191,7 @@ public class NextAuditVerificationTest {
 
         // Manager updates check-in time (e.g. they checked in slightly earlier)
         AttendanceUpdateRequest updateReq = new AttendanceUpdateRequest();
-        updateReq.setCheckInTime(OffsetDateTime.now().withHour(7).withMinute(55));
+        updateReq.setCheckInTime(OffsetDateTime.of(shiftDate, LocalTime.of(7, 55), ZoneOffset.ofHours(7)));
 
         com.shiftsync.attendance.dto.AttendanceDTO dto = attendanceService.updateAttendance(store.getId(), attendance.getId(), updateReq);
         

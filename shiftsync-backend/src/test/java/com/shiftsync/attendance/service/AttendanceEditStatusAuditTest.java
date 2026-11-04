@@ -43,4 +43,24 @@ class AttendanceEditStatusAuditTest {
         var row=edit(AttendanceStatus.PRESENT,17,15);
         assertEquals(15,row.getCheckOutTime().getHour());assertEquals(AttendanceStatus.EARLY_LEAVE,row.getStatus());
     }
+    @Test void updatingCheckinKeepsEarlyLeaveInBusinessTimezone() {
+        var repository=mock(AttendanceRepository.class);
+        var store=Store.builder().id(UUID.randomUUID()).build(); var date=LocalDate.of(2030,11,4);
+        var shift=Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(date)
+                .startTime(LocalTime.of(8,0)).endTime(LocalTime.of(12,0)).build();
+        var assignment=ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift)
+                .staff(User.builder().id(UUID.randomUUID()).build()).build();
+        var row=Attendance.builder().id(UUID.randomUUID()).shiftAssignment(assignment)
+                .checkInTime(date.atTime(8,0).atOffset(ZoneOffset.ofHours(7)))
+                .checkOutTime(date.atTime(10,0).atOffset(ZoneOffset.ofHours(7))).status(AttendanceStatus.EARLY_LEAVE).build();
+        when(repository.findById(row.getId())).thenReturn(Optional.of(row));
+        when(repository.save(any())).thenAnswer(call->call.getArgument(0));
+        var service=new AttendanceService(repository,null,null,mock(StoreConfigurationRepository.class),null,
+                mock(com.shiftsync.shared.websocket.RealtimeEventPublisher.class),
+                mock(com.shiftsync.payroll.service.PayrollCalculationService.class));
+        com.shiftsync.support.TestStoreLock.installAttendance(service);
+        var request=new AttendanceUpdateRequest(); request.setCheckInTime(date.atTime(7,55).atOffset(ZoneOffset.ofHours(7)));
+        service.updateAttendance(store.getId(),row.getId(),request);
+        assertEquals(AttendanceStatus.EARLY_LEAVE,row.getStatus());
+    }
 }

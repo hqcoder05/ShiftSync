@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -202,8 +203,8 @@ public class AttendanceRegressionPostFixRuntimeQaTest {
 
         Attendance attendance = new Attendance();
         attendance.setShiftAssignment(assignment);
-        attendance.setCheckInTime(OffsetDateTime.now().withHour(9).withMinute(0).withSecond(0).withNano(0));
-        attendance.setCheckOutTime(OffsetDateTime.now().withHour(12).withMinute(0).withSecond(0).withNano(0));
+        attendance.setCheckInTime(OffsetDateTime.of(shift.getShiftDate(), LocalTime.of(9, 0), ZoneOffset.ofHours(7)));
+        attendance.setCheckOutTime(OffsetDateTime.of(shift.getShiftDate(), LocalTime.of(12, 0), ZoneOffset.ofHours(7)));
         attendance.setStatus(AttendanceStatus.EARLY_LEAVE);
         attendance = attendanceRepository.save(attendance);
 
