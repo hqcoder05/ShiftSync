@@ -46,6 +46,9 @@ public class StoreConfigurationService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
+        if (request.getOpenTime() == null || request.getCloseTime() == null || !request.getOpenTime().isBefore(request.getCloseTime())) {
+            throw new BusinessException("Giờ mở cửa phải trước giờ đóng cửa", HttpStatus.BAD_REQUEST);
+        }
         // Get before data
         StoreConfigurationDTO beforeData = getStoreConfiguration(storeId);
 

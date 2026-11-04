@@ -628,8 +628,8 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
     window.dispatchEvent(new CustomEvent('user_avatar_changed', { detail: { avatarId, userId } }));
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 

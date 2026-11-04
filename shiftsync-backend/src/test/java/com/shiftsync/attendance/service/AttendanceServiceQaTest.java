@@ -39,6 +39,7 @@ class AttendanceServiceQaTest {
 
     @InjectMocks
     private AttendanceService attendanceService;
+    @org.junit.jupiter.api.BeforeEach void installStoreLock() { com.shiftsync.support.TestStoreLock.installAttendance(attendanceService); }
 
     @Test
     void testUpdateAttendance_CheckOutBeforeCheckIn_Accepted() {

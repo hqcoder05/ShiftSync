@@ -62,6 +62,8 @@ class WorkforceRoleStateAuditTest {
         when(requests.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(requests.save(any())).thenAnswer(call->call.getArgument(0));
         when(employment.existsByUserIdAndStoreIdAndStatus(eq(staff.getId()),eq(target.getId()),any())).thenReturn(true);
+        when(employment.findByUserIdAndStoreIdAndStatus(eq(staff.getId()),eq(target.getId()),any())).thenReturn(List.of(
+                Employment.builder().id(UUID.randomUUID()).user(staff).store(target).joinedDate(date.minusDays(30)).build()));
         when(employment.findByUserIdAndStatus(eq(staff.getId()),any())).thenReturn(List.of(Employment.builder()
                 .user(staff).store(target).contractType(ContractType.builder().maxWeeklyHours(48).build()).build()));
         when(availability.findByUserId(staff.getId())).thenReturn(List.of(Availability.builder().user(staff)
@@ -77,7 +79,9 @@ class WorkforceRoleStateAuditTest {
         when(proposals.findById(any())).thenAnswer(call->Optional.ofNullable(proposed.get(call.getArgument(0))));
         when(proposals.countByWorkforceRequestIdAndStatus(request.getId(),WorkforceProposalStatus.ACCEPTED))
                 .thenAnswer(call->proposed.values().stream().filter(p->p.getStatus()==WorkforceProposalStatus.ACCEPTED).count());
-        var time=new ShiftValidationService(shifts,employment,configs);
+        var revisions=mock(com.shiftsync.payroll.service.CompensationRevisionResolver.class);
+        lenient().when(revisions.weeklyHoursForEmployment(any(),any())).thenReturn(48);
+        var time=new ShiftValidationService(shifts,employment,configs,revisions);
         var validator=new ShiftAssignmentValidator(availability,mock(BlackoutDateRepository.class),assignments,
                 qualifications,skills,time,null,configs);
         return new WorkforceRequestService(requests,proposals,mock(StoreRepository.class),shifts,users,employment,
@@ -90,30 +94,74 @@ class WorkforceRoleStateAuditTest {
         return service.proposeStaff(target.getId(),request.getId(),dto,manager.getId()).getId();
     }
 
-    @Test void kitchenSupportRequestAcceptsCashierOnlyStaffAndSavesNoRequiredRole() {
+    @Test void kitchenSupportRequestRejectsCashierOnlyStaff() {
         shift.getRequirements().addAll(List.of(requirement(cashier,1),requirement(kitchen,1)));
-        var service=service();var proposal=propose(service);
-        service.respondToProposal(proposal,true,staff.getId());
-        assertEquals(WorkforceRequestStatus.COMPLETED,request.getStatus());
-        assertEquals(WorkforceProposalStatus.ACCEPTED,proposed.get(proposal).getStatus());
-        assertEquals(kitchen.getId(),request.getSkill().getId());
-        assertEquals(1,saved.size());
-        assertEquals(staff.getId(),saved.get(0).getStaff().getId());
-        assertNull(saved.get(0).getRequiredSkillId());
+        var service=service();
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->propose(service));
+        assertTrue(proposed.isEmpty());
+        assertTrue(saved.isEmpty());
     }
 
-    @Test void pendingProposalStillCreatesAssignmentAfterShiftIsCancelled() {
+    @Test void acceptedSupportAssignmentRecordsRequestedSkill() {
+        request.setSkill(cashier);shift.getRequirements().add(requirement(cashier,1));
+        var service=service();var proposal=propose(service);
+        service.respondToProposal(proposal,true,staff.getId());
+        assertEquals(WorkforceProposalStatus.ACCEPTED,proposed.get(proposal).getStatus());
+        assertEquals(cashier.getId(),saved.get(0).getRequiredSkillId());
+        assertEquals(com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING,saved.get(0).getSource());
+        assertEquals(target.getId(),saved.get(0).getSupportEmployment().getStore().getId());
+    }
+
+    @Test void rejectedRequestCannotLaterCreateAnAcceptedSupportAssignment() {
+        request.setSkill(cashier);shift.getRequirements().add(requirement(cashier,1));
+        var service=service();var proposal=propose(service);
+
+        service.rejectRequest(target.getId(),request.getId(),manager.getId());
+
+        assertEquals(WorkforceRequestStatus.MANAGER_REJECTED,request.getStatus());
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                () -> service.respondToProposal(proposal,true,staff.getId()));
+        assertEquals(WorkforceProposalStatus.PENDING,proposed.get(proposal).getStatus());
+        assertTrue(saved.isEmpty());
+        verify(assignments,never()).save(any());
+    }
+
+    @Test void pendingProposalCannotCreateAssignmentAfterShiftIsCancelled() {
         request.setSkill(cashier);shift.getRequirements().add(requirement(cashier,2));
         saved.add(ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift).requiredSkillId(cashier.getId())
                 .staff(User.builder().id(UUID.randomUUID()).build()).build());
         var service=service();var proposal=propose(service);
         // Cancellation of a staffed published shift retains original assignments in production.
         shift.setStatus(ShiftStatus.CANCELLED);
-        service.respondToProposal(proposal,true,staff.getId());
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->service.respondToProposal(proposal,true,staff.getId()));
         assertEquals(ShiftStatus.CANCELLED,shift.getStatus());
-        assertEquals(WorkforceRequestStatus.COMPLETED,request.getStatus());
-        assertEquals(2,saved.size());
-        assertEquals(staff.getId(),saved.get(1).getStaff().getId());
-        verify(assignments).save(saved.get(1));
+        assertEquals(WorkforceRequestStatus.PROPOSAL_SENT,request.getStatus());
+        assertEquals(1,saved.size());
+        verify(assignments,never()).save(any());
+    }
+
+    @Test void proposalCannotBeAcceptedAfterEmployeeLeavesSupportingStore() {
+        request.setSkill(cashier);shift.getRequirements().add(requirement(cashier,1));
+        var service=service();var proposal=propose(service);
+        when(employment.existsByUserIdAndStoreIdAndStatus(eq(staff.getId()),eq(target.getId()),any())).thenReturn(false);
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->service.respondToProposal(proposal,true,staff.getId()));
+        assertEquals(WorkforceProposalStatus.PENDING,proposed.get(proposal).getStatus());
+        verify(assignments,never()).save(any());
+    }
+
+    @Test void duplicatePendingProposalIsRejected() {
+        request.setSkill(cashier);shift.getRequirements().add(requirement(cashier,1));
+        var service=service();propose(service);
+        when(proposals.existsByWorkforceRequestIdAndStaffIdAndStatus(request.getId(),staff.getId(),WorkforceProposalStatus.PENDING)).thenReturn(true);
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->propose(service));
+        assertEquals(1,proposed.size());
+    }
+
+    @Test void candidateListExcludesStaffWithoutRequestedSkill() {
+        shift.getRequirements().addAll(List.of(requirement(cashier,1),requirement(kitchen,1)));
+        var service=service();
+        when(employment.findByStoreIdAndStatus(eq(target.getId()),any())).thenReturn(List.of(
+                Employment.builder().user(staff).store(target).status(com.shiftsync.employment.enums.EmploymentStatus.ACTIVE).build()));
+        assertTrue(service.getEligibleStaffForRequest(target.getId(),request.getId()).isEmpty());
     }
 }

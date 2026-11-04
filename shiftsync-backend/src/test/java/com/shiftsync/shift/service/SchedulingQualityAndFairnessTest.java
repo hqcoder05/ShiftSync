@@ -91,6 +91,7 @@ class SchedulingQualityAndFairnessTest {
 
     @BeforeEach
     void setUp() {
+        TestCompensationResolver.install(autoScheduleService);
         storeId = UUID.randomUUID();
         startDate = LocalDate.of(2026, 3, 2); // Monday
         endDate = LocalDate.of(2026, 3, 8);   // Sunday

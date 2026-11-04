@@ -43,18 +43,43 @@ public class MarketplaceService {
     private final com.shiftsync.skill.repository.StaffSkillRepository staffSkillRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final TransactionTemplate transactionTemplate;
+    private final com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriods;
+    @Autowired
+    private com.shiftsync.store.repository.StoreRepository payrollStores;
     @Autowired(required = false)
     private com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
+
+    private void checkPayrollLock(UUID storeId, Shift shift) {
+        var affectedStores = new java.util.TreeSet<UUID>();
+        affectedStores.add(storeId);
+        affectedStores.addAll(shiftAssignmentRepository.findSupportPayrollStoresForShift(shift.getId()));
+        for (UUID affectedStore : affectedStores) {
+            payrollStores.findByIdForUpdate(affectedStore)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+        }
+        var last = shift.getShiftDate();
+        if (shift.getStartTime() != null && shift.getEndTime() != null && shift.getEndTime().isBefore(shift.getStartTime())
+                && !shift.getEndTime().equals(java.time.LocalTime.MIDNIGHT)) last = last.plusDays(1);
+        for (UUID affectedStore : affectedStores) for (var day = shift.getShiftDate(); !day.isAfter(last); day = day.plusDays(1)) {
+            if (payrollPeriods.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(affectedStore, day, day,
+                    List.of(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED, com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID))) {
+                throw new BusinessException("Không thể thay đổi ca thuộc kỳ lương đã khóa", HttpStatus.CONFLICT);
+            }
+        }
+    }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
-        if (shift.getStatus() == ShiftStatus.DRAFT) {
-            shift.setStatus(ShiftStatus.PUBLISHED);
-        } else if (shift.getStatus() != ShiftStatus.PUBLISHED) {
+        checkPayrollLock(storeId, shift);
+
+        if (shift.getStatus() != ShiftStatus.DRAFT && shift.getStatus() != ShiftStatus.PUBLISHED) {
             throw new BusinessException("Cancelled or completed shifts cannot be published to Marketplace", HttpStatus.BAD_REQUEST);
+        }
+        if (!shift.getShiftDate().atTime(shift.getStartTime()).atZone(BUSINESS_ZONE).isAfter(ZonedDateTime.now(BUSINESS_ZONE))) {
+            throw new BusinessException("Không thể đăng ca đã bắt đầu", HttpStatus.BAD_REQUEST);
         }
         
         if (shift.isOpen()) {
@@ -62,18 +87,14 @@ public class MarketplaceService {
         }
 
         // Check if understaffed
-        int requiredCount = shift.getRequirements().stream()
-                .mapToInt(ShiftSkillRequirement::getRequiredCount)
-                .sum();
-        if (requiredCount == 0) {
-            requiredCount = Math.max(1, (int) shiftAssignmentRepository.countByShiftId(shiftId) + 1);
-        }
+        int requiredCount = capacity(shift);
                 
         int assignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
         if (assignedCount >= requiredCount) {
             throw new BusinessException("Shift is already fully staffed. Cannot publish to Marketplace.", HttpStatus.BAD_REQUEST);
         }
 
+        shift.setStatus(ShiftStatus.PUBLISHED);
         shift.setOpen(true);
         if (shift.getAvailabilityDeadline() == null || shift.getAvailabilityDeadline().isBefore(java.time.ZonedDateTime.now())) {
             java.time.ZonedDateTime deadline = shift.getShiftDate().atTime(shift.getStartTime()).atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -153,6 +174,11 @@ public class MarketplaceService {
         return deadlineOpen && shiftStart.isAfter(now);
     }
 
+    private int capacity(Shift shift) {
+        return shift.getRequirements() == null || shift.getRequirements().isEmpty() ? 1
+                : shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
+    }
+
     public void claimOpenShift(UUID storeId, UUID shiftId, UUID staffId) {
         RLock lock = redissonClient.getLock("shift_claim_lock:" + shiftId);
         try {
@@ -166,7 +192,9 @@ public class MarketplaceService {
                 Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                     .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
-            if (!shift.isOpen()) {
+            checkPayrollLock(storeId, shift);
+
+            if (shift.getStatus() != ShiftStatus.PUBLISHED || !shift.isOpen()) {
                 throw new BusinessException("Ca này không còn trên Marketplace", HttpStatus.BAD_REQUEST);
             }
 
@@ -178,12 +206,10 @@ public class MarketplaceService {
                 throw new BusinessException("Bạn đã được phân công ca này rồi", HttpStatus.CONFLICT);
             }
 
-            int requiredCount = shift.getRequirements().stream()
-                    .mapToInt(ShiftSkillRequirement::getRequiredCount)
-                    .sum();
+            int requiredCount = capacity(shift);
             int assignedCount = (int) shiftAssignmentRepository.countByShiftId(shiftId);
 
-            if (assignedCount >= Math.max(1, requiredCount)) {
+            if (assignedCount >= requiredCount) {
                 throw new BusinessException("Ca này đã có người nhanh tay nhận mất!", HttpStatus.CONFLICT);
             }
 

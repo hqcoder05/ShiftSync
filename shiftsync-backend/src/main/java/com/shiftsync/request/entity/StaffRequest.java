@@ -22,6 +22,12 @@ public class StaffRequest {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "requester_id")
+    private UUID requesterId;
+
+    @Column(name = "store_id")
+    private UUID storeId;
+
     @Column(name = "requester_name", nullable = false, length = 100)
     private String requesterName;
 

@@ -115,6 +115,7 @@ public class ShiftScheduleExceptionAuditTest {
         staffBId = UUID.randomUUID();
 
         store = Store.builder().id(storeId).openTime(LocalTime.of(7, 0)).closeTime(LocalTime.of(22, 0)).build();
+        lenient().when(storeRepository.findByIdForUpdate(storeId)).thenReturn(Optional.of(store));
         storeB = Store.builder().id(storeBId).openTime(LocalTime.of(7, 0)).closeTime(LocalTime.of(22, 0)).build();
 
         manager = User.builder().id(managerId).fullName("Store Manager").systemRole(SystemRole.MANAGER).build();
@@ -126,6 +127,7 @@ public class ShiftScheduleExceptionAuditTest {
                 payrollPeriodRepository, notificationService, shiftAssignmentValidator,
                 staffSkillRepository, storeZoneRepository, skillRepository, attendanceRepository
         );
+        com.shiftsync.support.TestStoreLock.install(shiftAssignmentService);
 
         shiftService = new ShiftService(
                 auditLogService, shiftRepository, storeRepository, storeConfigRepository,
@@ -143,12 +145,15 @@ public class ShiftScheduleExceptionAuditTest {
                 attendanceRepository, shiftAssignmentRepository, shiftRepository,
                 storeConfigRepository, jwtTokenProvider, realtimeEventPublisher, payrollCalculationService
         );
+        com.shiftsync.support.TestStoreLock.installAttendance(attendanceService);
 
         marketplaceService = new MarketplaceService(
                 shiftRepository, shiftAssignmentRepository, redissonClient,
                 shiftValidationService, shiftAssignmentValidator, userRepository,
-                employmentRepository, staffSkillRepository, notificationService, transactionTemplate
+                employmentRepository, staffSkillRepository, notificationService, transactionTemplate,
+                mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class)
         );
+        com.shiftsync.support.TestStoreLock.installMarketplace(marketplaceService);
     }
 
     @Nested
@@ -423,6 +428,8 @@ public class ShiftScheduleExceptionAuditTest {
             when(shiftSwapRequestRepository.findById(requestId)).thenReturn(Optional.of(req));
             when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
             when(employmentRepository.existsByUserIdAndStoreIdAndStatus(managerId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+            when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffAId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+            when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffBId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
             when(leaveRequestRepository.findOverlappingRequests(staffAId, dateB, dateB))
                     .thenReturn(List.of(LeaveRequest.builder().status(LeaveStatus.APPROVED).build()));
 
@@ -470,7 +477,7 @@ public class ShiftScheduleExceptionAuditTest {
 
             BusinessException ex = assertThrows(BusinessException.class, () -> attendanceService.submitSelfie(staffAId, shiftId, 10.0, 106.0, new byte[]{1}));
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertTrue(ex.getMessage().contains("Cannot check in for a shift that is CANCELLED"));
+            assertTrue(ex.getMessage().contains("ca nháp hoặc đã hủy"));
         }
     }
 
@@ -482,7 +489,7 @@ public class ShiftScheduleExceptionAuditTest {
         @DisplayName("claimOpenShift: Non-STAFF role cannot claim open shifts")
         void claimOpenShift_NonStaffRole_ThrowsBadRequest() {
             UUID shiftId = UUID.randomUUID();
-            Shift shift = Shift.builder().id(shiftId).store(store).isOpen(true)
+            Shift shift = Shift.builder().id(shiftId).store(store).isOpen(true).status(ShiftStatus.PUBLISHED)
                     .shiftDate(LocalDate.now().plusDays(2)).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0))
                     .availabilityDeadline(ZonedDateTime.now().plusDays(1))
                     .requirements(List.of())
@@ -512,7 +519,7 @@ public class ShiftScheduleExceptionAuditTest {
         @DisplayName("claimOpenShift: Inactive or foreign employee cannot claim shift")
         void claimOpenShift_InactiveEmployment_ThrowsBadRequest() {
             UUID shiftId = UUID.randomUUID();
-            Shift shift = Shift.builder().id(shiftId).store(store).isOpen(true)
+            Shift shift = Shift.builder().id(shiftId).store(store).isOpen(true).status(ShiftStatus.PUBLISHED)
                     .shiftDate(LocalDate.now().plusDays(2)).startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0))
                     .availabilityDeadline(ZonedDateTime.now().plusDays(1))
                     .requirements(List.of())

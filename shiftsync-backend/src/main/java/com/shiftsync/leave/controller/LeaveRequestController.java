@@ -24,6 +24,22 @@ public class LeaveRequestController {
     private final LeaveRequestService leaveRequestService;
     private final com.shiftsync.leave.service.LeaveBalanceService leaveBalanceService;
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}/provenance-candidates")
+    public ResponseEntity<List<com.shiftsync.shift.repository.ShiftAssignmentRepository.LeaveReconciliationCandidate>> getProvenanceCandidates(
+            @PathVariable UUID storeId, @PathVariable UUID id) {
+        return ResponseEntity.ok(leaveRequestService.getProvenanceCandidates(storeId, id));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}/provenance")
+    public ResponseEntity<Void> reconcileProvenance(@PathVariable UUID storeId, @PathVariable UUID id,
+            @Valid @RequestBody com.shiftsync.leave.dto.LeaveProvenanceReconciliationRequest request,
+            @AuthenticationPrincipal CustomUserDetails admin) {
+        leaveRequestService.reconcileProvenance(storeId, id, request.assignmentIds(), request.reason(), admin.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PreAuthorize("isAuthenticated()")
     @GetMapping({"/types", "/leave-types"})
     public ResponseEntity<List<com.shiftsync.leave.dto.LeaveTypeDTO>> getLeaveTypes(

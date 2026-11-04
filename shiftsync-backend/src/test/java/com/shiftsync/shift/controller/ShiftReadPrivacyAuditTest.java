@@ -62,7 +62,7 @@ class ShiftReadPrivacyAuditTest {
         return Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(LocalDate.of(2030,11,4))
                 .startTime(LocalTime.of(9,0)).endTime(LocalTime.of(17,0)).status(status).build();
     }
-    @Test void personalScheduleRoutesExposeDraftHiddenByOrdinaryStaffScheduleList() {
+    @Test void personalScheduleRoutesHideUnpublishedDrafts() {
         var draft=shift(ShiftStatus.DRAFT);draft.setNote("Unpublished staffing plan");
         var published=shift(ShiftStatus.PUBLISHED);
         var pendingAssignment=ShiftAssignment.builder().id(UUID.randomUUID()).staff(actor).shift(draft).build();
@@ -74,13 +74,12 @@ class ShiftReadPrivacyAuditTest {
         assertEquals(1,ordinary.size());assertEquals(published.getId(),ordinary.get(0).getId());
         var personal=controller.getMyShiftsInStore(store.getId(),principal).getBody();
         var globalPersonal=userController.getMyShifts(principal).getBody();
-        assertEquals(2,personal.size());assertEquals(2,globalPersonal.size());
+        assertEquals(1,personal.size());assertEquals(1,globalPersonal.size());
         for(var result:List.of(personal,globalPersonal)) {
-            var exposed=result.stream().filter(s->s.getId().equals(draft.getId())).findFirst().orElseThrow();
-            assertEquals(ShiftStatus.DRAFT,exposed.getStatus());assertEquals("Unpublished staffing plan",exposed.getNote());
+            assertEquals(published.getId(),result.get(0).getId());
         }
     }
-    @Test void ordinaryStaffCanReadCoworkerPayFromEligibleCandidateEndpoint() {
+    @Test void ordinaryStaffCannotReadEligibleCandidatesCompensation() {
         var shift=shift(ShiftStatus.PUBLISHED);
         var coworker=User.builder().id(UUID.randomUUID()).fullName("Coworker").systemRole(SystemRole.STAFF).build();
         var row=Employment.builder().id(UUID.randomUUID()).store(store).user(coworker).status(EmploymentStatus.ACTIVE)
@@ -89,10 +88,17 @@ class ShiftReadPrivacyAuditTest {
         when(shifts.findById(shift.getId())).thenReturn(Optional.of(shift));
         when(employment.findByStoreIdAndStatus(store.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of(row));
         when(validator.isEligible(shift,coworker.getId())).thenReturn(true);
-        var result=controller.getEligibleStaff(store.getId(),shift.getId());
-        assertEquals(200,result.getStatusCode().value());
-        assertNotEquals(actor.getId(),result.getBody().get(0).getStaffId());
-        assertEquals(new BigDecimal("98765"),result.getBody().get(0).getHourlyRate());
-        assertEquals(new BigDecimal("54321"),result.getBody().get(0).getContractType().getDefaultHourlyRate());
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> controller.getEligibleStaff(store.getId(),shift.getId()));
+    }
+
+    @Test void managerCanReadEligibleCandidatesInManagedStore() {
+        var manager=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.MANAGER).build();
+        var details=new CustomUserDetails(manager);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(details,null,details.getAuthorities()));
+        when(employment.isStaffInStore(manager.getId(),store.getId(),EmploymentStatus.ACTIVE)).thenReturn(true);
+        var shift=shift(ShiftStatus.PUBLISHED);
+        when(shifts.findById(shift.getId())).thenReturn(Optional.of(shift));
+        assertEquals(200,controller.getEligibleStaff(store.getId(),shift.getId()).getStatusCode().value());
     }
 }

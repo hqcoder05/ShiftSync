@@ -37,7 +37,11 @@ class QuotaMutationAuditTest {
     final LocalDate date=LocalDate.of(2026,10,1);
     HeadcountQuotaService quota() {
         when(stores.findById(store.getId())).thenReturn(Optional.of(store));
-        return new HeadcountQuotaService(stores,skills,shifts,zones,assignments,mock(PositionNormOverrideRepository.class));
+        lenient().when(stores.findByIdForUpdate(store.getId())).thenReturn(Optional.of(store));
+        var revisions=mock(com.shiftsync.payroll.service.CompensationRevisionResolver.class);
+        lenient().when(revisions.requireAt(eq("skill"),any(),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms(java.math.BigDecimal.valueOf(26000)));
+        return new HeadcountQuotaService(stores,skills,shifts,zones,assignments,mock(PositionNormOverrideRepository.class),payroll,mock(com.shiftsync.store.repository.StoreConfigurationRepository.class),revisions);
     }
     ShiftService standard() {
         return new ShiftService(null,shifts,stores,null,null,skills,assignments,null,payroll,null,zones,null);
@@ -62,7 +66,7 @@ class QuotaMutationAuditTest {
     void quotaUpdatesRequirementsThatOrdinaryEndpointRefuses(ShiftStatus status) {
         var service=quota();var shift=existing(status);
         assertThrows(BusinessException.class,()->standard().setShiftRequirements(store.getId(),shift.getId(),List.of()));
-        quotaChange(service,shift);
+        assertThrows(BusinessException.class,()->quotaChange(service,shift));
         assertEquals(status,shift.getStatus());
     }
     @Test void quotaStillMutatesDraftOnLockedPayrollDate() {
@@ -71,7 +75,17 @@ class QuotaMutationAuditTest {
         var update=new ShiftCreateRequest();update.setShiftDate(date);update.setStartTime(shift.getStartTime());update.setEndTime(shift.getEndTime());
         var blocked=assertThrows(BusinessException.class,()->standard().updateShift(store.getId(),shift.getId(),update));
         assertTrue(blocked.getMessage().contains("LOCKED/PAID"));
-        quotaChange(service,shift);
+        assertThrows(BusinessException.class,()->quotaChange(service,shift));
+    }
+    @Test void quotaCannotReduceCapacityBelowExistingAssignments() {
+        var service=quota(); var shift=existing(ShiftStatus.DRAFT);
+        var role=shift.getRequirements().get(0).getSkill().getId();
+        var assignment=ShiftAssignment.builder().id(UUID.randomUUID()).requiredSkillId(role).build();
+        when(assignments.findByShiftId(shift.getId())).thenReturn(List.of(assignment));
+        assertThrows(BusinessException.class,()->service.updateQuota("quota",UpdateQuotaRequest.builder()
+                .branchId(store.getId()).date(date).shiftType("morning").positionId(role).count(0).build()));
+        assertEquals(1,shift.getRequirements().get(0).getRequiredCount());
+        verify(shifts,never()).save(shift);
     }
     @ParameterizedTest @EnumSource(value=ShiftStatus.class,names={"PUBLISHED","CANCELLED"})
     void bulkDemandAlsoBypassesTheRequirementsEndpointStateGuard(ShiftStatus status) {
@@ -82,23 +96,21 @@ class QuotaMutationAuditTest {
         var config=new BulkDemandPlanningRequest.ShiftDemandConfig();config.setStartTime(shift.getStartTime());
         config.setEndTime(shift.getEndTime());config.setRequirements(List.of(requirement));
         var request=new BulkDemandPlanningRequest();request.setScope("DAY");request.setTargetDate(date);request.setShifts(List.of(config));
-        standard().saveBulkDemandPlanning(store.getId(),request);
-        assertEquals(4,shift.getRequirements().get(0).getRequiredCount());assertEquals(status,shift.getStatus());
-        verify(shifts).save(shift);
+        assertThrows(BusinessException.class,()->standard().saveBulkDemandPlanning(store.getId(),request));
+        assertEquals(1,shift.getRequirements().get(0).getRequiredCount());assertEquals(status,shift.getStatus());
+        verify(shifts,never()).save(shift);
     }
-    @Test void defaultPositionsCannotBeEditedAndAutoFillSucceedsWithoutAnyRoleDemand() {
-        var service=quota();var defaults=service.getPositions(store.getId());
-        assertEquals(3,defaults.size());
+    @Test void noPositionsAreInventedAndAutoFillRejectsWithoutCreatingShifts() {
+        var service=quota();
+        assertTrue(service.getPositions(store.getId()).isEmpty());
         var saved=new HashMap<UUID,Shift>();
         when(shifts.save(any())).thenAnswer(call->{Shift row=call.getArgument(0);
             if(row.getId()==null)row.setId(UUID.randomUUID());saved.put(row.getId(),row);return row;});
         var request=AutoFillQuotaRequest.builder().branchId(store.getId()).scope("DAY").date(date).build();
-        var response=new HeadcountQuotaController(service).autoFillQuotas(request);
-        assertEquals(true,response.getBody().get("success"));
-        assertEquals(2,saved.size());
-        assertTrue(saved.values().stream().allMatch(s->s.getRequirements().isEmpty()));
+        assertThrows(BusinessException.class,()->new HeadcountQuotaController(service).autoFillQuotas(request));
+        assertTrue(saved.isEmpty());
         var rejected=assertThrows(BusinessException.class,()->service.updateQuota("default",UpdateQuotaRequest.builder()
-                .branchId(store.getId()).date(date).shiftType("morning").positionId(defaults.get(0).getId()).count(2).build()));
+                .branchId(store.getId()).date(date).shiftType("morning").positionId(UUID.randomUUID()).count(2).build()));
         assertTrue(rejected.getMessage().contains("Position/Skill not found"));
         verify(skills,never()).save(any());
     }

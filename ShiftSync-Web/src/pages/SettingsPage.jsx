@@ -62,6 +62,12 @@ const DEFAULT_CONFIG = {
 
 const STORAGE_KEY_PREFIX = 'shiftsync_store_config_';
 
+const tomorrowInVietnam = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((part) => part.type === type).value);
+  return new Date(Date.UTC(get('year'), get('month') - 1, get('day') + 1)).toISOString().slice(0, 10);
+};
+
 export default function SettingsPage() {
   const { search } = useLocation();
   const { theme, setTheme, style, setStyle, navStyle, setNavStyle } = useTheme();
@@ -81,6 +87,7 @@ export default function SettingsPage() {
 
   // Contract types state
   const [contractTypes, setContractTypes] = useState([]);
+  const [contractEffectiveDate, setContractEffectiveDate] = useState(tomorrowInVietnam);
   const [initialContractTypes, setInitialContractTypes] = useState([]);
   const [showAddContractModal, setShowAddContractModal] = useState(false);
   const [newContractForm, setNewContractForm] = useState({
@@ -256,18 +263,20 @@ export default function SettingsPage() {
     if (!selectedStoreId || String(selectedStoreId).startsWith('store-')) return;
     setContractSavingId(ct.id);
     try {
-      await updateContractType(selectedStoreId, ct.id, {
+      const response = await updateContractType(selectedStoreId, ct.id, {
         name: ct.name,
         maxWeeklyHours: Number(ct.maxWeeklyHours),
         otMultiplier: Number(ct.otMultiplier || 1.25),
         defaultHourlyRate: Number(ct.defaultHourlyRate || 25),
+        effectiveDate: contractEffectiveDate,
       });
+      setContractTypes((prev) => prev.map((item) => String(item.id) === String(ct.id) ? response.data : item));
       setInitialContractTypes((prev) =>
         prev.map((item) =>
-          String(item.id) === String(ct.id) ? { ...item, maxWeeklyHours: Number(ct.maxWeeklyHours) } : item
+          String(item.id) === String(ct.id) ? response.data : item
         )
       );
-      showToast(`Đã lưu trần giờ cho loại hợp đồng ${ct.name}! ✓`);
+      showToast(`Đã lên lịch trần giờ cho ${ct.name} từ ngày ${response.data.scheduledEffectiveDate}.`);
     } catch (err) {
       showToast(`Lỗi khi lưu loại hợp đồng: ${err.response?.data?.message || err.message}`);
     } finally {
@@ -369,17 +378,19 @@ export default function SettingsPage() {
       if (dirtyContracts.length > 0 && selectedStoreId && !String(selectedStoreId).startsWith('store-')) {
         for (const ct of dirtyContracts) {
           try {
-            await updateContractType(selectedStoreId, ct.id, {
+            const response = await updateContractType(selectedStoreId, ct.id, {
               name: ct.name,
               maxWeeklyHours: Number(ct.maxWeeklyHours),
               otMultiplier: Number(ct.otMultiplier || 1.25),
               defaultHourlyRate: Number(ct.defaultHourlyRate || 25),
+              effectiveDate: contractEffectiveDate,
             });
+            setContractTypes((prev) => prev.map((item) => String(item.id) === String(ct.id) ? response.data : item));
+            setInitialContractTypes((prev) => prev.map((item) => String(item.id) === String(ct.id) ? response.data : item));
           } catch (ctErr) {
-            console.warn(`Lỗi lưu hợp đồng ${ct.name}:`, ctErr.message);
+            throw new Error(`Lỗi lưu hợp đồng ${ct.name}: ${ctErr.response?.data?.message || ctErr.message}`);
           }
         }
-        setInitialContractTypes(JSON.parse(JSON.stringify(contractTypes)));
       }
 
       localStorage.setItem(`${STORAGE_KEY_PREFIX}${selectedStoreId}`, JSON.stringify(config));
@@ -926,6 +937,11 @@ export default function SettingsPage() {
                 </button>
               </div>
 
+              <label>
+                Ngày hiệu lực thay đổi hợp đồng
+                <input type="date" value={contractEffectiveDate} onChange={(e) => setContractEffectiveDate(e.target.value)} required />
+              </label>
+
               {contractTypes.length === 0 ? (
                 <div className="sc-empty-hint" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
                   Chưa có loại hợp đồng nào được tải cho cửa hàng này.
@@ -952,6 +968,9 @@ export default function SettingsPage() {
                             <span className="sc-cc-rate-text">
                               Lương chuẩn: {Number(ct.defaultHourlyRate || 0).toLocaleString()} $/h • OT: {ct.otMultiplier || 1.25}x
                             </span>
+                            {ct.scheduledEffectiveDate && <span className="sc-cc-rate-text">
+                              Từ {ct.scheduledEffectiveDate}: {ct.scheduledMaxWeeklyHours} giờ/tuần
+                            </span>}
                           </div>
                           {isCtDirty && (
                             <button

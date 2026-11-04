@@ -120,8 +120,8 @@ public class ShiftAssignmentValidator {
                 long assignedForSkill = existingAssignments.stream()
                         .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
                         .count();
-                if (assignedForSkill == 0 && shift.getRequirements().size() == 1) {
-                    assignedForSkill = existingAssignments.size();
+                if (shift.getRequirements().size() == 1) {
+                    assignedForSkill += existingAssignments.stream().filter(a -> a.getRequiredSkillId() == null).count();
                 }
                 boolean reqHasCapacity = assignedForSkill < req.getRequiredCount();
 
@@ -161,13 +161,25 @@ public class ShiftAssignmentValidator {
 
     @Transactional(readOnly = true)
     public void validateEligibility(Shift shift, UUID staffId, boolean overrideAvailability) {
+        validateEligibility(shift, staffId, overrideAvailability, false);
+    }
+
+    @Transactional(readOnly = true)
+    public void validateExistingAssignment(Shift shift, UUID staffId) {
+        validateEligibility(shift, staffId, false, true);
+        shiftAssignmentRepository.findByShiftId(shift.getId()).stream()
+                .filter(a -> !a.isDeleted() && a.getStaff().getId().equals(staffId)).findFirst()
+                .ifPresent(a -> validateSwapSkill(shift, staffId, a.getRequiredSkillId()));
+    }
+
+    private void validateEligibility(Shift shift, UUID staffId, boolean overrideAvailability, boolean existingAssignment) {
         // Check if already assigned
-        if (shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {
+        if (!existingAssignment && shiftAssignmentRepository.existsByShiftIdAndStaffId(shift.getId(), staffId)) {
             throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);
         }
 
         // Overlap and Max Weekly Hours Check
-        shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, null);
+        shiftValidationService.validateNoOverlapAndWeeklyHours(shift, staffId, existingAssignment ? shift.getId() : null);
 
         // Availability Check
         if (!overrideAvailability) {
@@ -195,7 +207,9 @@ public class ShiftAssignmentValidator {
         // A shift without explicit requirements has one generic slot, as in auto scheduling.
         int maxSlots = shift.getRequirements() == null || shift.getRequirements().isEmpty() ? 1
                 : shift.getRequirements().stream().mapToInt(ShiftSkillRequirement::getRequiredCount).sum();
-        if (shiftAssignmentRepository.countByShiftId(shift.getId()) >= maxSlots) {
+        long occupied = shiftAssignmentRepository.countByShiftId(shift.getId());
+        if (existingAssignment) occupied--;
+        if (occupied >= maxSlots) {
             throw new BusinessException("Slot full: Shift requirement capacity reached", HttpStatus.BAD_REQUEST);
         }
 
@@ -205,6 +219,7 @@ public class ShiftAssignmentValidator {
             List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(staffId);
             List<com.shiftsync.shift.entity.ShiftAssignment> existingAssignments = shiftAssignmentRepository.findByShiftId(shift.getId()).stream()
                     .filter(a -> !a.isDeleted())
+                    .filter(a -> !existingAssignment || !a.getStaff().getId().equals(staffId))
                     .collect(java.util.stream.Collectors.toList());
 
             boolean hasAnyRequiredSkill = false;
@@ -217,8 +232,8 @@ public class ShiftAssignmentValidator {
                 long assignedForSkill = existingAssignments.stream()
                         .filter(a -> req.getSkill().getId().equals(a.getRequiredSkillId()))
                         .count();
-                if (assignedForSkill == 0 && shift.getRequirements().size() == 1) {
-                    assignedForSkill = existingAssignments.size();
+                if (shift.getRequirements().size() == 1) {
+                    assignedForSkill += existingAssignments.stream().filter(a -> a.getRequiredSkillId() == null).count();
                 }
                 boolean reqHasCapacity = assignedForSkill < req.getRequiredCount();
 
@@ -259,15 +274,23 @@ public class ShiftAssignmentValidator {
     }
     /** Select a remaining role the claimant can actually perform, not the first vacancy. */
     public UUID selectClaimSkill(Shift shift, UUID staffId) {
-        if (shift.getRequirements() == null || shift.getRequirements().isEmpty()) return null;
+        return selectClaimSkill(shift, staffId, null);
+    }
+
+    public UUID selectClaimSkill(Shift shift, UUID staffId, UUID requiredSkillId) {
+        if (shift.getRequirements() == null || shift.getRequirements().isEmpty()) {
+            if (requiredSkillId != null) throw new BusinessException("Ca không yêu cầu kỹ năng này", HttpStatus.BAD_REQUEST);
+            return null;
+        }
         List<StaffSkill> skills = staffSkillRepository.findByStaffId(staffId);
         List<com.shiftsync.shift.entity.ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shift.getId())
                 .stream().filter(assignment -> !assignment.isDeleted()).toList();
         return shift.getRequirements().stream()
                 .filter(requirement -> requirement.getSkill() != null)
+                .filter(requirement -> requiredSkillId == null || requiredSkillId.equals(requirement.getSkill().getId()))
                 .filter(requirement -> {
                     long count = assignments.stream().filter(assignment -> requirement.getSkill().getId().equals(assignment.getRequiredSkillId())).count();
-                    if (count == 0 && shift.getRequirements().size() == 1) count = assignments.size();
+                    if (shift.getRequirements().size() == 1) count += assignments.stream().filter(a -> a.getRequiredSkillId() == null).count();
                     return count < requirement.getRequiredCount();
                 })
                 .filter(requirement -> skills.stream().anyMatch(skill -> {
@@ -280,6 +303,23 @@ public class ShiftAssignmentValidator {
                 .map(requirement -> requirement.getSkill().getId())
                 .sorted().findFirst()
                 .orElseThrow(() -> new BusinessException("No remaining requirement matches staff's valid skills", HttpStatus.BAD_REQUEST));
+    }
+
+    public void validateSwapSkill(Shift shift, UUID staffId, UUID requiredSkillId) {
+        if (shift.getRequirements() == null || shift.getRequirements().isEmpty()) return;
+        if (requiredSkillId == null && shift.getRequirements().size() == 1 && shift.getRequirements().get(0).getSkill() != null) {
+            requiredSkillId = shift.getRequirements().get(0).getSkill().getId();
+        }
+        UUID target = requiredSkillId;
+        Skill required = shift.getRequirements().stream().map(ShiftSkillRequirement::getSkill)
+                .filter(java.util.Objects::nonNull).filter(skill -> skill.getId().equals(target)).findFirst()
+                .orElseThrow(() -> new BusinessException("Không xác định được kỹ năng của vị trí đổi ca", HttpStatus.CONFLICT));
+        boolean qualified = staffSkillRepository.findByStaffId(staffId).stream()
+                .filter(skill -> skill.getExpirationDate() == null || !skill.getExpirationDate().isBefore(shift.getShiftDate()))
+                .anyMatch(skill -> required.getId().equals(skill.getSkillId()) || skillRepository.findById(skill.getSkillId())
+                        .map(other -> other.getName() != null && required.getName() != null
+                                && other.getName().trim().equalsIgnoreCase(required.getName().trim())).orElse(false));
+        if (!qualified) throw new BusinessException("Nhân viên không có kỹ năng hợp lệ cho vị trí đổi ca", HttpStatus.CONFLICT);
     }
 
     private boolean availabilityCovers(Shift shift, UUID staffId) {

@@ -139,7 +139,7 @@ public class ShiftController {
     }
 
     @Operation(summary = "Get eligible staff candidates for a shift")
-    @PreAuthorize("@storeAccessService.canAccessStore(authentication, #storeId)")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping("/{shiftId}/eligible-staff")
     public ResponseEntity<List<com.shiftsync.employment.dto.EmploymentDTO>> getEligibleStaff(
             @PathVariable UUID storeId,

@@ -112,13 +112,13 @@ public class TX001StoreCascadeIntegrationTest {
                 .setParameter("storeId", storeId).getSingleResult();
             assertThat(shiftCount).isEqualTo(1L);
 
-            // Verify ShiftAssignment soft deleted
-            long saCount = (long) entityManager.createNativeQuery("SELECT count(*) FROM shift_assignment WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId) AND deleted = true")
+            // Preserve assignment history.
+            long saCount = (long) entityManager.createNativeQuery("SELECT count(*) FROM shift_assignment WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId) AND deleted = false")
                 .setParameter("storeId", storeId).getSingleResult();
             assertThat(saCount).isEqualTo(1L);
             
-            // Verify Attendance soft deleted
-            long attCount = (long) entityManager.createNativeQuery("SELECT count(*) FROM attendance a JOIN shift_assignment sa ON a.shift_assignment_id = sa.id JOIN shift s ON sa.shift_id = s.id WHERE s.store_id = :storeId AND a.deleted = true")
+            // Preserve recorded attendance.
+            long attCount = (long) entityManager.createNativeQuery("SELECT count(*) FROM attendance a JOIN shift_assignment sa ON a.shift_assignment_id = sa.id JOIN shift s ON sa.shift_id = s.id WHERE s.store_id = :storeId AND a.deleted = false")
                 .setParameter("storeId", storeId).getSingleResult();
             assertThat(attCount).isEqualTo(1L);
 

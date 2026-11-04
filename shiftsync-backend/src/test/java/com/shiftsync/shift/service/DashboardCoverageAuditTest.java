@@ -59,29 +59,28 @@ class DashboardCoverageAuditTest {
         try(var transaction=mockStatic(org.springframework.transaction.interceptor.TransactionAspectSupport.class)) {
             transaction.when(org.springframework.transaction.interceptor.TransactionAspectSupport::currentTransactionStatus)
                     .thenReturn(mock(org.springframework.transaction.TransactionStatus.class));
-            result=new AutoScheduleService(shifts,assignments,employment,skills,availability,blackouts,configs,scoring).autoSchedule(store,request);
+            result=TestCompensationResolver.install(new AutoScheduleService(shifts,assignments,employment,skills,availability,blackouts,configs,scoring)).autoSchedule(store,request);
         }
         when(assignments.countTotalAssignmentsByStoreAndDateRange(store,date,date)).thenReturn(1L);
-        // SUM over inner-joined explicit requirements: generic has no joined row.
-        when(shifts.sumRequiredStaffByStoreAndDateRange(store,date,date)).thenReturn(includeUnfilledRole?1L:null);
+        when(assignments.findByShift_Store_IdAndShift_ShiftDateBetween(store,date,date)).thenReturn(List.of(assigned));
         var dashboard=new DashboardService(employment,mock(com.shiftsync.payroll.repository.PayrollRepository.class),
                 mock(com.shiftsync.attendance.repository.AttendanceRepository.class),assignments,shifts,
                 mock(ShiftSwapRequestRepository.class),configs);
         return new Comparison(result,dashboard.getDashboardMetrics(store,date,date).getScheduling().getCoverage());
     }
-    @Test void fullyStaffedGenericShiftHasZeroDashboardCoverage() {
+    @Test void fullyStaffedGenericShiftHasFullDashboardCoverage() {
         var comparison=compare(false);
         assertEquals(1,comparison.schedule.getTotalDemandSlots());
         assertEquals(1,comparison.schedule.getQuality().getCoveredSlots());
         assertEquals(100.0,comparison.schedule.getCoverageRate());
-        assertEquals(0.0,comparison.dashboardCoverage);
+        assertEquals(100.0,comparison.dashboardCoverage);
     }
-    @Test void genericAssignmentMasksAnUnfilledExplicitRoleInDashboardCoverage() {
+    @Test void genericAssignmentDoesNotMaskUnfilledExplicitRole() {
         var comparison=compare(true);
         assertEquals(2,comparison.schedule.getTotalDemandSlots());
         assertEquals(1,comparison.schedule.getQuality().getCoveredSlots());
         assertEquals(1,comparison.schedule.getQuality().getUnfilledSlots());
         assertEquals(50.0,comparison.schedule.getCoverageRate());
-        assertEquals(100.0,comparison.dashboardCoverage);
+        assertEquals(50.0,comparison.dashboardCoverage);
     }
 }

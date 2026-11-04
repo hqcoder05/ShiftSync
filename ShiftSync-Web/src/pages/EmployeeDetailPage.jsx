@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { getEmployeeById, getEmployees, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
-import { getStoresByStaff, assignStaffToStore } from '../services/employmentService';
+import { getStoresByStaff, assignStaffToStore, updateEmployment } from '../services/employmentService';
 import { getContractTypes } from '../services/contractTypeService';
 import { getShiftsForStore } from '../services/shiftService';
 import { getAllSkills, getSkillsByStore, getStaffSkills, updateStaffSkills } from '../services/skillService';
@@ -21,6 +21,12 @@ const getEmployeeAvatarId = (emp) => {
   return getAvatarForEmployee(emp);
 };
 
+const tomorrowInVietnam = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((part) => part.type === type).value);
+  return new Date(Date.UTC(get('year'), get('month') - 1, get('day') + 1)).toISOString().slice(0, 10);
+};
+
 export default function EmployeeDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -28,6 +34,9 @@ export default function EmployeeDetailPage() {
   const [employee, setEmployee] = useState(null);
   const [stores, setStores] = useState([]);
   const [assignedStores, setAssignedStores] = useState([]);
+  const [payEdit, setPayEdit] = useState(null);
+  const [payContracts, setPayContracts] = useState([]);
+  const [paySaving, setPaySaving] = useState(false);
   const [shifts, setShifts] = useState([]);
   const [skills, setSkills] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -80,6 +89,7 @@ export default function EmployeeDetailPage() {
   // Skills Management
   const [allSkills, setAllSkills] = useState([]);
   const [staffSkills, setStaffSkills] = useState([]);
+  const [staffSkillsLoaded, setStaffSkillsLoaded] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillSearch, setSkillSearch] = useState('');
@@ -155,6 +165,7 @@ export default function EmployeeDetailPage() {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      setStaffSkillsLoaded(false);
       try {
         // 1. Load Stores
         let storeList = [];
@@ -241,9 +252,11 @@ export default function EmployeeDetailPage() {
 
         // 6. Load all skills in the system & staff assigned skills
         let fetchedAllSkills = [];
+        let skillsCatalogLoaded = false;
         try {
           const allSkRes = await getAllSkills();
           fetchedAllSkills = Array.isArray(allSkRes.data) ? allSkRes.data : (allSkRes.data?.content || []);
+          skillsCatalogLoaded = true;
           setAllSkills(fetchedAllSkills);
         } catch (e) {
           console.warn('Cannot load all skills:', e);
@@ -256,10 +269,12 @@ export default function EmployeeDetailPage() {
             const matched = fetchedAllSkills.filter(sk => assignedIds.includes(sk.id));
             setStaffSkills(matched);
             setSelectedSkills(matched);
+            setStaffSkillsLoaded(skillsCatalogLoaded && matched.length === new Set(assignedIds).size);
           } catch (e) {
             console.warn('Cannot load staff skills:', e);
             setStaffSkills([]);
             setSelectedSkills([]);
+            setStaffSkillsLoaded(false);
           }
         }
 
@@ -306,6 +321,33 @@ export default function EmployeeDetailPage() {
   const activeEmployment = useMemo(() => {
     return assignedStores.find(a => a.status === 'ACTIVE') || assignedStores[0] || null;
   }, [assignedStores]);
+
+  const openPayEdit = async () => {
+    try {
+      const response = await getContractTypes(activeEmployment.storeId);
+      setPayContracts(Array.isArray(response.data) ? response.data : []);
+      setPayEdit({ contractTypeId: activeEmployment.contractType?.id || '', hourlyRate: activeEmployment.hourlyRate ?? '', effectiveDate: tomorrowInVietnam() });
+    } catch (error) {
+      showToast(`Không tải được loại hợp đồng: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const savePayEdit = async (event) => {
+    event.preventDefault();
+    setPaySaving(true);
+    try {
+      const response = await updateEmployment(activeEmployment.storeId, employee.id, {
+        contractTypeId: payEdit.contractTypeId, hourlyRate: Number(payEdit.hourlyRate), effectiveDate: payEdit.effectiveDate,
+      });
+      setAssignedStores((rows) => rows.map((row) => row.id === response.data.id ? response.data : row));
+      setPayEdit(null);
+      showToast(`Đã lên lịch thay đổi từ ngày ${response.data.scheduledEffectiveDate}.`);
+    } catch (error) {
+      showToast(`Không thể lên lịch thay đổi: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setPaySaving(false);
+    }
+  };
 
   // Primary Store and Secondary Store names
   const primaryStoreName = useMemo(() => {
@@ -540,12 +582,9 @@ export default function EmployeeDetailPage() {
         );
         if (!isAlreadyInStore) {
           try {
-            let contractTypeId = activeEmployment?.contractTypeId || activeEmployment?.contractType?.id;
-            if (!contractTypeId) {
-              const ctRes = await getContractTypes();
-              const cts = ctRes?.data || [];
-              contractTypeId = cts[0]?.id;
-            }
+            const ctRes = await getContractTypes(editForm.storeId);
+            const cts = ctRes?.data || [];
+            const contractTypeId = cts[0]?.id;
             if (contractTypeId) {
               await assignStaffToStore(editForm.storeId, {
                 staffId: employee.id,
@@ -573,11 +612,12 @@ export default function EmployeeDetailPage() {
 
       // 4. Update staff skills in backend atomically
       try {
+        if (!staffSkillsLoaded) throw new Error('Chưa tải được danh sách kỹ năng của nhân viên');
         const skillIdsToSave = selectedSkills.map(s => s.id);
         await updateStaffSkills(employee.id, skillIdsToSave);
         setStaffSkills([...selectedSkills]);
       } catch (err) {
-        console.warn('Staff skills sync warning:', err.message);
+        throw new Error('Không lưu được kỹ năng: ' + (err.response?.data?.message || err.message) + '. Thông tin cơ bản có thể đã được lưu.');
       }
 
       // Update local state
@@ -1114,7 +1154,23 @@ export default function EmployeeDetailPage() {
             <div><dt>Chi nhánh</dt><dd>{activeEmployment.storeName || primaryStoreName}</dd></div>
             <div><dt>Loại hợp đồng</dt><dd>{activeEmployment.contractType?.name || 'Chưa có thông tin'}</dd></div>
             <div><dt>Trạng thái</dt><dd>{activeEmployment.status || 'Chưa có thông tin'}</dd></div>
+            <div><dt>Lương giờ hiện tại</dt><dd>{Number(activeEmployment.hourlyRate).toLocaleString('vi-VN')} đ/giờ</dd></div>
+            {activeEmployment.scheduledEffectiveDate && <div><dt>Thay đổi sắp tới</dt><dd>
+              {Number(activeEmployment.scheduledHourlyRate).toLocaleString('vi-VN')} đ/giờ từ {activeEmployment.scheduledEffectiveDate}
+              {activeEmployment.scheduledContractTypeId !== activeEmployment.contractType?.id && ' (có thay đổi loại hợp đồng)'}
+            </dd></div>}
           </dl> : <p className="hr-muted">Chưa có thông tin hợp đồng hoặc phân công chi nhánh cho nhân viên này.</p>}
+          {activeEmployment && ['ADMIN', 'MANAGER'].includes(localStorage.getItem('userRole') || localStorage.getItem('role')) && (
+            payEdit ? <form onSubmit={savePayEdit}>
+              <label>Loại hợp đồng <select required value={payEdit.contractTypeId} onChange={(event) => setPayEdit({ ...payEdit, contractTypeId: event.target.value })}>
+                <option value="">Chọn hợp đồng</option>{payContracts.map((contract) => <option key={contract.id} value={contract.id}>{contract.name}</option>)}
+              </select></label>
+              <label>Lương giờ <input type="number" min="1" required value={payEdit.hourlyRate} onChange={(event) => setPayEdit({ ...payEdit, hourlyRate: event.target.value })} /></label>
+              <label>Ngày hiệu lực <input type="date" required value={payEdit.effectiveDate} onChange={(event) => setPayEdit({ ...payEdit, effectiveDate: event.target.value })} /></label>
+              <button type="submit" disabled={paySaving}>{paySaving ? 'Đang lưu…' : 'Lên lịch thay đổi'}</button>
+              <button type="button" onClick={() => setPayEdit(null)}>Hủy</button>
+            </form> : <button type="button" onClick={openPayEdit}>Đổi lương hoặc hợp đồng</button>
+          )}
         </section>
       )}
       {activeTab === 'attendance' && (

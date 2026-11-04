@@ -25,9 +25,9 @@ public class RealtimeEventPublisher {
             // Push to personal topic
             String userDest = "/topic/notifications/" + userId;
             messagingTemplate.convertAndSend(userDest, (Object) notification);
-            log.info("Published realtime notification via WebSocket to /topic/notifications/{}", userId);
+            log.info("Đã gửi thông báo thời gian thực qua WebSocket đến /topic/notifications/{}", userId);
         } catch (Exception e) {
-            log.warn("Failed to publish notification via WebSocket to user {}: {}", userId, e.getMessage());
+            log.warn("Không thể gửi thông báo qua WebSocket cho người dùng {}: {}", userId, e.getMessage());
         }
     }
 
@@ -66,9 +66,9 @@ public class RealtimeEventPublisher {
                 String storeDest = "/topic/store/" + storeId + "/" + domain.toLowerCase();
                 messagingTemplate.convertAndSend(storeDest, (Object) payload);
             }
-            log.info("Published realtime store event: domain={}, action={}, storeId={}", domain, action, storeId);
+            log.info("Đã gửi sự kiện cửa hàng: nhóm={}, hành động={}, mã cửa hàng={}", domain, action, storeId);
         } catch (Exception e) {
-            log.warn("Failed to publish store event via WebSocket: {}", e.getMessage());
+            log.warn("Không thể gửi sự kiện cửa hàng qua WebSocket: {}", e.getMessage());
         }
     }
 
@@ -84,7 +84,7 @@ public class RealtimeEventPublisher {
             );
             messagingTemplate.convertAndSend("/topic/system", (Object) payload);
         } catch (Exception e) {
-            log.warn("Failed to publish system event via WebSocket: {}", e.getMessage());
+            log.warn("Không thể gửi sự kiện hệ thống qua WebSocket: {}", e.getMessage());
         }
     }
 }

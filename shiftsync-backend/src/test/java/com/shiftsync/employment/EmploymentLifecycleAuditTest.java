@@ -39,6 +39,8 @@ class EmploymentLifecycleAuditTest {
     @MockitoBean UserRepository users;
     @MockitoBean StoreRepository stores;
     @MockitoBean ContractTypeRepository contracts;
+    @MockitoBean com.shiftsync.payroll.service.EmploymentCompensationScheduler compensationScheduler;
+    @MockitoBean com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
     @Autowired EmploymentController controller;
     @Autowired StoreAccessService access;
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
@@ -66,10 +68,10 @@ class EmploymentLifecycleAuditTest {
         assertEquals(EmploymentStatus.INACTIVE,row.getStatus());assertNotNull(row.getLeftDate());
         verify(employment).save(row);
         assertFalse(access.canAccessStore(auth,store.getId()));
-        assertThrows(AccessDeniedException.class,()->controller.getStaffByStore(store.getId(),PageRequest.of(0,20)));
+        assertThrows(AccessDeniedException.class,()->controller.getStaffByStore(store.getId(),PageRequest.of(0,20),auth));
     }
 
-    @Test void managerCanReadForeignEmploymentPayThroughStaffStoreLookup() {
+    @Test void managerCannotReadForeignEmploymentPayThroughStaffStoreLookup() {
         var actor=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.STAFF).build();
         var subject=User.builder().id(UUID.randomUUID()).fullName("Foreign employee").systemRole(SystemRole.STAFF).build();
         var foreign=Store.builder().id(UUID.randomUUID()).name("Foreign store").build();
@@ -81,10 +83,27 @@ class EmploymentLifecycleAuditTest {
         actor.setSystemRole(SystemRole.MANAGER);var managerAuth=authenticate(actor);
         assertFalse(access.canAccessStore(managerAuth,foreign.getId()));
         when(employment.findByUserIdAndStatus(subject.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of(row));
-        var result=controller.getStoresByStaff(subject.getId(),managerAuth);
-        assertEquals(200,result.getStatusCode().value());
-        assertEquals(foreign.getId(),result.getBody().get(0).getStoreId());
-        assertEquals(new BigDecimal("98765"),result.getBody().get(0).getHourlyRate());
-        assertEquals(new BigDecimal("54321"),result.getBody().get(0).getContractType().getDefaultHourlyRate());
+        assertEquals(403,assertThrows(BusinessException.class,()->controller.getStoresByStaff(subject.getId(),managerAuth)).getStatus().value());
+    }
+
+    @Test void managerSeesOnlySharedStoreWhenEmployeeWorksAtMultipleStores() {
+        var manager=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.MANAGER).build();
+        var subject=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.STAFF).build();
+        var shared=Store.builder().id(UUID.randomUUID()).name("Shared").build();
+        var foreign=Store.builder().id(UUID.randomUUID()).name("Foreign").build();
+        var sharedRow=Employment.builder().id(UUID.randomUUID()).store(shared).user(subject).status(EmploymentStatus.ACTIVE)
+                .contractType(ContractType.builder().id(UUID.randomUUID()).build()).build();
+        var foreignRow=Employment.builder().id(UUID.randomUUID()).store(foreign).user(subject).status(EmploymentStatus.ACTIVE)
+                .contractType(ContractType.builder().id(UUID.randomUUID()).build()).build();
+        when(employment.findByUserIdAndStatus(subject.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of(sharedRow,foreignRow));
+        when(employment.findByUserIdAndStatus(manager.getId(),EmploymentStatus.ACTIVE))
+                .thenReturn(List.of(Employment.builder().store(shared).user(manager).status(EmploymentStatus.ACTIVE).build()));
+        when(compensationRevisions.requireAt(eq("employment"),eq(sharedRow.getId()),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.EmploymentTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.EmploymentTerms(sharedRow.getContractType().getId(),BigDecimal.TEN));
+        when(contracts.findByIdAndStoreId(sharedRow.getContractType().getId(),shared.getId())).thenReturn(Optional.of(sharedRow.getContractType()));
+        when(compensationRevisions.requireAt(eq("contract_type"),eq(sharedRow.getContractType().getId()),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.ContractTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.ContractTerms(BigDecimal.TEN,40,new BigDecimal("1.5")));
+        var result=controller.getStoresByStaff(subject.getId(),authenticate(manager));
+        assertEquals(List.of(shared.getId()),result.getBody().stream().map(dto->dto.getStoreId()).toList());
     }
 }

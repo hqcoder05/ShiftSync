@@ -65,6 +65,9 @@ public class StaffRequestService {
 
     @Transactional
     public StaffRequestDTO createRequest(StaffRequestCreateDTO dto) {
+        if (dto.getStartDate() != null && dto.getEndDate() != null && dto.getStartDate().isAfter(dto.getEndDate())) {
+            throw new BusinessException("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc", HttpStatus.BAD_REQUEST);
+        }
         String category = dto.getTypeCategory();
         if (category == null || category.isBlank()) {
             String rt = dto.getRequestType() != null ? dto.getRequestType().toLowerCase() : "";
@@ -75,6 +78,8 @@ public class StaffRequestService {
         }
 
         StaffRequest req = StaffRequest.builder()
+            .requesterId(dto.getRequesterId())
+            .storeId(dto.getStoreId())
             .requesterName(dto.getRequesterName() != null ? dto.getRequesterName() : "Paul. Lee")
             .avatarKey(dto.getAvatarKey() != null ? dto.getAvatarKey() : "paul")
             .requestType(dto.getRequestType())
@@ -115,6 +120,8 @@ public class StaffRequestService {
 
         return StaffRequestDTO.builder()
             .id(entity.getId())
+            .requesterId(entity.getRequesterId())
+            .storeId(entity.getStoreId())
             .requesterName(entity.getRequesterName())
             .avatarKey(entity.getAvatarKey())
             .requestType(entity.getRequestType())

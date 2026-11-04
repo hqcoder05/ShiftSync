@@ -186,6 +186,7 @@ public class WeeklyMatrixQuotaResponse {
         private int totalQuotas; // e.g. 121
         private double totalHours; // e.g. 968
         private long estimatedCost; // e.g. 27328000
+        private boolean costIncomplete;
         private String formattedEstimatedCost; // "27.328.000 đ"
         private double slaComplianceRate; // 100.0
         private long monthlyQuotaBudget; // 85000000

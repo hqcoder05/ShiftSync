@@ -64,7 +64,10 @@ public class EmploymentController {
     @PreAuthorize("hasRole('ADMIN') or @storeAccessService.canAccessStore(authentication, #storeId)")
     public ResponseEntity<Page<EmploymentDTO>> getStaffByStore(
             @PathVariable UUID storeId,
-            Pageable pageable) {
+            Pageable pageable, Authentication authentication) {
+        if (authentication.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"))) {
+            return ResponseEntity.ok(employmentService.getStaffRoster(storeId, pageable));
+        }
         return ResponseEntity.ok(employmentService.getStaffByStore(storeId, pageable));
     }
 
@@ -74,6 +77,7 @@ public class EmploymentController {
     public ResponseEntity<List<EmploymentDTO>> getStoresByStaff(
             @PathVariable UUID staffId,
             Authentication authentication) {
-        return ResponseEntity.ok(employmentService.getStoresByStaff(staffId));
+        var actor = (com.shiftsync.shared.security.CustomUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(employmentService.getStoresByStaff(staffId, actor.getUser()));
     }
 }

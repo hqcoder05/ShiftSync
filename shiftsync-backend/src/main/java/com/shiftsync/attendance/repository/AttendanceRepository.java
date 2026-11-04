@@ -13,8 +13,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     Optional<Attendance> findByShiftAssignmentId(UUID shiftAssignmentId);
     boolean existsByShiftAssignmentId(UUID shiftAssignmentId);
     boolean existsByShiftAssignment_Shift_Id(UUID shiftId);
+    List<Attendance> findByShiftAssignment_IdIn(List<UUID> assignmentIds);
     
     List<Attendance> findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate);
+    @org.springframework.data.jpa.repository.Query("SELECT a FROM Attendance a WHERE a.shiftAssignment.shift.store.id = :storeId AND a.shiftAssignment.shift.shiftDate BETWEEN :startDate AND :endDate")
+    List<Attendance> findPayrollHistory(@org.springframework.data.repository.query.Param("storeId") UUID storeId,
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
 
     List<Attendance> findByShiftAssignment_Staff_IdOrderByCheckInTimeDesc(UUID staffId);
 
@@ -27,4 +32,13 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
                                                      @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate, 
                                                      @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate,
                                                      @org.springframework.data.repository.query.Param("status") com.shiftsync.attendance.enums.AttendanceStatus status);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(DISTINCT sa.id) FROM attendance a " +
+            "JOIN shift_assignment sa ON sa.id=a.shift_assignment_id JOIN shift s ON s.id=sa.shift_id " +
+            "WHERE s.store_id=:storeId AND s.shift_date BETWEEN :startDate AND :endDate " +
+            "AND sa.deleted=false AND a.deleted=false AND a.status='LATE' AND s.status IN ('PUBLISHED','COMPLETED') " +
+            "AND s.shift_date + s.start_time <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')", nativeQuery = true)
+    long countLateStartedAssignments(@org.springframework.data.repository.query.Param("storeId") UUID storeId,
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDate endDate);
 }

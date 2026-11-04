@@ -54,6 +54,7 @@ class P1AlgorithmCorrectnessRegressionTest {
     @Mock StoreConfigurationRepository storeConfigurationRepository;
     @Mock SchedulerConfigurationRepository schedulerConfigurationRepository;
     @InjectMocks AutoScheduleService service;
+    @org.junit.jupiter.api.BeforeEach void installCompensationResolver() { TestCompensationResolver.install(service); }
 
     private final UUID storeId = UUID.randomUUID();
     private final UUID skillId = UUID.randomUUID();

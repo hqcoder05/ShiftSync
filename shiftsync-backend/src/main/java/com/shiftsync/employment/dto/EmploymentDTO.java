@@ -21,6 +21,9 @@ public class EmploymentDTO {
     private String storeAddress;
     private ContractTypeDTO contractType;
     private BigDecimal hourlyRate;
+    private LocalDate scheduledEffectiveDate;
+    private BigDecimal scheduledHourlyRate;
+    private UUID scheduledContractTypeId;
     private EmploymentStatus status;
     private LocalDate joinedDate;
     private LocalDate leftDate;

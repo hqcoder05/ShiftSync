@@ -26,11 +26,13 @@ public class SchedulerConfigurationController {
     private final AuditLogService auditLogService;
 
     private final SchedulerConfigurationRepository repository;
+    private final com.shiftsync.store.repository.StoreRepository storeRepository;
 
     @Operation(summary = "Get scheduler configuration weights for store")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @GetMapping
     public ResponseEntity<SchedulerConfigurationDTO> getConfig(@PathVariable UUID storeId) {
+        requireStore(storeId);
         SchedulerConfiguration config = repository.findByStoreId(storeId)
                 .orElseGet(() -> SchedulerConfiguration.builder()
                         .storeId(storeId)
@@ -57,6 +59,7 @@ public class SchedulerConfigurationController {
     @Operation(summary = "Update scheduler configuration weights")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PutMapping
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<SchedulerConfigurationDTO> updateConfig(
             @PathVariable UUID storeId,
             @Valid @RequestBody SchedulerConfigUpdateDTO dto, @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
@@ -71,8 +74,9 @@ public class SchedulerConfigurationController {
             throw new BusinessException("Sum of weights must be exactly 1.0", HttpStatus.BAD_REQUEST);
         }
 
+        requireStore(storeId);
         SchedulerConfiguration config = repository.findByStoreId(storeId)
-                .orElseThrow(() -> new BusinessException("Config not found", HttpStatus.NOT_FOUND));
+                .orElseGet(() -> SchedulerConfiguration.builder().storeId(storeId).build());
 
         
         java.util.Map<String, Object> beforeData = new java.util.HashMap<>();
@@ -106,5 +110,11 @@ public class SchedulerConfigurationController {
                 responseDto);
 
         return ResponseEntity.ok(responseDto);
+    }
+
+    private void requireStore(UUID storeId) {
+        if (!storeRepository.existsById(storeId)) {
+            throw new BusinessException("Không tìm thấy cửa hàng", HttpStatus.NOT_FOUND);
+        }
     }
 }

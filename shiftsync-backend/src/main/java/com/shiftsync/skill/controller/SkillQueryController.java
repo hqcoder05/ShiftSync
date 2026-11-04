@@ -33,8 +33,9 @@ public class SkillQueryController {
     @Operation(summary = "Get skill IDs assigned to a staff member")
     @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @GetMapping("/api/users/{userId}/skills")
-    public ResponseEntity<List<UUID>> getStaffSkills(@PathVariable UUID userId) {
-        return ResponseEntity.ok(skillService.getSkillIdsByStaffId(userId));
+    public ResponseEntity<List<UUID>> getStaffSkills(@PathVariable UUID userId,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails actor) {
+        return ResponseEntity.ok(skillService.getSkillIdsByStaffId(userId, actor.getUser()));
     }
 
     @Operation(summary = "Replace all skills of a staff member (atomic)")
@@ -42,8 +43,9 @@ public class SkillQueryController {
     @PutMapping("/api/users/{userId}/skills")
     public ResponseEntity<Void> updateStaffSkills(
             @PathVariable UUID userId,
-            @RequestBody List<UUID> skillIds) {
-        skillService.replaceStaffSkills(userId, skillIds);
+            @RequestBody List<UUID> skillIds,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails actor) {
+        skillService.replaceStaffSkills(userId, skillIds, actor.getUser());
         return ResponseEntity.noContent().build();
     }
 }

@@ -18,6 +18,17 @@ import java.util.stream.Collectors;
 public class HolidayService {
 
     private final HolidayRepository holidayRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private PayrollGlobalInputGuard globalInputGuard;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriods;
+
+    private void checkDateUnlocked(java.time.LocalDate date) {
+        if (payrollPeriods.existsByStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(date, date,
+                List.of(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED, com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID))) {
+            throw new BusinessException("Không thể thay đổi ngày lễ thuộc kỳ lương đã khóa", HttpStatus.CONFLICT);
+        }
+    }
 
     @Transactional(readOnly = true)
     public List<HolidayDTO> getAllHolidays() {
@@ -28,6 +39,8 @@ public class HolidayService {
 
     @Transactional
     public HolidayDTO createHoliday(HolidayDTO dto) {
+        globalInputGuard.lock();
+        checkDateUnlocked(dto.getHolidayDate());
         // Optional: Check for duplicate date
         // But the entity has unique=true, so it might throw DataIntegrityViolationException.
         // It's safer to check first.
@@ -48,8 +61,11 @@ public class HolidayService {
 
     @Transactional
     public HolidayDTO updateHoliday(UUID id, HolidayDTO dto) {
+        globalInputGuard.lock();
         Holiday holiday = holidayRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Holiday not found", HttpStatus.NOT_FOUND));
+        checkDateUnlocked(holiday.getHolidayDate());
+        checkDateUnlocked(dto.getHolidayDate());
 
         // Check if date is changing and if new date already exists
         if (!holiday.getHolidayDate().equals(dto.getHolidayDate())) {
@@ -69,8 +85,10 @@ public class HolidayService {
 
     @Transactional
     public void deleteHoliday(UUID id) {
+        globalInputGuard.lock();
         Holiday holiday = holidayRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Holiday not found", HttpStatus.NOT_FOUND));
+        checkDateUnlocked(holiday.getHolidayDate());
         holidayRepository.delete(holiday);
     }
 

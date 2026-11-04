@@ -24,6 +24,13 @@ const formatVND = (num) => {
   return new Intl.NumberFormat('vi-VN').format(val) + 'đ/giờ';
 };
 
+const tomorrowInVietnam = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((part) => part.type === type).value);
+  const tomorrow = new Date(Date.UTC(get('year'), get('month') - 1, get('day') + 1));
+  return tomorrow.toISOString().slice(0, 10);
+};
+
 export default function SkillsPage() {
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState('');
@@ -33,6 +40,7 @@ export default function SkillsPage() {
   const [editingSkill, setEditingSkill] = useState(null);
   const [name, setName] = useState('');
   const [hourlyRate, setHourlyRate] = useState(23000);
+  const [effectiveDate, setEffectiveDate] = useState(tomorrowInVietnam);
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -89,6 +97,7 @@ export default function SkillsPage() {
     setEditingSkill(sk);
     setName(sk.name);
     setHourlyRate(Number(sk.hourlyRate) >= 0 ? Number(sk.hourlyRate) : 23000);
+    setEffectiveDate(tomorrowInVietnam());
     setColor(getSkillColor(sk));
     setError('');
     setShowModal(true);
@@ -119,8 +128,11 @@ export default function SkillsPage() {
       };
 
       if (editingSkill) {
-        await updateSkill(storeId, editingSkill.id, payload);
-        setSuccess(`Đã cập nhật mức lương cho vị trí "${name.trim()}" thành ${formatVND(rateNum)}.`);
+        if (rateNum !== Number(editingSkill.hourlyRate)) payload.effectiveDate = effectiveDate;
+        const response = await updateSkill(storeId, editingSkill.id, payload);
+        setSuccess(response.data?.scheduledEffectiveDate
+          ? `Đã lên lịch mức lương ${formatVND(rateNum)} từ ngày ${response.data.scheduledEffectiveDate}.`
+          : `Đã cập nhật vị trí "${name.trim()}".`);
       } else {
         await createSkill(storeId, payload);
         setSuccess(`Đã thêm vị trí "${name.trim()}" với mức lương ${formatVND(rateNum)}.`);
@@ -254,6 +266,9 @@ export default function SkillsPage() {
               </div>
               <div className="skill-cell-rate" style={{ width: canEdit ? '35%' : '45%', color: '#15803D', fontWeight: 600 }}>
                 {formatVND(sk.hourlyRate)}
+                {sk.scheduledEffectiveDate && <div style={{ fontSize: 12, fontWeight: 400 }}>
+                  Từ {sk.scheduledEffectiveDate}: {formatVND(sk.scheduledHourlyRate)}
+                </div>}
               </div>
               {canEdit && (
                 <div className="skill-cell-actions" style={{ width: '25%', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -320,6 +335,13 @@ export default function SkillsPage() {
                 Xem trước: {formatVND(hourlyRate)}
               </span>
             </label>
+
+            {editingSkill && (
+              <label>
+                Ngày mức lương mới có hiệu lực
+                <input type="date" required value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
+              </label>
+            )}
 
             {error && <p className="skill-form-error" style={{ color: '#EF4444', fontSize: '13px', margin: '4px 0' }}>{error}</p>}
 

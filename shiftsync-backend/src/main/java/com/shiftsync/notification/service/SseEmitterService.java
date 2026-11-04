@@ -26,6 +26,8 @@ public class SseEmitterService {
 
     private static final long SSE_TIMEOUT = 30 * 60 * 1000L; // 30 phút
 
+    private final Map<SseEmitter, java.util.function.BooleanSupplier> sessions = new ConcurrentHashMap<>();
+
     private final Map<UUID, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
 
     /**
@@ -33,26 +35,35 @@ public class SseEmitterService {
      * Hỗ trợ một người dùng mở nhiều tab/thiết bị cùng lúc.
      */
     public SseEmitter subscribe(UUID userId) {
+        return subscribe(userId, () -> true);
+    }
+
+    public SseEmitter subscribe(UUID userId, java.util.function.BooleanSupplier session) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
+        sessions.put(emitter, session);
 
         emitter.onCompletion(() -> {
-            log.debug("SSE completed for user {}", userId);
+            log.debug("Kết nối SSE của người dùng {} đã hoàn tất", userId);
             removeEmitter(userId, emitter);
         });
 
         emitter.onTimeout(() -> {
-            log.debug("SSE timeout for user {}", userId);
+            log.debug("Kết nối SSE của người dùng {} đã hết thời gian chờ", userId);
             removeEmitter(userId, emitter);
         });
 
         emitter.onError(e -> {
-            log.debug("SSE error for user {}: {}", userId, e != null ? e.getMessage() : "unknown");
+            log.debug("Lỗi kết nối SSE của người dùng {}: {}", userId, e != null ? e.getMessage() : "unknown");
             removeEmitter(userId, emitter);
         });
 
-        userEmitters.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        log.info("Registered new SSE emitter for user {}. Total user active tabs: {}",
-                userId, userEmitters.get(userId).size());
+        userEmitters.compute(userId, (key, existing) -> {
+            List<SseEmitter> list = existing != null ? existing : new CopyOnWriteArrayList<>();
+            list.add(emitter);
+            return list;
+        });
+        log.info("Đã đăng ký kết nối SSE cho người dùng {}. Số thẻ đang hoạt động: {}",
+                userId, getActiveEmitterCount(userId));
 
         // Gửi event ban đầu để client xác nhận kết nối thành công ngay lập tức
         try {
@@ -60,7 +71,7 @@ public class SseEmitterService {
                     .name("connect")
                     .data("Connected successfully"));
         } catch (IOException e) {
-            log.warn("Failed to send initial connect event to user {}: {}", userId, e.getMessage());
+            log.warn("Không thể gửi sự kiện kết nối ban đầu cho người dùng {}: {}", userId, e.getMessage());
             removeEmitter(userId, emitter);
         }
 
@@ -71,14 +82,15 @@ public class SseEmitterService {
      * Dọn dẹp emitter khi kết thúc, timeout hoặc gặp lỗi ngắt kết nối.
      */
     public void removeEmitter(UUID userId, SseEmitter emitter) {
-        List<SseEmitter> list = userEmitters.get(userId);
-        if (list != null) {
+        sessions.remove(emitter);
+        userEmitters.computeIfPresent(userId, (key, list) -> {
             list.remove(emitter);
             if (list.isEmpty()) {
-                userEmitters.remove(userId);
-                log.debug("Removed last SSE emitter for user {}", userId);
+                log.debug("Đã xóa kết nối SSE cuối cùng của người dùng {}", userId);
+                return null;
             }
-        }
+            return list;
+        });
     }
 
     /**
@@ -87,21 +99,22 @@ public class SseEmitterService {
     public void pushToUser(UUID userId, Object payload) {
         List<SseEmitter> list = userEmitters.get(userId);
         if (list == null || list.isEmpty()) {
-            log.debug("No active SSE emitters for user {}. Skipping SSE push.", userId);
+            log.debug("Người dùng {} không có kết nối SSE đang hoạt động; bỏ qua gửi SSE.", userId);
             return;
         }
 
         List<SseEmitter> deadEmitters = new ArrayList<>();
         for (SseEmitter emitter : list) {
+            if (!checkSession(userId, emitter)) continue;
             try {
                 emitter.send(SseEmitter.event()
                         .name("notification")
                         .data(payload));
             } catch (IOException | IllegalStateException e) {
-                log.debug("SSE connection closed by client for user {}: {}", userId, e.getMessage());
+                log.debug("Phía người dùng {} đã đóng kết nối SSE: {}", userId, e.getMessage());
                 deadEmitters.add(emitter);
             } catch (Exception e) {
-                log.warn("Unexpected error pushing SSE to user {}: {}", userId, e.getMessage());
+                log.warn("Lỗi bất ngờ khi gửi SSE cho người dùng {}: {}", userId, e.getMessage());
             }
         }
 
@@ -126,12 +139,13 @@ public class SseEmitterService {
             List<SseEmitter> deadEmitters = new ArrayList<>();
 
             for (SseEmitter emitter : list) {
+                if (!checkSession(userId, emitter)) continue;
                 try {
                     emitter.send(SseEmitter.event().comment("heartbeat"));
                 } catch (IOException | IllegalStateException e) {
                     deadEmitters.add(emitter);
                 } catch (Exception e) {
-                    log.warn("Unexpected error sending heartbeat to user {}: {}", userId, e.getMessage());
+                    log.warn("Lỗi bất ngờ khi gửi tín hiệu duy trì kết nối cho người dùng {}: {}", userId, e.getMessage());
                 }
             }
 
@@ -139,6 +153,18 @@ public class SseEmitterService {
                 removeEmitter(userId, dead);
             }
         }
+    }
+
+    private boolean checkSession(UUID userId, SseEmitter emitter) {
+        var session = sessions.get(emitter);
+        boolean active = false;
+        try { active = session != null && session.getAsBoolean(); }
+        catch (RuntimeException ignored) { /* Do not send data when validation fails. */ }
+        if (!active) {
+            removeEmitter(userId, emitter);
+            emitter.complete();
+        }
+        return active;
     }
 
     public int getActiveEmitterCount(UUID userId) {

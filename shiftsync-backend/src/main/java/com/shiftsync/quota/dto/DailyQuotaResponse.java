@@ -125,6 +125,7 @@ public class DailyQuotaResponse {
         private double totalHours; // e.g. 136
         private int totalShiftsCount; // e.g. 17
         private long estimatedCost; // e.g. 3840000
+        private boolean costIncomplete;
         private String costBreakdownText; // "(Barista 28k/h, Thu ngân 26k/h, Bếp 30k/h)"
         private double slaComplianceRate; // 100.0
         private boolean isBiometricSynced; // true

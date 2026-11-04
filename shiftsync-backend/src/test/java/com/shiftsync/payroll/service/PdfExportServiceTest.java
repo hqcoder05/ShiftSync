@@ -109,6 +109,7 @@ class PdfExportServiceTest {
     @Test
     void generatePayslipPdf_ManagerWithStoreAccess_Success() {
         when(payrollRepository.findById(payrollId)).thenReturn(Optional.of(payroll));
+        doReturn(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
         when(storeAccessService.canAccessStore(authentication, storeId)).thenReturn(true);
 
         byte[] pdfBytes = pdfExportService.generatePayslipPdf(payrollId, managerUserDetails, authentication);
@@ -122,6 +123,7 @@ class PdfExportServiceTest {
     @Test
     void generatePayslipPdf_UnauthorizedUser_ThrowsException() {
         when(payrollRepository.findById(payrollId)).thenReturn(Optional.of(payroll));
+        doReturn(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
         when(storeAccessService.canAccessStore(authentication, storeId)).thenReturn(false);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->

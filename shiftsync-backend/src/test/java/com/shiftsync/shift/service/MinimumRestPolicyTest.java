@@ -45,7 +45,9 @@ class MinimumRestPolicyTest {
         Shift proposed=shift(monday.plusDays(6),"09:00","17:00");proposed.setStore(Store.builder().id(a).build());
         Shift future=shift(monday.plusDays(8),"04:00","10:00");
         when(shifts.findActiveShiftsForStaffInPeriod(eq(person),any(),any())).thenReturn(List.of(future));
-        var validator=new ShiftValidationService(shifts,employments,configs);
+        var revisions=mock(com.shiftsync.payroll.service.CompensationRevisionResolver.class);
+        lenient().when(revisions.weeklyHoursForEmployment(any(),any())).thenReturn(48);
+        var validator=new ShiftValidationService(shifts,employments,configs,revisions);
         assertThrows(BusinessException.class,()->validator.validateNoOverlapAndWeeklyHours(proposed,person,null));
         verify(shifts).findActiveShiftsForStaffInPeriod(person,monday.minusDays(1),monday.plusDays(8));
         future.setStartTime(LocalTime.of(5,0));

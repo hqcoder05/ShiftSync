@@ -86,14 +86,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             throw new AccessDeniedException("WebSocket token is invalid or expired");
                         }
                         UserDetails userDetails = customUserDetailsService.loadUserById(jwtTokenProvider.getUserIdFromToken(token));
+                        if (!(userDetails instanceof CustomUserDetails details)
+                                || details.getUser().getCredentialVersion() != jwtTokenProvider.getCredentialVersion(token)) {
+                            throw new AccessDeniedException("WebSocket token credentials have changed");
+                        }
                         UsernamePasswordAuthenticationToken auth =
                                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                         accessor.setUser(auth);
-                        log.info("WebSocket connection authenticated for user: {}", userDetails.getUsername());
+                        log.info("Đã xác thực kết nối WebSocket cho người dùng: {}", userDetails.getUsername());
                     } catch (AccessDeniedException e) {
                         throw e;
                     } catch (Exception e) {
-                        log.warn("Failed to authenticate WebSocket token: {}", e.getMessage());
+                        log.warn("Không thể xác thực mã WebSocket: {}", e.getMessage());
                         throw new AccessDeniedException("WebSocket authentication failed");
                     }
                 }

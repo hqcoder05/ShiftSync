@@ -41,6 +41,11 @@ class SkillServiceTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private com.shiftsync.payroll.service.SkillCompensationScheduler compensationScheduler;
+    @Mock
+    private com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
+
     @InjectMocks
     private SkillService skillService;
 
@@ -98,11 +103,17 @@ class SkillServiceTest {
         when(skillRepository.findByIdAndStoreId(skillId, storeId)).thenReturn(Optional.of(skill));
         when(skillRepository.existsByStoreIdAndNameAndIdNot(storeId, "Cashier Lead", skillId)).thenReturn(false);
         when(skillRepository.save(any(Skill.class))).thenReturn(skill);
+        when(compensationRevisions.requireAt(eq("skill"),eq(skillId),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms(BigDecimal.valueOf(26000)));
+        var effective=java.time.LocalDate.now().plusDays(1);
+        when(compensationScheduler.schedule(eq(storeId),eq(skillId),eq(BigDecimal.valueOf(29000)),isNull(),isNull())).thenReturn(effective);
 
         SkillDTO result = skillService.updateSkill(storeId, skillId, request);
 
         assertNotNull(result);
-        assertEquals(BigDecimal.valueOf(29000), skill.getHourlyRate());
+        assertEquals(BigDecimal.valueOf(26000), skill.getHourlyRate());
+        assertEquals(BigDecimal.valueOf(29000), result.getScheduledHourlyRate());
+        assertEquals(effective, result.getScheduledEffectiveDate());
         assertEquals("Cashier Lead", skill.getName());
         verify(skillRepository).save(skill);
     }

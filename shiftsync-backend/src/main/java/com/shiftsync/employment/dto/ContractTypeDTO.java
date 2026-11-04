@@ -18,4 +18,8 @@ public class ContractTypeDTO {
     private Integer maxWeeklyHours;
     private BigDecimal otMultiplier;
     private BigDecimal defaultHourlyRate;
+    private java.time.LocalDate scheduledEffectiveDate;
+    private Integer scheduledMaxWeeklyHours;
+    private BigDecimal scheduledOtMultiplier;
+    private BigDecimal scheduledDefaultHourlyRate;
 }

@@ -39,10 +39,11 @@ class PayslipPdfPrivacyAuditTest {
     @MockitoBean PayrollPeriodRepository periods;
     @MockitoBean PayrollCalculationService calculations;
     @MockitoBean ExcelExportService excel;
+    @MockitoBean com.shiftsync.shared.transaction.SerializableRetry serializableRetry;
     @Autowired PayrollController controller;
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
 
-    @Test void ordinaryStaffCanDownloadCoworkersCompletePayslipPdf() throws Exception {
+    @Test void ordinaryStaffCannotDownloadCoworkersPayslipPdf() throws Exception {
         var store=Store.builder().id(UUID.randomUUID()).name("Audit store").build();
         var actor=User.builder().id(UUID.randomUUID()).email("actor@audit.invalid").systemRole(SystemRole.STAFF).build();
         var coworker=User.builder().id(UUID.randomUUID()).fullName("Confidential Coworker").email("coworker@audit.invalid").build();
@@ -56,17 +57,25 @@ class PayslipPdfPrivacyAuditTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
         // Non-member control: no ownership and no store membership is rejected.
         assertThrows(IllegalArgumentException.class,()->controller.downloadPayslipPdf(row.getId(),principal,auth));
+        assertThrows(IllegalArgumentException.class,()->controller.downloadPayslipPdf(row.getId(),principal,auth));
+        verifyNoInteractions(employment);
+    }
+
+    @Test void ordinaryStoreMemberCannotDownloadCoworkersPayslipPdf() {
+        var store=Store.builder().id(UUID.randomUUID()).name("Audit store").build();
+        var actor=User.builder().id(UUID.randomUUID()).email("actor@audit.invalid").systemRole(SystemRole.STAFF).build();
+        var coworker=User.builder().id(UUID.randomUUID()).fullName("Confidential Coworker").email("coworker@audit.invalid").build();
+        var period=PayrollPeriod.builder().id(UUID.randomUUID()).store(store).startDate(LocalDate.of(2030,11,1))
+                .endDate(LocalDate.of(2030,11,30)).status(PayrollPeriodStatus.CONFIRMED).build();
+        var row=Payroll.builder().id(UUID.randomUUID()).staff(coworker).payrollPeriod(period)
+                .totalHours(new BigDecimal("40")).baseAmount(new BigDecimal("987654")).totalAmount(new BigDecimal("987654")).build();
+        when(payroll.findById(row.getId())).thenReturn(Optional.of(row));
         when(employment.isStaffInStore(actor.getId(),store.getId(),EmploymentStatus.ACTIVE)).thenReturn(true);
-        var result=controller.downloadPayslipPdf(row.getId(),principal,auth);
-        assertEquals(200,result.getStatusCode().value());
-        assertNotEquals(actor.getId(),row.getStaff().getId());
-        var reader=new PdfReader(result.getBody());
-        try {
-            assertTrue(reader.getNumberOfPages()>0);
-            var text=new PdfTextExtractor(reader).getTextFromPage(1);
-            assertTrue(text.contains("Confidential Coworker"));
-            assertTrue(text.contains("coworker@audit.invalid"));
-            assertTrue(text.replaceAll("[^0-9]","").contains("987654"));
-        } finally {reader.close();}
+        var principal=new CustomUserDetails(actor);
+        var auth=new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        assertThrows(IllegalArgumentException.class,()->controller.downloadPayslipPdf(row.getId(),principal,auth));
+        verify(employment,never()).isStaffInStore(any(),any(),any());
     }
 }

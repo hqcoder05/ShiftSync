@@ -24,10 +24,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
     public ResponseEntity<Map<String, Object>> handleMissingServletRequestParameter(
             org.springframework.web.bind.MissingServletRequestParameterException ex) {
-        String message = String.format("Required request parameter '%s' for method parameter type %s is not present", 
+        String message = String.format("Thiếu tham số bắt buộc '%s' (kiểu %s)",
             ex.getParameterName(), ex.getParameterType());
         return new ResponseEntity<>(
-            buildResponse("BAD_REQUEST", message, null), 
+            buildResponse("BAD_REQUEST", message, null),
             HttpStatus.BAD_REQUEST
         );
     }
@@ -35,9 +35,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleHttpRequestMethodNotSupported(
             org.springframework.web.HttpRequestMethodNotSupportedException ex) {
-        String message = String.format("Request method '%s' not supported", ex.getMethod());
+        String message = String.format("Phương thức yêu cầu '%s' không được hỗ trợ", ex.getMethod());
         return new ResponseEntity<>(
-            buildResponse("METHOD_NOT_ALLOWED", message, null), 
+            buildResponse("METHOD_NOT_ALLOWED", message, null),
             HttpStatus.METHOD_NOT_ALLOWED
         );
     }
@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleNoHandlerFoundException(
             org.springframework.web.servlet.NoHandlerFoundException ex) {
         return new ResponseEntity<>(
-            buildResponse("NOT_FOUND", "Resource not found: " + ex.getRequestURL(), null), 
+            buildResponse("NOT_FOUND", "Không tìm thấy tài nguyên: " + ex.getRequestURL(), null),
             HttpStatus.NOT_FOUND
         );
     }
@@ -66,9 +66,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException ex) {
-        logger.warn("[BusinessException] status={}, message={}", ex.getStatus(), ex.getMessage());
+        logger.warn("Lỗi nghiệp vụ: trạng thái={}, thông báo={}", ex.getStatus(), ex.getMessage());
         return new ResponseEntity<>(
-            buildResponse(ex.getStatus().name(), ex.getMessage(), null), 
+            buildResponse(ex.getStatus().name(), ex.getMessage(), null),
             ex.getStatus()
         );
     }
@@ -77,13 +77,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
+            String fieldName = error instanceof FieldError field ? field.getField() : error.getObjectName();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        
+
         return new ResponseEntity<>(
-            buildResponse("VALIDATION_FAILED", "Invalid request payload", errors), 
+            buildResponse("VALIDATION_FAILED", "Dữ liệu yêu cầu không hợp lệ", errors),
             HttpStatus.BAD_REQUEST
         );
     }
@@ -91,7 +91,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         return new ResponseEntity<>(
-            buildResponse("BAD_REQUEST", "Malformed JSON request", null), 
+            buildResponse("BAD_REQUEST", "Dữ liệu JSON không hợp lệ", null),
             HttpStatus.BAD_REQUEST
         );
     }
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleHttpMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException ex) {
         return new ResponseEntity<>(
-            buildResponse("UNSUPPORTED_MEDIA_TYPE", "Content-Type is not supported: " + ex.getContentType(), null), 
+            buildResponse("UNSUPPORTED_MEDIA_TYPE", "Định dạng Content-Type không được hỗ trợ: " + ex.getContentType(), null),
             HttpStatus.UNSUPPORTED_MEDIA_TYPE
         );
     }
@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
         return new ResponseEntity<>(
-            buildResponse("FORBIDDEN", "You do not have permission to perform this action", null), 
+            buildResponse("FORBIDDEN", "Bạn không có quyền thực hiện thao tác này", null),
             HttpStatus.FORBIDDEN
         );
     }
@@ -115,15 +115,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Map<String, Object>> handleAuthenticationException(AuthenticationException ex) {
         return new ResponseEntity<>(
-            buildResponse("UNAUTHORIZED", "Authentication failed", null), 
+            buildResponse("UNAUTHORIZED", "Xác thực không thành công", null),
             HttpStatus.UNAUTHORIZED
         );
     }
-    
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNoResourceFound(NoResourceFoundException ex) {
         return new ResponseEntity<>(
-            buildResponse("NOT_FOUND", "Resource not found", null), 
+            buildResponse("NOT_FOUND", "Không tìm thấy tài nguyên", null),
             HttpStatus.NOT_FOUND
         );
     }
@@ -132,9 +132,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatch(
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
         String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
-        String message = String.format("Parameter '%s' should be of type %s", ex.getName(), requiredType);
+        String message = String.format("Tham số '%s' phải có kiểu %s", ex.getName(), requiredType);
         return new ResponseEntity<>(
-            buildResponse("BAD_REQUEST", message, null), 
+            buildResponse("BAD_REQUEST", message, null),
             HttpStatus.BAD_REQUEST
         );
     }
@@ -142,23 +142,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
         return new ResponseEntity<>(
-            buildResponse("BAD_REQUEST", ex.getMessage(), null), 
+            buildResponse("BAD_REQUEST", ex.getMessage(), null),
             HttpStatus.BAD_REQUEST
         );
     }
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
-        logger.warn("Data integrity violation: {}", ex.getMessage());
+        logger.warn("Dữ liệu vi phạm ràng buộc hoặc bị xung đột: {}", ex.getClass().getSimpleName());
         return new ResponseEntity<>(
-            buildResponse("DATA_INTEGRITY_VIOLATION", "Database constraint violation or conflict occurred", null), 
+            buildResponse("DATA_INTEGRITY_VIOLATION", "Dữ liệu bị xung đột hoặc vi phạm ràng buộc", null),
             HttpStatus.CONFLICT
         );
     }
 
     @ExceptionHandler(org.springframework.dao.ConcurrencyFailureException.class)
     public ResponseEntity<Map<String, Object>> handleConcurrentScheduleChange(org.springframework.dao.ConcurrencyFailureException ex) {
-        logger.warn("Concurrent transaction rejected: {}", ex.getClass().getSimpleName());
+        logger.warn("Giao dịch đồng thời bị từ chối: {}", ex.getClass().getSimpleName());
         return new ResponseEntity<>(buildResponse("CONCURRENT_MODIFICATION",
                 "Dữ liệu vừa thay đổi trong một thao tác khác. Vui lòng tải lại lịch và thử lại.", null), HttpStatus.CONFLICT);
     }
@@ -168,27 +168,27 @@ public class GlobalExceptionHandler {
         jakarta.persistence.OptimisticLockException.class
     })
     public ResponseEntity<Map<String, Object>> handleOptimisticLocking(Exception ex) {
-        logger.warn("Optimistic locking conflict: {}", ex.getMessage());
+        logger.warn("Xung đột khi cập nhật đồng thời: {}", ex.getMessage());
         return new ResponseEntity<>(
-            buildResponse("OPTIMISTIC_LOCK_CONFLICT", "This record was modified by another transaction. Please refresh and try again.", null), 
+            buildResponse("OPTIMISTIC_LOCK_CONFLICT", "Dữ liệu đã được thay đổi bởi thao tác khác. Vui lòng tải lại và thử lại.", null),
             HttpStatus.CONFLICT
         );
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
-        logger.warn("Max upload size exceeded: {}", ex.getMessage());
+        logger.warn("Tệp tải lên vượt quá kích thước cho phép: {}", ex.getMessage());
         return new ResponseEntity<>(
-            buildResponse("PAYLOAD_TOO_LARGE", "Uploaded file exceeds the maximum permitted size limit", null), 
+            buildResponse("PAYLOAD_TOO_LARGE", "Tệp tải lên vượt quá kích thước cho phép", null),
             HttpStatus.PAYLOAD_TOO_LARGE
         );
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
-        logger.error("Unhandled exception: ", ex);
+        logger.error("Lỗi chưa được xử lý: ", ex);
         return new ResponseEntity<>(
-            buildResponse("INTERNAL_SERVER_ERROR", "An unexpected error occurred", null), 
+            buildResponse("INTERNAL_SERVER_ERROR", "Đã xảy ra lỗi không mong muốn", null),
             HttpStatus.INTERNAL_SERVER_ERROR
         );
     }

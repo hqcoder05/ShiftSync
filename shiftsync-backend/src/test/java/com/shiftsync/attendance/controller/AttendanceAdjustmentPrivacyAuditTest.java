@@ -27,15 +27,18 @@ import static org.mockito.Mockito.*;
 class AttendanceAdjustmentPrivacyAuditTest {
     @Configuration(proxyBeanMethods=false) @EnableMethodSecurity @Import(AttendanceAdjustmentController.class)
     static class Config {
+        @Bean StoreAccessService storeAccessService(EmploymentRepository repository) { return new StoreAccessService(repository); }
         @Bean AttendanceAdjustmentService service(AttendanceAdjustmentRequestRepository repository) {
             // Only the list branch is exercised; it uses this repository and DTO mapping.
             return new AttendanceAdjustmentService(null,repository,null,null,null,null,null,null,null,null);
         }
     }
     @MockitoBean AttendanceAdjustmentRequestRepository repository;
+    @MockitoBean EmploymentRepository employment;
+    @MockitoBean com.shiftsync.store.repository.StoreRepository payrollStores;
     @Autowired AttendanceAdjustmentController controller;
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
-    @Test void managerWithoutStoreAccessCanReadForeignAdjustmentReasons() {
+    @Test void managerWithoutStoreAccessCannotReadForeignAdjustmentReasons() {
         var foreign=Store.builder().id(UUID.randomUUID()).build();
         var actor=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.STAFF).build();
         var principal=new CustomUserDetails(actor);
@@ -44,15 +47,17 @@ class AttendanceAdjustmentPrivacyAuditTest {
         actor.setSystemRole(SystemRole.MANAGER);
         var auth=new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
-        assertFalse(new StoreAccessService(mock(EmploymentRepository.class)).canAccessStore(auth,foreign.getId()));
-        var employee=User.builder().id(UUID.randomUUID()).fullName("Foreign employee").build();
-        var shift=Shift.builder().id(UUID.randomUUID()).store(foreign).build();
-        var request=AttendanceAdjustmentRequest.builder().id(UUID.randomUUID()).shift(shift).staff(employee)
-                .status(AdjustmentStatus.PENDING).reason("Private correction reason").build();
-        when(repository.findByShiftStoreId(foreign.getId())).thenReturn(List.of(request));
-        var result=controller.getRequests(foreign.getId(),null);
-        assertEquals(200,result.getStatusCode().value());
-        assertEquals(employee.getId(),result.getBody().get(0).getStaffId());
-        assertEquals("Private correction reason",result.getBody().get(0).getReason());
+        assertThrows(AccessDeniedException.class,()->controller.getRequests(foreign.getId(),null));
+        verifyNoInteractions(repository);
+    }
+
+    @Test void managerCanReadAdjustmentsAtManagedStore() {
+        var storeId=UUID.randomUUID();
+        var manager=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.MANAGER).build();
+        var principal=new CustomUserDetails(manager);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
+        when(employment.isStaffInStore(manager.getId(),storeId,com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)).thenReturn(true);
+        assertEquals(200,controller.getRequests(storeId,null).getStatusCode().value());
+        verify(repository).findByShiftStoreId(storeId);
     }
 }

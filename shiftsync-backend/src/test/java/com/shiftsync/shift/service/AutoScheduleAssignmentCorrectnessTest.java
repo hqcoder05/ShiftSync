@@ -104,6 +104,7 @@ class AutoScheduleAssignmentCorrectnessTest {
 
     @BeforeEach
     void setUp() {
+        TestCompensationResolver.install(autoScheduleService);
         storeId = UUID.randomUUID();
         store = Store.builder().id(storeId).name("Test Store").build();
 
@@ -138,6 +139,7 @@ class AutoScheduleAssignmentCorrectnessTest {
                 storeZoneRepository,
                 skillRepository
         );
+        com.shiftsync.support.TestStoreLock.install(shiftAssignmentService);
     }
 
     private StoreConfiguration defaultStoreConfig() {

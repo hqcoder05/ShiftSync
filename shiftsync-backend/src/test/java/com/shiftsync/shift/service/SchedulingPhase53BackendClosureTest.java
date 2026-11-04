@@ -141,7 +141,7 @@ class SchedulingPhase53BackendClosureTest {
                 .closeTime(LocalTime.of(22, 0))
                 .build();
 
-        spatialAllocationService = new SpatialAllocationService(
+        spatialAllocationService = com.shiftsync.support.TestStoreLock.installSpatial(new SpatialAllocationService(
                 storeZoneRepository,
                 storeLayoutRepository,
                 workstationRepository,
@@ -149,7 +149,7 @@ class SchedulingPhase53BackendClosureTest {
                 shiftAssignmentRepository,
                 staffSkillRepository,
                 skillRepository
-        );
+        ));
 
         autoScheduleService = new AutoScheduleService(
                 shiftRepository,
@@ -164,6 +164,7 @@ class SchedulingPhase53BackendClosureTest {
                 headcountQuotaService,
                 spatialAllocationService
         );
+        TestCompensationResolver.install(autoScheduleService);
 
         shiftService = new ShiftService(
                 auditLogService,
@@ -183,6 +184,7 @@ class SchedulingPhase53BackendClosureTest {
         storeAccessService = new StoreAccessService(employmentRepository);
 
         when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        lenient().when(storeRepository.findByIdForUpdate(storeId)).thenReturn(Optional.of(store));
         when(headcountQuotaService.getStoreOpenTime(any())).thenReturn(LocalTime.of(8, 0));
         when(headcountQuotaService.getStoreCloseTime(any())).thenReturn(LocalTime.of(22, 0));
 
@@ -353,7 +355,7 @@ class SchedulingPhase53BackendClosureTest {
 
             BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.createShift(storeId, req));
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertTrue(ex.getMessage().contains("Shift start time cannot be before store open time"));
+            assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
         }
 
         @Test
@@ -366,7 +368,7 @@ class SchedulingPhase53BackendClosureTest {
 
             BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.createShift(storeId, req));
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertTrue(ex.getMessage().contains("Shift end time cannot be after store close time"));
+            assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
         }
 
         @Test
@@ -401,7 +403,7 @@ class SchedulingPhase53BackendClosureTest {
 
             BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.updateShift(storeId, existing.getId(), updateReq));
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertTrue(ex.getMessage().contains("Shift end time cannot be after store close time"));
+            assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
         }
 
         @Test
@@ -447,7 +449,7 @@ class SchedulingPhase53BackendClosureTest {
             // Same shift now rejected because 08:00 < 09:00
             BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.createShift(storeId, req));
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
-            assertTrue(ex.getMessage().contains("Shift start time cannot be before store open time"));
+            assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
         }
     }
 
@@ -1473,6 +1475,7 @@ class SchedulingPhase53BackendClosureTest {
 
             Authentication auth = mock(Authentication.class);
             when(auth.getPrincipal()).thenReturn(managerDetails);
+            when(auth.isAuthenticated()).thenReturn(true);
 
             when(employmentRepository.isStaffInStore(managerId, storeA, EmploymentStatus.ACTIVE)).thenReturn(true);
             when(employmentRepository.isStaffInStore(managerId, storeB, EmploymentStatus.ACTIVE)).thenReturn(false);
@@ -1492,6 +1495,7 @@ class SchedulingPhase53BackendClosureTest {
 
             Authentication auth = mock(Authentication.class);
             when(auth.getPrincipal()).thenReturn(adminDetails);
+            when(auth.isAuthenticated()).thenReturn(true);
 
             assertTrue(storeAccessService.canAccessStore(auth, randomStoreId), "Admin must have global access to any store");
             verify(employmentRepository, never()).isStaffInStore(any(), any(), any());

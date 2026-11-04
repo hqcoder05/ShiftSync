@@ -22,6 +22,7 @@ import java.util.UUID;
 public class StaffRequestController {
 
     private final StaffRequestService staffRequestService;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
 
     @Operation(summary = "Get all staff requests with optional filters")
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
@@ -31,11 +32,8 @@ public class StaffRequestController {
             @RequestParam(required = false) com.shiftsync.request.enums.RequestStatus status,
             @RequestParam(required = false) String typeCategory,
             @RequestParam(required = false) String search) {
-        String requesterFilter = null;
-        if (userDetails != null && isStaffOnly(userDetails)) {
-            requesterFilter = userDetails.getUser().getFullName();
-        }
-        List<StaffRequestDTO> list = staffRequestService.getAllRequests(status, typeCategory, search, requesterFilter);
+        List<StaffRequestDTO> list = staffRequestService.getAllRequests(status, typeCategory, search, null).stream()
+                .filter(request -> canAccess(request, userDetails)).toList();
         return ResponseEntity.ok(list);
     }
 
@@ -46,11 +44,7 @@ public class StaffRequestController {
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails,
             @PathVariable UUID id) {
         StaffRequestDTO dto = staffRequestService.getRequestById(id);
-        if (userDetails != null && isStaffOnly(userDetails)) {
-            if (dto.getRequesterName() == null || !dto.getRequesterName().equalsIgnoreCase(userDetails.getUser().getFullName())) {
-                throw new org.springframework.security.access.AccessDeniedException("You can only view your own requests");
-            }
-        }
+        if (!canAccess(dto, userDetails)) throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem yêu cầu này");
         return ResponseEntity.ok(dto);
     }
 
@@ -62,6 +56,13 @@ public class StaffRequestController {
             @Valid @RequestBody StaffRequestCreateDTO createDTO) {
         // Ignored requesterName from FE, use the real name from token
         createDTO.setRequesterName(userDetails.getUser().getFullName());
+        createDTO.setRequesterId(userDetails.getId());
+        var stores = employmentRepository.findByUserIdAndStatus(userDetails.getId(), com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
+                .stream().map(e -> e.getStore().getId()).distinct().toList();
+        if (createDTO.getStoreId() == null && stores.size() == 1) createDTO.setStoreId(stores.get(0));
+        if (createDTO.getStoreId() == null || !stores.contains(createDTO.getStoreId())) {
+            throw new org.springframework.security.access.AccessDeniedException("Chọn cửa hàng bạn đang làm việc");
+        }
         StaffRequestDTO created = staffRequestService.createRequest(createDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -71,16 +72,23 @@ public class StaffRequestController {
     @PutMapping("/{id}/status")
     public ResponseEntity<StaffRequestDTO> updateStatus(
             @PathVariable UUID id,
-            @Valid @RequestBody StaffRequestStatusUpdateDTO updateDTO) {
+            @Valid @RequestBody StaffRequestStatusUpdateDTO updateDTO,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        StaffRequestDTO existing = staffRequestService.getRequestById(id);
+        if (!canManage(existing, userDetails)) throw new org.springframework.security.access.AccessDeniedException("Không có quyền xử lý yêu cầu này");
         StaffRequestDTO updated = staffRequestService.updateRequestStatus(id, updateDTO.getStatus());
         return ResponseEntity.ok(updated);
     }
 
-    private boolean isStaffOnly(com.shiftsync.shared.security.CustomUserDetails userDetails) {
-        boolean hasStaff = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_STAFF"));
-        boolean hasManagerOrAdmin = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
-        return hasStaff && !hasManagerOrAdmin;
+    private boolean canAccess(StaffRequestDTO request, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        return userDetails != null && (userDetails.getId().equals(request.getRequesterId()) || canManage(request, userDetails));
+    }
+
+    private boolean canManage(StaffRequestDTO request, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getUser() == null) return false;
+        var role = userDetails.getUser().getSystemRole();
+        if (role == com.shiftsync.shared.security.SystemRole.ADMIN) return true;
+        return role == com.shiftsync.shared.security.SystemRole.MANAGER && request.getStoreId() != null
+                && employmentRepository.existsByUserIdAndStoreIdAndStatus(userDetails.getId(), request.getStoreId(), com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
     }
 }

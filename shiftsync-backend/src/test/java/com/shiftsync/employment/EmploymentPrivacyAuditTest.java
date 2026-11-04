@@ -33,17 +33,19 @@ class EmploymentPrivacyAuditTest {
     @Autowired EmploymentController controller;
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
 
-    @Test void staffCanReadCoworkerHourlyRateFromStoreRoster() {
+    @Test void staffRosterOmitsCoworkerCompensation() {
         var store=UUID.randomUUID();var actor=UUID.randomUUID();var coworker=UUID.randomUUID();
         var principal=new CustomUserDetails(User.builder().id(actor).systemRole(SystemRole.STAFF).build());
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
         when(repository.isStaffInStore(actor,store,EmploymentStatus.ACTIVE)).thenReturn(true);
         var page=PageRequest.of(0,20);
-        when(service.getStaffByStore(store,page)).thenReturn(new PageImpl<>(List.of(EmploymentDTO.builder()
-                .staffId(coworker).hourlyRate(BigDecimal.valueOf(98765)).build())));
-        var result=controller.getStaffByStore(store,page);
+        when(service.getStaffRoster(store,page)).thenReturn(new PageImpl<>(List.of(EmploymentDTO.builder()
+                .staffId(coworker).staffFullName("Đồng nghiệp").build())));
+        var result=controller.getStaffByStore(store,page,SecurityContextHolder.getContext().getAuthentication());
         assertEquals(200,result.getStatusCode().value());
         assertEquals(coworker,result.getBody().getContent().get(0).getStaffId());
-        assertEquals(BigDecimal.valueOf(98765),result.getBody().getContent().get(0).getHourlyRate());
+        assertNull(result.getBody().getContent().get(0).getHourlyRate());
+        assertNull(result.getBody().getContent().get(0).getContractType());
+        verify(service,never()).getStaffByStore(any(),any());
     }
 }

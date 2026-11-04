@@ -38,7 +38,9 @@ public class PdfExportService {
                 .orElseThrow(() -> new IllegalArgumentException("Payroll not found"));
 
         boolean isOwner = userDetails != null && payroll.getStaff().getId().equals(userDetails.getId());
-        boolean hasStoreAccess = auth != null && storeAccessService.canAccessStore(auth, payroll.getPayrollPeriod().getStore().getId());
+        boolean hasManagementRole = auth != null && auth.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN") || authority.getAuthority().equals("ROLE_MANAGER"));
+        boolean hasStoreAccess = hasManagementRole && storeAccessService.canAccessStore(auth, payroll.getPayrollPeriod().getStore().getId());
 
         if (!isOwner && !hasStoreAccess) {
             throw new IllegalArgumentException("Payroll not found or access denied");
@@ -72,7 +74,7 @@ public class PdfExportService {
                 byte[] fontBytes = fontResource.getInputStream().readAllBytes();
                 baseFont = BaseFont.createFont("Roboto-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, true, fontBytes, null);
             } catch (Exception e) {
-                log.error("Could not load custom font, falling back to default", e);
+                log.error("Không thể tải phông chữ tùy chỉnh; sử dụng phông mặc định", e);
             }
 
             Font titleFont = baseFont != null ? new Font(baseFont, 18, Font.BOLD) : FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
@@ -148,7 +150,7 @@ public class PdfExportService {
 
             return baos.toByteArray();
         } catch (DocumentException | IOException e) {
-            log.error("Error generating PDF", e);
+            log.error("Không thể tạo tệp PDF", e);
             throw new RuntimeException("Could not generate PDF", e);
         }
     }

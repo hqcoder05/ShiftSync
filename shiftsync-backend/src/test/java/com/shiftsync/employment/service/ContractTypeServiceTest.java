@@ -22,6 +22,9 @@ public class ContractTypeServiceTest {
     @Mock
     private com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
 
+    @Mock
+    private com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
+
     @InjectMocks
     private ContractTypeService contractTypeService;
 
@@ -32,6 +35,8 @@ public class ContractTypeServiceTest {
         ct.setId(UUID.randomUUID());
         ct.setName("FULL_TIME");
         when(contractTypeRepository.findByStoreId(storeId)).thenReturn(List.of(ct));
+        when(compensationRevisions.requireAt(eq("contract_type"),eq(ct.getId()),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.ContractTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.ContractTerms(java.math.BigDecimal.valueOf(30000),40,new java.math.BigDecimal("1.5")));
 
         List<ContractTypeDTO> result = contractTypeService.getContractTypes(storeId);
 
@@ -56,8 +61,8 @@ public class ContractTypeServiceTest {
             contractTypeService.deleteContractType(storeId, contractTypeId);
         });
 
-        assertEquals("Cannot delete contract type that is in use by employees", exception.getMessage());
-        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertEquals("Không thể xóa loại hợp đồng đã được nhân viên sử dụng; cần giữ dữ liệu lịch sử lương", exception.getMessage());
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, exception.getStatus());
         
         verify(contractTypeRepository).findByIdAndStoreId(contractTypeId, storeId);
         verify(employmentRepository).countByStoreIdAndContractTypeId(storeId, contractTypeId);

@@ -26,17 +26,29 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(UUID userId, String email, String role) {
+        return generateToken(userId, email, role, 0);
+    }
+
+    public String generateToken(UUID userId, String email, String role, long credentialVersion) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         return Jwts.builder()
                 .subject(email)
+                .id(UUID.randomUUID().toString())
                 .claim("uid", userId.toString())
                 .claim("role", role)
+                .claim("credentialVersion", credentialVersion)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)
                 .compact();
+    }
+
+    public long getCredentialVersion(String token) {
+        Number value = extractAllClaims(token).get("credentialVersion", Number.class);
+        if (value == null) throw new JwtException("Token has no credential version");
+        return value.longValue();
     }
 
     public UUID getUserIdFromToken(String token) {

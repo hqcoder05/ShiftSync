@@ -291,8 +291,8 @@ export default function MainLayout() {
     return () => window.removeEventListener('storeChanged', syncStore);
   }, [stores]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 

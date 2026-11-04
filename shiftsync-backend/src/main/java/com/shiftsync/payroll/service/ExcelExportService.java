@@ -102,7 +102,7 @@ public class ExcelExportService {
             return baos.toByteArray();
             
         } catch (IOException e) {
-            log.error("Failed to generate Excel file", e);
+            log.error("Không thể tạo tệp Excel", e);
             throw new RuntimeException("Error generating Excel report", e);
         }
     }

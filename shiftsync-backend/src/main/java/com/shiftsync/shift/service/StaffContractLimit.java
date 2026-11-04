@@ -18,4 +18,16 @@ final class StaffContractLimit {
         }
         return limit;
     }
+
+    static int weeklyHours(Collection<Employment> employments, java.time.LocalDate date,
+                           com.shiftsync.payroll.service.CompensationRevisionResolver revisions) {
+        if (employments.isEmpty()) throw new BusinessException("Không tìm thấy hợp đồng đang hoạt động", HttpStatus.BAD_REQUEST);
+        int limit = Integer.MAX_VALUE;
+        for (Employment employment : employments) {
+            int hours = revisions.weeklyHoursForEmployment(employment, date);
+            if (hours <= 0) throw new BusinessException("Hợp đồng phải có giới hạn giờ hợp lệ", HttpStatus.BAD_REQUEST);
+            limit = Math.min(limit, hours);
+        }
+        return limit;
+    }
 }

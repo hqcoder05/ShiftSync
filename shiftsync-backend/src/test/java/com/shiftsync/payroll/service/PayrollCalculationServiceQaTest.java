@@ -69,13 +69,13 @@ class PayrollCalculationServiceQaTest {
 
         java.lang.reflect.Method calculateMethod = PayrollCalculationService.class.getDeclaredMethod(
                 "calculateForEmployee",
-                Employment.class, PayrollPeriod.class, List.class, List.class, Map.class, Map.class, Map.class
+                Employment.class, List.class, PayrollPeriod.class, List.class, List.class, Map.class, Map.class, Map.class
         );
         calculateMethod.setAccessible(true);
 
         Payroll payroll = (Payroll) calculateMethod.invoke(
                 payrollCalculationService,
-                emp, period, Collections.singletonList(sa), Collections.emptyList(),
+                emp, List.of(emp), period, Collections.singletonList(sa), Collections.emptyList(),
                 attendanceMap, new HashMap<>(), new HashMap<>()
         );
 

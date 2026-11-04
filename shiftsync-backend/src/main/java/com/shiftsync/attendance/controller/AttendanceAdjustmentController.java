@@ -49,7 +49,7 @@ public class AttendanceAdjustmentController {
 
     @GetMapping
     @Operation(summary = "Get list of adjustment requests (Manager)")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     public ResponseEntity<List<AdjustmentResponseDTO>> getRequests(
             @PathVariable UUID storeId,
             @RequestParam(required = false) AdjustmentStatus status) {

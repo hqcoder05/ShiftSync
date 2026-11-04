@@ -19,13 +19,15 @@ class ShiftTimeValidationTest {
     private final ShiftRepository shifts = mock(ShiftRepository.class);
     private final EmploymentRepository employments = mock(EmploymentRepository.class);
     private final com.shiftsync.store.repository.StoreConfigurationRepository configs=mock(com.shiftsync.store.repository.StoreConfigurationRepository.class);
-    private final ShiftValidationService validator = new ShiftValidationService(shifts, employments,configs);
+    private final com.shiftsync.payroll.service.CompensationRevisionResolver revisions=mock(com.shiftsync.payroll.service.CompensationRevisionResolver.class);
+    private final ShiftValidationService validator = new ShiftValidationService(shifts, employments,configs,revisions);
     private final UUID storeId=UUID.randomUUID();
     private final UUID person = UUID.randomUUID();
     private final LocalDate monday = LocalDate.of(2030, 11, 4);
     private final ContractType contract = ContractType.builder().maxWeeklyHours(48).build();
 
     @BeforeEach void setup() {
+        lenient().when(revisions.weeklyHoursForEmployment(any(),any())).thenAnswer(call -> ((Employment)call.getArgument(0)).getContractType().getMaxWeeklyHours());
         when(configs.findByStoreIdIn(any())).thenReturn(List.of(com.shiftsync.store.entity.StoreConfiguration.builder().storeId(storeId).minRestHours(0).build()));
         when(employments.findByUserIdAndStatus(person, EmploymentStatus.ACTIVE))
                 .thenReturn(List.of(Employment.builder().contractType(contract).build()));
@@ -87,6 +89,15 @@ class ShiftTimeValidationTest {
         assertThrows(BusinessException.class,()->validator.validateNoOverlapAndWeeklyHours(addition,person,null));
         addition.setEndTime(LocalTime.of(11,0));
         assertDoesNotThrow(()->validator.validateNoOverlapAndWeeklyHours(addition,person,null));
+    }
+
+    @Test void manualValidationUsesContractLimitEffectiveOnShiftDate() {
+        LocalDate effective=monday.plusDays(2);
+        doAnswer(call -> ((LocalDate)call.getArgument(1)).isBefore(effective) ? 48 : 8)
+                .when(revisions).weeklyHoursForEmployment(any(),any());
+        schedule(shift(monday,9,15));
+        assertDoesNotThrow(()->validator.validateNoOverlapAndWeeklyHours(shift(monday.plusDays(1),9,12),person,null));
+        assertThrows(BusinessException.class,()->validator.validateNoOverlapAndWeeklyHours(shift(effective,9,12),person,null));
     }
     @Test void midnightEndBelongsOnlyToPrecedingWeek() {
         Shift night = shift(monday.minusDays(1), 22, 0);

@@ -63,6 +63,9 @@ public class LeaveRequest {
     @Column(name = "approved_at")
     private OffsetDateTime approvedAt;
 
+    @Column(name = "assignment_provenance_complete", nullable = false)
+    private boolean assignmentProvenanceComplete;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();

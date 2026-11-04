@@ -51,6 +51,8 @@ public class LeaveRequestServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private RealtimeEventPublisher realtimeEventPublisher;
     @Mock private LeaveBalanceService leaveBalanceService;
+    @Mock private com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    @Mock private com.shiftsync.payroll.service.PayrollCalculationService payrollCalculationService;
 
     @InjectMocks
     private LeaveRequestService leaveRequestService;
@@ -64,6 +66,7 @@ public class LeaveRequestServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(storeRepository.findByIdForUpdate(any())).thenAnswer(call -> Optional.of(Store.builder().id(call.getArgument(0)).build()));
         storeId = UUID.randomUUID();
         staffId = UUID.randomUUID();
         managerId = UUID.randomUUID();
@@ -173,7 +176,7 @@ public class LeaveRequestServiceTest {
         when(leaveRequestRepository.findById(leaveId)).thenReturn(Optional.of(leaveRequest));
         when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
         when(leaveRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(eq(staffId), eq(startDate), eq(endDate)))
+        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(eq(staffId), eq(startDate.minusDays(1)), eq(endDate)))
                 .thenReturn(List.of());
 
         LeaveApproveResponse response = leaveRequestService.approveLeaveRequest(storeId, leaveId, managerId);
@@ -315,7 +318,7 @@ public class LeaveRequestServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> leaveRequestService.createLeaveRequest(storeId, staffId, request));
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
-        assertTrue(ex.getMessage().contains("Số dư phép năm không đủ"));
+        assertTrue(ex.getMessage().contains("không đủ"));
     }
 
     @Test

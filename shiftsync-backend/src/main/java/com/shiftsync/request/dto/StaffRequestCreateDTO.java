@@ -13,6 +13,8 @@ import java.time.LocalDate;
 public class StaffRequestCreateDTO {
 
     private String requesterName;
+    private java.util.UUID storeId;
+    private java.util.UUID requesterId;
     private String avatarKey;
 
     @NotBlank(message = "Request type is required")

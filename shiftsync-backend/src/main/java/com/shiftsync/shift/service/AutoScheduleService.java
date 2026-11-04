@@ -74,6 +74,10 @@ public class AutoScheduleService {
     private final HeadcountQuotaService headcountQuotaService;
     private final SpatialAllocationService spatialAllocationService;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
+    @Autowired(required = false)
+    private ScheduleMutationGuard mutationGuard;
+    @Autowired
+    private com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
 
     @Autowired
     public AutoScheduleService(
@@ -182,6 +186,7 @@ public AutoScheduleService(
         List<Availability> availabilities;
         int availabilityToleranceMinutes = 0;
         Integer combinedWeeklyHourLimit;
+        Map<LocalDate, Integer> weeklyHourLimitsByDate;
         int requiredRestHours;
         List<BlackoutDate> blackoutDates;
         Set<LocalDate> approvedLeaveDates;
@@ -222,6 +227,13 @@ public AutoScheduleService(
                 return employment.getContractType().getMaxWeeklyHours();
             }
             return 48; // fallback standard
+        }
+
+        int weeklyLimitOn(LocalDate date) {
+            if (weeklyHourLimitsByDate == null) return getMaxWeeklyHours();
+            Integer limit = weeklyHourLimitsByDate.get(date);
+            if (limit == null) throw new IllegalStateException("Thiếu giới hạn giờ cho ngày xếp ca " + date);
+            return limit;
         }
 
         double getUtilizationRatio() {
@@ -269,14 +281,14 @@ public AutoScheduleService(
             if (store != null) {
                 LocalTime openTime = headcountQuotaService.getStoreOpenTime(store);
                 LocalTime closeTime = headcountQuotaService.getStoreCloseTime(store);
+                Store operatingWindow = Store.builder().openTime(openTime).closeTime(closeTime).build();
 
                 List<Shift> outOfBoundsShifts = draftShifts.stream()
-                        .filter(s -> (s.getStartTime() != null && s.getStartTime().isBefore(openTime))
-                                  || (s.getEndTime() != null && s.getEndTime().isAfter(closeTime)))
+                        .filter(s -> !com.shiftsync.store.service.OperatingHours.contains(operatingWindow, s.getStartTime(), s.getEndTime()))
                         .collect(Collectors.toList());
 
                 if (!outOfBoundsShifts.isEmpty()) {
-                    log.warn("AutoSchedule: Skipping {} DRAFT shift(s) outside store hours ({} - {}); preserving shifts and assignments.",
+                    log.warn("Xếp ca tự động: bỏ qua {} ca nháp ngoài giờ mở cửa ({} - {}); giữ nguyên ca và phân công.",
                             outOfBoundsShifts.size(), openTime, closeTime);
                     draftShifts.removeAll(outOfBoundsShifts);
                     validationWarnings.add(outOfBoundsShifts.size() + " ca nháp ngoài giờ mở cửa đã được giữ nguyên và không được xếp tự động. Hãy chỉnh giờ ca trước khi chạy lại.");
@@ -286,12 +298,11 @@ public AutoScheduleService(
             // Generate demand only when the request had no DRAFT shifts at all.
             // If every draft is invalid, leave it untouched for the manager to resolve.
             if (draftShifts.isEmpty() && validationWarnings.isEmpty()) {
-                log.info("AutoSchedule: No draft shifts found in operating hours, applying headcount quotas for week...");
-                headcountQuotaService.autoFillQuotas(AutoFillQuotaRequest.builder()
-                        .branchId(storeId)
-                        .scope("WEEK")
-                        .weekStart(request.getStartDate())
-                        .build());
+                log.info("Xếp ca tự động: không có ca nháp trong giờ mở cửa; đang áp dụng định biên tuần...");
+                for (LocalDate day=request.getStartDate(); !day.isAfter(request.getEndDate()); day=day.plusDays(1)) {
+                    headcountQuotaService.autoFillQuotas(AutoFillQuotaRequest.builder()
+                            .branchId(storeId).scope("DAY").date(day).build());
+                }
                 draftShifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, request.getStartDate(), request.getEndDate())
                         .stream()
                         .filter(s -> s.getStatus() == ShiftStatus.DRAFT)
@@ -339,6 +350,10 @@ public AutoScheduleService(
             return noDemandResult;
         }
 
+        if (mutationGuard != null) for (Shift shift : draftShifts) {
+            mutationGuard.checkShift(storeId,shift.getShiftDate(),shift.getStartTime(),shift.getEndTime());
+        }
+
         // Idempotency: Clear previous AUTO assignments on these DRAFT shifts before re-scheduling
         List<UUID> draftShiftIds = draftShifts.stream().map(Shift::getId).collect(Collectors.toList());
         List<ShiftAssignment> existingAutoAssignments = draftShiftIds.stream()
@@ -346,6 +361,7 @@ public AutoScheduleService(
                 .filter(a -> !a.isDeleted() && a.getSource() == AssignmentSource.AUTO)
                 .collect(Collectors.toList());
         if (!existingAutoAssignments.isEmpty()) {
+            if (mutationGuard != null) mutationGuard.checkRemovals(existingAutoAssignments);
             shiftAssignmentRepository.deleteAll(existingAutoAssignments);
             shiftAssignmentRepository.flush();
         }
@@ -392,6 +408,7 @@ public AutoScheduleService(
 
         Map<UUID, List<ShiftAssignment>> assignmentsMap = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, extendedStartDate, extendedEndDate).stream()
                 .filter(a -> !a.isDeleted())
+                .filter(a -> a.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.CANCELLED)
                 .collect(Collectors.groupingBy(a -> a.getStaff().getId()));
 
         // Include the previous day's overnight carryover, then split actual hours by calendar month.
@@ -400,6 +417,7 @@ public AutoScheduleService(
         monthEnd=monthEnd.withDayOfMonth(monthEnd.lengthOfMonth());
         List<ShiftAssignment> monthlyAssignments = shiftAssignmentRepository.findByStaffIdInAndShift_ShiftDateBetween(staffIds, monthStart.minusDays(1), monthEnd).stream()
                 .filter(a -> !a.isDeleted())
+                .filter(a -> a.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.CANCELLED)
                 .collect(Collectors.toList());
 
         Map<UUID, Long> monthlyShiftCountMap = monthlyAssignments.stream()
@@ -429,6 +447,12 @@ public AutoScheduleService(
         }
 
         Map<UUID, StaffData> staffMap = new HashMap<>();
+        Set<LocalDate> schedulingDays = new TreeSet<>();
+        for (Shift shift : draftShifts) {
+            for (LocalDate day = shift.getShiftDate(); !day.isAfter(ShiftDateRange.lastWorkingDate(shift)); day = day.plusDays(1)) {
+                schedulingDays.add(day);
+            }
+        }
         
         for (Employment emp : activeEmployments) {
             UUID sid = emp.getUser().getId();
@@ -436,7 +460,15 @@ public AutoScheduleService(
             data.setEmployment(emp);
             List<Employment> applicableContracts = new ArrayList<>(allActiveContracts.getOrDefault(sid, Collections.emptyList()));
             applicableContracts.add(emp);
-            data.setCombinedWeeklyHourLimit(StaffContractLimit.weeklyHours(applicableContracts));
+            Map<LocalDate, Integer> limits = new HashMap<>();
+            for (LocalDate day : schedulingDays) {
+                int limit = StaffContractLimit.weeklyHours(applicableContracts, day, compensationRevisions);
+                if (storeConfig.getMaxHourPerWeek() != null && storeConfig.getMaxHourPerWeek() > 0)
+                    limit = Math.min(limit, storeConfig.getMaxHourPerWeek());
+                limits.put(day, limit);
+            }
+            data.setWeeklyHourLimitsByDate(limits);
+            data.setCombinedWeeklyHourLimit(limits.get(schedulingDays.iterator().next()));
             data.setRequiredRestHours(StaffRestPolicy.hours(applicableContracts,storeId,restConfigs));
             data.setSkills(skillsMap.getOrDefault(sid, Collections.emptyList()));
             data.setAvailabilities(availabilityMap.getOrDefault(sid, Collections.emptyList()));
@@ -583,7 +615,7 @@ public AutoScheduleService(
 
 
             if (bestSlotCandidates == null || bestSlotCandidates.isEmpty()) {
-                log.warn("AutoSchedule: Could not find any valid candidate for Shift {} (Skill {}). Thêm vào danh sách chờ Local Repair.",
+                log.warn("Xếp ca tự động: không tìm thấy nhân viên phù hợp cho ca {} (kỹ năng {}); đưa vào danh sách chờ điều chỉnh.",
                         bestSlot.getShift().getId(), bestSlot.getSkillId());
                 unassignedSlots.add(bestSlot);
                 continue;
@@ -631,7 +663,7 @@ public AutoScheduleService(
         int unassignedSlotsBeforeRepair = unassignedSlots.size();
         List<Slot> stillUnassigned = Collections.emptyList();
         if (!unassignedSlots.isEmpty()) {
-            log.info("AutoSchedule: {} slot(s) chưa được gán sau vòng lặp MRV chính. Khởi động Local Repair...", unassignedSlots.size());
+            log.info("Xếp ca tự động: còn {} vị trí chưa được phân công; bắt đầu điều chỉnh lịch...", unassignedSlots.size());
             stillUnassigned = attemptLocalRepair(unassignedSlots, newAssignments, staffMap, schedConfig, storeConfig);
         }
         int localRepairRescuedCount = unassignedSlotsBeforeRepair - stillUnassigned.size();
@@ -656,7 +688,7 @@ public AutoScheduleService(
                     } catch (BusinessException e) {
                         spatialAllocationFailedShiftIds.add(sid);
                         spatialAllocationStatus = "PARTIAL";
-                        log.warn("Spatial allocation failed for shift {} after assignments were saved: {}", sid, e.getMessage());
+                        log.warn("Không thể phân bổ không gian cho ca {} sau khi lưu phân công: {}", sid, e.getMessage());
                     }
                 }
             }
@@ -850,7 +882,7 @@ public AutoScheduleService(
         }
 
         long endTime = System.currentTimeMillis(); // Profiling end
-        log.info("autoSchedule completed in {} ms with status {}: {}/{} assigned (shortage: {}) across {} employees.",
+        log.info("Xếp ca tự động hoàn tất sau {} mili giây, trạng thái {}: đã phân công {}/{}, còn thiếu {}, số nhân viên {}.",
                 (endTime - startTime), status, totalAssignedSlots, totalDemandSlots, shortageSlots, activeEmployments.size());
 
         Map<UUID,List<Shift>> finalMonthlySchedules=new HashMap<>();
@@ -986,7 +1018,7 @@ public AutoScheduleService(
                 boolean staffXCanTakeUnassigned = hasValidSkill(staffX, unassignedSlot.getSkillId(), unassignedSlot.getShift().getShiftDate())
                         && !isUnavailable(staffX, unassignedSlot.getShift())
                         && !hasOverlap(staffX.getCurrentSchedule(), unassignedSlot.getShift())
-                        && ShiftTimeRange.fitsWeeklyLimit(staffX.getCurrentSchedule(), unassignedSlot.getShift(), staffX.getMaxWeeklyHours())
+                        && ShiftTimeRange.fitsWeeklyLimit(staffX.getCurrentSchedule(), unassignedSlot.getShift(), staffX::weeklyLimitOn)
                         && satisfiesRestTime(staffX.getCurrentSchedule(), unassignedSlot.getShift(), Math.max(minRestHours,staffX.getRequiredRestHours()));
 
                 if (!staffXCanTakeUnassigned) {
@@ -1006,7 +1038,7 @@ public AutoScheduleService(
                     boolean candidateCanTakeOther = hasValidSkill(candidate, existingAssignment.getRequiredSkillId(), otherShift.getShiftDate())
                             && !isUnavailable(candidate, otherShift)
                             && !hasOverlap(candidate.getCurrentSchedule(), otherShift)
-                            && ShiftTimeRange.fitsWeeklyLimit(candidate.getCurrentSchedule(), otherShift, candidate.getMaxWeeklyHours())
+                            && ShiftTimeRange.fitsWeeklyLimit(candidate.getCurrentSchedule(), otherShift, candidate::weeklyLimitOn)
                             && satisfiesRestTime(candidate.getCurrentSchedule(), otherShift, Math.max(minRestHours,candidate.getRequiredRestHours()));
                     if (candidateCanTakeOther) {
                         staffYCandidates.add(candidate);
@@ -1063,7 +1095,7 @@ public AutoScheduleService(
                         .build();
                 currentAssignments.add(backfillAssignment);
 
-                log.info("Local repair: swapped {} from shift {} to {}, backfilled with {}",
+                log.info("Điều chỉnh lịch: chuyển nhân viên {} từ ca {} sang ca {}, thay thế bằng {}",
                         staffXId, otherShift.getId(), unassignedSlot.getShift().getId(),
                         staffY.getEmployment().getUser().getId());
 
@@ -1072,7 +1104,7 @@ public AutoScheduleService(
             }
 
             if (!repaired) {
-                log.warn("AutoSchedule Local Repair: Không thể tìm hoán đổi hợp lệ cho Shift {} (Skill {}). Slot sẽ không được gán.",
+                log.warn("Điều chỉnh lịch: không tìm được hoán đổi hợp lệ cho ca {} (kỹ năng {}); vị trí chưa được phân công.",
                         unassignedSlot.getShift().getId(), unassignedSlot.getSkillId());
                 stillUnassigned.add(unassignedSlot);
             }
@@ -1120,7 +1152,7 @@ public AutoScheduleService(
             if (hasOverlap(sd.getCurrentSchedule(), shift)) {
                 overlapCount++;
             }
-            if (!ShiftTimeRange.fitsWeeklyLimit(sd.getCurrentSchedule(), shift, sd.getMaxWeeklyHours())) {
+            if (!ShiftTimeRange.fitsWeeklyLimit(sd.getCurrentSchedule(), shift, sd::weeklyLimitOn)) {
                 maxHoursCount++;
             }
             if (!satisfiesRestTime(sd.getCurrentSchedule(), shift, Math.max(minRestHours,sd.getRequiredRestHours()))) {
@@ -1242,7 +1274,7 @@ public AutoScheduleService(
             if (hasOverlap(empData.getCurrentSchedule(), slot.getShift())) continue;
             
             // HC4: Max Contract Hours theo tuần ISO (Lỗi 2)
-            if (!ShiftTimeRange.fitsWeeklyLimit(empData.getCurrentSchedule(), slot.getShift(), empData.getMaxWeeklyHours())) continue;
+            if (!ShiftTimeRange.fitsWeeklyLimit(empData.getCurrentSchedule(), slot.getShift(), empData::weeklyLimitOn)) continue;
             
             // HC5: Minimum Rest Time (Lỗi 2: buffer trước/sau)
             if (!satisfiesRestTime(empData.getCurrentSchedule(), slot.getShift(), Math.max(minRestHours,empData.getRequiredRestHours()))) continue;
@@ -1295,7 +1327,7 @@ public AutoScheduleService(
             case INTERMEDIATE: return 0.5;
             case BEGINNER: return 0.25;
             default:
-                log.warn("Invalid skill level found: '{}' for staff: {}", level, empData.getEmployment().getUser().getId());
+                log.warn("Cấp kỹ năng không hợp lệ: '{}' của nhân viên {}", level, empData.getEmployment().getUser().getId());
                 throw new BusinessException("Unknown skill level: " + level, HttpStatus.BAD_REQUEST);
         }
     }
@@ -1357,7 +1389,7 @@ public AutoScheduleService(
 
     double calculateScore(StaffData empData, Slot slot, SchedulerConfiguration config, int minRestHours) {
         if (empData.getMaxWeeklyHours() <= 0) {
-            log.warn("Invalid MaxWeeklyHours: {} for staff: {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
+            log.warn("Giới hạn giờ mỗi tuần không hợp lệ: {} của nhân viên {}", empData.getMaxWeeklyHours(), empData.getEmployment().getUser().getId());
             throw new BusinessException("Max weekly hours must be strictly positive to avoid division by zero.", HttpStatus.BAD_REQUEST);
         }
 
@@ -1386,7 +1418,7 @@ public AutoScheduleService(
                             (restTimeW * restTimeScore) +
                             (availW * availScore);
 
-        log.info("Staff {} -> Total: {} | Skill: {}*{} | Hour: {}*{} | Rest: {}*{} | Fair: {}*{} | Avail: {}*{}",
+        log.info("Nhân viên {} -> tổng: {} | kỹ năng: {}*{} | giờ làm: {}*{} | nghỉ: {}*{} | công bằng: {}*{} | thời gian rảnh: {}*{}",
                 empData.getEmployment().getUser().getId(),
                 String.format("%.3f", totalScore),
                 String.format("%.2f", skillW), String.format("%.2f", skillScore),

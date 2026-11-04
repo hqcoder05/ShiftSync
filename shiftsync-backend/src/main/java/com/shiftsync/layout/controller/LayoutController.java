@@ -110,13 +110,14 @@ public class LayoutController {
     @Operation(summary = "Add a 3D zone to a store")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PostMapping("/zones")
+    @org.springframework.transaction.annotation.Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ResponseEntity<StoreZoneDto> addZone(@PathVariable UUID storeId, @Valid @RequestBody CreateZoneRequest request) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
         StoreZone parentZone = null;
         if (request.getParentZoneId() != null) {
-            parentZone = storeZoneRepository.findById(request.getParentZoneId()).orElse(null);
+            parentZone = requireZoneInStore(storeId, request.getParentZoneId());
         }
 
         StoreZone zone = StoreZone.builder()
@@ -144,6 +145,7 @@ public class LayoutController {
     @Operation(summary = "Update a 3D zone")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PutMapping("/zones/{zoneId}")
+    @org.springframework.transaction.annotation.Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ResponseEntity<StoreZoneDto> updateZone(@PathVariable UUID storeId, @PathVariable UUID zoneId, @Valid @RequestBody UpdateZoneRequest request) {
         StoreZone zone = storeZoneRepository.findById(zoneId)
                 .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
@@ -152,6 +154,19 @@ public class LayoutController {
             throw new BusinessException("Zone does not belong to the requested store", HttpStatus.FORBIDDEN);
         }
 
+        StoreZone parent = null;
+        if (request.getParentZoneId() != null) {
+            parent = requireZoneInStore(storeId, request.getParentZoneId());
+            java.util.Set<UUID> visited = new java.util.HashSet<>();
+            for (StoreZone cursor = parent; cursor != null; cursor = cursor.getParentZone()) {
+                if (!visited.add(cursor.getId()) || zoneId.equals(cursor.getId())) {
+                    throw new BusinessException("Không thể tạo vòng lặp khu vực", HttpStatus.BAD_REQUEST);
+                }
+                if (cursor.getStore() == null || !storeId.equals(cursor.getStore().getId())) {
+                    throw new BusinessException("Khu vực cha không thuộc cửa hàng", HttpStatus.FORBIDDEN);
+                }
+            }
+        }
         if (request.getName() != null) zone.setName(request.getName());
         if (request.getCode() != null) zone.setCode(request.getCode());
         if (request.getZoneType() != null) zone.setZoneType(request.getZoneType());
@@ -166,8 +181,7 @@ public class LayoutController {
         if (request.getCapacity() != null) zone.setCapacity(request.getCapacity());
 
         if (request.getParentZoneId() != null) {
-            StoreZone parentZone = storeZoneRepository.findById(request.getParentZoneId()).orElse(null);
-            zone.setParentZone(parentZone);
+            zone.setParentZone(parent);
         }
 
         zone = storeZoneRepository.save(zone);
@@ -217,7 +231,7 @@ public class LayoutController {
 
         StoreZone zone = null;
         if (request.getZoneId() != null) {
-            zone = storeZoneRepository.findById(request.getZoneId()).orElse(null);
+            zone = requireZoneInStore(storeId, request.getZoneId());
         }
 
         Workstation ws = Workstation.builder()
@@ -240,6 +254,7 @@ public class LayoutController {
     @Operation(summary = "Update a workstation")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
     @PutMapping("/workstations/{workstationId}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<WorkstationDto> updateWorkstation(@PathVariable UUID storeId, @PathVariable UUID workstationId, @Valid @RequestBody UpdateWorkstationRequest request) {
         Workstation ws = workstationRepository.findById(workstationId)
                 .orElseThrow(() -> new BusinessException("Workstation not found", HttpStatus.NOT_FOUND));
@@ -258,7 +273,7 @@ public class LayoutController {
         if (request.getIsActive() != null) ws.setIsActive(request.getIsActive());
 
         if (request.getZoneId() != null) {
-            StoreZone zone = storeZoneRepository.findById(request.getZoneId()).orElse(null);
+            StoreZone zone = requireZoneInStore(storeId, request.getZoneId());
             ws.setZone(zone);
         }
 
@@ -287,6 +302,15 @@ public class LayoutController {
     public ResponseEntity<SpatialAllocationResultDto> allocateZones(@PathVariable UUID storeId, @PathVariable UUID shiftId) {
         SpatialAllocationResultDto result = spatialAllocationService.allocateZonesForShift(storeId, shiftId);
         return ResponseEntity.ok(result);
+    }
+
+    private StoreZone requireZoneInStore(UUID storeId, UUID zoneId) {
+        StoreZone zone = storeZoneRepository.findById(zoneId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy khu vực", HttpStatus.NOT_FOUND));
+        if (zone.getStore() == null || !storeId.equals(zone.getStore().getId())) {
+            throw new BusinessException("Khu vực không thuộc cửa hàng", HttpStatus.FORBIDDEN);
+        }
+        return zone;
     }
 
     private StoreZoneDto toZoneDto(StoreZone zone, UUID storeId) {

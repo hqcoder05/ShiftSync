@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
 
 class QrPayrollLockAuditTest {
-    @Test void lockedPayrollRejectsSelfieButQrStillWritesCheckout() {
+    @Test void lockedPayrollRejectsBothSelfieAndQrCheckout() {
         var attendance=mock(AttendanceRepository.class);
         var assignments=mock(ShiftAssignmentRepository.class);
         var config=mock(StoreConfigurationRepository.class);
@@ -47,14 +47,15 @@ class QrPayrollLockAuditTest {
         when(attendance.save(any())).thenAnswer(call->call.getArgument(0));
         var service=new AttendanceService(attendance,assignments,mock(ShiftRepository.class),config,jwt,
                 mock(RealtimeEventPublisher.class),payroll);
+        com.shiftsync.support.TestStoreLock.installAttendance(service);
         var rejected=assertThrows(BusinessException.class,()->service.submitSelfie(person.getId(),shift.getId(),10,106,new byte[]{1}));
-        assertTrue(rejected.getMessage().contains("Payroll"));
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN,rejected.getStatus());
         verify(attendance,never()).save(any());
         clearInvocations(payroll);
         var request=new QrScanRequestDTO();request.setQrToken("valid-qr");request.setLatitude(10.0);request.setLongitude(106.0);
-        var result=service.scanQr(person.getId(),request);
-        assertNotNull(result.getCheckOutTime());
-        verify(attendance).save(row);
-        verifyNoInteractions(payroll);
+        assertThrows(BusinessException.class,()->service.scanQr(person.getId(),request));
+        assertNull(row.getCheckOutTime());
+        verify(attendance,never()).save(any());
+        verify(payroll).isDateLocked(store.getId(),shift.getShiftDate());
     }
 }

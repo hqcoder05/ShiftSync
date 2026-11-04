@@ -17,18 +17,15 @@ public class StoreAccessService {
     }
 
         public boolean canManagerAccessUser(Authentication auth, UUID targetUserId) {
-        if (auth == null || auth.getPrincipal() == null) { return false; }
-        CustomUserDetails details = (CustomUserDetails) auth.getPrincipal();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof CustomUserDetails details)) { return false; }
         if (details.getUser().getSystemRole() == SystemRole.ADMIN) { return true; }
         long count = employmentRepository.countSharedStores(details.getUser().getId(), targetUserId, EmploymentStatus.ACTIVE);
         return count > 0;
     }
     public boolean canAccessStore(Authentication auth, UUID storeId) {
-        if (auth == null || auth.getPrincipal() == null) {
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof CustomUserDetails details)) {
             return false;
         }
-
-        CustomUserDetails details = (CustomUserDetails) auth.getPrincipal();
         
         // ADMIN can access all stores
         if (details.getUser().getSystemRole() == SystemRole.ADMIN) {

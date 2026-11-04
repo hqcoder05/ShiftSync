@@ -28,6 +28,7 @@ public class SchedulingPlanService {
     private final ShiftAssignmentRepository assignments;
     private final EntityManager entities;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher events;
+    private final ScheduleMutationGuard mutationGuard;
 
     public AutoScheduleResult preview(UUID storeId,AutoScheduleRequest request,UUID actorId) {
         if(actorId==null) throw new BusinessException("Authentication required",HttpStatus.UNAUTHORIZED);
@@ -58,6 +59,7 @@ public class SchedulingPlanService {
         Map<UUID,UUID> shiftIds=new HashMap<>(),requirementIds=new HashMap<>();
         Map<UUID,Shift> appliedShifts=new LinkedHashMap<>();
         for(ShiftDTO planned:result.getPlannedShifts()) {
+            mutationGuard.checkShift(storeId,planned.getShiftDate(),planned.getStartTime(),planned.getEndTime());
             UUID previewId=planned.getId();
             Shift shift=shifts.findByIdAndStoreId(previewId,storeId).orElse(null);
             if(shift==null) {
@@ -79,7 +81,9 @@ public class SchedulingPlanService {
             }
             if(shift.getStatus()!=ShiftStatus.DRAFT) throw stale();
             shiftIds.put(previewId,shift.getId());appliedShifts.put(shift.getId(),shift);
-            assignments.deleteAll(assignments.findByShiftId(shift.getId()).stream().filter(a->a.getSource()==AssignmentSource.AUTO).toList());
+            var removed=assignments.findByShiftId(shift.getId()).stream().filter(a->a.getSource()==AssignmentSource.AUTO).toList();
+            mutationGuard.checkRemovals(removed);
+            assignments.deleteAll(removed);
             assignments.flush();
             for(ShiftAssignmentResponseDTO proposed:planned.getShiftAssignments()) {
                 if(proposed.getSource()!=AssignmentSource.AUTO) continue;

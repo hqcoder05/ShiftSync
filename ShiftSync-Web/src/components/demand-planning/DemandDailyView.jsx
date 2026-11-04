@@ -25,7 +25,7 @@ export default function DemandDailyView({loading,error,data,onUpdateCount,onUpda
   if(error)return <div className="dp-error-card" role="alert"><h3>Không thể tải định biên</h3><p>{error}</p><button type="button" onClick={onRetry}>Thử lại</button></div>;
   if(!data)return null;
   const shifts=data.shifts||[],positions=data.positionKpis||[],stats=demandSummary(shifts);
-  if(!positions.length||!shifts.length)return <div className="dp-empty-state" role="status"><h2>Chưa có dữ liệu định biên</h2><p>Chọn ngày khác hoặc kiểm tra cấu hình vị trí của chi nhánh.</p></div>;
+  if(!positions.length||!shifts.length)return <div className="dp-empty-state" role="status"><h2>Chưa có dữ liệu định biên</h2><p>Hãy tạo vị trí làm việc cho chi nhánh trước khi thiết lập định biên.</p><a href="/employees/skills">Quản lý vị trí</a></div>;
   const edit=kpi=>{setNormError('');setEditingNorm({...kpi});};
   return <div className="dp-demand-day">
     <div className="dp-demand-intro"><strong>Nhu cầu cần bố trí</strong><span>Các con số dưới đây là chỉ tiêu cần người, chưa phải số nhân viên đã được phân công.</span></div>

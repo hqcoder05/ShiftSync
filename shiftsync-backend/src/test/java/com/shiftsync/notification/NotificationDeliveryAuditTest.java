@@ -24,7 +24,7 @@ class NotificationDeliveryAuditTest {
         @Override protected void doRollback(DefaultTransactionStatus status){rollbacks++;}
     }
 
-    @Test void fullNotificationQueueThrowsBackToCallerAfterCommitAlreadyHappened() throws Exception {
+    @Test void fullNotificationQueueDoesNotInterruptOtherAfterCommitCallbacks() throws Exception {
         var executor=(ThreadPoolTaskExecutor)new AsyncConfig().notificationExecutor();
         var entered=new CountDownLatch(20);var release=new CountDownLatch(1);
         Runnable blocked=()->{entered.countDown();try{release.await();}catch(InterruptedException e){Thread.currentThread().interrupt();}};
@@ -37,7 +37,7 @@ class NotificationDeliveryAuditTest {
             var transactions=new RecordingTransactions();
             var template=new TransactionTemplate(transactions);
             var laterAfterCommit=new AtomicBoolean();
-            assertThrows(RejectedExecutionException.class,()->template.execute(status->{
+            assertDoesNotThrow(()->template.execute(status->{
                 service.sendNotification(UUID.randomUUID(),null,"Audit","Audit",null);
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){
                     @Override public void afterCommit(){laterAfterCommit.set(true);}
@@ -46,7 +46,7 @@ class NotificationDeliveryAuditTest {
             }));
             assertEquals(1,transactions.commits);
             assertEquals(0,transactions.rollbacks);
-            assertFalse(laterAfterCommit.get());
+            assertTrue(laterAfterCommit.get());
         } finally {
             release.countDown();executor.shutdown();
             assertTrue(executor.getThreadPoolExecutor().awaitTermination(5,TimeUnit.SECONDS));
@@ -63,19 +63,19 @@ class NotificationDeliveryAuditTest {
         }
     }
 
-    @Test void closingLastSseConnectionCanUnregisterANewlySubscribedConnection() {
+    @Test void closingOldConnectionPreservesNewSubscription() throws Exception {
         var service=new SseEmitterService();var user=UUID.randomUUID();
-        var old=service.subscribe(user);
-        @SuppressWarnings("unchecked")
-        var registry=(Map<UUID,List<SseEmitter>>)ReflectionTestUtils.getField(service,"userEmitters");
-        var list=new InterleavingList(registry.get(user));registry.put(user,list);
-        var newlyOpened=new AtomicReference<SseEmitter>();
-        // Deterministic interleaving: new subscribe after empty observation, before key removal.
-        list.afterEmptyCheck=()->newlyOpened.set(service.subscribe(user));
-        service.removeEmitter(user,old);
-        assertNotNull(newlyOpened.get());
-        assertTrue(list.contains(newlyOpened.get()));
-        assertEquals(0,service.getActiveEmitterCount(user));
-        assertEquals(0,service.getTotalActiveUsers());
+        var executor=Executors.newFixedThreadPool(2);
+        try {
+            for(int i=0;i<100;i++) {
+                var old=service.subscribe(user);var gate=new CountDownLatch(1);
+                var removal=executor.submit(()->{gate.await();service.removeEmitter(user,old);return null;});
+                var addition=executor.submit(()->{gate.await();return service.subscribe(user);});
+                gate.countDown();removal.get(5,TimeUnit.SECONDS);var current=addition.get(5,TimeUnit.SECONDS);
+                assertEquals(1,service.getActiveEmitterCount(user));
+                service.removeEmitter(user,current);
+            }
+            assertEquals(0,service.getTotalActiveUsers());
+        } finally {executor.shutdownNow();}
     }
 }

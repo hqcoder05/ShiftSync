@@ -64,33 +64,59 @@ class AuthSessionLifecycleAuditTest {
         return SecurityContextHolder.getContext().getAuthentication()!=null;
     }
 
-    @Test void changingPasswordLeavesExistingRefreshAndAccessTokensUsable() throws Exception {
+    @Test void changingPasswordInvalidatesExistingRefreshAndAccessTokens() throws Exception {
         var session=login();
         var update=UserUpdateRequest.builder().fullName(user.getFullName()).email(user.getEmail()).password("newPassword123").build();
         new UserService(users,encoder,mock(AuditLogService.class)).updateUser(user.getId(),update,new CustomUserDetails(user));
         assertTrue(encoder.matches("newPassword123",user.getPasswordHash()));
         assertFalse(encoder.matches("oldPassword123",user.getPasswordHash()));
-        assertTrue(authenticates(session.getAccessToken()));
+        assertFalse(authenticates(session.getAccessToken()));
         var refresh=new RefreshRequest();refresh.setRefreshToken(session.getRefreshToken());
-        var renewed=auth.refresh(refresh);
-        assertTrue(tokens.validateToken(renewed.getAccessToken()));
-        assertEquals(user.getEmail(),renewed.getEmail());
-        assertTrue(entries.containsKey("refresh_token:"+renewed.getRefreshToken()));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->auth.refresh(refresh));
     }
 
-    @Test void sameSecondLoginsCanShareAccessTokenSoLogoutRevokesBothSessions() throws Exception {
-        AuthResponse first=null,second=null;
-        // Sample bounded consecutive real issuances; JWT NumericDate has second resolution.
-        for(int attempt=0;attempt<20;attempt++) {
-            var a=login();var b=login();
-            if(a.getAccessToken().equals(b.getAccessToken())){first=a;second=b;break;}
-        }
-        assertNotNull(first,"Expected a same-second issuance pair in 20 consecutive attempts");
+    @Test void simultaneousLoginsHaveIndependentAccessTokens() throws Exception {
+        AuthResponse first=login(),second=login();
+        assertNotEquals(first.getAccessToken(),second.getAccessToken());
         assertNotEquals(first.getRefreshToken(),second.getRefreshToken());
         assertTrue(authenticates(second.getAccessToken()));
         auth.logout(first.getAccessToken(),first.getRefreshToken());
         assertFalse(entries.containsKey("refresh_token:"+first.getRefreshToken()));
         assertTrue(entries.containsKey("refresh_token:"+second.getRefreshToken()));
-        assertFalse(authenticates(second.getAccessToken()));
+        assertTrue(authenticates(second.getAccessToken()));
+    }
+    @Test void logoutClosesOnlyItsExistingNotificationStream() {
+        var first=login(); var second=login();
+        var validator=new com.shiftsync.notification.service.StreamSessionValidator(tokens,users,redis);
+        var streams=new com.shiftsync.notification.service.SseEmitterService();
+        streams.subscribe(user.getId(),()->validator.isActive(user.getId(),first.getAccessToken()));
+        streams.subscribe(user.getId(),()->validator.isActive(user.getId(),second.getAccessToken()));
+        auth.logout(first.getAccessToken(),first.getRefreshToken());
+        streams.pushToUser(user.getId(),"private notification");
+        assertEquals(1,streams.getActiveEmitterCount(user.getId()));
+        assertTrue(validator.isActive(user.getId(),second.getAccessToken()));
+    }
+
+    @Test void passwordChangeClosesPreviouslyOpenedNotificationStream() {
+        var session=login();
+        var validator=new com.shiftsync.notification.service.StreamSessionValidator(tokens,users,redis);
+        var streams=new com.shiftsync.notification.service.SseEmitterService();
+        streams.subscribe(user.getId(),()->validator.isActive(user.getId(),session.getAccessToken()));
+        var update=UserUpdateRequest.builder().fullName(user.getFullName()).email(user.getEmail()).password("newPassword123").build();
+        new UserService(users,encoder,mock(AuditLogService.class)).updateUser(user.getId(),update,new CustomUserDetails(user));
+        streams.sendHeartbeat();
+        assertEquals(0,streams.getActiveEmitterCount(user.getId()));
+    }
+
+    @Test void streamValidationRejectsExpiredWrongAccountAndQrTokens() {
+        var validator=new com.shiftsync.notification.service.StreamSessionValidator(tokens,users,redis);
+        var expired=new JwtTokenProvider("audit-only-signing-secret-012345678901234567890123456789",-1000);
+        assertFalse(validator.isActive(user.getId(),expired.generateToken(user.getId(),user.getEmail(),"STAFF",0)));
+        assertFalse(validator.isActive(UUID.randomUUID(),login().getAccessToken()));
+        assertFalse(validator.isActive(user.getId(),tokens.generateQrToken(UUID.randomUUID().toString(),60000)));
+        assertFalse(validator.isActive(user.getId(),null));
+        var session=login();
+        when(redis.hasKey("blacklist:"+session.getAccessToken())).thenThrow(new IllegalStateException("Redis unavailable"));
+        assertFalse(validator.isActive(user.getId(),session.getAccessToken()));
     }
 }

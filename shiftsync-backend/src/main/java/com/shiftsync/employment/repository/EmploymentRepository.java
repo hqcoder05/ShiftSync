@@ -20,7 +20,24 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     List<Employment> findByUserIdAndStoreIdAndStatus(UUID userId, UUID storeId, EmploymentStatus status);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Employment e WHERE e.user.id=:staffId AND e.store.id=:storeId AND e.status=:status ORDER BY e.id")
+    List<Employment> findActiveForCompensationUpdate(@Param("staffId") UUID staffId,
+            @Param("storeId") UUID storeId, @Param("status") EmploymentStatus status);
+
     Page<Employment> findByStoreIdAndStatus(UUID storeId, EmploymentStatus status, Pageable pageable);
+
+    interface StaffRosterRow {
+        UUID getStaffId();
+        String getStaffFullName();
+        com.shiftsync.shared.security.SystemRole getSystemRole();
+        String getAvatarId();
+    }
+
+    @Query("SELECT u.id AS staffId, u.fullName AS staffFullName, u.systemRole AS systemRole, u.avatarId AS avatarId " +
+            "FROM Employment e JOIN e.user u WHERE e.store.id=:storeId AND e.status=:status ORDER BY u.id ASC")
+    Page<StaffRosterRow> findStaffRoster(@Param("storeId") UUID storeId,
+            @Param("status") EmploymentStatus status, Pageable pageable);
 
     @Query("SELECT e FROM Employment e WHERE e.store.id = :storeId AND e.status = :status ORDER BY e.user.id ASC, e.id ASC")
     List<Employment> findByStoreIdAndStatus(@Param("storeId") UUID storeId, @Param("status") EmploymentStatus status);
@@ -42,6 +59,12 @@ public interface EmploymentRepository extends JpaRepository<Employment, UUID> {
 
     @Query("SELECT e FROM Employment e JOIN FETCH e.user u WHERE e.store.id = :storeId AND e.status = :status AND u.systemRole = :role")
     List<Employment> findByStoreIdAndStatusAndUserSystemRole(@Param("storeId") UUID storeId, @Param("status") EmploymentStatus status, @Param("role") com.shiftsync.shared.security.SystemRole role);
+
+    @Query("SELECT e FROM Employment e JOIN FETCH e.user u JOIN FETCH e.contractType WHERE e.store.id = :storeId " +
+           "AND u.systemRole = :role AND e.joinedDate <= :endDate AND (e.leftDate IS NULL OR e.leftDate >= :startDate)")
+    List<Employment> findPayrollEmployments(@Param("storeId") UUID storeId,
+            @Param("role") com.shiftsync.shared.security.SystemRole role,
+            @Param("startDate") java.time.LocalDate startDate, @Param("endDate") java.time.LocalDate endDate);
 
     @Query("SELECT e.store.id, COUNT(e) FROM Employment e WHERE e.status = :status GROUP BY e.store.id")
     List<Object[]> countActiveStaffGroupByStore(@Param("status") EmploymentStatus status);

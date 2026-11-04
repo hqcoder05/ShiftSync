@@ -25,12 +25,15 @@ public class StoreService {
     private final StoreRepository storeRepository;
     private final ShiftTemplateService shiftTemplateService;
     private final EntityManager entityManager;
+    private final com.shiftsync.leave.service.LeaveRequestService leaveRequestService;
 
-    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService, EntityManager entityManager) {
+    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService, EntityManager entityManager,
+            com.shiftsync.leave.service.LeaveRequestService leaveRequestService) {
         this.storeRepository = storeRepository;
         this.auditLogService = auditLogService;
         this.shiftTemplateService = shiftTemplateService;
         this.entityManager = entityManager;
+        this.leaveRequestService = leaveRequestService;
     }
 
     @Transactional
@@ -104,6 +107,13 @@ public class StoreService {
 
         validateStoreBusinessRules(request);
 
+        var effectiveOpen = request.getOpenTime() != null ? request.getOpenTime() : store.getOpenTime();
+        var effectiveClose = request.getCloseTime() != null ? request.getCloseTime() : store.getCloseTime();
+        validateTimeAndCoordinates(effectiveOpen, effectiveClose, null, null);
+        if (request.getName() != null && request.getName().isBlank()) {
+            throw new BusinessException("Tên cửa hàng không được để trống", HttpStatus.BAD_REQUEST);
+        }
+
         if (request.getName() != null) store.setName(request.getName());
         if (request.getCategory() != null) store.setCategory(request.getCategory());
         if (request.getFormat() != null) store.setFormat(request.getFormat());
@@ -120,9 +130,9 @@ public class StoreService {
         return StoreMapper.toDTO(updatedStore);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void deleteStore(UUID id, UUID actorId) {
-        Store store = storeRepository.findById(id)
+        Store store = storeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
         if (storeRepository.hasActiveEmployees(id)) {
@@ -132,37 +142,38 @@ public class StoreService {
             throw new BusinessException("Cannot delete Store: Store has future published shifts.", HttpStatus.CONFLICT);
         }
 
-        entityManager.createNativeQuery("UPDATE employment SET status = 'INACTIVE' WHERE store_id = :storeId")
+        java.time.LocalDate closureDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        leaveRequestService.closeStoreLeaves(id, closureDate);
+
+        entityManager.createNativeQuery("UPDATE employment SET status = 'INACTIVE', left_date = COALESCE(left_date, GREATEST(joined_date, :closureDate)) WHERE store_id = :storeId AND status <> 'INACTIVE'")
+                .setParameter("storeId", id)
+                .setParameter("closureDate", closureDate)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE shift SET status = 'CANCELLED', is_open = false WHERE store_id = :storeId AND status = 'DRAFT' AND shift_date >= :closureDate")
+                .setParameter("storeId", id)
+                .setParameter("closureDate", closureDate)
+                .executeUpdate();
+
+        entityManager.createNativeQuery("UPDATE workforce_request SET status = 'CANCELLED' WHERE (requesting_store_id = :storeId OR target_store_id = :storeId) AND status IN ('PENDING','PROPOSAL_SENT')")
                 .setParameter("storeId", id)
                 .executeUpdate();
 
-        entityManager.createNativeQuery("UPDATE shift SET status = 'CANCELLED' WHERE store_id = :storeId")
+        entityManager.createNativeQuery("UPDATE shift_swap_request SET status = 'CANCELLED' WHERE status = 'PENDING' AND from_shift_id IN (SELECT id FROM shift WHERE store_id = :storeId)")
                 .setParameter("storeId", id)
                 .executeUpdate();
 
-        entityManager.createNativeQuery("UPDATE attendance SET deleted = true WHERE shift_assignment_id IN (SELECT id FROM shift_assignment WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId))")
-                .setParameter("storeId", id)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("UPDATE shift_assignment SET deleted = true WHERE shift_id IN (SELECT id FROM shift WHERE store_id = :storeId)")
-                .setParameter("storeId", id)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("UPDATE leave_request SET status = 'REJECTED' WHERE store_id = :storeId AND status IN ('PENDING', 'APPROVED')")
-                .setParameter("storeId", id)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("UPDATE workforce_request SET status = 'CANCELLED' WHERE requesting_store_id = :storeId OR target_store_id = :storeId")
-                .setParameter("storeId", id)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("UPDATE shift_swap_request SET status = 'CANCELLED' WHERE from_shift_id IN (SELECT id FROM shift WHERE store_id = :storeId)")
-                .setParameter("storeId", id)
-                .executeUpdate();
-
-        storeRepository.delete(store);
+        // Keep the referenced Store entity managed while flushing leave changes.
+        // A repository delete marks it removed and Hibernate rejects the retained
+        // leave history's foreign-key reference, even though deletion is logical.
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE store SET deleted = true WHERE id = :storeId")
+                .setParameter("storeId", id).executeUpdate();
+        java.util.Map<String, Object> before = new java.util.HashMap<>();
+        before.put("name", store.getName());
+        before.put("address", store.getAddress());
         auditLogService.log(actorId, "SOFT_DELETE", "Store", id, 
-                java.util.Map.of("name", store.getName(), "address", store.getAddress()), 
+                before,
                 java.util.Map.of("deleted", true));
     }
 
@@ -176,8 +187,8 @@ public class StoreService {
 
     private void validateTimeAndCoordinates(java.time.LocalTime openTime, java.time.LocalTime closeTime,
                                             java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
-        if (openTime != null && closeTime != null && !openTime.isBefore(closeTime)) {
-            throw new BusinessException("Open time must be before close time", HttpStatus.BAD_REQUEST);
+        if (openTime != null && openTime.equals(closeTime)) {
+            throw new BusinessException("Giờ mở cửa và đóng cửa không được trùng nhau", HttpStatus.BAD_REQUEST);
         }
         if (latitude != null) {
             if (latitude.compareTo(java.math.BigDecimal.valueOf(-90)) < 0 || latitude.compareTo(java.math.BigDecimal.valueOf(90)) > 0) {

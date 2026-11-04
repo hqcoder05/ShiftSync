@@ -36,30 +36,30 @@ class AdjustmentAuditCharacterizationTest {
     @Mock StoreConfigurationRepository storeConfigurationRepository;
     @Mock EmploymentRepository employmentRepository;
     @Mock NotificationService notificationService;
+    @org.junit.jupiter.api.BeforeEach void installStoreLock() { com.shiftsync.support.TestStoreLock.installAdjustment(service); }
     @InjectMocks AttendanceAdjustmentService service;
 
-    @Test void approvalPersistsCheckoutEarlierThanExistingCheckin() {
-        var attendance=approve(null,OffsetDateTime.parse("2030-11-04T08:00:00+07:00"));
-        assertTrue(attendance.getCheckOutTime().isBefore(attendance.getCheckInTime()));
-        verify(attendanceRepository).save(attendance);
+    @Test void approvalRejectsCheckoutEarlierThanExistingCheckin() {
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->approve(null,OffsetDateTime.parse("2030-11-04T08:00:00+07:00")));
+        verify(attendanceRepository,never()).save(any());
     }
 
     @Test void utcCheckinAtTenLocalIsMarkedPresentForNineLocalShift() {
         var attendance=approve(OffsetDateTime.parse("2030-11-04T03:00:00Z"),null);
         assertEquals(10,attendance.getCheckInTime().atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).getHour());
-        assertEquals(AttendanceStatus.PRESENT,attendance.getStatus());
+        assertEquals(AttendanceStatus.LATE,attendance.getStatus());
     }
 
     @Test void checkoutApprovalLosesLateStatusWhenAttendanceAppearedAfterSubmission() {
         var attendance=approveCheckout("09:10","17:00",AttendanceStatus.LATE,false,"17:00");
         assertEquals(10,attendance.getCheckInTime().getMinute());
-        assertEquals(AttendanceStatus.PRESENT,attendance.getStatus());
+        assertEquals(AttendanceStatus.LATE,attendance.getStatus());
     }
 
     @Test void approvedEarlyCheckoutIsStillMarkedPresent() {
         var attendance=approveCheckout("09:00","17:00",AttendanceStatus.PRESENT,true,"15:00");
         assertEquals(15,attendance.getCheckOutTime().getHour());
-        assertEquals(AttendanceStatus.PRESENT,attendance.getStatus());
+        assertEquals(AttendanceStatus.EARLY_LEAVE,attendance.getStatus());
     }
 
     private Attendance approveCheckout(String existingIn,String existingOut,AttendanceStatus status,boolean linked,String requestedOut) {
@@ -76,10 +76,10 @@ class AdjustmentAuditCharacterizationTest {
         var request=AttendanceAdjustmentRequest.builder().id(UUID.randomUUID()).shift(shift).staff(staff)
                 .attendance(linked?attendance:null).status(AdjustmentStatus.PENDING)
                 .requestedCheckOut(date.atTime(LocalTime.parse(requestedOut)).atOffset(ZoneOffset.ofHours(7))).build();
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
-        when(attendanceRepository.save(attendance)).thenReturn(attendance);
-        when(requestRepository.save(request)).thenReturn(request);
+        lenient().when(attendanceRepository.save(attendance)).thenReturn(attendance);
+        lenient().when(requestRepository.save(request)).thenReturn(request);
         if(!linked) {
             when(shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(),staff.getId())).thenReturn(Optional.of(assignment));
             when(attendanceRepository.findByShiftAssignmentId(assignment.getId())).thenReturn(Optional.of(attendance));
@@ -100,10 +100,10 @@ class AdjustmentAuditCharacterizationTest {
                 .checkOutTime(OffsetDateTime.parse("2030-11-04T17:00:00+07:00")).build();
         var request=AttendanceAdjustmentRequest.builder().id(UUID.randomUUID()).shift(shift).staff(staff).attendance(attendance)
                 .status(AdjustmentStatus.PENDING).requestedCheckIn(checkin).requestedCheckOut(checkout).build();
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
-        when(attendanceRepository.save(attendance)).thenReturn(attendance);
-        when(requestRepository.save(request)).thenReturn(request);
+        lenient().when(attendanceRepository.save(attendance)).thenReturn(attendance);
+        lenient().when(requestRepository.save(request)).thenReturn(request);
         service.approveRequest(store.getId(),request.getId(),manager.getId());
         return attendance;
     }

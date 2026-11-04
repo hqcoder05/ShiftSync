@@ -38,4 +38,7 @@ public class PayrollPeriod {
     @Column(name = "status", nullable = false)
     @Builder.Default
     private PayrollPeriodStatus status = PayrollPeriodStatus.DRAFT;
+
+    @Column(name = "last_generated_at")
+    private java.time.OffsetDateTime lastGeneratedAt;
 }

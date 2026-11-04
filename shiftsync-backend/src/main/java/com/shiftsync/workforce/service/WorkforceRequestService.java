@@ -52,6 +52,8 @@ public class WorkforceRequestService {
     private final com.shiftsync.skill.repository.SkillRepository skillRepository;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.shiftsync.shared.transaction.SerializableRetry serializableRetry;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.shiftsync.shift.service.ScheduleMutationGuard mutationGuard;
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public WorkforceRequestResponseDTO createRequest(UUID requestingStoreId, WorkforceRequestCreateDTO dto, UUID creatorId) {
@@ -68,6 +70,8 @@ public class WorkforceRequestService {
         Shift shift = shiftRepository.findByIdAndStoreId(dto.getShiftId(), requestingStoreId)
                 .orElseThrow(() -> new BusinessException("Shift not found in requesting store", HttpStatus.NOT_FOUND));
 
+        validateSupportShift(shift);
+
         if (hasStarted(shift)) {
             throw new BusinessException("Cannot request workforce support for a shift that has already started or occurred in the past.", HttpStatus.BAD_REQUEST);
         }
@@ -78,6 +82,10 @@ public class WorkforceRequestService {
                     .orElseThrow(() -> new BusinessException("Skill not found", HttpStatus.NOT_FOUND));
             if (!skill.getStore().getId().equals(requestingStoreId)) {
                 throw new BusinessException("Skill does not belong to requesting store", HttpStatus.BAD_REQUEST);
+            }
+            if (shift.getRequirements() == null || shift.getRequirements().stream().noneMatch(requirement ->
+                    requirement.getSkill() != null && dto.getSkillId().equals(requirement.getSkill().getId()))) {
+                throw new BusinessException("Kỹ năng yêu cầu không thuộc nhu cầu của ca", HttpStatus.BAD_REQUEST);
             }
         }
 
@@ -103,13 +111,13 @@ public class WorkforceRequestService {
         return mapToDTO(request);
     }
 
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = BusinessException.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = ExpiredRequestException.class)
     public void cancelRequest(UUID storeId, UUID requestId, UUID actorId) {
         WorkforceRequest request = getRequest(requestId);
-        expireIfPast(request);
         if (!request.getRequestingStore().getId().equals(storeId)) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
         }
+        expireIfPast(request);
 
         if (request.getStatus() != WorkforceRequestStatus.PENDING && request.getStatus() != WorkforceRequestStatus.PROPOSAL_SENT) {
             throw new BusinessException("Cannot cancel request in status: " + request.getStatus(), HttpStatus.BAD_REQUEST);
@@ -121,13 +129,13 @@ public class WorkforceRequestService {
         auditLogService.log(actorId, "CANCEL_WORKFORCE_REQUEST", "WorkforceRequest", request.getId(), beforeData, mapToDTO(request));
     }
 
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = BusinessException.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = ExpiredRequestException.class)
     public void rejectRequest(UUID targetStoreId, UUID requestId, UUID actorId) {
         WorkforceRequest request = getRequest(requestId);
-        expireIfPast(request);
         if (!request.getTargetStore().getId().equals(targetStoreId)) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
         }
+        expireIfPast(request);
 
         if (request.getStatus() != WorkforceRequestStatus.PENDING && request.getStatus() != WorkforceRequestStatus.PROPOSAL_SENT) {
             throw new BusinessException("Cannot reject request in status: " + request.getStatus(), HttpStatus.BAD_REQUEST);
@@ -141,13 +149,13 @@ public class WorkforceRequestService {
         notifyStoreManagers(request.getRequestingStore().getId(), "Workforce Request Rejected", "Store " + request.getTargetStore().getName() + " rejected your workforce request.");
     }
 
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = BusinessException.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = ExpiredRequestException.class)
     public WorkforceProposalResponseDTO proposeStaff(UUID targetStoreId, UUID requestId, WorkforceProposalCreateDTO dto, UUID actorId) {
         WorkforceRequest request = getRequest(requestId);
-        expireIfPast(request);
         if (!request.getTargetStore().getId().equals(targetStoreId)) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
         }
+        expireIfPast(request);
 
         if (request.getStatus() != WorkforceRequestStatus.PENDING && request.getStatus() != WorkforceRequestStatus.PROPOSAL_SENT) {
             throw new BusinessException("Cannot propose staff for request in status: " + request.getStatus(), HttpStatus.BAD_REQUEST);
@@ -159,6 +167,11 @@ public class WorkforceRequestService {
         User actor = userRepository.findById(actorId)
                 .orElseThrow(() -> new BusinessException("Actor not found", HttpStatus.NOT_FOUND));
 
+        validateSupportShift(request.getShift());
+        if (workforceProposalRepository.existsByWorkforceRequestIdAndStaffIdAndStatus(requestId, staff.getId(), WorkforceProposalStatus.PENDING)) {
+            throw new BusinessException("Nhân viên đã có đề xuất đang chờ cho yêu cầu này", HttpStatus.CONFLICT);
+        }
+
         boolean isActive = employmentRepository.existsByUserIdAndStoreIdAndStatus(staff.getId(), targetStoreId, EmploymentStatus.ACTIVE);
         if (!isActive) {
             throw new BusinessException("Staff is not active at your store", HttpStatus.BAD_REQUEST);
@@ -169,6 +182,7 @@ public class WorkforceRequestService {
         }
 
         shiftAssignmentValidator.validateEligibility(request.getShift(), staff.getId());
+        shiftAssignmentValidator.selectClaimSkill(request.getShift(), staff.getId(), request.getSkill() != null ? request.getSkill().getId() : null);
 
         WorkforceProposal proposal = WorkforceProposal.builder()
                 .workforceRequest(request)
@@ -231,19 +245,36 @@ public class WorkforceRequestService {
 
         expireIfPast(request);
         
-        if (request.getStatus() == WorkforceRequestStatus.COMPLETED || request.getStatus() == WorkforceRequestStatus.CANCELLED) {
+        if (!isActionable(request)) {
             throw new BusinessException("Workforce request is no longer open", HttpStatus.BAD_REQUEST);
         }
 
         WorkforceProposalResponseDTO beforeProposal = mapProposalToDTO(proposal);
 
         if (isAccepted) {
+            validateSupportShift(request.getShift());
+            if (!employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, request.getTargetStore().getId(), EmploymentStatus.ACTIVE)) {
+                throw new BusinessException("Nhân viên không còn làm việc tại cửa hàng hỗ trợ", HttpStatus.CONFLICT);
+            }
+            var homeEmployments = employmentRepository.findByUserIdAndStoreIdAndStatus(staffId, request.getTargetStore().getId(), EmploymentStatus.ACTIVE);
+            if (homeEmployments.size() != 1 || homeEmployments.get(0).getJoinedDate() == null
+                    || homeEmployments.get(0).getJoinedDate().isAfter(request.getShift().getShiftDate())) {
+                throw new BusinessException("Không xác định được hợp đồng nguồn hợp lệ cho ca hỗ trợ", HttpStatus.CONFLICT);
+            }
+            var homeEmployment = homeEmployments.get(0);
+            if (mutationGuard != null) {
+                var shift = request.getShift();
+                mutationGuard.checkShift(request.getRequestingStore().getId(), shift.getShiftDate(), shift.getStartTime(), shift.getEndTime());
+                mutationGuard.checkShift(request.getTargetStore().getId(), shift.getShiftDate(), shift.getStartTime(), shift.getEndTime());
+            }
             long acceptedCount = workforceProposalRepository.countByWorkforceRequestIdAndStatus(request.getId(), WorkforceProposalStatus.ACCEPTED);
             if (acceptedCount >= request.getNeededCount()) {
                 throw new BusinessException("Workforce request is already fully fulfilled", HttpStatus.BAD_REQUEST);
             }
 
             shiftAssignmentValidator.validateEligibility(request.getShift(), staffId);
+            UUID selectedSkill = shiftAssignmentValidator.selectClaimSkill(request.getShift(), staffId,
+                    request.getSkill() != null ? request.getSkill().getId() : null);
 
             proposal.setStatus(WorkforceProposalStatus.ACCEPTED);
             proposal.setRespondedAt(OffsetDateTime.now());
@@ -259,7 +290,9 @@ public class WorkforceRequestService {
             ShiftAssignment assignment = ShiftAssignment.builder()
                 .shift(request.getShift())
                 .staff(proposal.getStaff())
-                .source(AssignmentSource.MANUAL)
+                .requiredSkillId(selectedSkill)
+                .source(AssignmentSource.WORKFORCE_SHARING)
+                .supportEmployment(homeEmployment)
                 .build();
             shiftAssignmentRepository.save(assignment);
 
@@ -316,14 +349,16 @@ public class WorkforceRequestService {
                 .map(this::mapProposalToDTO).collect(Collectors.toList());
     }
 
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = BusinessException.class)
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, noRollbackFor = ExpiredRequestException.class)
     public List<EmploymentDTO> getEligibleStaffForRequest(UUID targetStoreId, UUID requestId) {
         WorkforceRequest request = getRequest(requestId);
-        expireIfPast(request);
         if (!request.getTargetStore().getId().equals(targetStoreId)) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
         }
+        expireIfPast(request);
 
+        if (!isActionable(request)) throw new BusinessException("Yêu cầu hỗ trợ không còn hiệu lực", HttpStatus.CONFLICT);
+        validateSupportShift(request.getShift());
         List<com.shiftsync.employment.entity.Employment> employments =
                 employmentRepository.findByStoreIdAndStatus(targetStoreId, EmploymentStatus.ACTIVE);
 
@@ -335,6 +370,13 @@ public class WorkforceRequestService {
             }
 
             if (shiftAssignmentValidator.isEligible(request.getShift(), user.getId())) {
+                try {
+                    shiftAssignmentValidator.selectClaimSkill(request.getShift(), user.getId(),
+                            request.getSkill() != null ? request.getSkill().getId() : null);
+                } catch (BusinessException ex) {
+                    continue;
+                }
+                if (workforceProposalRepository.existsByWorkforceRequestIdAndStaffIdAndStatus(requestId, user.getId(), WorkforceProposalStatus.PENDING)) continue;
                 eligibleList.add(EmploymentDTO.builder()
                         .id(emp.getId())
                         .staffId(user.getId())
@@ -361,6 +403,12 @@ public class WorkforceRequestService {
         }
         java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         return !java.time.LocalDateTime.of(shift.getShiftDate(), shift.getStartTime()).isAfter(now);
+    }
+
+    private void validateSupportShift(Shift shift) {
+        if (shift == null || shift.getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
+            throw new BusinessException("Chỉ có thể yêu cầu hỗ trợ cho ca đã công bố", HttpStatus.CONFLICT);
+        }
     }
 
     private void expireIfPast(WorkforceRequest request) {

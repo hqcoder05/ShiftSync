@@ -41,6 +41,79 @@ public class LeaveRequestService {
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     private final LeaveBalanceService leaveBalanceService;
+    private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    private final com.shiftsync.payroll.service.PayrollCalculationService payrollCalculationService;
+
+    /** Cancel future leave at a closing store while preserving already-used leave. */
+    @Transactional
+    public void closeStoreLeaves(UUID storeId, LocalDate closureDate) {
+        for (LeaveRequest leave : leaveRequestRepository.findOpenForStoreClosure(storeId)) {
+            if (leave.getStatus() == LeaveStatus.PENDING) {
+                leave.setStatus(LeaveStatus.REJECTED);
+                leave.setRejectionReason("Cửa hàng đã ngừng hoạt động");
+                continue;
+            }
+            if (leave.getEndDate().isBefore(closureDate)) continue;
+            LocalDate cancelledFrom = leave.getStartDate().isAfter(closureDate) ? leave.getStartDate() : closureDate;
+            for (LocalDate day = cancelledFrom; !day.isAfter(leave.getEndDate()); day = day.plusDays(1)) {
+                if (payrollCalculationService.isDateLocked(storeId, day)) {
+                    throw new BusinessException("Không thể đóng cửa hàng vì thời gian nghỉ thuộc kỳ lương đã khóa", HttpStatus.CONFLICT);
+                }
+            }
+            if (leave.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
+                for (var entry : daysByYear(cancelledFrom, leave.getEndDate()).entrySet()) {
+                    leaveBalanceService.reverseAnnualLeave(storeId, leave.getStaff().getId(), entry.getKey(), entry.getValue());
+                }
+            }
+            blackoutDateRepository.deleteByLeaveRequestIdAndDateGreaterThanEqual(leave.getId(), cancelledFrom);
+            if (leave.getStartDate().isBefore(cancelledFrom)) {
+                leave.setEndDate(cancelledFrom.minusDays(1));
+            } else {
+                leave.setStatus(LeaveStatus.REJECTED);
+                leave.setRejectionReason("Cửa hàng đã ngừng hoạt động");
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShiftAssignmentRepository.LeaveReconciliationCandidate> getProvenanceCandidates(UUID storeId, UUID leaveId) {
+        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn nghỉ", HttpStatus.NOT_FOUND));
+        validateLegacyLeave(storeId, leave);
+        return shiftAssignmentRepository.findLeaveReconciliationCandidates(leave.getStaff().getId(), storeId, leave.getStartDate(), leave.getEndDate());
+    }
+
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
+    public void reconcileProvenance(UUID storeId, UUID leaveId, List<UUID> assignmentIds, String reason, UUID actorId) {
+        if (assignmentIds == null || assignmentIds.stream().anyMatch(java.util.Objects::isNull)
+                || reason == null || reason.isBlank() || new java.util.HashSet<>(assignmentIds).size() != assignmentIds.size()) {
+            throw new BusinessException("Danh sách phân công hoặc lý do đối chiếu không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+        LeaveRequest leave = leaveRequestRepository.findByIdForUpdate(leaveId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn nghỉ", HttpStatus.NOT_FOUND));
+        validateLegacyLeave(storeId, leave);
+        var candidates = shiftAssignmentRepository.findLeaveReconciliationCandidates(leave.getStaff().getId(), storeId,
+                leave.getStartDate(), leave.getEndDate()).stream().map(ShiftAssignmentRepository.LeaveReconciliationCandidate::getAssignmentId)
+                .collect(java.util.stream.Collectors.toSet());
+        if (!candidates.containsAll(assignmentIds)) {
+            throw new BusinessException("Có phân công không phù hợp với đơn nghỉ", HttpStatus.BAD_REQUEST);
+        }
+        for (UUID id : assignmentIds) shiftAssignmentRepository.recordLeaveRemoval(leaveId, id);
+        leave.setAssignmentProvenanceComplete(true);
+        leaveRequestRepository.save(leave);
+        auditLogService.log(actorId, "RECONCILE_LEAVE_ASSIGNMENTS", "LeaveRequest", leaveId, null,
+                java.util.Map.of("assignmentIds", assignmentIds, "reason", reason.trim()));
+    }
+
+    private void validateLegacyLeave(UUID storeId, LeaveRequest leave) {
+        if (leave.getStore() == null || !storeId.equals(leave.getStore().getId())) {
+            throw new BusinessException("Đơn nghỉ không thuộc cửa hàng", HttpStatus.FORBIDDEN);
+        }
+        if (leave.getStatus() != LeaveStatus.APPROVED || leave.getLeaveType() == null || !leave.getLeaveType().isPaid()
+                || leave.isAssignmentProvenanceComplete()) {
+            throw new BusinessException("Đơn nghỉ không cần đối chiếu", HttpStatus.CONFLICT);
+        }
+    }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
@@ -63,14 +136,15 @@ public class LeaveRequestService {
             throw new BusinessException("Khoảng thời gian xin nghỉ bị trùng với một đơn nghỉ phép khác đang chờ duyệt hoặc đã duyệt.", HttpStatus.CONFLICT);
         }
 
-        long requestedDays = java.time.temporal.ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate()) + 1;
         if (request.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
-            com.shiftsync.leave.entity.LeaveBalance balance = leaveBalanceService.getOrCreateBalance(storeId, staffId, request.getStartDate().getYear());
-            if (balance.getRemainingDays() < requestedDays) {
+            for (var entry : daysByYear(request.getStartDate(), request.getEndDate()).entrySet()) {
+            com.shiftsync.leave.entity.LeaveBalance balance = leaveBalanceService.getOrCreateBalance(storeId, staffId, entry.getKey());
+            if (balance.getRemainingDays() < entry.getValue()) {
                 throw new BusinessException(
-                        String.format("Số dư phép năm không đủ. Bạn chỉ còn %d ngày phép, nhưng yêu cầu xin nghỉ %d ngày.", balance.getRemainingDays(), requestedDays),
+                        String.format("Số dư phép năm %d không đủ: còn %d ngày, yêu cầu %d ngày.", entry.getKey(), balance.getRemainingDays(), entry.getValue()),
                         HttpStatus.CONFLICT
                 );
+            }
             }
         }
 
@@ -125,9 +199,10 @@ public class LeaveRequestService {
         }
 
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
-            int requestedDays = (int) java.time.temporal.ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
             if (leaveRequest.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
-                leaveBalanceService.reverseAnnualLeave(storeId, leaveRequest.getStaff().getId(), leaveRequest.getStartDate().getYear(), requestedDays);
+                for (var entry : daysByYear(leaveRequest.getStartDate(), leaveRequest.getEndDate()).entrySet()) {
+                    leaveBalanceService.reverseAnnualLeave(storeId, leaveRequest.getStaff().getId(), entry.getKey(), entry.getValue());
+                }
             }
             blackoutDateRepository.deleteByLeaveRequestId(leaveId);
         } else if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
@@ -156,13 +231,50 @@ public class LeaveRequestService {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
 
+        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = findConflictingAssignments(leaveRequest);
+        var affectedStores = new java.util.TreeSet<UUID>();
+        affectedStores.add(storeId);
+        for (var assignment : conflictingAssignments) {
+            affectedStores.add(assignment.getShift().getStore().getId());
+            if (assignment.getSource() == com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING) {
+                if (assignment.getSupportEmployment() == null || assignment.getSupportEmployment().getStore() == null) {
+                    throw new BusinessException("Không xác định được chi nhánh trả lương cho ca hỗ trợ", HttpStatus.CONFLICT);
+                }
+                affectedStores.add(assignment.getSupportEmployment().getStore().getId());
+            }
+        }
+        for (UUID affectedStore : affectedStores) {
+            storeRepository.findByIdForUpdate(affectedStore)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+        }
+        for (LocalDate day = leaveRequest.getStartDate(); !day.isAfter(leaveRequest.getEndDate()); day = day.plusDays(1)) {
+            if (payrollCalculationService.isDateLocked(storeId, day)) {
+                throw new BusinessException("Không thể duyệt nghỉ phép trong kỳ lương đã khóa", HttpStatus.CONFLICT);
+            }
+        }
+        for (var assignment : conflictingAssignments) {
+            var shift = assignment.getShift();
+            boolean overnight = !shift.getEndTime().isAfter(shift.getStartTime());
+            if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.COMPLETED
+                    || attendanceRepository.existsByShiftAssignmentId(assignment.getId())
+                    || payrollCalculationService.isDateLocked(shift.getStore().getId(), shift.getShiftDate())
+                    || (overnight && payrollCalculationService.isDateLocked(shift.getStore().getId(), shift.getShiftDate().plusDays(1)))
+                    || (assignment.getSource() == com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING &&
+                        (assignment.getSupportEmployment() == null || payrollCalculationService.isDateLocked(assignment.getSupportEmployment().getStore().getId(), shift.getShiftDate())
+                          || (overnight && payrollCalculationService.isDateLocked(assignment.getSupportEmployment().getStore().getId(), shift.getShiftDate().plusDays(1)))))) {
+                throw new BusinessException("Không thể duyệt nghỉ phép vì ca xung đột đã chấm công, hoàn thành hoặc khóa lương", HttpStatus.CONFLICT);
+            }
+        }
+
         // Deduct annual leave balance atomically
-        int requestedDays = (int) java.time.temporal.ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
         if (leaveRequest.getLeaveType() == com.shiftsync.leave.enums.LeaveType.ANNUAL) {
-            leaveBalanceService.deductAnnualLeave(storeId, leaveRequest.getStaff().getId(), leaveRequest.getStartDate().getYear(), requestedDays);
+            for (var entry : daysByYear(leaveRequest.getStartDate(), leaveRequest.getEndDate()).entrySet()) {
+                leaveBalanceService.deductAnnualLeave(storeId, leaveRequest.getStaff().getId(), entry.getKey(), entry.getValue());
+            }
         }
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
+        leaveRequest.setAssignmentProvenanceComplete(true);
         leaveRequest.setApprovedBy(manager);
         leaveRequest.setApprovedAt(OffsetDateTime.now());
         leaveRequest = leaveRequestRepository.save(leaveRequest);
@@ -184,13 +296,10 @@ public class LeaveRequestService {
         }
 
         // Unassign staff from conflicting shifts during leave and mark shifts open on Marketplace
-        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(
-                leaveRequest.getStaff().getId(), 
-                leaveRequest.getStartDate(), 
-                leaveRequest.getEndDate()
-        );
-
         int unassignedCount = conflictingAssignments.size();
+        for (var assignment : conflictingAssignments) {
+            shiftAssignmentRepository.recordLeaveRemoval(leaveRequest.getId(), assignment.getId());
+        }
         shiftAssignmentRepository.deleteAll(conflictingAssignments);
 
         for (com.shiftsync.shift.entity.ShiftAssignment sa : conflictingAssignments) {
@@ -233,6 +342,18 @@ public class LeaveRequestService {
                 .leaveRequest(mapToDTO(leaveRequest))
                 .warning(warning)
                 .build();
+    }
+
+    private static java.util.Map<Integer, Integer> daysByYear(LocalDate start, LocalDate end) {
+        java.util.Map<Integer, Integer> result = new java.util.LinkedHashMap<>();
+        LocalDate cursor = start;
+        while (!cursor.isAfter(end)) {
+            LocalDate lastDay = cursor.getYear() == end.getYear() ? end : LocalDate.of(cursor.getYear(), 12, 31);
+            result.put(cursor.getYear(), Math.toIntExact(java.time.temporal.ChronoUnit.DAYS.between(cursor, lastDay) + 1));
+            if (lastDay.equals(end)) break;
+            cursor = lastDay.plusDays(1);
+        }
+        return result;
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
@@ -314,11 +435,7 @@ public class LeaveRequestService {
             throw new BusinessException("Leave request does not belong to this store", HttpStatus.FORBIDDEN);
         }
 
-        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(
-                leaveRequest.getStaff().getId(),
-                leaveRequest.getStartDate(),
-                leaveRequest.getEndDate()
-        );
+        List<com.shiftsync.shift.entity.ShiftAssignment> conflictingAssignments = findConflictingAssignments(leaveRequest);
 
         List<com.shiftsync.leave.dto.LeaveImpactDTO.ImpactedShiftDTO> impactedShifts = conflictingAssignments.stream()
                 .map(sa -> {
@@ -347,6 +464,21 @@ public class LeaveRequestService {
                 .totalConflictingShifts(impactedShifts.size())
                 .conflictingShifts(impactedShifts)
                 .build();
+    }
+
+    private List<com.shiftsync.shift.entity.ShiftAssignment> findConflictingAssignments(LeaveRequest request) {
+        var leaveStart = request.getStartDate().atStartOfDay();
+        var leaveEnd = request.getEndDate().plusDays(1).atStartOfDay();
+        return shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(
+                request.getStaff().getId(), request.getStartDate().minusDays(1), request.getEndDate()).stream()
+                .filter(assignment -> {
+                    var shift = assignment.getShift();
+                    if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED) return false;
+                    var start = shift.getShiftDate().atTime(shift.getStartTime());
+                    var end = shift.getShiftDate().atTime(shift.getEndTime());
+                    if (!end.isAfter(start)) end = end.plusDays(1);
+                    return start.isBefore(leaveEnd) && end.isAfter(leaveStart);
+                }).toList();
     }
 
     private LeaveRequestDTO mapToDTO(LeaveRequest request) {

@@ -4,7 +4,7 @@ import com.shiftsync.audit.entity.AuditLog;
 import com.shiftsync.audit.repository.AuditLogRepository;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,9 +34,15 @@ public class TX003AuditIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @BeforeEach
-    public void setup() {
-        auditLogRepository.deleteAll();
+    private final UUID actorId = UUID.randomUUID();
+    private final UUID entityId = UUID.randomUUID();
+    private final String storeName = "TX003 " + UUID.randomUUID();
+
+    @AfterEach
+    public void cleanupOwnFixtures() {
+        jdbcTemplate.update("delete from audit_log where entity_id = ?", entityId);
+        jdbcTemplate.update("delete from store where name = ?", storeName);
+        jdbcTemplate.update("delete from staff where id = ?", actorId);
     }
 
     @Test
@@ -45,14 +51,14 @@ public class TX003AuditIntegrationTest {
             transactionTemplate.execute(status -> {
                 // Business mutation
                 Store store = Store.builder()
-                    .name("Rollback Test Store")
+                    .name(storeName)
                     .address("123 Test")
                     
                     .build();
                 storeRepository.save(store);
 
                 // Audit Log
-                auditLogService.log(store.getId(), "STORE_CREATE", "Created store", UUID.randomUUID(), null, store);
+                auditLogService.log(store.getId(), "STORE_CREATE", "Created store", entityId, null, store);
 
                 // Force Rollback
                 throw new RuntimeException("Forced Rollback Exception");
@@ -60,30 +66,29 @@ public class TX003AuditIntegrationTest {
         });
 
         // Verify business mutation is rolled back
-        long storeCount = jdbcTemplate.queryForObject("SELECT count(*) FROM store WHERE name = 'Rollback Test Store'", Long.class);
+        long storeCount = jdbcTemplate.queryForObject("SELECT count(*) FROM store WHERE name = ?", Long.class, storeName);
         assertThat(storeCount).isEqualTo(0L);
 
         // Verify audit log is NOT persisted
-        long auditCount = auditLogRepository.count();
+        long auditCount = jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE entity_id = ?", Long.class, entityId);
         assertThat(auditCount).isEqualTo(0L);
     }
 
     @Test
     public void testTX003_Commit_ShouldPersistAuditLog() {
-                java.util.UUID staffId = java.util.UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO staff (id, full_name, email, password_hash, system_role, created_at, updated_at, version, deleted) VALUES (?, 'Test', 'test' || ? || '@test.com', 'pass', 'STAFF', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false)", staffId, staffId);
+        jdbcTemplate.update("INSERT INTO staff (id, full_name, email, password_hash, system_role, created_at, updated_at, version, deleted) VALUES (?, 'Test', 'test' || ? || '@test.com', 'pass', 'STAFF', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false)", actorId, actorId);
 
         transactionTemplate.execute(status -> {
             // Business mutation
             Store store = Store.builder()
-                .name("Commit Test Store")
+                .name(storeName)
                 .address("123 Test")
                 
                 .build();
             storeRepository.save(store);
 
             // Audit Log
-            auditLogService.log(staffId, "STORE_CREATE", "Created store", UUID.randomUUID(), null, store);
+            auditLogService.log(actorId, "STORE_CREATE", "Created store", entityId, null, store);
             return null;
         });
 
@@ -95,11 +100,11 @@ public class TX003AuditIntegrationTest {
         }
 
         // Verify business mutation is committed
-        long storeCount = jdbcTemplate.queryForObject("SELECT count(*) FROM store WHERE name = 'Commit Test Store'", Long.class);
+        long storeCount = jdbcTemplate.queryForObject("SELECT count(*) FROM store WHERE name = ?", Long.class, storeName);
         assertThat(storeCount).isGreaterThanOrEqualTo(1L);
 
         // Verify audit log is exactly 1
-        long auditCount = auditLogRepository.count();
+        long auditCount = jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE entity_id = ?", Long.class, entityId);
         assertThat(auditCount).isGreaterThanOrEqualTo(1L);
     }
 }

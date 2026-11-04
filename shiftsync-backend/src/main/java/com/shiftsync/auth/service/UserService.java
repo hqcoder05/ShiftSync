@@ -183,6 +183,7 @@ public class UserService {
 
         if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            user.setCredentialVersion(user.getCredentialVersion() + 1);
         }
 
         User updatedUser = userRepository.save(user);
@@ -220,12 +221,33 @@ public class UserService {
 
     }
 
+    @Transactional(readOnly = true)
     public UserDTO getUserById(java.util.UUID id, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        authorizeUserAccess(id, userDetails, false);
         return getUserById(id);
     }
 
+    @Transactional
     public UserDTO updateUser(java.util.UUID id, com.shiftsync.auth.dto.UserUpdateRequest request, com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        authorizeUserAccess(id, userDetails, true);
         return updateUser(id, request);
+    }
+
+    private void authorizeUserAccess(UUID targetId, CustomUserDetails actor, boolean modifying) {
+        if (actor == null || actor.getUser() == null || actor.getId() == null) {
+            throw new BusinessException("Không có quyền truy cập tài khoản", HttpStatus.FORBIDDEN);
+        }
+        if (actor.getId().equals(targetId) || actor.getUser().getSystemRole() == SystemRole.ADMIN) {
+            return;
+        }
+        User target = userRepository.findById(targetId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài khoản", HttpStatus.NOT_FOUND));
+        if (actor.getUser().getSystemRole() != SystemRole.MANAGER
+                || (modifying && target.getSystemRole() != SystemRole.STAFF)
+                || employmentRepository == null
+                || employmentRepository.countSharedStores(actor.getId(), targetId, EmploymentStatus.ACTIVE) == 0) {
+            throw new BusinessException("Không có quyền truy cập tài khoản", HttpStatus.FORBIDDEN);
+        }
     }
 
     public org.springframework.data.domain.Page<com.shiftsync.auth.dto.UserDTO> getAllUsers(String search, org.springframework.data.domain.Pageable pageable) {

@@ -6,6 +6,9 @@ import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.auth.service.UserService;
 import com.shiftsync.shared.security.*;
+import com.shiftsync.shared.exception.GlobalExceptionHandler;
+import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.shift.service.ShiftService;
 import java.util.*;
 import org.junit.jupiter.api.*;
@@ -30,41 +33,54 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserPrivilegeAuditTest {
     @Configuration(proxyBeanMethods=false) @EnableMethodSecurity @Import(UserController.class)
     static class Config {
-        @Bean UserService users(UserRepository repository,AuditLogService audit) {
-            return new UserService(repository,new BCryptPasswordEncoder(),audit);
+        @Bean UserService users(UserRepository repository,AuditLogService audit, EmploymentRepository employments) {
+            return new UserService(repository,new BCryptPasswordEncoder(),audit,employments,null,null);
         }
     }
     @Autowired UserController controller;
     @MockitoBean UserRepository repository;
     @MockitoBean AuditLogService audit;
+    @MockitoBean EmploymentRepository employments;
     @MockitoBean ShiftService shifts;
     MockMvc mvc;
     User admin;
+    User manager;
 
     @BeforeEach void setup() {
-        var manager=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.MANAGER).fullName("Manager A").build();
+        manager=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.MANAGER).fullName("Manager A").build();
         var details=new CustomUserDetails(manager);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(details,null,details.getAuthorities()));
         admin=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.ADMIN).email("admin@audit.invalid")
                 .fullName("Administrator").passwordHash("original-hash").build();
         when(repository.findById(admin.getId())).thenReturn(Optional.of(admin));
-        mvc=MockMvcBuilders.standaloneSetup(controller).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
+        mvc=MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
     }
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
 
-    @Test void managerHttpRequestCanResetAdministratorPassword() throws Exception {
-        when(repository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
-        when(repository.save(admin)).thenReturn(admin);
+    @Test void managerCannotResetAdministratorPassword() throws Exception {
         mvc.perform(put("/api/users/"+admin.getId()).contentType("application/json")
                 .content("{\"fullName\":\"Administrator\",\"email\":\"admin@audit.invalid\",\"password\":\"AuditPassword123\"}"))
-                .andExpect(status().isOk());
-        assertTrue(new BCryptPasswordEncoder().matches("AuditPassword123",admin.getPasswordHash()));
+                .andExpect(status().isForbidden());
+        assertEquals("original-hash",admin.getPasswordHash());
         assertEquals(SystemRole.ADMIN,admin.getSystemRole());
-        verify(repository).save(admin);
+        verify(repository,never()).save(any());
     }
 
-    @Test void managerHttpRequestCanReadAdministratorProfile() throws Exception {
-        var result=mvc.perform(get("/api/users/"+admin.getId())).andExpect(status().isOk()).andReturn();
-        assertTrue(result.getResponse().getContentAsString().contains("admin@audit.invalid"));
+    @Test void managerCannotReadAdministratorOutsideTheirStores() throws Exception {
+        mvc.perform(get("/api/users/"+admin.getId())).andExpect(status().isForbidden());
+    }
+
+    @Test void managerCanUpdateStaffInSharedStoreWithEmptyPassword() throws Exception {
+        var staff=User.builder().id(UUID.randomUUID()).systemRole(SystemRole.STAFF).fullName("Staff")
+                .email("staff@example.com").passwordHash("original").build();
+        when(repository.findById(staff.getId())).thenReturn(Optional.of(staff));
+        when(repository.findByEmail(staff.getEmail())).thenReturn(Optional.of(staff));
+        when(repository.save(staff)).thenReturn(staff);
+        when(employments.countSharedStores(manager.getId(),staff.getId(),EmploymentStatus.ACTIVE)).thenReturn(1L);
+        mvc.perform(put("/api/users/"+staff.getId()).contentType("application/json")
+                .content("{\"fullName\":\"Staff Updated\",\"email\":\"staff@example.com\",\"password\":\"\"}"))
+                .andExpect(status().isOk());
+        assertEquals("original",staff.getPasswordHash());
+        assertEquals("Staff Updated",staff.getFullName());
     }
 }

@@ -32,6 +32,10 @@ public class ShiftSwapService {
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
     private final com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
     private final ShiftAssignmentValidator assignmentValidator;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriods;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.store.repository.StoreRepository payrollStores;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftSwapService(
@@ -141,7 +145,7 @@ public class ShiftSwapService {
                 java.util.Map.of("swapRequestId", saved.getId().toString(), "type", "SWAP_REQUEST")
             );
         } catch (Exception e) {
-            log.warn("Failed to send notification for new swap request: {}", e.getMessage());
+            log.warn("Không thể gửi thông báo yêu cầu đổi ca mới: {}", e.getMessage());
         }
 
         return saved;
@@ -176,7 +180,7 @@ public class ShiftSwapService {
                     java.util.Map.of("swapRequestId", request.getId().toString(), "status", "REJECTED")
                 );
             } catch (Exception e) {
-                log.warn("Failed to send swap reject notification: {}", e.getMessage());
+                log.warn("Không thể gửi thông báo từ chối đổi ca: {}", e.getMessage());
             }
             return;
         }
@@ -193,7 +197,7 @@ public class ShiftSwapService {
                 java.util.Map.of("swapRequestId", request.getId().toString(), "status", "ACCEPTED")
             );
         } catch (Exception e) {
-            log.warn("Failed to send swap accepted notification: {}", e.getMessage());
+            log.warn("Không thể gửi thông báo chấp nhận đổi ca: {}", e.getMessage());
         }
     }
 
@@ -219,6 +223,23 @@ public class ShiftSwapService {
         if (manager.getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN) {
             if (employmentRepository != null && !employmentRepository.existsByUserIdAndStoreIdAndStatus(managerId, shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
                 throw new BusinessException("Manager does not belong to this store", HttpStatus.FORBIDDEN);
+            }
+        }
+
+        if (employmentRepository != null && (!employmentRepository.existsByUserIdAndStoreIdAndStatus(request.getFromStaff().getId(), shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)
+                || !employmentRepository.existsByUserIdAndStoreIdAndStatus(request.getToStaff().getId(), shiftStoreId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE))) {
+            throw new BusinessException("Nhân viên không còn làm việc tại cửa hàng", HttpStatus.CONFLICT);
+        }
+        if (payrollPeriods != null) {
+            payrollStores.findByIdForUpdate(shiftStoreId)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+            for (Shift shift : java.util.List.of(request.getFromShift(), request.getToShift())) {
+                for (var day = shift.getShiftDate(); !day.isAfter(ShiftDateRange.lastWorkingDate(shift)); day = day.plusDays(1)) {
+                    if (payrollPeriods.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(shiftStoreId, day, day,
+                            java.util.List.of(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED, com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID))) {
+                        throw new BusinessException("Không thể đổi ca thuộc kỳ lương đã khóa", HttpStatus.CONFLICT);
+                    }
+                }
             }
         }
 
@@ -263,6 +284,15 @@ public class ShiftSwapService {
         ShiftAssignment toAssignment = shiftAssignmentRepository.findByShiftIdAndStaffId(request.getToShift().getId(), request.getToStaff().getId())
                 .orElseThrow(() -> new BusinessException("Original assignment not found for toStaff", HttpStatus.NOT_FOUND));
 
+        if (fromAssignment.getSource() == AssignmentSource.WORKFORCE_SHARING || toAssignment.getSource() == AssignmentSource.WORKFORCE_SHARING) {
+            throw new BusinessException("Ca hỗ trợ liên cửa hàng cần được điều phối lại qua yêu cầu hỗ trợ", HttpStatus.CONFLICT);
+        }
+
+        if (assignmentValidator != null) {
+            assignmentValidator.validateSwapSkill(request.getFromShift(), request.getToStaff().getId(), fromAssignment.getRequiredSkillId());
+            assignmentValidator.validateSwapSkill(request.getToShift(), request.getFromStaff().getId(), toAssignment.getRequiredSkillId());
+        }
+
         if (attendanceRepository != null && 
             (attendanceRepository.existsByShiftAssignmentId(fromAssignment.getId()) || 
              attendanceRepository.existsByShiftAssignmentId(toAssignment.getId()))) {
@@ -304,7 +334,7 @@ public class ShiftSwapService {
                 );
             }
         } catch (Exception e) {
-            log.warn("Failed to send approval notification for swap {}: {}", requestId, e.getMessage());
+            log.warn("Không thể gửi thông báo duyệt đổi ca {}: {}", requestId, e.getMessage());
         }
     }
 

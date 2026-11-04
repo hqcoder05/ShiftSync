@@ -40,6 +40,8 @@ public class NotificationStreamControllerTest {
     private NotificationPreferenceService preferenceService;
     @Mock
     private SseEmitterService sseEmitterService;
+    @Mock
+    private com.shiftsync.notification.service.StreamSessionValidator streamSessions;
 
     @InjectMocks
     private NotificationController controller;
@@ -79,11 +81,17 @@ public class NotificationStreamControllerTest {
     @Test
     public void testStreamNotifications_ReturnsTextEventStream() throws Exception {
         SseEmitter emitter = new SseEmitter();
-        when(sseEmitterService.subscribe(eq(userId))).thenReturn(emitter);
+        when(sseEmitterService.subscribe(eq(userId), org.mockito.ArgumentMatchers.any())).thenReturn(emitter);
 
         mockMvc.perform(get("/api/users/me/notifications/stream")
+                        .header("Authorization", "Bearer session-token")
                         .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+        var session = org.mockito.ArgumentCaptor.forClass(java.util.function.BooleanSupplier.class);
+        org.mockito.Mockito.verify(sseEmitterService).subscribe(eq(userId), session.capture());
+        when(streamSessions.isActive(userId, "session-token")).thenReturn(true, false);
+        org.junit.jupiter.api.Assertions.assertTrue(session.getValue().getAsBoolean());
+        org.junit.jupiter.api.Assertions.assertFalse(session.getValue().getAsBoolean());
     }
 }

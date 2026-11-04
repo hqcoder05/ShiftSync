@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface AttendanceAdjustmentRequestRepository extends JpaRepository<AttendanceAdjustmentRequest, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM AttendanceAdjustmentRequest r WHERE r.id = :id")
+    java.util.Optional<AttendanceAdjustmentRequest> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
     List<AttendanceAdjustmentRequest> findByShiftStoreId(UUID storeId);
     List<AttendanceAdjustmentRequest> findByShiftStoreIdAndStatus(UUID storeId, AdjustmentStatus status);
     List<AttendanceAdjustmentRequest> findByShiftStoreIdAndStaffId(UUID storeId, UUID staffId);

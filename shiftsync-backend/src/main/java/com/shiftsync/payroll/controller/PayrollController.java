@@ -36,6 +36,8 @@ public class PayrollController {
     private final PayrollRepository payrollRepository;
     private final PdfExportService pdfExportService;
     private final ExcelExportService excelExportService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.shared.transaction.SerializableRetry serializableRetry;
 
     @Operation(summary = "Generate payroll for a store")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
@@ -69,6 +71,8 @@ public class PayrollController {
     public ResponseEntity<List<PayrollDTO>> getPayslips(
             @PathVariable UUID storeId,
             @PathVariable UUID periodId) {
+        payrollPeriodRepository.findByIdAndStoreId(periodId, storeId)
+                .orElseThrow(() -> new com.shiftsync.shared.exception.BusinessException("Không tìm thấy kỳ lương của cửa hàng", org.springframework.http.HttpStatus.NOT_FOUND));
         List<PayrollDTO> payslips = payrollRepository.findByPayrollPeriodId(periodId).stream()
                 .map(p -> PayrollDTO.builder()
                         .id(p.getId())
@@ -154,7 +158,10 @@ public class PayrollController {
             @PathVariable UUID periodId,
             @Valid @RequestBody PayrollPeriodStatusUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
+        serializableRetry.execute(() -> {
+            payrollCalculationService.updatePayrollPeriodStatus(storeId, periodId, request.getStatus(), userDetails != null ? userDetails.getId() : null);
+            return null;
+        });
         return ResponseEntity.noContent().build();
     }
 

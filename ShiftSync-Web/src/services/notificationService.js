@@ -6,8 +6,14 @@ export const getNotificationPreferences = () =>
 export const updateNotificationPreferences = (data) =>
   api.put('/users/me/notification-preferences', data);
 
-export const registerFcmToken = (token) =>
-  api.post('/users/me/fcm-token', { fcmToken: token, deviceType: 'WEB' });
+let pendingFcmRegistration = null;
+export const registerFcmToken = (token) => {
+  const request = api.post('/users/me/fcm-token', { fcmToken: token, deviceType: 'WEB' });
+  pendingFcmRegistration = request;
+  request.finally(() => { if (pendingFcmRegistration === request) pendingFcmRegistration = null; }).catch(() => {});
+  return request;
+};
+export const waitForFcmRegistration = () => pendingFcmRegistration || Promise.resolve();
 
 export const getMyNotifications = () =>
   api.get('/users/me/notifications');

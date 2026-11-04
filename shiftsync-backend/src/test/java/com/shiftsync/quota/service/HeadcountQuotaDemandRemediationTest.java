@@ -50,6 +50,9 @@ class HeadcountQuotaDemandRemediationTest {
     @Mock private ShiftAssignmentRepository shiftAssignmentRepository;
     @Mock private StaffSkillRepository staffSkillRepository;
     @Mock private PositionNormOverrideRepository positionNormOverrideRepository;
+    @Mock private com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriodRepository;
+    @Mock private com.shiftsync.store.repository.StoreConfigurationRepository storeConfigurationRepository;
+    @Mock private com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
 
     @InjectMocks
     private HeadcountQuotaService headcountQuotaService;
@@ -63,6 +66,8 @@ class HeadcountQuotaDemandRemediationTest {
 
     @BeforeEach
     void setUp() {
+        when(compensationRevisions.requireAt(eq("skill"),any(),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms(java.math.BigDecimal.valueOf(26000)));
         storeId = UUID.randomUUID();
         store = Store.builder()
                 .id(storeId)
@@ -92,6 +97,7 @@ class HeadcountQuotaDemandRemediationTest {
         testDate = LocalDate.of(2026, 3, 16); // Monday
 
         when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        lenient().when(storeRepository.findByIdForUpdate(storeId)).thenReturn(Optional.of(store));
         when(skillRepository.findByStoreId(storeId)).thenReturn(Arrays.asList(baristaSkill, cashierSkill, waiterSkill));
         when(skillRepository.findById(baristaSkill.getId())).thenReturn(Optional.of(baristaSkill));
         when(skillRepository.findById(cashierSkill.getId())).thenReturn(Optional.of(cashierSkill));
@@ -478,6 +484,7 @@ class HeadcountQuotaDemandRemediationTest {
     @Test
     @DisplayName("Test 7: Store isolation prevents cross-store quota contamination")
     void test7_StoreIsolation() {
+        when(shiftRepository.save(any())).thenAnswer(call -> call.getArgument(0));
         UUID storeBId = UUID.randomUUID();
         Store storeB = Store.builder()
                 .id(storeBId)
@@ -486,6 +493,7 @@ class HeadcountQuotaDemandRemediationTest {
                 .closeTime(LocalTime.of(21, 0))
                 .build();
         when(storeRepository.findById(storeBId)).thenReturn(Optional.of(storeB));
+        lenient().when(storeRepository.findByIdForUpdate(storeBId)).thenReturn(Optional.of(storeB));
 
         UpdateQuotaRequest req = new UpdateQuotaRequest();
         req.setBranchId(storeId); // Store A

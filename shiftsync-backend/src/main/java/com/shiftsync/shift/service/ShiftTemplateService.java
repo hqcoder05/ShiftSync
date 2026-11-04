@@ -89,8 +89,7 @@ public class ShiftTemplateService {
         List<ShiftTemplate> changed = new java.util.ArrayList<>();
         int count = 0;
         for (ShiftTemplate t : templates) {
-            boolean outOfBounds = (store.getOpenTime() != null && t.getStartTime().isBefore(store.getOpenTime()))
-                    || (store.getCloseTime() != null && t.getEndTime().isAfter(store.getCloseTime()));
+            boolean outOfBounds = !com.shiftsync.store.service.OperatingHours.contains(store, t.getStartTime(), t.getEndTime());
             if (outOfBounds && t.isActive()) {
                 t.setActive(false);
                 changed.add(t);
@@ -104,17 +103,8 @@ public class ShiftTemplateService {
     }
 
     private void validateTimeWithStore(Store store, java.time.LocalTime startTime, java.time.LocalTime endTime) {
-        if (!startTime.isBefore(endTime)) {
-            throw new BusinessException("Start time must be before end time", HttpStatus.BAD_REQUEST);
-        }
-        if (store != null) {
-            if (store.getOpenTime() != null && startTime.isBefore(store.getOpenTime())) {
-                throw new BusinessException("Giờ bắt đầu ca mẫu (" + startTime + ") không được trước giờ mở cửa chi nhánh (" + store.getOpenTime() + ")", HttpStatus.BAD_REQUEST);
-            }
-            if (store.getCloseTime() != null && endTime.isAfter(store.getCloseTime())) {
-                throw new BusinessException("Giờ kết thúc ca mẫu (" + endTime + ") không được sau giờ đóng cửa chi nhánh (" + store.getCloseTime() + ")", HttpStatus.BAD_REQUEST);
-            }
-        }
+        if (!com.shiftsync.store.service.OperatingHours.contains(store, startTime, endTime))
+            throw new BusinessException("Thời gian ca mẫu không hợp lệ hoặc nằm ngoài giờ hoạt động", HttpStatus.BAD_REQUEST);
     }
 
     private void verifyStoreExists(UUID storeId) {
@@ -125,15 +115,7 @@ public class ShiftTemplateService {
 
     private ShiftTemplateDTO mapToDTO(ShiftTemplate entity) {
         Store s = entity.getStore();
-        boolean withinHours = true;
-        if (s != null) {
-            if (s.getOpenTime() != null && entity.getStartTime().isBefore(s.getOpenTime())) {
-                withinHours = false;
-            }
-            if (s.getCloseTime() != null && entity.getEndTime().isAfter(s.getCloseTime())) {
-                withinHours = false;
-            }
-        }
+        boolean withinHours = com.shiftsync.store.service.OperatingHours.contains(s, entity.getStartTime(), entity.getEndTime());
         return ShiftTemplateDTO.builder()
                 .id(entity.getId())
                 .storeId(s != null ? s.getId() : null)

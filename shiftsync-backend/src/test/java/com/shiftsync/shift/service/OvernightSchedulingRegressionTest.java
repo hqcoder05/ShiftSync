@@ -54,8 +54,8 @@ class OvernightSchedulingRegressionTest {
                 Employment.builder().user(staff).contractType(ContractType.builder().maxWeeklyHours(48).build()).build()));
         when(availability.findByUser_IdIn(anyList())).thenReturn(List.of(Availability.builder()
                 .user(staff).dayOfWeek((short)0).startTime(LocalTime.of(22, 0)).endTime(shift.getEndTime()).build()));
-        return new AutoScheduleService(shifts, assignments, employments, skills, availability, blackouts,
-                mock(StoreConfigurationRepository.class), mock(SchedulerConfigurationRepository.class), null, null, null, leaves);
+        return TestCompensationResolver.install(new AutoScheduleService(shifts, assignments, employments, skills, availability, blackouts,
+                mock(StoreConfigurationRepository.class), mock(SchedulerConfigurationRepository.class), null, null, null, leaves));
     }
     private AutoScheduleRequest request() {
         var request = new AutoScheduleRequest(); request.setStartDate(sunday); request.setEndDate(sunday); return request;

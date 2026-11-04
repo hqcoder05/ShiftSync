@@ -73,6 +73,7 @@ class ShiftAssignmentServiceTest {
             payrollPeriodRepository, notificationService, shiftAssignmentValidator,
             staffSkillRepository, storeZoneRepository, skillRepository
         );
+        com.shiftsync.support.TestStoreLock.install(service);
 
         storeId = UUID.randomUUID();
         shiftId = UUID.randomUUID();

@@ -54,7 +54,8 @@ class JwtAuthFilterTest {
         request.addHeader("Authorization", "Bearer valid-header-jwt");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        UserDetails userDetails = new User("admin@test.com", "pass", Collections.emptyList());
+        UserDetails userDetails = new CustomUserDetails(com.shiftsync.auth.entity.User.builder()
+                .id(java.util.UUID.randomUUID()).email("admin@test.com").passwordHash("pass").systemRole(SystemRole.ADMIN).credentialVersion(0).build());
 
         when(jwtTokenProvider.validateToken("valid-header-jwt")).thenReturn(true);
         when(jwtTokenProvider.isQrAttendanceToken("valid-header-jwt")).thenReturn(false);

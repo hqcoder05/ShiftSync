@@ -23,4 +23,6 @@ public class SkillDTO {
 
     @Schema(description = "Hourly pay rate in VND", example = "26000.00")
     private java.math.BigDecimal hourlyRate;
+    private java.time.LocalDate scheduledEffectiveDate;
+    private java.math.BigDecimal scheduledHourlyRate;
 }

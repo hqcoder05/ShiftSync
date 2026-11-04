@@ -99,4 +99,24 @@ public class SseEmitterServiceTest {
 
         assertEquals(0, service.getActiveEmitterCount(userId));
     }
+    @org.junit.jupiter.api.Test
+    void revokedSessionIsRemovedBeforeNotificationDelivery() {
+        var service = new SseEmitterService();
+        var user = java.util.UUID.randomUUID();
+        var active = new java.util.concurrent.atomic.AtomicBoolean(true);
+        service.subscribe(user, active::get);
+        service.subscribe(user, () -> true);
+        active.set(false);
+        service.pushToUser(user, "private notification");
+        org.junit.jupiter.api.Assertions.assertEquals(1, service.getActiveEmitterCount(user));
+    }
+
+    @org.junit.jupiter.api.Test
+    void heartbeatClosesSessionWhenValidationFails() {
+        var service = new SseEmitterService();
+        var user = java.util.UUID.randomUUID();
+        service.subscribe(user, () -> { throw new IllegalStateException("validation unavailable"); });
+        service.sendHeartbeat();
+        org.junit.jupiter.api.Assertions.assertEquals(0, service.getActiveEmitterCount(user));
+    }
 }

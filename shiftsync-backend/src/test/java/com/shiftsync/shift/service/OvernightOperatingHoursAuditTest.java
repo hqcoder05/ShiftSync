@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 
 /** Characterizes inconsistent overnight support across templates and quotas. */
 class OvernightOperatingHoursAuditTest {
-    @Test void validOvernightTemplateIsRejectedDespiteEightHourIntervalSupport() {
+    @Test void validOvernightTemplateIsAcceptedAndMarkedWithinHours() {
         var store=Store.builder().id(UUID.randomUUID()).openTime(LocalTime.of(22,0)).closeTime(LocalTime.of(6,0)).build();
         var stores=mock(StoreRepository.class);var templates=mock(ShiftTemplateRepository.class);
         when(stores.findById(store.getId())).thenReturn(Optional.of(store));
@@ -23,15 +23,17 @@ class OvernightOperatingHoursAuditTest {
         request.setStartTime(LocalTime.of(22,0));request.setEndTime(LocalTime.of(6,0));
         assertEquals(8,ShiftTimeRange.hours(com.shiftsync.shift.entity.Shift.builder()
                 .shiftDate(LocalDate.of(2030,11,3)).startTime(request.getStartTime()).endTime(request.getEndTime()).build()));
-        assertThrows(BusinessException.class,()->new ShiftTemplateService(templates,stores).createTemplate(store.getId(),request));
-        verify(templates,never()).save(any());
+        when(templates.save(any())).thenAnswer(call -> call.getArgument(0));
+        var result=new ShiftTemplateService(templates,stores).createTemplate(store.getId(),request);
+        assertTrue(result.getIsWithinOperatingHours());
+        verify(templates).save(any());
     }
 
-    @Test void quotaUsesFourteenHourFallbackAndNegativeDurationForNightStore() {
+    @Test void quotaUsesActualMidpointAndPositiveDurationForNightStore() {
         var service=mock(HeadcountQuotaService.class,CALLS_REAL_METHODS);
         var store=Store.builder().openTime(LocalTime.of(22,0)).closeTime(LocalTime.of(6,0)).build();
-        assertEquals(LocalTime.of(5,0),service.getStoreMidTime(store)); // correct halfway point is 02:00
+        assertEquals(LocalTime.of(2,0),service.getStoreMidTime(store));
         Double hours=ReflectionTestUtils.invokeMethod(service,"durationHours",LocalTime.of(22,0),LocalTime.of(6,0));
-        assertEquals(-16.0,hours);
+        assertEquals(8.0,hours);
     }
 }

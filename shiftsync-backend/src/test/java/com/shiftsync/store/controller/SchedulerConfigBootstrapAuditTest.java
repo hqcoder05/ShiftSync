@@ -11,10 +11,12 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
 
 class SchedulerConfigBootstrapAuditTest {
-    @Test void missingRowReturnsDefaultsButCannotSaveEvenThoseValidDefaults() {
+    @Test void missingRowReturnsDefaultsAndCanSaveThoseDefaults() {
         var repository=mock(SchedulerConfigurationRepository.class);
-        var controller=new SchedulerConfigurationController(mock(AuditLogService.class),repository);
-        var store=UUID.randomUUID();var read=controller.getConfig(store);
+        var stores=mock(com.shiftsync.store.repository.StoreRepository.class);
+        var controller=new SchedulerConfigurationController(mock(AuditLogService.class),repository,stores);
+        var store=UUID.randomUUID();when(stores.existsById(store)).thenReturn(true);
+        var read=controller.getConfig(store);
         assertEquals(200,read.getStatusCode().value());assertNull(read.getBody().getId());
         var body=read.getBody();var update=new SchedulerConfigUpdateDTO();
         update.setFairnessWeight(body.getFairnessWeight());update.setSkillWeight(body.getSkillWeight());
@@ -23,9 +25,16 @@ class SchedulerConfigBootstrapAuditTest {
         try(var factory=jakarta.validation.Validation.buildDefaultValidatorFactory()) {
             assertTrue(factory.getValidator().validate(update).isEmpty());
         }
-        var rejected=assertThrows(BusinessException.class,()->controller.updateConfig(store,update,null));
-        assertEquals("Config not found",rejected.getMessage());
-        assertEquals(404,rejected.getStatus().value());
-        verify(repository,never()).save(any());
+        var result=controller.updateConfig(store,update,null);
+        assertEquals(body.getFairnessWeight(),result.getBody().getFairnessWeight());
+        verify(repository).save(argThat(config -> store.equals(config.getStoreId())));
+    }
+
+    @Test void nonexistentStoreCannotReadOrSaveConfiguration() {
+        var repository=mock(SchedulerConfigurationRepository.class);
+        var stores=mock(com.shiftsync.store.repository.StoreRepository.class);
+        var controller=new SchedulerConfigurationController(mock(AuditLogService.class),repository,stores);
+        assertEquals(404, assertThrows(BusinessException.class, () -> controller.getConfig(UUID.randomUUID())).getStatus().value());
+        verifyNoInteractions(repository);
     }
 }

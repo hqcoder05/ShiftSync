@@ -45,12 +45,40 @@ public class AttendanceAdjustmentService {
     private final StoreConfigurationRepository storeConfigurationRepository;
     private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
     private final com.shiftsync.notification.service.NotificationService notificationService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.store.repository.StoreRepository payrollStores;
+
+    private void lockPayrollStores(Shift shift) {
+        var stores = new java.util.TreeSet<UUID>();
+        stores.add(shift.getStore().getId());
+        stores.addAll(shiftAssignmentRepository.findSupportPayrollStoresForShift(shift.getId()));
+        for (UUID store : stores) payrollStores.findByIdForUpdate(store)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+    }
 
     private void checkDateNotLocked(UUID storeId, java.time.LocalDate date, String action) {
         if (date != null && payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
                 storeId, date, date, Arrays.asList(PayrollPeriodStatus.CONFIRMED, PayrollPeriodStatus.PAID))) {
             throw new BusinessException("Cannot " + action + ": payroll period is locked or already confirmed", HttpStatus.CONFLICT);
         }
+    }
+
+    private void checkShiftNotLocked(Shift shift, String action) {
+        checkShiftNotLockedAtStore(shift.getStore().getId(), shift, action);
+    }
+
+    private void checkShiftNotLockedAtStore(UUID storeId, Shift shift, String action) {
+        checkDateNotLocked(storeId, shift.getShiftDate(), action);
+        if (shift.getStartTime() != null && shift.getEndTime() != null
+                && shift.getEndTime().isBefore(shift.getStartTime()) && !shift.getEndTime().equals(java.time.LocalTime.MIDNIGHT)) {
+            checkDateNotLocked(storeId, shift.getShiftDate().plusDays(1), action);
+        }
+    }
+
+    private void checkSupportNotLocked(com.shiftsync.shift.entity.ShiftAssignment assignment, String action) {
+        if (assignment.getSource() != com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING) return;
+        if (assignment.getSupportEmployment() == null) throw new BusinessException("Không xác định được cửa hàng trả lương cho ca hỗ trợ", HttpStatus.CONFLICT);
+        checkShiftNotLockedAtStore(assignment.getSupportEmployment().getStore().getId(), assignment.getShift(), action);
     }
 
     @Transactional
@@ -61,7 +89,7 @@ public class AttendanceAdjustmentService {
         Shift shift = shiftRepository.findById(dto.getShiftId())
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
 
-        checkDateNotLocked(shift.getStore().getId(), shift.getShiftDate(), "submit adjustment");
+        checkShiftNotLocked(shift, "submit adjustment");
 
         Attendance attendance = null;
         if (dto.getAttendanceId() != null) {
@@ -73,8 +101,11 @@ public class AttendanceAdjustmentService {
             if (!attendance.getShiftAssignment().getStaff().getId().equals(staffId)) {
                 throw new BusinessException("You can only explain your own attendance", HttpStatus.FORBIDDEN);
             }
-        } else if (shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staffId).isEmpty()) {
-            throw new BusinessException("You are not assigned to this shift", HttpStatus.FORBIDDEN);
+            checkSupportNotLocked(attendance.getShiftAssignment(), "submit adjustment");
+        } else {
+            var assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staffId)
+                    .orElseThrow(() -> new BusinessException("You are not assigned to this shift", HttpStatus.FORBIDDEN));
+            checkSupportNotLocked(assignment, "submit adjustment");
         }
 
         AttendanceAdjustmentRequest request = AttendanceAdjustmentRequest.builder()
@@ -108,7 +139,7 @@ public class AttendanceAdjustmentService {
 
     @Transactional
     public AdjustmentResponseDTO approveRequest(UUID storeId, UUID requestId, UUID managerId) {
-        AttendanceAdjustmentRequest request = requestRepository.findById(requestId)
+        AttendanceAdjustmentRequest request = requestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new BusinessException("Request not found", HttpStatus.NOT_FOUND));
 
         if (request.getShift() == null || request.getShift().getStore() == null || !request.getShift().getStore().getId().equals(storeId)) {
@@ -119,7 +150,8 @@ public class AttendanceAdjustmentService {
             throw new BusinessException("Only pending requests can be approved", HttpStatus.BAD_REQUEST);
         }
 
-        checkDateNotLocked(storeId, request.getShift().getShiftDate(), "approve");
+        lockPayrollStores(request.getShift());
+        checkShiftNotLocked(request.getShift(), "approve");
 
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));
@@ -129,27 +161,8 @@ public class AttendanceAdjustmentService {
             throw new BusinessException("Manager does not have permission to manage this store", HttpStatus.FORBIDDEN);
         }
 
-        // Determine late/present status based on store configuration
         StoreConfiguration config = storeConfigurationRepository.findByStoreId(storeId).orElse(null);
-        int lateGrace = (config != null && config.getLateGraceMinutes() != null) ? config.getLateGraceMinutes() : 5;
-
-        java.time.LocalDate sDate = request.getShift().getShiftDate() != null ? request.getShift().getShiftDate() : java.time.LocalDate.now();
-        java.time.LocalTime sTime = request.getShift().getStartTime() != null ? request.getShift().getStartTime() : java.time.LocalTime.of(0, 0);
-        java.time.LocalDateTime shiftStart = java.time.LocalDateTime.of(sDate, sTime);
-
-        AttendanceStatus calculatedStatus = AttendanceStatus.PRESENT;
-        
         Attendance attendance = request.getAttendance();
-        OffsetDateTime effectiveCheckIn = request.getRequestedCheckIn();
-        if (effectiveCheckIn == null && attendance != null) {
-            effectiveCheckIn = attendance.getCheckInTime();
-        }
-        
-        if (effectiveCheckIn != null) {
-            if (effectiveCheckIn.toLocalDateTime().isAfter(shiftStart.plusMinutes(lateGrace))) {
-                calculatedStatus = AttendanceStatus.LATE;
-            }
-        }
 
         if (attendance == null) {
             ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(request.getShift().getId(), request.getStaff().getId())
@@ -162,6 +175,11 @@ public class AttendanceAdjustmentService {
                             .build());
         }
 
+        checkSupportNotLocked(attendance.getShiftAssignment(), "approve");
+
+        var effectiveCheckIn = request.getRequestedCheckIn() != null ? request.getRequestedCheckIn() : attendance.getCheckInTime();
+        var effectiveCheckOut = request.getRequestedCheckOut() != null ? request.getRequestedCheckOut() : attendance.getCheckOutTime();
+        AttendanceStatus calculatedStatus = AttendanceStatusCalculator.calculate(request.getShift(), effectiveCheckIn, effectiveCheckOut, config);
         if (request.getRequestedCheckIn() != null) {
             attendance.setCheckInTime(request.getRequestedCheckIn());
         }
@@ -194,7 +212,7 @@ public class AttendanceAdjustmentService {
 
     @Transactional
     public AdjustmentResponseDTO rejectRequest(UUID storeId, UUID requestId, UUID managerId, String note) {
-        AttendanceAdjustmentRequest request = requestRepository.findById(requestId)
+        AttendanceAdjustmentRequest request = requestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new BusinessException("Request not found", HttpStatus.NOT_FOUND));
 
         if (request.getShift() == null || request.getShift().getStore() == null || !request.getShift().getStore().getId().equals(storeId)) {
@@ -205,7 +223,7 @@ public class AttendanceAdjustmentService {
             throw new BusinessException("Only pending requests can be rejected", HttpStatus.BAD_REQUEST);
         }
 
-        checkDateNotLocked(storeId, request.getShift().getShiftDate(), "reject");
+        checkShiftNotLocked(request.getShift(), "reject");
 
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new BusinessException("Manager not found", HttpStatus.NOT_FOUND));

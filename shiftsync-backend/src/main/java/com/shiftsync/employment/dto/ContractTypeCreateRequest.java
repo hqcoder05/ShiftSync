@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 public class ContractTypeCreateRequest {
@@ -24,4 +25,7 @@ public class ContractTypeCreateRequest {
     @NotNull(message = "Default hourly rate is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "Default hourly rate must be strictly positive")
     private BigDecimal defaultHourlyRate;
+
+    /** Used when changing existing compensation terms. */
+    private LocalDate effectiveDate;
 }

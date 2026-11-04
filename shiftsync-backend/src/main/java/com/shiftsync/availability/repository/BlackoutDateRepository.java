@@ -20,4 +20,5 @@ public interface BlackoutDateRepository extends JpaRepository<BlackoutDate, UUID
     boolean existsByStaffIdAndDate(UUID staffId, LocalDate date);
 
     void deleteByLeaveRequestId(UUID leaveRequestId);
+    void deleteByLeaveRequestIdAndDateGreaterThanEqual(UUID leaveRequestId, LocalDate date);
 }

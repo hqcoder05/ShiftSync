@@ -31,8 +31,8 @@ public class Attendance {
     @GeneratedValue
     private UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "shift_assignment_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shift_assignment_id", nullable = false)
     private ShiftAssignment shiftAssignment;
 
     @Column(name = "check_in_time")

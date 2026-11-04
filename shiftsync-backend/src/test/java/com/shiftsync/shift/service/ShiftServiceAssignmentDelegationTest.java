@@ -48,6 +48,8 @@ class ShiftServiceAssignmentDelegationTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(storeRepository.findByIdForUpdate(any())).thenAnswer(call ->
+                Optional.of(Store.builder().id(call.getArgument(0)).build()));
         service = new ShiftService(auditLogService, shiftRepository, storeRepository, storeConfigurationRepository,
                 shiftTemplateRepository, skillRepository, shiftAssignmentRepository, userRepository,
                 payrollPeriodRepository, notificationService, storeZoneRepository, staffSkillRepository,

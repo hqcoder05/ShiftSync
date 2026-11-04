@@ -66,6 +66,18 @@ public class DataIntegrityVerificationTest {
     @Autowired private AttendanceService attendanceService;
     @Autowired private WorkforceRequestService workforceRequestService;
     @Autowired private com.shiftsync.employment.repository.ContractTypeRepository contractTypeRepository;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    private void seedKnownPayrollHistory(Employment employment) {
+        // This fixture explicitly knows the terms used by its historical shifts.
+        for (var entity : java.util.Map.of("employment", employment.getId(),
+                "contract_type", employment.getContractType().getId()).entrySet()) {
+            jdbc.update("insert into payroll_effective_revision(id,entity_type,entity_id,effective_date,values_json) "
+                    + "select gen_random_uuid(),entity_type,entity_id,?,values_json from payroll_effective_revision "
+                    + "where entity_type=? and entity_id=? order by effective_date limit 1",
+                    LocalDate.now().minusDays(30), entity.getKey(), entity.getValue());
+        }
+    }
 
     @Test
     public void testDI001_SoftDelete_Store_OrphanReferences() {
@@ -216,6 +228,7 @@ public class DataIntegrityVerificationTest {
                 .build();
         attendanceRepository.save(att);
 
+        seedKnownPayrollHistory(emp);
         // Generate P1
         LocalDate p1Start = LocalDate.now().minusDays(20);
         LocalDate p1End = LocalDate.now().minusDays(10);
@@ -301,6 +314,7 @@ public class DataIntegrityVerificationTest {
                 .build();
         att = attendanceRepository.save(att);
 
+        seedKnownPayrollHistory(emp);
         // Generate and confirm payroll
         LocalDate pStart = LocalDate.now().minusDays(20);
         LocalDate pEnd = LocalDate.now().minusDays(10);

@@ -19,5 +19,8 @@ public class SkillRequest {
     @jakarta.validation.constraints.DecimalMin(value = "0.0", message = "Hourly rate must be non-negative")
     @Schema(description = "Hourly pay rate in VND", example = "26000.00")
     private java.math.BigDecimal hourlyRate;
+
+    /** Used when changing an existing position's compensation. */
+    private java.time.LocalDate effectiveDate;
 }
 

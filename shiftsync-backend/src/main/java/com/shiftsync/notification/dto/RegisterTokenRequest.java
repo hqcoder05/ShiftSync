@@ -8,8 +8,10 @@ import lombok.Data;
 public class RegisterTokenRequest {
     
     @NotBlank(message = "FCM Token is required")
+    @jakarta.validation.constraints.Size(max = 512)
     @JsonAlias("token")
     private String fcmToken;
     
+    @jakarta.validation.constraints.Size(max = 50)
     private String deviceType; // "android", "ios", "web"
 }

@@ -36,18 +36,17 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardMetricsDTO getDashboardMetrics(UUID storeId, LocalDate startDate, LocalDate endDate) {
         
-        long totalAssignments = shiftAssignmentRepository.countTotalAssignmentsByStoreAndDateRange(storeId, startDate, endDate);
         PayrollAggregation payrollMetrics = payrollRepository.getPayrollMetrics(storeId, startDate, endDate);
 
         double workingHour = calculateWorkingHour(payrollMetrics);
 
         return DashboardMetricsDTO.builder()
                 .attendance(DashboardMetricsDTO.AttendanceMetrics.builder()
-                        .lateRate(calculateLateRate(storeId, startDate, endDate, totalAssignments))
-                        .absentRate(calculateAbsentRate(storeId, startDate, endDate, totalAssignments))
+                        .lateRate(calculateLateRate(storeId, startDate, endDate))
+                        .absentRate(calculateAbsentRate(storeId, startDate, endDate))
                         .build())
                 .scheduling(DashboardMetricsDTO.SchedulingMetrics.builder()
-                        .coverage(calculateCoverage(storeId, startDate, endDate, totalAssignments))
+                        .coverage(calculateCoverage(storeId, startDate, endDate))
                         .openShiftCount(calculateOpenShiftCount(storeId, startDate, endDate))
                         .swapCount(calculateSwapCount(storeId, startDate, endDate))
                         .build())
@@ -61,18 +60,20 @@ public class DashboardService {
     }
 
     /**
-     * Late Rate = (LATE attendances / Total assignments) * 100
+     * Late rate uses non-deleted published/completed assignments whose shifts have started.
      */
-    private double calculateLateRate(UUID storeId, LocalDate startDate, LocalDate endDate, long totalAssignments) {
+    private double calculateLateRate(UUID storeId, LocalDate startDate, LocalDate endDate) {
+        long totalAssignments = shiftAssignmentRepository.countStartedAssignmentsByStoreAndDateRange(storeId, startDate, endDate);
         if (totalAssignments == 0) return 0.0;
-        long lateCount = attendanceRepository.countAttendanceByStoreAndDateRangeAndStatus(storeId, startDate, endDate, com.shiftsync.attendance.enums.AttendanceStatus.LATE);
+        long lateCount = attendanceRepository.countLateStartedAssignments(storeId, startDate, endDate);
         return roundToTwoDecimals((double) lateCount / totalAssignments * 100);
     }
 
     /**
-     * Absent Rate = (Assignments with past endTime but no Attendance) / Total assignments * 100
+     * Absent rate uses only non-deleted assignments on published or completed shifts that have ended.
      */
-    private double calculateAbsentRate(UUID storeId, LocalDate startDate, LocalDate endDate, long totalAssignments) {
+    private double calculateAbsentRate(UUID storeId, LocalDate startDate, LocalDate endDate) {
+        long totalAssignments = shiftAssignmentRepository.countEndedAssignmentsByStoreAndDateRange(storeId, startDate, endDate);
         if (totalAssignments == 0) return 0.0;
         long absentCount = shiftAssignmentRepository.countAbsentAssignmentsByStoreAndDateRange(storeId, startDate, endDate);
         return roundToTwoDecimals((double) absentCount / totalAssignments * 100);
@@ -81,11 +82,31 @@ public class DashboardService {
     /**
      * Coverage = (Total assigned staff / Total required staff) * 100
      */
-    private double calculateCoverage(UUID storeId, LocalDate startDate, LocalDate endDate, long totalAssignments) {
-        Long totalRequired = shiftRepository.sumRequiredStaffByStoreAndDateRange(storeId, startDate, endDate);
-        if (totalRequired == null || totalRequired == 0) return 0.0;
-        double coverage = (double) totalAssignments / totalRequired * 100;
-        return roundToTwoDecimals(Math.min(coverage, 100.0)); // Cap at 100% in case over-assigned
+    private double calculateCoverage(UUID storeId, LocalDate startDate, LocalDate endDate) {
+        var assignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId, startDate, endDate)
+                .stream().filter(a -> !a.isDeleted()).collect(java.util.stream.Collectors.groupingBy(a -> a.getShift().getId()));
+        long required = 0, covered = 0;
+        for (var shift : shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate)) {
+            if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED) continue;
+            var staff = assignments.getOrDefault(shift.getId(), java.util.List.of());
+            var requirements = shift.getRequirements();
+            if (requirements == null || requirements.isEmpty()) {
+                required++;
+                covered += Math.min(1, staff.size());
+                continue;
+            }
+            for (var requirement : requirements) {
+                int capacity = Math.max(0, requirement.getRequiredCount());
+                required += capacity;
+                long count = staff.stream().filter(a -> requirement.getSkill() != null
+                                && (requirement.getSkill().getId().equals(a.getRequiredSkillId())
+                                    || (a.getRequiredSkillId() == null && requirements.size() == 1)))
+                        .filter(a -> requirement.getZone() == null || a.getZone() == null
+                                || requirement.getZone().getId().equals(a.getZone().getId())).count();
+                covered += Math.min(capacity, count);
+            }
+        }
+        return required == 0 ? 0.0 : roundToTwoDecimals((double) covered / required * 100);
     }
 
     /**

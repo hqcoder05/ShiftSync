@@ -107,7 +107,7 @@ class SchedulingPhase52WeightedOptimizationTest {
                 .closeTime(LocalTime.of(22, 0))
                 .build();
 
-        spatialAllocationService = new SpatialAllocationService(
+        spatialAllocationService = com.shiftsync.support.TestStoreLock.installSpatial(new SpatialAllocationService(
                 storeZoneRepository,
                 storeLayoutRepository,
                 workstationRepository,
@@ -115,7 +115,7 @@ class SchedulingPhase52WeightedOptimizationTest {
                 shiftAssignmentRepository,
                 staffSkillRepository,
                 skillRepository
-        );
+        ));
 
         autoScheduleService = new AutoScheduleService(
                 shiftRepository,
@@ -130,6 +130,7 @@ class SchedulingPhase52WeightedOptimizationTest {
                 headcountQuotaService,
                 spatialAllocationService
         );
+        TestCompensationResolver.install(autoScheduleService);
 
         when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
         when(headcountQuotaService.getStoreOpenTime(any())).thenReturn(LocalTime.of(8, 0));

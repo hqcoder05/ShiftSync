@@ -64,7 +64,8 @@ public class LeaveBalanceService {
                     List<Employment> employments = employmentRepository.findByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE);
                     if (!employments.isEmpty()) {
                         Employment activeEmp = employments.get(0);
-                        if (activeEmp.getContractType() != null && "PART_TIME".equalsIgnoreCase(activeEmp.getContractType().getName())) {
+                        if (activeEmp.getContractType() != null && activeEmp.getContractType().getName() != null
+                                && "PART_TIME".equalsIgnoreCase(activeEmp.getContractType().getName().trim())) {
                             entitlement = 6; // Pro-rated for part-time
                         }
                     }
@@ -86,6 +87,9 @@ public class LeaveBalanceService {
 
     @Transactional
     public LeaveBalanceDTO getMyBalance(UUID storeId, UUID staffId, Integer year) {
+        if (!employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)) {
+            throw new BusinessException("Bạn không làm việc tại cửa hàng này", HttpStatus.FORBIDDEN);
+        }
         int targetYear = (year != null && year > 2000) ? year : LocalDate.now().getYear();
         LeaveBalance balance = getOrCreateBalance(storeId, staffId, targetYear);
         return mapToDTO(balance);
@@ -113,7 +117,7 @@ public class LeaveBalanceService {
         balance.setUsedDays(balance.getUsedDays() + requestedDays);
         balance.setUpdatedAt(OffsetDateTime.now());
         leaveBalanceRepository.save(balance);
-        log.info("Deducted {} annual leave days for staff {} in store {}. Remaining: {}", requestedDays, staffId, storeId, balance.getRemainingDays());
+        log.info("Đã trừ {} ngày phép năm của nhân viên {} tại cửa hàng {}. Còn lại: {}", requestedDays, staffId, storeId, balance.getRemainingDays());
     }
 
     @Transactional
@@ -122,7 +126,7 @@ public class LeaveBalanceService {
             balance.setUsedDays(Math.max(0, balance.getUsedDays() - requestedDays));
             balance.setUpdatedAt(OffsetDateTime.now());
             leaveBalanceRepository.save(balance);
-            log.info("Reversed {} annual leave days for staff {} in store {}. Remaining: {}", requestedDays, staffId, storeId, balance.getRemainingDays());
+            log.info("Đã hoàn lại {} ngày phép năm của nhân viên {} tại cửa hàng {}. Còn lại: {}", requestedDays, staffId, storeId, balance.getRemainingDays());
         });
     }
 

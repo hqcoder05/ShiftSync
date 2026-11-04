@@ -46,12 +46,25 @@ public class NotificationService {
                 new org.springframework.transaction.support.TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        java.util.concurrent.CompletableFuture.runAsync(task, notificationExecutor);
+                        submitNotification(task);
                     }
                 }
             );
         } else {
+            submitNotification(task);
+        }
+    }
+
+    private void submitNotification(Runnable task) {
+        try {
             java.util.concurrent.CompletableFuture.runAsync(task, notificationExecutor);
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            log.warn("Hàng đợi thông báo đầy; chuyển sang bộ thực thi dự phòng", rejected);
+            try {
+                java.util.concurrent.CompletableFuture.runAsync(task);
+            } catch (java.util.concurrent.RejectedExecutionException fallbackRejected) {
+                log.error("Không thể đưa thông báo vào hàng đợi dự phòng", fallbackRejected);
+            }
         }
     }
     
@@ -61,14 +74,14 @@ public class NotificationService {
             try {
                 createInAppNotification(userId, type != null ? type.name() : "GENERAL", title, body);
             } catch (Exception e) {
-                log.warn("Failed to persist in-app notification for user {}: {}", userId, e.getMessage());
+                log.warn("Không thể lưu thông báo trong ứng dụng cho người dùng {}: {}", userId, e.getMessage());
             }
 
             // Check preference
             if (type != null) {
                 NotificationPreference pref = preferenceRepository.findByStaffIdAndNotificationType(userId, type).orElse(null);
                 if (pref != null && !pref.isEnabled()) {
-                    log.info("User {} disabled notification for type {}. Skipping push notification.", userId, type);
+                    log.info("Người dùng {} đã tắt loại thông báo {}; bỏ qua thông báo đẩy.", userId, type);
                     return;
                 }
             }
@@ -76,7 +89,7 @@ public class NotificationService {
             List<UserDeviceToken> tokens = userDeviceTokenRepository.findByUserId(userId);
             
             if (tokens.isEmpty()) {
-                log.info("No device tokens found for user: {}", userId);
+                log.info("Không tìm thấy mã thiết bị của người dùng: {}", userId);
                 return;
             }
 
@@ -99,7 +112,7 @@ public class NotificationService {
 
         try {
             BatchResponse response = com.google.firebase.messaging.FirebaseMessaging.getInstance().sendEachForMulticast(message);
-            log.info("Sent {} messages to user {}. Success: {}, Failure: {}", 
+            log.info("Đã gửi {} thông báo đến người dùng {}. Thành công: {}, thất bại: {}",
                     fcmTokens.size(), userId, response.getSuccessCount(), response.getFailureCount());
             
             if (response.getFailureCount() > 0) {
@@ -108,29 +121,29 @@ public class NotificationService {
                     if (!sendResponse.isSuccessful()) {
                         String errorCode = sendResponse.getException().getMessagingErrorCode().name();
                         String failedToken = fcmTokens.get(i);
-                        log.warn("Failed to send to token {}: {}", failedToken, errorCode);
+                        log.warn("Không gửi được thông báo cho thiết bị của người dùng {}: {}", userId, errorCode);
                         
                         // If token is unregistered, delete it from DB
                         if ("UNREGISTERED".equals(errorCode) || "INVALID_ARGUMENT".equals(errorCode)) {
-                            removeToken(failedToken);
+                            userDeviceTokenRepository.deleteByUserIdAndFcmToken(userId, failedToken);
                         }
                     }
                 }
             }
         } catch (com.google.firebase.messaging.FirebaseMessagingException e) {
-            log.error("Error sending Firebase notification to user {}", userId, e);
+            log.error("Lỗi gửi thông báo Firebase cho người dùng {}", userId, e);
         } catch (Exception e) {
-            log.error("Unexpected error when sending notification", e);
+            log.error("Lỗi bất ngờ khi gửi thông báo", e);
         }
         } catch (Exception e) {
-            log.error("Async execution error in sendNotification for user {}", userId, e);
+            log.error("Lỗi xử lý bất đồng bộ khi gửi thông báo cho người dùng {}", userId, e);
         }
     }
 
     @Transactional
     public void removeToken(String fcmToken) {
         userDeviceTokenRepository.deleteByFcmToken(fcmToken);
-        log.info("Removed invalid FCM token");
+        log.info("Đã xóa mã thiết bị FCM không hợp lệ");
     }
 
     @Transactional
@@ -153,14 +166,14 @@ public class NotificationService {
         try {
             sseEmitterService.pushToUser(userId, dto);
         } catch (Exception e) {
-            log.warn("Failed to push SSE notification to user {}: {}", userId, e.getMessage());
+            log.warn("Không thể gửi thông báo SSE cho người dùng {}: {}", userId, e.getMessage());
         }
 
         // Đẩy thông báo thời gian thực qua WebSocket
         try {
             realtimeEventPublisher.publishNotification(userId, dto);
         } catch (Exception e) {
-            log.warn("Failed to push WebSocket notification to user {}: {}", userId, e.getMessage());
+            log.warn("Không thể gửi thông báo WebSocket cho người dùng {}: {}", userId, e.getMessage());
         }
 
         return dto;

@@ -52,29 +52,36 @@ public class DashboardServiceTest {
         endDate = LocalDate.of(2026, 8, 31);
         
         // Default mocks to prevent NullPointerException
-        when(shiftAssignmentRepository.countTotalAssignmentsByStoreAndDateRange(storeId, startDate, endDate)).thenReturn(100L);
         when(payrollRepository.getPayrollMetrics(storeId, startDate, endDate)).thenReturn(new PayrollAggregation(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
     }
 
     @Test
     void testCalculateLateRate() {
-        when(attendanceRepository.countAttendanceByStoreAndDateRangeAndStatus(storeId, startDate, endDate, com.shiftsync.attendance.enums.AttendanceStatus.LATE))
-                .thenReturn(15L);
+        when(shiftAssignmentRepository.countStartedAssignmentsByStoreAndDateRange(storeId,startDate,endDate)).thenReturn(20L);
+        when(attendanceRepository.countLateStartedAssignments(storeId,startDate,endDate)).thenReturn(3L);
         DashboardMetricsDTO result = dashboardService.getDashboardMetrics(storeId, startDate, endDate);
         assertEquals(15.0, result.getAttendance().getLateRate());
     }
 
     @Test
     void testCalculateAbsentRate() {
+        when(shiftAssignmentRepository.countEndedAssignmentsByStoreAndDateRange(storeId, startDate, endDate))
+                .thenReturn(20L);
         when(shiftAssignmentRepository.countAbsentAssignmentsByStoreAndDateRange(storeId, startDate, endDate))
                 .thenReturn(5L);
         DashboardMetricsDTO result = dashboardService.getDashboardMetrics(storeId, startDate, endDate);
-        assertEquals(5.0, result.getAttendance().getAbsentRate());
+        assertEquals(25.0, result.getAttendance().getAbsentRate());
     }
 
     @Test
     void testCalculateCoverage() {
-        when(shiftRepository.sumRequiredStaffByStoreAndDateRange(storeId, startDate, endDate)).thenReturn(125L);
+        var shift=com.shiftsync.shift.entity.Shift.builder().id(UUID.randomUUID()).build();
+        var skill=com.shiftsync.skill.entity.Skill.builder().id(UUID.randomUUID()).build();
+        shift.getRequirements().add(com.shiftsync.shift.entity.ShiftSkillRequirement.builder().skill(skill).requiredCount(5).build());
+        var staff=java.util.stream.IntStream.range(0,4).mapToObj(i -> com.shiftsync.shift.entity.ShiftAssignment.builder()
+                .shift(shift).requiredSkillId(skill.getId()).build()).toList();
+        when(shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate)).thenReturn(java.util.List.of(shift));
+        when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(storeId,startDate,endDate)).thenReturn(staff);
         DashboardMetricsDTO result = dashboardService.getDashboardMetrics(storeId, startDate, endDate);
         assertEquals(80.0, result.getScheduling().getCoverage()); // 100 / 125 * 100 = 80.0
     }
@@ -138,8 +145,6 @@ public class DashboardServiceTest {
 
     @Test
     void testHandlesZeroDivisionsSafely() {
-        when(shiftAssignmentRepository.countTotalAssignmentsByStoreAndDateRange(storeId, startDate, endDate)).thenReturn(0L);
-        when(shiftRepository.sumRequiredStaffByStoreAndDateRange(storeId, startDate, endDate)).thenReturn(0L);
         when(payrollRepository.getPayrollMetrics(storeId, startDate, endDate)).thenReturn(null);
 
         DashboardMetricsDTO result = dashboardService.getDashboardMetrics(storeId, startDate, endDate);

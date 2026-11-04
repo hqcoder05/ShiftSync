@@ -96,6 +96,7 @@ class SchedulingPhase51ForensicVerificationTest {
 
     @BeforeEach
     void setUp() {
+        TestCompensationResolver.install(autoScheduleService);
         storeId = UUID.randomUUID();
         startDate = LocalDate.of(2026, 9, 7); // Monday
         endDate = LocalDate.of(2026, 9, 13);   // Sunday
@@ -123,6 +124,7 @@ class SchedulingPhase51ForensicVerificationTest {
         );
 
         when(storeRepository.findById(storeId)).thenReturn(Optional.of(store));
+        lenient().when(storeRepository.findByIdForUpdate(storeId)).thenReturn(Optional.of(store));
         when(headcountQuotaService.getStoreOpenTime(any())).thenReturn(LocalTime.of(8, 0));
         when(headcountQuotaService.getStoreCloseTime(any())).thenReturn(LocalTime.of(22, 0));
         when(headcountQuotaService.getStoreMidTime(any())).thenReturn(LocalTime.of(15, 0));
@@ -279,7 +281,7 @@ class SchedulingPhase51ForensicVerificationTest {
         req.setEndTime(LocalTime.of(15, 0));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.createShift(storeId, req));
-        assertTrue(ex.getMessage().contains("before store open time"));
+        assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
     }
 
     @Test
@@ -291,7 +293,7 @@ class SchedulingPhase51ForensicVerificationTest {
         req.setEndTime(LocalTime.of(23, 0));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.createShift(storeId, req));
-        assertTrue(ex.getMessage().contains("after store close time"));
+        assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
     }
 
     @Test
@@ -319,7 +321,7 @@ class SchedulingPhase51ForensicVerificationTest {
         updateReq.setEndTime(LocalTime.of(16, 0));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.updateShift(storeId, existing.getId(), updateReq));
-        assertTrue(ex.getMessage().contains("before store open time"));
+        assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
     }
 
     @Test
@@ -822,7 +824,11 @@ class SchedulingPhase51ForensicVerificationTest {
         autoScheduleService.autoSchedule(storeId, createRequest());
 
         // Called because draftShifts was empty
-        verify(headcountQuotaService).autoFillQuotas(any(AutoFillQuotaRequest.class));
+        var requestedDays = org.mockito.ArgumentCaptor.forClass(AutoFillQuotaRequest.class);
+        verify(headcountQuotaService, times(7)).autoFillQuotas(requestedDays.capture());
+        assertEquals(java.util.stream.IntStream.rangeClosed(0, 6).mapToObj(startDate::plusDays).collect(java.util.stream.Collectors.toSet()),
+                requestedDays.getAllValues().stream().map(AutoFillQuotaRequest::getDate).collect(java.util.stream.Collectors.toSet()));
+        assertTrue(requestedDays.getAllValues().stream().allMatch(r -> "DAY".equals(r.getScope())));
     }
 
     @Test
@@ -1041,7 +1047,7 @@ class SchedulingPhase51ForensicVerificationTest {
         req.setShifts(List.of(validConfig, invalidConfig));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> shiftService.saveBulkDemandPlanning(storeId, req));
-        assertTrue(ex.getMessage().contains("after store close time"));
+        assertTrue(ex.getMessage().contains("ngoài giờ hoạt động"));
     }
 
     @Test

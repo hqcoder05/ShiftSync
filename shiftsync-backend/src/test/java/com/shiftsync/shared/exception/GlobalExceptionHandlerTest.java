@@ -26,7 +26,7 @@ public class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("BAD_REQUEST", response.getBody().get("code"));
-        assertTrue(response.getBody().get("message").toString().contains("Parameter 'age' should be of type Integer"));
+        assertTrue(response.getBody().get("message").toString().contains("Tham số 'age' phải có kiểu Integer"));
     }
 
     @Test
@@ -49,7 +49,7 @@ public class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("PAYLOAD_TOO_LARGE", response.getBody().get("code"));
-        assertEquals("Uploaded file exceeds the maximum permitted size limit", response.getBody().get("message"));
+        assertEquals("Tệp tải lên vượt quá kích thước cho phép", response.getBody().get("message"));
     }
 
         @Test
@@ -62,7 +62,7 @@ public class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("BAD_REQUEST", response.getBody().get("code"));
-        assertTrue(response.getBody().get("message").toString().contains("Required request parameter 'branchId'"));
+        assertTrue(response.getBody().get("message").toString().contains("Thiếu tham số bắt buộc 'branchId'"));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("METHOD_NOT_ALLOWED", response.getBody().get("code"));
-        assertEquals("Request method 'POST' not supported", response.getBody().get("message"));
+        assertEquals("Phương thức yêu cầu 'POST' không được hỗ trợ", response.getBody().get("message"));
     }
     public void dummyMethod(Integer age) {}
 }

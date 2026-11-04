@@ -14,8 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Component
@@ -31,29 +31,31 @@ public class ShiftReminderJob {
     @Scheduled(cron = "0 0/15 * * * ?")
     @Transactional(readOnly = true)
     public void sendShiftReminders() {
-        log.info("Starting ShiftReminderJob...");
+        sendShiftRemindersAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+    }
+
+    void sendShiftRemindersAt(LocalDateTime now) {
+        log.info("Bắt đầu tác vụ nhắc ca làm...");
         
         List<StoreConfiguration> configs = storeConfigurationRepository.findAll();
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         for (StoreConfiguration config : configs) {
             int reminderHours = config.getShiftReminderHours();
-            OffsetDateTime targetTime = now.plusHours(reminderHours);
+            LocalDateTime targetTime = now.plusHours(reminderHours);
             
             // We want to find shifts starting within the next 15-minute window around targetTime
             // Specifically: shiftDate + startTime is between [targetTime, targetTime + 15 mins]
-            LocalDate targetDate = targetTime.toLocalDate();
-            LocalTime windowStart = targetTime.toLocalTime();
-            LocalTime windowEnd = windowStart.plusMinutes(15);
+            LocalDateTime windowEnd = targetTime.plusMinutes(15);
             
             // Fetch assignments for this store on targetDate where shift.startTime is in [windowStart, windowEnd)
-            List<ShiftAssignment> upcomingAssignments = shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateAndShift_StartTimeBetween(
-                    config.getStoreId(), targetDate, windowStart, windowEnd);
+            List<ShiftAssignment> upcomingAssignments = shiftAssignmentRepository.findPublishedReminders(
+                    config.getStoreId(), targetTime.toLocalDate(), targetTime.toLocalTime(), windowEnd.toLocalDate(), windowEnd.toLocalTime());
                     
             if (!upcomingAssignments.isEmpty()) {
-                log.info("Found {} assignments starting in ~{} hours for store {}", upcomingAssignments.size(), reminderHours, config.getStoreId());
+                log.info("Tìm thấy {} phân công bắt đầu sau khoảng {} giờ tại cửa hàng {}", upcomingAssignments.size(), reminderHours, config.getStoreId());
                 
                 for (ShiftAssignment sa : upcomingAssignments) {
+                    if (sa.getShift().getStatus() != com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) continue;
                     String title = "Upcoming Shift Reminder";
                     String body = String.format("You have a shift starting in %d hours at %s.", 
                             reminderHours, sa.getShift().getStartTime().toString());
@@ -69,6 +71,6 @@ public class ShiftReminderJob {
             }
         }
         
-        log.info("Finished ShiftReminderJob.");
+        log.info("Đã hoàn tất tác vụ nhắc ca làm.");
     }
 }

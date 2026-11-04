@@ -52,9 +52,9 @@ public class AuditLogService {
                     .build();
 
             auditLogRepository.save(auditLog);
-            log.debug("Saved audit log: {} on {} (ID: {})", action, entityType, entityId);
+            log.debug("Đã lưu nhật ký kiểm toán: {} trên {} (mã: {})", action, entityType, entityId);
         } catch (Exception e) {
-            log.error("Failed to save audit log for action: {} on entity: {}. Error: {}", action, entityType, e.getMessage(), e);
+            log.error("Không thể lưu nhật ký kiểm toán cho hành động {} trên đối tượng {}. Lỗi: {}", action, entityType, e.getMessage(), e);
         }
     }
 }

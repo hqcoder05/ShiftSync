@@ -20,6 +20,7 @@ public class SchedulingInputVersion {
             MessageDigest hash=MessageDigest.getInstance("SHA-256");
             for(Class<?> type:List.of(AutoScheduleService.class,ShiftTimeRange.class,StaffContractLimit.class,StaffRestPolicy.class,
                     AutoSchedulePlanMapper.class,SchedulingPlanService.class,ScheduleQualityEvaluator.class,
+                    com.shiftsync.payroll.service.CompensationRevisionResolver.class,
                     com.shiftsync.store.entity.StoreConfiguration.class,com.shiftsync.store.entity.SchedulerConfiguration.class,
                     com.shiftsync.availability.service.AvailabilityCoverage.class,com.shiftsync.quota.service.HeadcountQuotaService.class)) {
                 try(var input=type.getResourceAsStream("/"+type.getName().replace('.','/')+".class")) {
@@ -34,6 +35,10 @@ public class SchedulingInputVersion {
             rows(hash,"staff","t.id=any(?::uuid[])",people);
             rows(hash,"employment","t.store_id=? or t.staff_id=any(?::uuid[])",storeId,people);
             rows(hash,"contract_type","t.store_id=any(?::uuid[])",stores);
+            rows(hash,"payroll_effective_revision", "(t.entity_type='employment' and t.entity_id in (select id from employment where store_id=? or staff_id=any(?::uuid[]))) "
+                    + "or (t.entity_type='contract_type' and t.entity_id in (select id from contract_type where store_id=any(?::uuid[]))) "
+                    + "or (t.entity_type='skill' and t.entity_id in (select id from skill where store_id=? or id in (select skill_id from staff_skill where staff_id=any(?::uuid[]))))",
+                    storeId,people,stores,storeId,people);
             rows(hash,"store_configuration","t.store_id=any(?::uuid[])",stores);
             rows(hash,"scheduler_configuration","t.store_id=?",storeId);
             rows(hash,"skill","t.store_id=? or t.id in (select skill_id from staff_skill where staff_id=any(?::uuid[]))",storeId,people);

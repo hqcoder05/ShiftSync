@@ -74,6 +74,7 @@ class AutoScheduleServiceTest {
     
     @BeforeEach
     void setup() {
+        TestCompensationResolver.install(service);
         storeId = UUID.randomUUID();
         skillId = UUID.randomUUID();
         skill = Skill.builder().id(skillId).build();

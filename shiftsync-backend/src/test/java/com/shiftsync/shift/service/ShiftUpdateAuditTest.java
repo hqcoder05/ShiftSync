@@ -28,7 +28,10 @@ class ShiftUpdateAuditTest {
     final SkillRepository skills=mock(SkillRepository.class);
     final ShiftAssignmentService assignmentService=mock(ShiftAssignmentService.class);
     final com.shiftsync.payroll.repository.PayrollPeriodRepository payroll=mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class);
-    final ShiftAssignmentValidator validator=new ShiftAssignmentValidator(null,null,assignments,null,skills,null);
+    final com.shiftsync.availability.repository.AvailabilityRepository availability=mock(com.shiftsync.availability.repository.AvailabilityRepository.class);
+    final com.shiftsync.availability.repository.BlackoutDateRepository blackouts=mock(com.shiftsync.availability.repository.BlackoutDateRepository.class);
+    final ShiftValidationService timeValidation=mock(ShiftValidationService.class);
+    final ShiftAssignmentValidator validator=new ShiftAssignmentValidator(availability,blackouts,assignments,null,skills,timeValidation);
     final Store store=Store.builder().id(UUID.randomUUID()).name("Audit")
             .openTime(LocalTime.of(6,0)).closeTime(LocalTime.of(23,0)).build();
     final User person=User.builder().id(UUID.randomUUID()).fullName("Original staff").build();
@@ -38,6 +41,7 @@ class ShiftUpdateAuditTest {
 
     ShiftService service() {
         shift.getAssignments().add(original);
+        lenient().when(stores.findByIdForUpdate(store.getId())).thenReturn(Optional.of(store));
         when(shifts.findByIdAndStoreId(shift.getId(),store.getId())).thenReturn(Optional.of(shift));
         when(shifts.save(any())).thenAnswer(call->call.getArgument(0));
         when(assignments.findByShiftId(shift.getId())).thenReturn(List.of(original));
@@ -47,13 +51,14 @@ class ShiftUpdateAuditTest {
                 mock(com.shiftsync.layout.repository.StoreZoneRepository.class),null,null,validator,assignmentService,attendance);
     }
 
-    @Test void replacingStaffThroughShiftUpdateBypassesExistingAttendanceGuard() {
+    @Test void replacingStaffThroughShiftUpdatePreservesExistingAttendance() {
         var service=service();
         when(attendance.existsByShiftAssignment_Shift_Id(shift.getId())).thenReturn(true);
         when(attendance.existsByShiftAssignmentId(original.getId())).thenReturn(true);
         when(assignments.findWithLockByShiftIdAndStaffId(shift.getId(),person.getId())).thenReturn(Optional.of(original));
         // The ordinary removal path correctly rejects exactly this original assignment.
         var removal=new ShiftAssignmentService(shifts,assignments,null,null,payroll,null,null,null,null,null,attendance);
+        com.shiftsync.support.TestStoreLock.install(removal);
         var rejected=assertThrows(BusinessException.class,()->removal.unassignStaffFromShift(store.getId(),shift.getId(),person.getId()));
         assertTrue(rejected.getMessage().contains("attendance"));
         verify(assignments,never()).delete(any());
@@ -61,25 +66,29 @@ class ShiftUpdateAuditTest {
         var replacement=UUID.randomUUID();
         var request=new ShiftCreateRequest();request.setStaffId(replacement);
         request.setShiftDate(shift.getShiftDate());request.setStartTime(shift.getStartTime());request.setEndTime(shift.getEndTime());
-        service.updateShift(store.getId(),shift.getId(),request);
-        verify(assignments).deleteAll(List.of(original));
-        verify(assignmentService).assignStaffToShift(store.getId(),shift.getId(),replacement);
-        verifyNoInteractions(attendance);
+        assertThrows(BusinessException.class, () -> service.updateShift(store.getId(),shift.getId(),request));
+        verify(assignments, never()).deleteAll(any());
+        verify(assignmentService, never()).assignStaffToShift(any(), any(), any());
+        verify(attendance).existsByShiftAssignmentId(original.getId());
     }
 
-    @Test void changingAssignedShiftsTimeRejectsItsOwnExistingAssignment() {
+    @Test void changingAssignedShiftsTimeExcludesItsOwnAssignment() {
         var service=service();
         when(assignments.existsByShiftIdAndStaffId(shift.getId(),person.getId())).thenReturn(true);
+        when(assignments.countByShiftId(shift.getId())).thenReturn(1L);
+        when(availability.findByUserId(person.getId())).thenReturn(List.of(com.shiftsync.availability.entity.Availability.builder()
+                .dayOfWeek((short)(shift.getShiftDate().getDayOfWeek().getValue()%7))
+                .startTime(LocalTime.of(6,0)).endTime(LocalTime.of(23,0)).build()));
         var noteOnly=new ShiftCreateRequest();noteOnly.setNote("Only note");
         noteOnly.setShiftDate(shift.getShiftDate());noteOnly.setStartTime(shift.getStartTime());noteOnly.setEndTime(shift.getEndTime());
         assertDoesNotThrow(()->service.updateShift(store.getId(),shift.getId(),noteOnly));
         var request=new ShiftCreateRequest();request.setShiftDate(shift.getShiftDate());request.setStartTime(LocalTime.of(9,0));request.setEndTime(LocalTime.of(17,0));
-        var rejected=assertThrows(BusinessException.class,()->service.updateShift(store.getId(),shift.getId(),request));
-        assertEquals("Staff is already assigned to this shift",rejected.getMessage());
-        verify(assignments).existsByShiftIdAndStaffId(shift.getId(),person.getId());
+        assertDoesNotThrow(()->service.updateShift(store.getId(),shift.getId(),request));
+        verify(timeValidation).validateNoOverlapAndWeeklyHours(shift, person.getId(), shift.getId());
+        verify(assignments, never()).existsByShiftIdAndStaffId(any(), any());
     }
 
-    @Test void changingRequiredRoleReportsOldRoleAssignmentAsNewRoleCoverage() {
+    @Test void changingRequiredRoleRejectsAssignmentsForAnObsoleteRole() {
         var service=service();shift.setStatus(ShiftStatus.DRAFT);
         var oldRole=Skill.builder().id(UUID.randomUUID()).name("Cashier").build();
         var newRole=Skill.builder().id(UUID.randomUUID()).name("Kitchen").build();
@@ -87,15 +96,20 @@ class ShiftUpdateAuditTest {
         shift.getRequirements().add(ShiftSkillRequirement.builder().id(UUID.randomUUID()).shift(shift).skill(oldRole).requiredCount(1).build());
         when(skills.findByIdAndStoreId(newRole.getId(),store.getId())).thenReturn(Optional.of(newRole));
         var requirement=new ShiftRequirementRequest();requirement.setSkillId(newRole.getId());requirement.setRequiredCount(1);
-        var result=service.setShiftRequirements(store.getId(),shift.getId(),List.of(requirement));
-        assertEquals(oldRole.getId(),result.getShiftAssignments().get(0).getRequiredSkillId());
-        assertEquals(newRole.getId(),result.getSkillRequirements().get(0).getSkillId());
-        assertEquals(1,result.getSkillRequirements().get(0).getAssignedCount());
-        assertEquals(0,result.getSkillRequirements().get(0).getShortageCount());
+        assertThrows(BusinessException.class, () -> service.setShiftRequirements(store.getId(),shift.getId(),List.of(requirement)));
+        verify(shifts,never()).save(any());
+        assertEquals(oldRole.getId(),original.getRequiredSkillId());
+    }
+
+    @Test void publishingRejectsLegacyAssignmentForDifferentRole() {
+        var service=service(); shift.setStatus(ShiftStatus.DRAFT);
+        original.setRequiredSkillId(UUID.randomUUID());
+        var required=Skill.builder().id(UUID.randomUUID()).name("Kitchen").build();
+        shift.getRequirements().add(ShiftSkillRequirement.builder().shift(shift).skill(required).requiredCount(1).build());
         when(stores.findById(store.getId())).thenReturn(Optional.of(store));
         when(shifts.findByStoreIdAndShiftDateBetween(store.getId(),shift.getShiftDate(),shift.getShiftDate())).thenReturn(List.of(shift));
-        service.publishShifts(store.getId(),shift.getShiftDate(),shift.getShiftDate(),UUID.randomUUID());
-        assertEquals(ShiftStatus.PUBLISHED,shift.getStatus());
-        assertEquals(oldRole.getId(),original.getRequiredSkillId());
+        assertThrows(BusinessException.class, () -> service.publishShifts(store.getId(),shift.getShiftDate(),shift.getShiftDate(),UUID.randomUUID()));
+        assertEquals(ShiftStatus.DRAFT,shift.getStatus());
+        verify(shifts,never()).saveAll(any());
     }
 }

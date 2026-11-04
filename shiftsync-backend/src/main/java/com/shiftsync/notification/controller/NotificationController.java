@@ -33,6 +33,7 @@ public class NotificationController {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final NotificationPreferenceService preferenceService;
+    private final com.shiftsync.notification.service.StreamSessionValidator streamSessions;
     private final com.shiftsync.notification.service.SseEmitterService sseEmitterService;
 
     @Operation(summary = "Register FCM token for current user")
@@ -42,22 +43,17 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody RegisterTokenRequest request) {
         
-        Optional<UserDeviceToken> existingToken = userDeviceTokenRepository
-                .findByUserIdAndFcmToken(userDetails.getId(), request.getFcmToken());
-
-        if (existingToken.isEmpty()) {
-            User user = userRepository.findById(userDetails.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-            UserDeviceToken newToken = UserDeviceToken.builder()
-                    .user(user)
-                    .fcmToken(request.getFcmToken())
-                    .deviceType(request.getDeviceType())
-                    .build();
-            userDeviceTokenRepository.save(newToken);
-        }
+        userDeviceTokenRepository.registerOwner(UUID.randomUUID(), userDetails.getId(), request.getFcmToken(), request.getDeviceType());
 
         return ResponseEntity.ok().body(Map.of("message", "Token registered successfully"));
+    }
+
+    @DeleteMapping("/users/me/fcm-token")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> unregisterToken(@AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody RegisterTokenRequest request) {
+        userDeviceTokenRepository.deleteByUserIdAndFcmToken(userDetails.getId(), request.getFcmToken());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Send a test notification to yourself")
@@ -133,7 +129,11 @@ public class NotificationController {
     @GetMapping(value = "/users/me/notifications/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("isAuthenticated()")
     public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamNotifications(
+            jakarta.servlet.http.HttpServletRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return sseEmitterService.subscribe(userDetails.getId());
+        String header = request.getHeader("Authorization");
+        String token = header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
+        UUID userId = userDetails.getId();
+        return sseEmitterService.subscribe(userId, () -> streamSessions.isActive(userId, token));
     }
 }

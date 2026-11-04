@@ -214,9 +214,19 @@ Các nhóm kiểm tra quan trọng:
 - Scheduler regression test cho hard constraint, candidate selection, scoring và deterministic ordering.
 - Migration/schema test cho Flyway và unique constraint.
 - Build/package test bằng Maven.
+
+Các kiểm thử Spring Boot sử dụng cấu hình riêng trong `shiftsync-backend/src/test/resources/application.properties`, mặc định kết nối PostgreSQL `shiftsync_test` trên cổng `55432` và Redis trên cổng `56379`. Có thể cấu hình bằng `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_NAME`, `TEST_DB_USER`, `TEST_DB_PASSWORD`, `TEST_REDIS_HOST` và `TEST_REDIS_PORT`. Tên cơ sở dữ liệu phải chứa hậu tố `_test` (có thể theo sau bởi hậu tố bổ sung); máy chủ từ xa chỉ được phép khi chủ động đặt `TEST_ALLOW_REMOTE_DB=true`. Không trỏ kiểm thử tới dữ liệu vận hành. GitHub Actions tạo riêng cơ sở dữ liệu `shiftsync_test`.
 - Replay hoặc A/B test cho các thay đổi thuật toán khi có fixture phù hợp.
 
 ## 16. Khởi chạy nhanh
+
+Trên Windows, chạy backend trong console bằng PowerShell 7 từ thư mục gốc của repo:
+
+```powershell
+.\scripts\run-backend-console.ps1
+```
+
+Log Maven và Spring Boot hiển thị trực tiếp trong cửa sổ đang chạy. Nhấn `Ctrl+C` để dừng backend. Script đọc cấu hình hiện có từ biến môi trường và `shiftsync-backend/.env`; PostgreSQL và Redis cần được khởi động trước.
 
 ```bash
 cd shiftsync-backend

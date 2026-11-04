@@ -69,11 +69,21 @@ class PayrollCalculationServiceTest {
     @Mock
     private com.shiftsync.leave.repository.LeaveRequestRepository leaveRequestRepository;
 
+    @Mock
+    private CompensationRevisionResolver compensationRevisions;
+
+    @Mock private PayrollGlobalInputGuard globalInputGuard;
+
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
 
     @Captor
     private ArgumentCaptor<List<Payroll>> captor;
+
+    @org.junit.jupiter.api.AfterEach
+    void clearSecurityContext() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 
     private Store store;
     private User staff;
@@ -83,39 +93,54 @@ class PayrollCalculationServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(payrollCalculationService,"globalInputGuard",globalInputGuard);
         store = new Store();
         store.setId(UUID.randomUUID());
+        lenient().when(storeRepository.findByIdForUpdate(store.getId())).thenReturn(Optional.of(store));
 
         staff = new User();
         staff.setId(UUID.randomUUID());
         staff.setSystemRole(com.shiftsync.shared.security.SystemRole.STAFF);
 
         employment = new Employment();
+        employment.setId(UUID.randomUUID());
         employment.setUser(staff);
         employment.setStore(store);
         employment.setContractType(ContractType.builder().id(java.util.UUID.randomUUID()).name("PART_TIME").maxWeeklyHours(24).otMultiplier(new java.math.BigDecimal("1.50")).defaultHourlyRate(new java.math.BigDecimal("20.00")).build()); // 24 hours max
         employment.setHourlyRate(new BigDecimal("20.00"));
         employment.setStatus(EmploymentStatus.ACTIVE);
+        employment.setJoinedDate(LocalDate.of(2020, 1, 1));
 
         startDate = LocalDate.of(2023, 10, 1);
         endDate = LocalDate.of(2023, 10, 31);
 
+        lenient().when(compensationRevisions.resolvePayTerms(any(),any(),any(),org.mockito.ArgumentMatchers.nullable(UUID.class),any())).thenAnswer(invocation -> {
+            BigDecimal rate=employment.getHourlyRate();
+            if (rate == null || rate.signum() <= 0) rate=employment.getContractType().getDefaultHourlyRate();
+            if (rate == null || rate.signum() <= 0) throw new com.shiftsync.shared.exception.BusinessException("Thiếu mức lương");
+            return new CompensationRevisionResolver.PayTerms(rate,employment.getContractType().getMaxWeeklyHours(),employment.getContractType().getOtMultiplier());
+        });
         lenient().when(skillRepository.findByStoreId(any())).thenReturn(List.of());
         lenient().when(leaveRequestRepository.findApprovedLeavesInPeriod(any(), any(), any(), any())).thenReturn(List.of());
     }
 
-    @Test
-    void testStandardShift() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"employee", "contract", "missing"})
+    void testStandardShift(String rateSource) {
+        if (!rateSource.equals("employee")) employment.setHourlyRate(null);
+        else employment.getContractType().setDefaultHourlyRate(new BigDecimal("35.00"));
+        if (rateSource.equals("missing")) employment.getContractType().setDefaultHourlyRate(null);
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
+        when(employmentRepository.findPayrollEmployments(eq(store.getId()), eq(com.shiftsync.shared.security.SystemRole.STAFF), any(), any())).thenReturn(List.of(employment));
 
         // Mock Holiday
         when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
 
         // Create a standard shift
         Shift shift = new Shift();
+        shift.setStore(store);
         shift.setId(UUID.randomUUID());
         shift.setShiftDate(LocalDate.of(2023, 10, 2)); // Monday
         shift.setStatus(ShiftStatus.COMPLETED);
@@ -139,6 +164,12 @@ class PayrollCalculationServiceTest {
                 .thenReturn(List.of(att));
 
         // Act
+        if (rateSource.equals("missing")) {
+            org.junit.jupiter.api.Assertions.assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                    () -> payrollCalculationService.generatePayroll(store.getId(), startDate, endDate));
+            verify(payrollRepository, never()).saveAll(any());
+            return;
+        }
         payrollCalculationService.generatePayroll(store.getId(), startDate, endDate);
 
         // Assert
@@ -160,7 +191,7 @@ class PayrollCalculationServiceTest {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
+        when(employmentRepository.findPayrollEmployments(eq(store.getId()), eq(com.shiftsync.shared.security.SystemRole.STAFF), any(), any())).thenReturn(List.of(employment));
         
         // Mock Holiday (Rate: 3.0)
         Holiday holiday = new Holiday();
@@ -170,6 +201,7 @@ class PayrollCalculationServiceTest {
 
         // Create a shift on holiday
         Shift shift = new Shift();
+        shift.setStore(store);
         shift.setId(UUID.randomUUID());
         shift.setShiftDate(LocalDate.of(2023, 10, 2)); // Holiday
         shift.setStatus(ShiftStatus.COMPLETED);
@@ -214,7 +246,7 @@ class PayrollCalculationServiceTest {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
+        when(employmentRepository.findPayrollEmployments(eq(store.getId()), eq(com.shiftsync.shared.security.SystemRole.STAFF), any(), any())).thenReturn(List.of(employment));
         
         // Mock Holiday
         when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
@@ -222,6 +254,7 @@ class PayrollCalculationServiceTest {
         // Part-time MAX = 24h. We simulate a total of 26 hours in one week.
         // Shift 1: 20 hours (Monday to Thursday somehow)
         Shift shift1 = new Shift();
+        shift1.setStore(store);
         shift1.setId(UUID.randomUUID());
         shift1.setShiftDate(LocalDate.of(2023, 10, 2)); // Monday
         shift1.setStatus(ShiftStatus.COMPLETED);
@@ -239,6 +272,7 @@ class PayrollCalculationServiceTest {
 
         // Shift 2: 6 hours (Friday)
         Shift shift2 = new Shift();
+        shift2.setStore(store);
         shift2.setId(UUID.randomUUID());
         shift2.setShiftDate(LocalDate.of(2023, 10, 6)); // Friday, same week
         shift2.setStatus(ShiftStatus.COMPLETED);
@@ -300,7 +334,7 @@ class PayrollCalculationServiceTest {
         when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         when(payrollPeriodRepository.findOverlappingPeriods(store.getId(), startDate, endDate)).thenReturn(java.util.List.of());
         when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
+        when(employmentRepository.findPayrollEmployments(eq(store.getId()), eq(com.shiftsync.shared.security.SystemRole.STAFF), any(), any())).thenReturn(List.of(employment));
         
         // Day 1: Holiday (Rate 3.0), Day 2: Normal (Rate 1.0)
         Holiday holiday = new Holiday();
@@ -310,6 +344,7 @@ class PayrollCalculationServiceTest {
 
         // Create an overnight shift (22:00 to 06:00) starting on holiday
         Shift shift = new Shift();
+        shift.setStore(store);
         shift.setId(UUID.randomUUID());
         shift.setShiftDate(LocalDate.of(2023, 10, 2)); 
         shift.setStatus(ShiftStatus.COMPLETED);
@@ -326,8 +361,8 @@ class PayrollCalculationServiceTest {
         att.setId(UUID.randomUUID());
         att.setShiftAssignment(assignment);
         // 22:00 to 06:00
-        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 22, 0, 0, 0, ZoneOffset.UTC));
-        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 3, 6, 0, 0, 0, ZoneOffset.UTC));
+        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 22, 0, 0, 0, ZoneOffset.ofHours(7)));
+        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 3, 6, 0, 0, 0, ZoneOffset.ofHours(7)));
 
         when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(att));
@@ -359,8 +394,9 @@ class PayrollCalculationServiceTest {
         Store store = new Store();
         store.setId(java.util.UUID.randomUUID());
         period.setStore(store);
+        when(storeRepository.findByIdForUpdate(store.getId())).thenReturn(Optional.of(store));
         
-        when(payrollPeriodRepository.findById(period.getId())).thenReturn(java.util.Optional.of(period));
+        when(payrollPeriodRepository.findByIdForUpdate(period.getId())).thenReturn(java.util.Optional.of(period));
         
         // Mock non-admin authentication
         org.springframework.security.core.Authentication auth = org.mockito.Mockito.mock(org.springframework.security.core.Authentication.class);

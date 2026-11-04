@@ -73,6 +73,11 @@ class PayrollCalculationServicePaidLeaveTest {
     @Mock
     private LeaveRequestRepository leaveRequestRepository;
 
+    @Mock
+    private CompensationRevisionResolver compensationRevisions;
+
+    @Mock private PayrollGlobalInputGuard globalInputGuard;
+
     @InjectMocks
     private PayrollCalculationService payrollCalculationService;
 
@@ -87,6 +92,7 @@ class PayrollCalculationServicePaidLeaveTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(payrollCalculationService,"globalInputGuard",globalInputGuard);
         store = new Store();
         store.setId(UUID.randomUUID());
 
@@ -95,6 +101,7 @@ class PayrollCalculationServicePaidLeaveTest {
         staff.setSystemRole(com.shiftsync.shared.security.SystemRole.STAFF);
 
         employment = new Employment();
+        employment.setId(UUID.randomUUID());
         employment.setUser(staff);
         employment.setStore(store);
         employment.setContractType(ContractType.builder()
@@ -106,6 +113,7 @@ class PayrollCalculationServicePaidLeaveTest {
                 .build());
         employment.setHourlyRate(new BigDecimal("20.00"));
         employment.setStatus(EmploymentStatus.ACTIVE);
+        employment.setJoinedDate(LocalDate.of(2020, 1, 1));
 
         startDate = LocalDate.of(2023, 10, 1);
         endDate = LocalDate.of(2023, 10, 31);
@@ -113,13 +121,20 @@ class PayrollCalculationServicePaidLeaveTest {
         lenient().when(storeRepository.findById(store.getId())).thenReturn(Optional.of(store));
         lenient().when(payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), startDate, endDate)).thenReturn(Optional.empty());
         lenient().when(payrollPeriodRepository.save(any(PayrollPeriod.class))).thenAnswer(i -> i.getArguments()[0]);
-        lenient().when(employmentRepository.findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, com.shiftsync.shared.security.SystemRole.STAFF)).thenReturn(List.of(employment));
+        lenient().when(employmentRepository.findPayrollEmployments(eq(store.getId()), eq(com.shiftsync.shared.security.SystemRole.STAFF), any(), any())).thenReturn(List.of(employment));
         lenient().when(holidayRepository.findByHolidayDateBetween(startDate, endDate)).thenReturn(List.of());
+        lenient().when(compensationRevisions.resolvePayTerms(any(),any(),any(),org.mockito.ArgumentMatchers.nullable(UUID.class),any())).thenAnswer(invocation -> {
+            BigDecimal rate=employment.getHourlyRate();
+            if (rate == null || rate.signum() <= 0) rate=employment.getContractType().getDefaultHourlyRate();
+            if (rate == null || rate.signum() <= 0) throw new com.shiftsync.shared.exception.BusinessException("Thiếu mức lương");
+            return new CompensationRevisionResolver.PayTerms(rate,employment.getContractType().getMaxWeeklyHours(),employment.getContractType().getOtMultiplier());
+        });
         lenient().when(skillRepository.findByStoreId(any())).thenReturn(List.of());
     }
 
     private ShiftAssignment createAssignment(LocalDate date, LocalTime start, LocalTime end) {
         Shift shift = new Shift();
+        shift.setStore(store);
         shift.setId(UUID.randomUUID());
         shift.setShiftDate(date);
         shift.setStartTime(start);
@@ -140,9 +155,41 @@ class PayrollCalculationServicePaidLeaveTest {
                 .store(store)
                 .leaveType(type)
                 .status(status)
+                .assignmentProvenanceComplete(true)
                 .startDate(start)
                 .endDate(end)
                 .build();
+    }
+
+    @Test
+    void legacyPaidLeaveWithoutProvenanceCannotBeSilentlyUnderpaid() {
+        var leave=createLeave(LeaveType.ANNUAL,LeaveStatus.APPROVED,startDate,startDate);
+        leave.setAssignmentProvenanceComplete(false);
+        when(leaveRequestRepository.findApprovedLeavesInPeriod(store.getId(),LeaveStatus.APPROVED,startDate,endDate))
+                .thenReturn(List.of(leave));
+        org.junit.jupiter.api.Assertions.assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                () -> payrollCalculationService.generatePayroll(store.getId(),startDate,endDate));
+        verify(payrollRepository,never()).saveAll(any());
+    }
+
+    @Test
+    void foreignLeavePaysOnlyLinkedSupportAssignment() {
+        LocalDate date=LocalDate.of(2023,10,2);
+        var linked=createAssignment(date,LocalTime.of(9,0),LocalTime.of(13,0));
+        var unrelated=createAssignment(date,LocalTime.of(14,0),LocalTime.of(18,0));
+        linked.setSource(com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING);
+        unrelated.setSource(com.shiftsync.shift.enums.AssignmentSource.WORKFORCE_SHARING);
+        linked.setSupportEmployment(employment); unrelated.setSupportEmployment(employment);
+        var foreign=Store.builder().id(UUID.randomUUID()).build();
+        var leave=createLeave(LeaveType.ANNUAL,LeaveStatus.APPROVED,date,date);
+        leave.setStore(foreign);
+        when(leaveRequestRepository.findSupportLeavesForPayroll(store.getId(),startDate,endDate)).thenReturn(List.of(leave));
+        when(shiftAssignmentRepository.findSupportForPayroll(eq(store.getId()),any(),eq(endDate))).thenReturn(List.of(unrelated));
+        when(shiftAssignmentRepository.findRemovedForLeave(eq(leave.getId()),eq(staff.getId()),eq(store.getId()),any(),eq(date))).thenReturn(List.of(linked));
+        payrollCalculationService.generatePayroll(store.getId(),startDate,endDate);
+        verify(payrollRepository).saveAll(captor.capture());
+        assertEquals(new BigDecimal("4.00"),captor.getValue().get(0).getTotalHours());
+        assertEquals(new BigDecimal("80.00"),captor.getValue().get(0).getTotalAmount());
     }
 
     @Test
@@ -378,8 +425,6 @@ class PayrollCalculationServicePaidLeaveTest {
 
         when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of()); // No active assignments
-        when(shiftAssignmentRepository.findAssignmentForStaffOnDateIncludingDeleted(staff.getId(), date))
-                .thenReturn(Optional.empty()); // No unassigned/deleted shift either
         when(attendanceRepository.findByShiftAssignment_Shift_Store_IdAndShiftAssignment_Shift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of());
         when(leaveRequestRepository.findApprovedLeavesInPeriod(store.getId(), LeaveStatus.APPROVED, startDate, endDate))
@@ -469,8 +514,8 @@ class PayrollCalculationServicePaidLeaveTest {
         Attendance att = new Attendance();
         att.setId(UUID.randomUUID());
         att.setShiftAssignment(sa);
-        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 8, 0, 0, 0, ZoneOffset.UTC));
-        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 2, 12, 0, 0, 0, ZoneOffset.UTC)); // 4h worked
+        att.setCheckInTime(OffsetDateTime.of(2023, 10, 2, 8, 0, 0, 0, ZoneOffset.ofHours(7)));
+        att.setCheckOutTime(OffsetDateTime.of(2023, 10, 2, 12, 0, 0, 0, ZoneOffset.ofHours(7))); // 4h worked
 
         when(shiftAssignmentRepository.findByShift_Store_IdAndShift_ShiftDateBetween(store.getId(), startDate, endDate))
                 .thenReturn(List.of(sa));

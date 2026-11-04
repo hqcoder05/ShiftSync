@@ -10,6 +10,12 @@ import org.springframework.data.repository.query.Param;
 import java.util.UUID;
 
 public interface StoreRepository extends JpaRepository<Store, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Store s WHERE s.id = :id")
+    java.util.Optional<Store> findByIdForUpdate(@Param("id") UUID id);
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = "UPDATE store SET payroll_lock_version=payroll_lock_version+1 WHERE id=:id", nativeQuery = true)
+    int bumpPayrollLockVersion(@Param("id") UUID id);
     @Query(value = "SELECT EXISTS (SELECT 1 FROM employment WHERE store_id = :storeId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveEmployees(@Param("storeId") UUID storeId);
 

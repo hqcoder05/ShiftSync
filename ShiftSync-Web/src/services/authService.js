@@ -1,6 +1,11 @@
 import api from './api';
+import { waitForFcmRegistration } from './notificationService';
+
+let loggingOut = false;
+export const isLoggingOut = () => loggingOut;
 
 export const login = async (email, password) => {
+  loggingOut = false;
   const response = await api.post('/auth/login', { email, password });
   
   if (response.data) {
@@ -29,7 +34,18 @@ export const refreshToken = (token) => {
 };
 
 export const logout = async () => {
+  loggingOut = true;
+  try { await waitForFcmRegistration(); } catch (_) { /* Registration did not succeed. */ }
   const rt = localStorage.getItem('refreshToken');
+  const fcmToken = sessionStorage.getItem('fcmToken');
+  if (fcmToken) {
+    try {
+      await api.delete('/users/me/fcm-token', { data: { fcmToken } });
+      sessionStorage.removeItem('fcmToken');
+    } catch (e) {
+      console.warn('Không thể hủy đăng ký thông báo thiết bị:', e.message);
+    }
+  }
   if (rt) {
     try {
       await api.post('/auth/logout', { refreshToken: rt });

@@ -46,18 +46,18 @@ class SpatialPlacementAuditTest {
         when(shifts.findById(shift.getId())).thenReturn(Optional.of(shift));
         when(zones.findByStoreId(store.getId())).thenReturn(new ArrayList<>(candidates));
         when(assignments.findByShiftId(shift.getId())).thenReturn(staff);
-        return new SpatialAllocationService(zones,mock(StoreLayoutRepository.class),stations,shifts,assignments,staffSkills,skills);
+        return com.shiftsync.support.TestStoreLock.installSpatial(new SpatialAllocationService(zones,mock(StoreLayoutRepository.class),stations,shifts,assignments,staffSkills,skills));
     }
     ShiftAssignmentService assignmentService() {
         when(shifts.findByIdAndStoreId(shift.getId(),store.getId())).thenReturn(Optional.of(shift));
         when(zones.findById(oldZone.getId())).thenReturn(Optional.of(oldZone));
         when(zones.findById(newZone.getId())).thenReturn(Optional.of(newZone));
         when(assignments.save(any())).thenAnswer(call->call.getArgument(0));
-        return new ShiftAssignmentService(shifts,assignments,mock(EmploymentRepository.class),mock(UserRepository.class),
-                mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class),null,null,staffSkills,zones,skills,null);
+        return com.shiftsync.support.TestStoreLock.install(new ShiftAssignmentService(shifts,assignments,mock(EmploymentRepository.class),mock(UserRepository.class),
+                mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class),null,null,staffSkills,zones,skills,null));
     }
 
-    @Test void zoneSwapKeepsBothWorkstationsBoundToTheOriginalZones() {
+    @Test void zoneSwapClearsWorkstationsFromOriginalZones() {
         var service=assignmentService();var a=worker();var b=worker();
         a.setZone(oldZone);a.setWorkstation(station(oldZone,1,true));
         b.setZone(newZone);b.setWorkstation(station(newZone,1,true));
@@ -65,36 +65,36 @@ class SpatialPlacementAuditTest {
         var result=service.swapStaffZones(store.getId(),shift.getId(),ShiftZoneSwapRequest.builder()
                 .staffAId(a.getStaff().getId()).staffBId(b.getStaff().getId()).build());
         assertEquals(newZone.getId(),result.getAssignmentA().getZoneId());
-        assertEquals(oldZone.getId(),a.getWorkstation().getZone().getId());
+        assertNull(a.getWorkstation());
         assertEquals(oldZone.getId(),result.getAssignmentB().getZoneId());
-        assertEquals(newZone.getId(),b.getWorkstation().getZone().getId());
+        assertNull(b.getWorkstation());
         verify(assignments).save(a);verify(assignments).save(b);
     }
 
-    @Test void allocatorMovesZoneButRetainsOldWorkstationWhenNoNewStationIsSpecified() {
+    @Test void allocatorMovesZoneAndClearsOldWorkstation() {
         oldZone.setCapacity(0);
         var a=worker();a.setZone(oldZone);a.setWorkstation(station(oldZone,1,true));
         var result=allocator(List.of(oldZone,newZone),List.of(a)).allocateZonesForShift(store.getId(),shift.getId());
         assertEquals(1,result.getAllocatedStaffCount());
         assertEquals(newZone.getId(),a.getZone().getId());
-        assertEquals(oldZone.getId(),a.getWorkstation().getZone().getId());
+        assertNull(a.getWorkstation());
         verify(assignments).saveAll(List.of(a));
     }
 
-    @Test void allocatorExceedsExplicitWorkstationCapacityWhileZoneHasRoom() {
+    @Test void allocatorRespectsExplicitWorkstationCapacity() {
         var ws=station(newZone,1,true);var a=worker();var b=worker();
         targetWorkstation(ws,a,b);
         var result=allocator(List.of(newZone),List.of(a,b)).allocateZonesForShift(store.getId(),shift.getId());
-        assertEquals(2,result.getAllocatedStaffCount());
-        assertSame(ws,a.getWorkstation());assertSame(ws,b.getWorkstation());
+        assertEquals(1,result.getAllocatedStaffCount());
+        assertSame(ws,a.getWorkstation());assertNull(b.getWorkstation());
         assertEquals(1,ws.getCapacity());
     }
 
-    @Test void allocatorAssignsAnExplicitlyInactiveWorkstation() {
+    @Test void allocatorRejectsAnExplicitlyInactiveWorkstation() {
         var ws=station(newZone,1,false);var a=worker();targetWorkstation(ws,a);
         var result=allocator(List.of(newZone),List.of(a)).allocateZonesForShift(store.getId(),shift.getId());
-        assertEquals(1,result.getAllocatedStaffCount());
-        assertSame(ws,a.getWorkstation());assertFalse(ws.getIsActive());
+        assertEquals(0,result.getAllocatedStaffCount());
+        assertNull(a.getWorkstation());assertFalse(ws.getIsActive());
     }
 
     void targetWorkstation(Workstation ws,ShiftAssignment... workers) {

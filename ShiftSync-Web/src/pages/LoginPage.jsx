@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/authService';
+import { login, isLoggingOut } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
 import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
 import { requestFcmToken } from '../config/firebase';
@@ -92,8 +92,10 @@ export default function LoginPage() {
       setMascotStatus('success');
       // Xin quyền và lấy FCM Token gửi lên Backend ngầm
       requestFcmToken().then((fcmToken) => {
-        if (fcmToken) {
-          registerFcmToken(fcmToken).catch((e) => console.log('[FCM Web Register Error]:', e));
+        if (fcmToken && !isLoggingOut() && localStorage.getItem('accessToken') === token) {
+          registerFcmToken(fcmToken).then(() => {
+            if (localStorage.getItem('accessToken') === token) sessionStorage.setItem('fcmToken', fcmToken);
+          }).catch((e) => console.log('[FCM Web Register Error]:', e));
         }
       }).catch((e) => console.log('[FCM Web Permission Error]:', e));
 

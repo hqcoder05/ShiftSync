@@ -1,0 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=com.shiftsync.support.TestDatabaseGuard
+org.springframework.context.ApplicationContextInitializer=com.shiftsync.support.TestDatabaseContextGuard

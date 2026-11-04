@@ -28,12 +28,15 @@ public class SchedulerConfigurationControllerTest {
     @Mock
     private SchedulerConfigurationRepository repository;
 
+    @Mock private com.shiftsync.store.repository.StoreRepository storeRepository;
+
     @InjectMocks
     private SchedulerConfigurationController controller;
 
     @Test
     public void testGetConfig_WhenExists_ReturnsExistingConfig() {
         UUID storeId = UUID.randomUUID();
+        when(storeRepository.existsById(storeId)).thenReturn(true);
         SchedulerConfiguration config = SchedulerConfiguration.builder()
                 .id(UUID.randomUUID())
                 .storeId(storeId)
@@ -57,6 +60,7 @@ public class SchedulerConfigurationControllerTest {
     @Test
     public void testGetConfig_WhenNotExists_ReturnsDefaultConfig() {
         UUID storeId = UUID.randomUUID();
+        when(storeRepository.existsById(storeId)).thenReturn(true);
         when(repository.findByStoreId(storeId)).thenReturn(Optional.empty());
 
         ResponseEntity<SchedulerConfigurationDTO> response = controller.getConfig(storeId);

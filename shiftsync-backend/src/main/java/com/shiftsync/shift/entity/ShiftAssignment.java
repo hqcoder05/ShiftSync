@@ -62,6 +62,10 @@ public class ShiftAssignment {
     @Builder.Default
     private AssignmentSource source = AssignmentSource.MANUAL;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "support_employment_id")
+    private com.shiftsync.employment.entity.Employment supportEmployment;
+
     @Column(name = "assigned_at", nullable = false, updatable = false)
     private OffsetDateTime assignedAt;
 

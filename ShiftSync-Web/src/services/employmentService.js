@@ -9,5 +9,8 @@ export const getStaffByStore = (storeId, page = 0, size = 20) =>
 export const removeStaffFromStore = (storeId, staffId) =>
   api.delete(`/stores/${storeId}/staff/${staffId}`);
 
+export const updateEmployment = (storeId, staffId, data) =>
+  api.put(`/stores/${storeId}/staff/${staffId}`, data);
+
 export const getStoresByStaff = (staffId) =>
   api.get(`/users/${staffId}/stores`);

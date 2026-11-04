@@ -67,11 +67,11 @@ public class AuthService {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             User user = userDetails.getUser();
 
-            String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getSystemRole().name());
+            String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getSystemRole().name(), user.getCredentialVersion());
             String refreshToken = UUID.randomUUID().toString();
 
             // Store refresh token in Redis with a TTL of 7 days
-            redisTemplate.opsForValue().set("refresh_token:" + refreshToken, "uid:" + user.getId(), java.time.Duration.ofDays(7));
+            redisTemplate.opsForValue().set("refresh_token:" + refreshToken, "uid:" + user.getId() + ":v:" + user.getCredentialVersion(), java.time.Duration.ofDays(7));
             
             // Track initial refresh token in user's active tokens set (AUTH-003 fix)
             redisTemplate.opsForSet().add("user_refresh_tokens:" + user.getId(), refreshToken);
@@ -99,9 +99,13 @@ public class AuthService {
 
         String identity = emailObj.toString();
         UUID userId;
+        long credentialVersion;
         try {
             if (!identity.startsWith("uid:")) throw new IllegalArgumentException();
-            userId = UUID.fromString(identity.substring(4));
+            String[] parts = identity.split(":", -1);
+            if (parts.length != 4 || !"v".equals(parts[2])) throw new IllegalArgumentException();
+            userId = UUID.fromString(parts[1]);
+            credentialVersion = Long.parseLong(parts[3]);
         } catch (IllegalArgumentException e) {
             throw new BusinessException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
         }
@@ -111,13 +115,16 @@ public class AuthService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("User associated with token not found", HttpStatus.UNAUTHORIZED));
+        if (user.getCredentialVersion() != credentialVersion) {
+            throw new BusinessException("Phiên đăng nhập đã hết hiệu lực", HttpStatus.UNAUTHORIZED);
+        }
 
         // Generate new token pair
-        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getSystemRole().name());
+        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getSystemRole().name(), credentialVersion);
         String newRefreshToken = UUID.randomUUID().toString();
 
         // Store new refresh token in Redis
-        redisTemplate.opsForValue().set("refresh_token:" + newRefreshToken, "uid:" + userId, java.time.Duration.ofDays(7));
+        redisTemplate.opsForValue().set("refresh_token:" + newRefreshToken, "uid:" + userId + ":v:" + credentialVersion, java.time.Duration.ofDays(7));
         redisTemplate.opsForSet().add("user_refresh_tokens:" + userId, newRefreshToken);
         redisTemplate.expire("user_refresh_tokens:" + userId, java.time.Duration.ofDays(7));
 
@@ -146,7 +153,7 @@ public class AuthService {
             Object emailObj = redisTemplate.opsForValue().getAndDelete(refreshTokenKey);
             if (emailObj != null) {
                 String identity = emailObj.toString();
-                if (identity.startsWith("uid:")) identity = identity.substring(4);
+                if (identity.startsWith("uid:")) identity = identity.substring(4).split(":", 2)[0];
                 redisTemplate.opsForSet().remove("user_refresh_tokens:" + identity, refreshToken);
             }
         }

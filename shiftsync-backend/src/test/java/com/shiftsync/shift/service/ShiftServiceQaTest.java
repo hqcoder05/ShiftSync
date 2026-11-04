@@ -62,10 +62,12 @@ class ShiftServiceQaTest {
         when(shiftAssignmentRepository.findByShiftId(shiftId)).thenReturn(Collections.singletonList(sa));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
 
+        var stores=mock(com.shiftsync.store.repository.StoreRepository.class);
+        when(stores.findByIdForUpdate(storeId)).thenReturn(Optional.of(store));
         ShiftService serviceToTest = new ShiftService(
             mock(com.shiftsync.audit.service.AuditLogService.class),
             shiftRepository,
-            mock(com.shiftsync.store.repository.StoreRepository.class),
+            stores,
             mock(com.shiftsync.store.repository.StoreConfigurationRepository.class),
             mock(com.shiftsync.shift.repository.ShiftTemplateRepository.class),
             mock(com.shiftsync.skill.repository.SkillRepository.class),

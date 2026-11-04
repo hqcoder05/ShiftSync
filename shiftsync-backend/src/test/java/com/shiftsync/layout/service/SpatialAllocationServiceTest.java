@@ -60,6 +60,7 @@ public class SpatialAllocationServiceTest {
 
     @BeforeEach
     void setUp() {
+        com.shiftsync.support.TestStoreLock.installSpatial(spatialAllocationService);
         store = new Store();
         store.setId(UUID.randomUUID());
 

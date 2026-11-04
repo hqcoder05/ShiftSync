@@ -47,7 +47,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-shiftsync-dev-secret-key-change-in-production-min-32-chars!!}
+      JWT_SECRET: ${JWT_SECRET:?Cần đặt JWT_SECRET trong môi trường hoặc tệp .env ở thư mục gốc}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
     depends_on:
       postgres:

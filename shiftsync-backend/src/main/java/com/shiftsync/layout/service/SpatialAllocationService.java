@@ -38,6 +38,10 @@ public class SpatialAllocationService {
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final StaffSkillRepository staffSkillRepository;
     private final SkillRepository skillRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriods;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.store.repository.StoreRepository payrollStores;
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE, rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
     public SpatialAllocationResultDto allocateZonesForShift(UUID shiftId) {
@@ -53,6 +57,27 @@ public class SpatialAllocationService {
 
         if (storeId != null && !shift.getStore().getId().equals(storeId)) {
             throw new BusinessException("Shift does not belong to the requested store", HttpStatus.FORBIDDEN);
+        }
+
+        Set<UUID> affectedStores = new TreeSet<>();
+        affectedStores.add(shift.getStore().getId());
+        affectedStores.addAll(shiftAssignmentRepository.findSupportPayrollStoresForShift(shiftId));
+        for (UUID affectedStore : affectedStores) {
+            payrollStores.findByIdForUpdate(affectedStore)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+        }
+        boolean locked = false;
+        for (UUID affectedStore : affectedStores) {
+            locked |= isPayrollDateLocked(affectedStore, shift.getShiftDate());
+            if (shift.getStartTime() != null && shift.getEndTime() != null
+                    && shift.getEndTime().isBefore(shift.getStartTime())
+                    && !shift.getEndTime().equals(java.time.LocalTime.MIDNIGHT)) {
+                locked |= isPayrollDateLocked(affectedStore, shift.getShiftDate().plusDays(1));
+            }
+        }
+        if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.COMPLETED
+                || shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED || locked) {
+            throw new BusinessException("Không thể thay đổi phân bổ của ca đã kết thúc, bị hủy hoặc khóa lương", HttpStatus.CONFLICT);
         }
 
         List<StoreZone> allZones = storeZoneRepository.findByStoreId(shift.getStore().getId());
@@ -120,6 +145,7 @@ public class SpatialAllocationService {
         java.util.Set<UUID> allSkillIds = staffSkillMap.values().stream().flatMap(java.util.List::stream).map(StaffSkill::getSkillId).collect(java.util.stream.Collectors.toSet());
         java.util.Map<UUID, Skill> skillMap = skillRepository.findAllById(allSkillIds).stream().collect(java.util.stream.Collectors.toMap(Skill::getId, s -> s));
 
+        Map<UUID, Integer> workstationOccupancy = new HashMap<>();
         for (ShiftAssignment assignment : assignments) {
             StoreZone chosenZone = null;
             Workstation chosenWs = null;
@@ -137,13 +163,23 @@ public class SpatialAllocationService {
                     }
                 }
                 chosenWs = skillTargetWsMap.get(assignment.getRequiredSkillId());
+                if (chosenWs != null && (chosenZone == null || !Boolean.TRUE.equals(chosenWs.getIsActive())
+                        || chosenWs.getZone() == null || !chosenZone.getId().equals(chosenWs.getZone().getId())
+                        || chosenWs.getStore() == null || !shift.getStore().getId().equals(chosenWs.getStore().getId())
+                        || workstationOccupancy.getOrDefault(chosenWs.getId(), 0) >= chosenWs.getCapacity())) {
+                    assignment.setZone(null);
+                    assignment.setWorkstation(null);
+                    unallocatedCount++;
+                    continue;
+                }
             }
 
             // 1b. Semantic skill matching based on staff's skills (e.g. Barista -> Barista Counter, Cashier -> POS)
             if (chosenZone == null && assignment.getStaff() != null) {
-                List<StaffSkill> staffSkills = staffSkillRepository.findByStaffId(assignment.getStaff().getId());
+                List<StaffSkill> staffSkills = staffSkillMap.getOrDefault(assignment.getStaff().getId(), List.of());
                 for (StaffSkill ss : staffSkills) {
-                    Skill sk = skillRepository.findById(ss.getSkillId()).orElse(null);
+                    if (ss.getExpirationDate() != null && ss.getExpirationDate().isBefore(shift.getShiftDate())) continue;
+                    Skill sk = skillMap.get(ss.getSkillId());
                     if (sk != null) {
                         String sName = sk.getName().toLowerCase();
                         var match = candidates.stream()
@@ -168,9 +204,8 @@ public class SpatialAllocationService {
             
             if (chosenZone != null) {
                 assignment.setZone(chosenZone);
-                if (chosenWs != null) {
-                    assignment.setWorkstation(chosenWs);
-                }
+                assignment.setWorkstation(chosenWs);
+                if (chosenWs != null) workstationOccupancy.merge(chosenWs.getId(), 1, Integer::sum);
                 selectedZones.add(chosenZone);
                 allocatedCount++;
 
@@ -220,7 +255,7 @@ public class SpatialAllocationService {
             }
         }
 
-        log.info("Spatial allocation for shift {}: status={}, allocated={}, unallocated={}, occupiedZones={}/{}",
+        log.info("Phân bổ không gian cho ca {}: trạng thái={}, đã phân bổ={}, chưa phân bổ={}, khu vực đã dùng={}/{}",
                 shiftId, status, allocatedCount, unallocatedCount, occupiedList.size(), allZones.size());
 
         return SpatialAllocationResultDto.builder()
@@ -237,6 +272,12 @@ public class SpatialAllocationService {
                 .occupiedZones(occupiedList)
                 .unoccupiedZones(unoccupiedList)
                 .build();
+    }
+
+    private boolean isPayrollDateLocked(UUID storeId, java.time.LocalDate date) {
+        return payrollPeriods.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                storeId, date, date, List.of(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED,
+                        com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID));
     }
 
     private SpatialAllocationResultDto.ZoneOccupancyDetailDto mapToZoneDetail(StoreZone zone, int count) {

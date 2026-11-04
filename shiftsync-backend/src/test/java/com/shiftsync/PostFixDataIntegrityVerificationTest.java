@@ -68,6 +68,7 @@ public class PostFixDataIntegrityVerificationTest {
     @Autowired private AttendanceService attendanceService;
     @Autowired private WorkforceRequestService workforceRequestService;
     @Autowired private SkillRepository skillRepository;
+    @Autowired private com.shiftsync.shift.repository.ShiftSkillRequirementRepository requirementRepository;
     @Autowired private NotificationService notificationService;
     @Autowired private TransactionTemplate transactionTemplate;
 
@@ -229,6 +230,8 @@ public class PostFixDataIntegrityVerificationTest {
 
         Skill skill = Skill.builder().name("Barista").description("Makes coffee").store(finalStoreA).build();
         final Skill finalSkill = skillRepository.save(skill);
+        requirementRepository.save(com.shiftsync.shift.entity.ShiftSkillRequirement.builder()
+                .shift(finalShift).skill(finalSkill).requiredCount(3).build());
 
         final WorkforceRequestCreateDTO req = new WorkforceRequestCreateDTO();
         req.setTargetStoreId(storeBId);

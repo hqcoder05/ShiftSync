@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
-/** Passing characterization: real controller authorization and balance service, mock storage. */
+/** Tests real controller authorization and balance service with mocked storage. */
 @SpringJUnitConfig(LeaveBalanceAccessAuditTest.Config.class)
 class LeaveBalanceAccessAuditTest {
     @Configuration(proxyBeanMethods=false) @EnableMethodSecurity
@@ -38,7 +38,7 @@ class LeaveBalanceAccessAuditTest {
     @Autowired LeaveRequestController controller;
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
 
-    @Test void staffCanSeedFullTimeLeaveBalanceAtForeignStoreBeforeJoiningPartTime() {
+    @Test void staffCannotSeedBalanceBeforeJoiningStore() {
         var user=User.builder().id(UUID.randomUUID()).fullName("Audit staff").systemRole(SystemRole.STAFF).build();
         var principal=new CustomUserDetails(user);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
@@ -53,20 +53,18 @@ class LeaveBalanceAccessAuditTest {
         when(balances.save(any())).thenAnswer(call->{LeaveBalance row=call.getArgument(0);
             row.setId(UUID.randomUUID());saved.put(row.getStore().getId(),row);return row;});
         when(employment.findByUserIdAndStoreIdAndStatus(user.getId(),foreign.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of());
-        // Actor has no employment in foreign: role-only controller guard still permits this GET.
-        var seeded=controller.getMyLeaveBalance(foreign.getId(),2030,principal);
-        assertEquals(200,seeded.getStatusCode().value());
-        assertEquals("Foreign store",seeded.getBody().getStoreName());
-        assertEquals(12,seeded.getBody().getAnnualEntitlement());
-        assertTrue(saved.containsKey(foreign.getId()));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                () -> controller.getMyLeaveBalance(foreign.getId(),2030,principal));
+        assertFalse(saved.containsKey(foreign.getId()));
 
-        var partTime=Employment.builder().user(user).contractType(ContractType.builder().name("PART_TIME").build()).build();
+        var partTime=Employment.builder().user(user).contractType(ContractType.builder().name("PART_TIME ").build()).build();
+        when(employment.existsByUserIdAndStoreIdAndStatus(user.getId(),foreign.getId(),EmploymentStatus.ACTIVE)).thenReturn(true);
+        when(employment.existsByUserIdAndStoreIdAndStatus(user.getId(),control.getId(),EmploymentStatus.ACTIVE)).thenReturn(true);
         when(employment.findByUserIdAndStoreIdAndStatus(user.getId(),foreign.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of(partTime));
         when(employment.findByUserIdAndStoreIdAndStatus(user.getId(),control.getId(),EmploymentStatus.ACTIVE)).thenReturn(List.of(partTime));
         var afterJoining=controller.getMyLeaveBalance(foreign.getId(),2030,principal).getBody();
         var fresh=controller.getMyLeaveBalance(control.getId(),2030,principal).getBody();
-        assertEquals(12,afterJoining.getAnnualEntitlement());
+        assertEquals(6,afterJoining.getAnnualEntitlement());
         assertEquals(6,fresh.getAnnualEntitlement());
-        assertEquals(seeded.getBody().getId(),afterJoining.getId());
     }
 }

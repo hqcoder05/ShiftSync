@@ -25,7 +25,7 @@ final class ShiftTimeRange {
     }
 
     static double hours(Shift shift) {
-        return Duration.between(start(shift), end(shift)).toMinutes() / 60.0;
+        return Duration.between(start(shift), end(shift)).toNanos() / 3_600_000_000_000.0;
     }
 
     static boolean hasRequiredRest(List<Shift> schedule, Shift addition, int restHours) {
@@ -45,7 +45,7 @@ final class ShiftTimeRange {
     }
 
     static double hoursInWeek(Shift shift, LocalDate dateInWeek) {
-        return minutesInWeek(shift, dateInWeek) / 60.0;
+        return nanosInWeek(shift, dateInWeek) / 3_600_000_000_000.0;
     }
 
     static double hoursInMonth(Shift shift, java.time.YearMonth month) {
@@ -54,20 +54,29 @@ final class ShiftTimeRange {
         return to.isAfter(from) ? Duration.between(from,to).toMinutes()/60.0 : 0.0;
     }
 
-    private static long minutesInWeek(Shift shift, LocalDate dateInWeek) {
+    private static long nanosInWeek(Shift shift, LocalDate dateInWeek) {
         var weekStart = weekStart(dateInWeek).atStartOfDay();
         var weekEnd = weekStart.plusWeeks(1);
         var from = start(shift).isAfter(weekStart) ? start(shift) : weekStart;
         var to = end(shift).isBefore(weekEnd) ? end(shift) : weekEnd;
-        return to.isAfter(from) ? Duration.between(from, to).toMinutes() : 0;
+        return to.isAfter(from) ? Duration.between(from, to).toNanos() : 0;
     }
 
     static boolean fitsWeeklyLimit(List<Shift> schedule, Shift addition, double maxHours) {
+        return fitsWeeklyLimit(schedule, addition, ignored -> maxHours);
+    }
+
+    static boolean fitsWeeklyLimit(List<Shift> schedule, Shift addition, java.util.function.ToDoubleFunction<LocalDate> maxHoursByDay) {
         LocalDate lastWeek = weekStart(ShiftDateRange.lastWorkingDate(addition));
         for (LocalDate week = weekStart(addition.getShiftDate()); !week.isAfter(lastWeek); week = week.plusWeeks(1)) {
-            long totalMinutes = minutesInWeek(addition, week);
-            for (Shift shift : schedule) totalMinutes += minutesInWeek(shift, week);
-            if (totalMinutes > maxHours * 60) return false;
+            long totalNanos = nanosInWeek(addition, week);
+            for (Shift shift : schedule) totalNanos += nanosInWeek(shift, week);
+            LocalDate first = addition.getShiftDate().isAfter(week) ? addition.getShiftDate() : week;
+            LocalDate last = ShiftDateRange.lastWorkingDate(addition).isBefore(week.plusDays(6))
+                    ? ShiftDateRange.lastWorkingDate(addition) : week.plusDays(6);
+            for (LocalDate day = first; !day.isAfter(last); day = day.plusDays(1)) {
+                if (totalNanos > maxHoursByDay.applyAsDouble(day) * 3_600_000_000_000.0) return false;
+            }
         }
         return true;
     }

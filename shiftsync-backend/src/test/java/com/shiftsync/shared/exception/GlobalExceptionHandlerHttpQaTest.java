@@ -96,7 +96,20 @@ public class GlobalExceptionHandlerHttpQaTest {
                 .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.message").exists());
+                .andExpect(jsonPath("$.message").value("Dữ liệu yêu cầu không hợp lệ"));
+    }
+
+    @Test
+    void globalValidationErrorsDoNotBecomeServerErrors() throws Exception {
+        var result = new org.springframework.validation.BeanPropertyBindingResult(new DummyDto(), "request");
+        result.reject("range", "Khoảng thời gian không hợp lệ");
+        var method = DummyController.class.getMethod("testBody", DummyDto.class);
+        var ex = new org.springframework.web.bind.MethodArgumentNotValidException(
+                new org.springframework.core.MethodParameter(method, 0), result);
+        var response = new GlobalExceptionHandler().handleValidationExceptions(ex);
+        org.junit.jupiter.api.Assertions.assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, response.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertEquals("Khoảng thời gian không hợp lệ",
+                ((java.util.Map<?, ?>) response.getBody().get("details")).get("request"));
     }
 
     @Test
@@ -106,6 +119,6 @@ public class GlobalExceptionHandlerHttpQaTest {
                 .content("{malformed_json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("Malformed JSON request"));
+                .andExpect(jsonPath("$.message").value("Dữ liệu JSON không hợp lệ"));
     }
 }

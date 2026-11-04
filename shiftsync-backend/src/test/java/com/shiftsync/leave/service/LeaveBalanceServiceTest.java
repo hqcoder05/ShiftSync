@@ -74,6 +74,7 @@ class LeaveBalanceServiceTest {
 
     @Test
     void testGetOrCreateBalance_ExistingBalance() {
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         LeaveBalance existing = LeaveBalance.builder()
                 .id(UUID.randomUUID())
                 .staff(staff)
@@ -96,6 +97,7 @@ class LeaveBalanceServiceTest {
 
     @Test
     void testGetOrCreateBalance_NewBalance_FullTime() {
+        when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
         when(leaveBalanceRepository.findByStaffIdAndStoreIdAndYear(staffId, storeId, 2026))
                 .thenReturn(Optional.empty());
         when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));

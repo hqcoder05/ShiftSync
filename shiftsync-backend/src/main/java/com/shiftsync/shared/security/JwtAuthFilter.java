@@ -53,16 +53,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String jwt = parseJwt(request);
             if (jwt != null && jwtTokenProvider.validateToken(jwt)) {
                 if (jwtTokenProvider.isQrAttendanceToken(jwt)) {
-                    log.warn("QR Attendance token cannot be used for authentication");
+                    log.warn("Không thể dùng mã QR chấm công để xác thực");
                     filterChain.doFilter(request, response);
                     return;
                 }
 
                 // Check if token is blacklisted (logged out)
                 if (Boolean.TRUE.equals(redisTemplate.hasKey("blacklist:" + jwt))) {
-                    log.warn("Token is blacklisted (user logged out)");
+                    log.warn("Mã xác thực đã bị thu hồi (người dùng đã đăng xuất)");
                 } else {
                     UserDetails userDetails = customUserDetailsService.loadUserById(jwtTokenProvider.getUserIdFromToken(jwt));
+                    if (!(userDetails instanceof CustomUserDetails details)
+                            || details.getUser().getCredentialVersion() != jwtTokenProvider.getCredentialVersion(jwt)) {
+                        throw new JwtException("Token credentials have changed");
+                    }
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
@@ -72,7 +76,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 }
             }
         } catch (JwtException | UsernameNotFoundException e) {
-            log.warn("JWT authentication failed: {}", e.getMessage());
+            log.warn("Xác thực JWT thất bại: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);

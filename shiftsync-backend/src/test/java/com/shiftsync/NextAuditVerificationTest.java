@@ -129,7 +129,7 @@ public class NextAuditVerificationTest {
         payrollCalculationService.generatePayroll(store.getId(), periodStart, periodEnd);
 
         // Verify result
-        PayrollPeriod period = payrollPeriodRepository.findOverlappingPeriods(store.getId(), periodStart, periodEnd).get(0);
+        PayrollPeriod period = payrollPeriodRepository.findByStoreIdAndStartDateAndEndDate(store.getId(), periodStart, periodEnd).orElseThrow();
         List<Payroll> payrolls = payrollRepository.findByPayrollPeriodId(period.getId());
         
         Payroll targetPayroll = payrolls.stream().filter(p -> p.getStaff().getId().equals(emp.getId())).findFirst().orElseThrow();

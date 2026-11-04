@@ -53,6 +53,7 @@ public class MarketplaceServiceTest {
     @Mock private StaffSkillRepository staffSkillRepository;
     @Mock private NotificationService notificationService;
     @Mock private TransactionTemplate transactionTemplate;
+    @Mock private com.shiftsync.payroll.repository.PayrollPeriodRepository payrollPeriods;
     @Mock private RLock rLock;
 
     @InjectMocks
@@ -66,6 +67,7 @@ public class MarketplaceServiceTest {
 
     @BeforeEach
     void setUp() {
+        com.shiftsync.support.TestStoreLock.installMarketplace(marketplaceService);
         storeId = UUID.randomUUID();
         shiftId = UUID.randomUUID();
         staffId = UUID.randomUUID();

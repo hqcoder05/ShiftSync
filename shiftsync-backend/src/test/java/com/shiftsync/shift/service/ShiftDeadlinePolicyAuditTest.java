@@ -37,8 +37,9 @@ class ShiftDeadlinePolicyAuditTest {
                 mock(ShiftAssignmentRepository.class),null,mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class),null,zones,null);
         return new Creator(service,repository,saved);
     }
-    @Test void bulkAndQuotaCreationIgnoreConfiguredDeadlineAndQuotaAlsoUsesUtcWallTime() {
+    @Test void allCreationPathsApplyConfiguredLocalDeadline() {
         when(stores.findById(store.getId())).thenReturn(Optional.of(store));
+        when(stores.findByIdForUpdate(store.getId())).thenReturn(Optional.of(store));
         when(configs.findByStoreId(store.getId())).thenReturn(Optional.of(StoreConfiguration.builder()
                 .storeId(store.getId()).availabilityDeadlineHours(6).build()));
         when(skills.findByStoreId(store.getId())).thenReturn(List.of(role));
@@ -56,15 +57,16 @@ class ShiftDeadlinePolicyAuditTest {
         var demand=new BulkDemandPlanningRequest();demand.setScope("DAY");demand.setTargetDate(date);demand.setShifts(List.of(config));
         bulk.service.saveBulkDemandPlanning(store.getId(),demand);
         var bulkDeadline=bulk.saved.get(0).getAvailabilityDeadline();
-        assertEquals(18,Duration.between(bulkDeadline.toInstant(),directDeadline.toInstant()).toHours());
+        assertEquals(directDeadline.toInstant(),bulkDeadline.toInstant());
 
         var quota=creator();
-        new HeadcountQuotaService(stores,skills,quota.repository,zones,mock(ShiftAssignmentRepository.class),mock(PositionNormOverrideRepository.class))
+        var revisions=mock(com.shiftsync.payroll.service.CompensationRevisionResolver.class);
+        when(revisions.requireAt(eq("skill"),eq(role.getId()),any(),eq(com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms.class)))
+                .thenReturn(new com.shiftsync.payroll.service.CompensationRevisionResolver.SkillTerms(java.math.BigDecimal.valueOf(26000)));
+        new HeadcountQuotaService(stores,skills,quota.repository,zones,mock(ShiftAssignmentRepository.class),mock(PositionNormOverrideRepository.class),mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class),configs,revisions)
                 .autoFillQuotas(AutoFillQuotaRequest.builder().branchId(store.getId()).scope("DAY").date(date).build());
         var morning=quota.saved.stream().filter(s->s.getStartTime().equals(LocalTime.of(8,0))).findFirst().orElseThrow();
         var quotaDeadline=morning.getAvailabilityDeadline();
-        assertEquals(ZoneOffset.UTC,quotaDeadline.getOffset());
-        assertEquals(11,Duration.between(quotaDeadline.toInstant(),directDeadline.toInstant()).toHours());
-        assertEquals(17,Duration.between(quotaDeadline.toInstant(),date.atTime(8,0).atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant()).toHours());
+        assertEquals(directDeadline.toInstant(),quotaDeadline.toInstant());
     }
 }

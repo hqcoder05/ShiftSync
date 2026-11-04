@@ -71,6 +71,7 @@ public class AttendanceAdjustmentServiceTest {
 
     @BeforeEach
     void setUp() {
+        com.shiftsync.support.TestStoreLock.installAdjustment(service);
         staff = User.builder().id(UUID.randomUUID()).fullName("Staff 1").systemRole(com.shiftsync.shared.security.SystemRole.STAFF).build();
         manager = User.builder().id(UUID.randomUUID()).fullName("Manager 1").systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build();
         store = Store.builder().id(UUID.randomUUID()).build();
@@ -132,7 +133,7 @@ public class AttendanceAdjustmentServiceTest {
                 .requestedCheckIn(OffsetDateTime.now())
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
         when(storeConfigurationRepository.findByStoreId(any())).thenReturn(Optional.of(new com.shiftsync.store.entity.StoreConfiguration()));
@@ -156,7 +157,7 @@ public class AttendanceAdjustmentServiceTest {
                 .requestedCheckIn(OffsetDateTime.now())
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
         when(shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staff.getId())).thenReturn(Optional.of(assignment));
@@ -187,7 +188,7 @@ public class AttendanceAdjustmentServiceTest {
 
         Attendance existingInDb = Attendance.builder().id(UUID.randomUUID()).shiftAssignment(assignment).build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
         when(shiftAssignmentRepository.findByShiftIdAndStaffId(shift.getId(), staff.getId())).thenReturn(Optional.of(assignment));
@@ -207,7 +208,7 @@ public class AttendanceAdjustmentServiceTest {
     @Test
     void approveRequest_NonExistentRequest() {
         UUID nonExistentId = UUID.randomUUID();
-        when(requestRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+        when(requestRepository.findByIdForUpdate(nonExistentId)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), nonExistentId, manager.getId()));
         assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatus());
@@ -223,7 +224,7 @@ public class AttendanceAdjustmentServiceTest {
                 .status(AdjustmentStatus.PENDING)
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(otherStoreId, request.getId(), manager.getId()));
         assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, ex.getStatus());
@@ -238,7 +239,7 @@ public class AttendanceAdjustmentServiceTest {
                 .status(AdjustmentStatus.APPROVED)
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
         assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatus());
@@ -254,7 +255,7 @@ public class AttendanceAdjustmentServiceTest {
                 .status(AdjustmentStatus.REJECTED)
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
         assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatus());
@@ -270,7 +271,7 @@ public class AttendanceAdjustmentServiceTest {
                 .status(AdjustmentStatus.PENDING)
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(true);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.approveRequest(store.getId(), request.getId(), manager.getId()));
@@ -287,7 +288,7 @@ public class AttendanceAdjustmentServiceTest {
                 .status(AdjustmentStatus.PENDING)
                 .build();
 
-        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForUpdate(request.getId())).thenReturn(Optional.of(request));
         when(payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(any(), any(), any(), any())).thenReturn(false);
         when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
         when(requestRepository.save(any())).thenReturn(request);

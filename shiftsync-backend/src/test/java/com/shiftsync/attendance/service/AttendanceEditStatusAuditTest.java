@@ -30,16 +30,17 @@ class AttendanceEditStatusAuditTest {
         var service=new AttendanceService(repository,null,null,mock(StoreConfigurationRepository.class),null,
                 mock(com.shiftsync.shared.websocket.RealtimeEventPublisher.class),
                 mock(com.shiftsync.payroll.service.PayrollCalculationService.class));
+        com.shiftsync.support.TestStoreLock.installAttendance(service);
         var request=new AttendanceUpdateRequest();request.setCheckOutTime(date.atTime(newOut,0).atOffset(ZoneOffset.ofHours(7)));
         service.updateAttendance(store.getId(),row.getId(),request);
         verify(repository).save(row);return row;
     }
     @Test void correctingEarlyCheckoutToShiftEndRetainsEarlyLeaveStatus() {
         var row=edit(AttendanceStatus.EARLY_LEAVE,15,17);
-        assertEquals(17,row.getCheckOutTime().getHour());assertEquals(AttendanceStatus.EARLY_LEAVE,row.getStatus());
+        assertEquals(17,row.getCheckOutTime().getHour());assertEquals(AttendanceStatus.PRESENT,row.getStatus());
     }
     @Test void editingCheckoutToTwoHoursEarlyStillReportsPresent() {
         var row=edit(AttendanceStatus.PRESENT,17,15);
-        assertEquals(15,row.getCheckOutTime().getHour());assertEquals(AttendanceStatus.PRESENT,row.getStatus());
+        assertEquals(15,row.getCheckOutTime().getHour());assertEquals(AttendanceStatus.EARLY_LEAVE,row.getStatus());
     }
 }

@@ -65,4 +65,37 @@ class WebSocketAuditTest {
         assertThrows(org.springframework.security.access.AccessDeniedException.class,
                 () -> interceptor().preSend(message,mock(MessageChannel.class)));
     }
+
+    @Test void authenticatedClientStillCannotSendToBrokerTopic() {
+        var user=com.shiftsync.auth.entity.User.builder().id(UUID.randomUUID()).email("user@test.invalid").systemRole(SystemRole.STAFF).build();
+        var headers=StompHeaderAccessor.create(StompCommand.SEND);
+        headers.setUser(new UsernamePasswordAuthenticationToken(new CustomUserDetails(user),null,List.of()));
+        headers.setDestination("/topic/store/"+UUID.randomUUID()+"/shifts");
+        headers.setLeaveMutable(true);
+        var message=MessageBuilder.createMessage("forged event",headers.getMessageHeaders());
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> interceptor().preSend(message,mock(MessageChannel.class)));
+    }
+
+    @Test void revokedTokenCannotReconnectThroughWebSocket() {
+        var jwt=mock(JwtTokenProvider.class);
+        var users=mock(CustomUserDetailsService.class);
+        @SuppressWarnings("unchecked") var redis=(org.springframework.data.redis.core.RedisTemplate<String,Object>)mock(org.springframework.data.redis.core.RedisTemplate.class);
+        var registration=new ChannelRegistration();
+        new WebSocketConfig(jwt,users,redis,mock(StoreAccessService.class)).configureClientInboundChannel(registration);
+        var interceptors=(List<?>)ReflectionTestUtils.getField(registration,"interceptors");
+        var channel=(ChannelInterceptor)interceptors.get(0);
+        var token="revoked-access-token";
+        when(jwt.validateToken(token)).thenReturn(true);
+        when(jwt.isQrAttendanceToken(token)).thenReturn(false);
+        when(redis.hasKey("blacklist:"+token)).thenReturn(true);
+        var headers=StompHeaderAccessor.create(StompCommand.CONNECT);
+        headers.setNativeHeader("Authorization","Bearer "+token);
+        headers.setLeaveMutable(true);
+        var message=MessageBuilder.createMessage(new byte[0],headers.getMessageHeaders());
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> channel.preSend(message,mock(MessageChannel.class)));
+        verifyNoInteractions(users);
+    }
 }

@@ -13,6 +13,8 @@ import java.util.UUID;
 @Builder
 public class StaffRequestDTO {
     private UUID id;
+    private UUID requesterId;
+    private UUID storeId;
     private String requesterName;
     private String avatarKey;
     private String requestType;

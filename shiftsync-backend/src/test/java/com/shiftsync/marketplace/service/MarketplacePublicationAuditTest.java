@@ -54,36 +54,28 @@ class MarketplacePublicationAuditTest {
         var time=mock(ShiftValidationService.class);var staffSkills=mock(StaffSkillRepository.class);
         var validator=new ShiftAssignmentValidator(mock(AvailabilityRepository.class),mock(BlackoutDateRepository.class),
                 assignments,staffSkills,mock(SkillRepository.class),time);
-        return new MarketplaceService(shifts,assignments,redis,time,validator,mock(UserRepository.class),employment,
-                staffSkills,notifications,tx);
+        return com.shiftsync.support.TestStoreLock.installMarketplace(new MarketplaceService(shifts,assignments,redis,time,validator,mock(UserRepository.class),employment,
+                staffSkills,notifications,tx,mock(com.shiftsync.payroll.repository.PayrollPeriodRepository.class)));
     }
 
-    @Test void fullyStaffedGenericShiftIsPublishedAndListedButEveryFurtherClaimIsFull() throws Exception {
+    @Test void fullyStaffedGenericShiftCannotBePublished() throws Exception {
         assignedCount=1;var service=service();
-        service.publishToMarketplace(store.getId(),shift.getId());
-        assertTrue(shift.isOpen());assertEquals(ShiftStatus.PUBLISHED,shift.getStatus());
-        assertEquals(1,service.getOpenShifts(store.getId()).size());
-        var rejected=assertThrows(BusinessException.class,()->service.claimOpenShift(store.getId(),shift.getId(),staff.getId()));
-        assertEquals(409,rejected.getStatus().value());
+        assertThrows(BusinessException.class,()->service.publishToMarketplace(store.getId(),shift.getId()));
+        assertFalse(shift.isOpen());assertEquals(ShiftStatus.DRAFT,shift.getStatus());
         verify(assignments,never()).save(any());
     }
-    @Test void explicitZeroDemandShiftIsPublishedButCapacityValidatorRejectsAllClaims() throws Exception {
+    @Test void explicitZeroDemandShiftCannotBePublished() throws Exception {
         shift.getRequirements().add(ShiftSkillRequirement.builder().skill(Skill.builder().id(UUID.randomUUID()).name("Barista").build())
                 .requiredCount(0).build());
-        var service=service();service.publishToMarketplace(store.getId(),shift.getId());
-        assertTrue(shift.isOpen());assertEquals(1,service.getOpenShifts(store.getId()).size());
-        var rejected=assertThrows(BusinessException.class,()->service.claimOpenShift(store.getId(),shift.getId(),staff.getId()));
-        assertEquals("Slot full: Shift requirement capacity reached",rejected.getMessage());
+        var service=service();assertThrows(BusinessException.class,()->service.publishToMarketplace(store.getId(),shift.getId()));
+        assertFalse(shift.isOpen());
         verify(assignments,never()).save(any());
     }
-    @Test void pastShiftPublicationNotifiesStaffButTheShiftIsImmediatelyInvisibleAndUnclaimable() throws Exception {
+    @Test void pastShiftCannotBePublishedOrNotifyStaff() throws Exception {
         shift.setShiftDate(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(1));
-        var service=service();service.publishToMarketplace(store.getId(),shift.getId());
-        assertTrue(shift.isOpen());assertEquals(ShiftStatus.PUBLISHED,shift.getStatus());
-        assertTrue(service.getOpenShifts(store.getId()).isEmpty());
-        assertThrows(BusinessException.class,()->service.claimOpenShift(store.getId(),shift.getId(),staff.getId()));
-        verify(notifications).sendNotification(eq(staff.getId()),eq(com.shiftsync.notification.entity.NotificationType.OPEN_SHIFT_AVAILABLE),
-                anyString(),anyString(),isNull());
+        var service=service();assertThrows(BusinessException.class,()->service.publishToMarketplace(store.getId(),shift.getId()));
+        assertFalse(shift.isOpen());assertEquals(ShiftStatus.DRAFT,shift.getStatus());
+        verifyNoInteractions(notifications);
         verify(assignments,never()).save(any());
     }
 }

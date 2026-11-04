@@ -10,9 +10,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-/** Characterizes the invalid-coordinate bypass; passing documents a defect. */
+/** Regression tests for attendance validation. */
 class AttendanceGeofenceAuditTest {
-    @Test void draftShiftAcceptsSelfieCheckin() {
+    @Test void draftShiftRejectsSelfieCheckin() {
         var attendance=mock(com.shiftsync.attendance.repository.AttendanceRepository.class);
         var assignments=mock(com.shiftsync.shift.repository.ShiftAssignmentRepository.class);
         var configs=mock(com.shiftsync.store.repository.StoreConfigurationRepository.class);
@@ -28,19 +28,22 @@ class AttendanceGeofenceAuditTest {
         when(attendance.save(any())).thenAnswer(invocation->invocation.getArgument(0));
         var service=new AttendanceService(attendance,assignments,mock(com.shiftsync.shift.repository.ShiftRepository.class),configs,
                 mock(com.shiftsync.shared.security.JwtTokenProvider.class),mock(com.shiftsync.shared.websocket.RealtimeEventPublisher.class),null);
-        var result=service.submitSelfie(staff,shift.getId(),10.0,106.0,new byte[]{1});
-        assertNotNull(result.getCheckInTime());
-        assertEquals(com.shiftsync.shift.enums.ShiftStatus.DRAFT,result.getShiftAssignment().getShift().getStatus());
-        verify(attendance).save(any());
+        com.shiftsync.support.TestStoreLock.installAttendance(service);
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                () -> service.submitSelfie(staff,shift.getId(),10.0,106.0,new byte[]{1}));
+        verify(attendance,never()).save(any());
     }
 
-    @Test void multipartNaNCoordinatePassesGeofenceValidation() {
+    @Test void multipartNaNCoordinateIsRejected() {
         double latitude=DefaultConversionService.getSharedInstance().convert("NaN",Double.class);
         var store=Store.builder().latitude(BigDecimal.valueOf(10)).longitude(BigDecimal.valueOf(106)).build();
         var shift=Shift.builder().store(store).build();
         var config=StoreConfiguration.builder().geofenceRadiusM(100).build();
         var service=mock(AttendanceService.class,CALLS_REAL_METHODS);
-        assertDoesNotThrow(()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,latitude,0.0));
-        assertThrows(RuntimeException.class,()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,0.0,0.0));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,latitude,0.0));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,Double.POSITIVE_INFINITY,106.0));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,0.0,0.0));
+        assertDoesNotThrow(()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,10.0,106.0));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->ReflectionTestUtils.invokeMethod(service,"validateGeofence",shift,config,91.0,106.0));
     }
 }

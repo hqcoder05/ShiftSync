@@ -52,7 +52,7 @@ public class StoreTemplateService {
 
     @Transactional
     public void applyTemplateToStore(UUID storeId, UUID templateId) {
-        Store store = storeRepository.findById(storeId)
+        Store store = storeRepository.findByIdForUpdate(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         StoreTemplate template = storeTemplateRepository.findById(templateId)
                 .orElseThrow(() -> new BusinessException("Store template not found", HttpStatus.NOT_FOUND));
@@ -79,11 +79,19 @@ public class StoreTemplateService {
             // 3. Clear existing template-bound workstations & zones if desired, or append
             // We append non-duplicate zones by name
             Map<String, StoreZone> createdZonesMap = new HashMap<>();
+            Map<String, StoreZone> existingZones = indexUnique(storeZoneRepository.findByStoreId(storeId), StoreZone::getCode, StoreZone::getName);
+            Map<String, Workstation> existingStations = indexUnique(workstationRepository.findByStoreId(storeId), Workstation::getCode, Workstation::getName);
             JsonNode zonesNode = root.get("zones");
             if (zonesNode != null && zonesNode.isArray()) {
                 for (JsonNode zn : zonesNode) {
                     String name = zn.get("name").asText();
                     String code = zn.has("code") ? zn.get("code").asText() : null;
+                    String key = resourceKey(code, name);
+                    StoreZone existing = existingZones.get(key);
+                    if (existing != null) {
+                        createdZonesMap.put(name, existing);
+                        continue;
+                    }
                     SpatialType type = SpatialType.ZONE;
                     if (zn.has("zoneType")) {
                         try {
@@ -113,6 +121,7 @@ public class StoreTemplateService {
 
                     zone = storeZoneRepository.save(zone);
                     createdZonesMap.put(name, zone);
+                    existingZones.put(key, zone);
                 }
             }
 
@@ -122,6 +131,8 @@ public class StoreTemplateService {
                 for (JsonNode wn : wsNode) {
                     String name = wn.get("name").asText();
                     String code = wn.has("code") ? wn.get("code").asText() : null;
+                    String key = resourceKey(code, name);
+                    if (existingStations.containsKey(key)) continue;
                     String wsType = wn.has("workstationType") ? wn.get("workstationType").asText() : "GENERIC_COUNTER";
                     String zoneName = wn.has("zoneName") ? wn.get("zoneName").asText() : null;
                     StoreZone zone = zoneName != null ? createdZonesMap.get(zoneName) : null;
@@ -143,15 +154,35 @@ public class StoreTemplateService {
                             .isActive(true)
                             .build();
 
-                    workstationRepository.save(ws);
+                    existingStations.put(key, workstationRepository.save(ws));
                 }
             }
 
-            log.info("Applied template {} ({}) to store {}", template.getName(), template.getFormat(), storeId);
+            log.info("Đã áp dụng mẫu {} ({}) cho cửa hàng {}", template.getName(), template.getFormat(), storeId);
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to parse and apply store template", e);
+            log.error("Không thể đọc và áp dụng mẫu cửa hàng", e);
             throw new BusinessException("Failed to apply template: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private static String resourceKey(String code, String name) {
+        if (code != null && !code.isBlank()) return "code:" + code.trim().toLowerCase(Locale.ROOT);
+        if (name == null || name.isBlank()) throw new BusinessException("Tên khu vực hoặc vị trí không hợp lệ", HttpStatus.BAD_REQUEST);
+        return "name:" + name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static <T> Map<String, T> indexUnique(List<T> rows, java.util.function.Function<T, String> code,
+            java.util.function.Function<T, String> name) {
+        Map<String, T> index = new HashMap<>();
+        for (T row : rows) {
+            String key = resourceKey(code.apply(row), name.apply(row));
+            if (index.putIfAbsent(key, row) != null) {
+                throw new BusinessException("Cửa hàng có khu vực hoặc vị trí trùng mã; hãy đối soát trước khi áp dụng mẫu", HttpStatus.CONFLICT);
+            }
+        }
+        return index;
     }
 
     private StoreTemplateDto toDto(StoreTemplate t) {

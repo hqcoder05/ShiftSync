@@ -35,21 +35,51 @@ class LeaveAuditCharacterizationTest {
     @Mock NotificationService notificationService;
     @Mock RealtimeEventPublisher realtimeEventPublisher;
     @Mock LeaveBalanceService leaveBalanceService;
+    @Mock com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    @Mock com.shiftsync.payroll.service.PayrollCalculationService payrollCalculationService;
     @InjectMocks LeaveRequestService service;
 
-    @Test void approvalOmitsPreviousDayOvernightAssignmentsFromQuery() {
+    @org.junit.jupiter.api.BeforeEach void storeLock() {
+        lenient().when(storeRepository.findByIdForUpdate(any())).thenAnswer(call -> Optional.of(Store.builder().id(call.getArgument(0)).build()));
+    }
+
+    @Test void approvalChecksPreviousDayForOvernightAssignments() {
         var start=LocalDate.of(2030,11,4);
         var request=approve(start,start);
-        // A shift starting Nov 3 at 22:00 is outside this query, despite working Nov 4.
-        verify(shiftAssignmentRepository).findByStaffIdAndShift_ShiftDateBetween(request.getStaff().getId(),start,start);
+        verify(shiftAssignmentRepository).findByStaffIdAndShift_ShiftDateBetween(request.getStaff().getId(),start.minusDays(1),start);
         verify(shiftAssignmentRepository).deleteAll(List.of());
         verifyNoMoreInteractions(shiftAssignmentRepository);
     }
 
-    @Test void crossYearApprovalChargesBothDaysToStartingYear() {
+    @Test void crossYearApprovalChargesEachYearSeparately() {
         var request=approve(LocalDate.of(2030,12,31),LocalDate.of(2031,1,1));
-        verify(leaveBalanceService).deductAnnualLeave(request.getStore().getId(),request.getStaff().getId(),2030,2);
+        verify(leaveBalanceService).deductAnnualLeave(request.getStore().getId(),request.getStaff().getId(),2030,1);
+        verify(leaveBalanceService).deductAnnualLeave(request.getStore().getId(),request.getStaff().getId(),2031,1);
         verifyNoMoreInteractions(leaveBalanceService);
+    }
+
+    @Test void retrospectiveApprovalRejectsCompletedShift() {
+        var day = LocalDate.now().minusDays(3);
+        var store = Store.builder().id(UUID.randomUUID()).name("Audit store").build();
+        var staff = User.builder().id(UUID.randomUUID()).fullName("Staff").build();
+        var manager = User.builder().id(UUID.randomUUID()).fullName("Manager").build();
+        var request = LeaveRequest.builder().id(UUID.randomUUID()).store(store).staff(staff)
+                .leaveType(LeaveType.SICK).status(LeaveStatus.PENDING).startDate(day).endDate(day).build();
+        var shift = com.shiftsync.shift.entity.Shift.builder().id(UUID.randomUUID()).store(store)
+                .shiftDate(day).startTime(java.time.LocalTime.of(8, 0)).endTime(java.time.LocalTime.of(16, 0))
+                .status(com.shiftsync.shift.enums.ShiftStatus.COMPLETED).build();
+        var assignment = com.shiftsync.shift.entity.ShiftAssignment.builder().id(UUID.randomUUID())
+                .shift(shift).staff(staff).build();
+        when(leaveRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(userRepository.findById(manager.getId())).thenReturn(Optional.of(manager));
+        when(shiftAssignmentRepository.findByStaffIdAndShift_ShiftDateBetween(staff.getId(), day.minusDays(1), day))
+                .thenReturn(List.of(assignment));
+
+        org.junit.jupiter.api.Assertions.assertThrows(com.shiftsync.shared.exception.BusinessException.class,
+                () -> service.approveLeaveRequest(store.getId(), request.getId(), manager.getId()));
+        verify(shiftAssignmentRepository, never()).deleteAll(any());
+        verifyNoInteractions(blackoutDateRepository);
+        verifyNoInteractions(shiftRepository);
     }
 
     private LeaveRequest approve(LocalDate start,LocalDate end) {
