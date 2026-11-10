@@ -1,86 +1,57 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateMyAvatar } from './profileService';
+import api from './api';
 import { AVATAR_OPTIONS } from '../components/avatarConfigs';
+import { getNetworkSnapshot } from './networkState';
 
 const DEFAULT_AVATAR_ID = 'dilan';
 const listeners = new Set();
-
-/**
- * Đăng ký listener để nhận cập nhật Avatar tức thời giữa các màn hình (Profile <-> Dashboard)
- */
-export function onAvatarChange(listener) {
-  if (typeof listener === 'function') {
-    listeners.add(listener);
-  }
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-/**
- * Thông báo cho tất cả listener khi avatar thay đổi
- */
-export function notifyAvatarChange(avatarId) {
-  listeners.forEach((listener) => {
-    try {
-      listener(avatarId);
-    } catch (err) {
-      console.warn('Error in avatar listener:', err);
-    }
-  });
-}
-
-/**
- * Lấy avatar đã lưu trong AsyncStorage (ưu tiên user-specific, fallback sang key chung)
- */
-export async function getStoredAvatar(userId = null) {
+let syncing;
+const valid = (id) => AVATAR_OPTIONS.some((avatar) => avatar.id === id);
+export function onAvatarChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
+export function notifyAvatarChange(avatarId) { listeners.forEach((listener) => listener(avatarId)); }
+async function email() { return (await AsyncStorage.getItem('userEmail'))?.trim().toLowerCase(); }
+export async function getStoredAvatar(userId) {
   try {
-    if (userId) {
-      const userAvatar = await AsyncStorage.getItem(`@user_profile_avatar_${userId}`);
-      if (userAvatar && AVATAR_OPTIONS.some((a) => a.id === userAvatar)) {
-        return userAvatar;
-      }
+    if (!userId) {
+      const account = await email();
+      const cached = account && await AsyncStorage.getItem(`@cache:${account}:profile`);
+      userId = cached ? JSON.parse(cached).data?.id : null;
     }
-    const globalAvatar = await AsyncStorage.getItem('@user_profile_avatar');
-    if (globalAvatar && AVATAR_OPTIONS.some((a) => a.id === globalAvatar)) {
-      return globalAvatar;
-    }
-  } catch (e) {
-    console.warn('Failed to read stored avatar:', e);
-  }
-  return DEFAULT_AVATAR_ID;
+    const stored = userId && await AsyncStorage.getItem(`@user_profile_avatar_${userId}`);
+    return valid(stored) ? stored : DEFAULT_AVATAR_ID;
+  } catch { return DEFAULT_AVATAR_ID; }
 }
-
-/**
- * Lưu avatar 3D:
- * 1. Lưu tức thời vào AsyncStorage (cả key chung lẫn user key)
- * 2. Bắn sự kiện realtime cho các màn hình đang mở (Dashboard, Profile)
- * 3. Đồng bộ lên Backend API trong nền
- */
-export async function saveAvatar(avatarId, userId = null) {
-  if (!avatarId || !AVATAR_OPTIONS.some((a) => a.id === avatarId)) {
-    return false;
+export async function resolveProfileAvatar(user) {
+  if (!user?.id) return getStoredAvatar();
+  const pending = await AsyncStorage.getItem(`@avatar-pending:${await email()}`);
+  if (pending && String(JSON.parse(pending).userId) === String(user.id)) return getStoredAvatar(user.id);
+  if (valid(user.avatarId)) {
+    await AsyncStorage.setItem(`@user_profile_avatar_${user.id}`, user.avatarId);
+    return user.avatarId;
   }
-
-  // 1. Lưu ngay vào local storage
+  return getStoredAvatar(user.id);
+}
+export async function syncAvatar() {
+  if (syncing || !getNetworkSnapshot().online) return;
+  syncing = true;
   try {
-    await AsyncStorage.setItem('@user_profile_avatar', avatarId);
-    if (userId) {
-      await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, avatarId);
-    }
-  } catch (e) {
-    console.warn('Failed to save avatar to AsyncStorage:', e);
-  }
-
-  // 2. Cập nhật UI ngay lập tức
+    const account = await email();
+    const key = account && `@avatar-pending:${account}`;
+    const raw = key && await AsyncStorage.getItem(key);
+    if (!raw || !await AsyncStorage.getItem('accessToken')) return;
+    const pending = JSON.parse(raw);
+    const { data: user } = await api.get('/users/me', { expectedSessionEmail: account });
+    if (String(user.id) !== String(pending.userId) || !valid(pending.avatarId)) return;
+    await api.put('/users/me/avatar', { avatarId: pending.avatarId }, { expectedSessionEmail: account });
+    if (await AsyncStorage.getItem(key) === raw) { await AsyncStorage.removeItem(key); notifyAvatarChange(pending.avatarId); }
+  } finally { syncing = false; }
+}
+export async function saveAvatar(avatarId, userId) {
+  const account = await email();
+  if (!valid(avatarId) || !userId || !account) return false;
+  await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, avatarId);
+  await AsyncStorage.setItem(`@avatar-pending:${account}`, JSON.stringify({ userId, avatarId }));
   notifyAvatarChange(avatarId);
-
-  // 3. Đồng bộ Backend API (background, không chặn UI)
-  try {
-    await updateMyAvatar(avatarId);
-    return true;
-  } catch (e) {
-    console.log('Failed to sync avatar to backend (saved locally):', e?.message);
-    return false;
-  }
+  try { await syncAvatar(); } catch {}
+  return !(await AsyncStorage.getItem(`@avatar-pending:${account}`));
 }

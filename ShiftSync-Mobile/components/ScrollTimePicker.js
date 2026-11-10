@@ -1,5 +1,7 @@
+import { ensureTouchTarget } from '../utils/touchTarget';
 import { useRef, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '../theme/appTheme';
 
 const ITEM_HEIGHT = 34;
 const VISIBLE_COUNT = 3;
@@ -59,7 +61,7 @@ export default function ScrollTimePicker({ value, onChange, onDone }) {
         <Text style={styles.colon}>:</Text>
         <Column data={minutes} selectedValue={mm} onChange={setMinute} />
       </View>
-      <TouchableOpacity style={styles.doneBtn} onPress={onDone}>
+      <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.doneBtn)} onPress={onDone}>
         <Text style={styles.doneText}>Xong</Text>
       </TouchableOpacity>
     </View>
@@ -68,14 +70,14 @@ export default function ScrollTimePicker({ value, onChange, onDone }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginTop: -10,
     marginBottom: 10,
     marginHorizontal: 60,
     alignSelf: 'center',
     width: 220,
-    shadowColor: '#000',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -94,19 +96,19 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     height: ITEM_HEIGHT,
-    backgroundColor: '#F0EFEF',
+    backgroundColor: colors.canvas,
     borderRadius: 8,
     pointerEvents: 'none',
   },
-  colon: { fontSize: 20, fontWeight: '600', color: '#333', marginHorizontal: 4 },
+  colon: { fontSize: 20, fontWeight: '600', color: colors.ink, marginHorizontal: 4 },
   itemBox: { height: ITEM_HEIGHT, width: 60, alignItems: 'center', justifyContent: 'center' },
-  itemText: { fontSize: 15, color: '#bbb' },
-  itemTextActive: { fontSize: 17, color: '#333', fontWeight: '700' },
+  itemText: { fontSize: 15, color: colors.muted },
+  itemTextActive: { fontSize: 17, color: colors.ink, fontWeight: '700' },
   doneBtn: {
     alignItems: 'center',
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.line,
   },
-  doneText: { color: '#51A33D', fontWeight: '600', fontSize: 15 },
+  doneText: { color: colors.primaryStrong, fontWeight: '600', fontSize: 15 },
 });

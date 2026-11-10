@@ -1,3 +1,6 @@
+import { colors as uiColors } from '../theme/koreanPalette';
+import { createAppStyles } from '../theme/appTheme';
+import { ensureTouchTarget } from '../utils/touchTarget';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { runMobileDiagnostics } from '../services/diagnosticRegistry';
@@ -16,7 +19,7 @@ export default function IOSDiagnosticScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.title}>iOS Diagnostic</Text>
-      {running && <ActivityIndicator color="#51A33D" />}
+      {running && <ActivityIndicator color={uiColors.successText} />}
       {results.map((item) => (
         <View key={item.name} style={styles.card}>
           <View style={styles.row}>
@@ -28,27 +31,27 @@ export default function IOSDiagnosticScreen() {
           {item.stack && <Text selectable style={styles.stack}>{item.stack}</Text>}
         </View>
       ))}
-      <Pressable style={styles.button} onPress={run} disabled={running}>
+      <Pressable accessibilityRole="button" style={ensureTouchTarget(styles.button)} onPress={run} disabled={running}>
         <Text style={styles.buttonText}>{running ? 'Đang kiểm tra...' : 'Chạy lại diagnostic'}</Text>
       </Pressable>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  page: { padding: 20, backgroundColor: '#F7FBF5', flexGrow: 1 },
+const styles = createAppStyles({
+  page: { padding: 20, backgroundColor: uiColors.mint, flexGrow: 1 },
   title: { fontSize: 24, fontWeight: '800', marginBottom: 16, color: '#273426' },
-  card: { backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 10 },
+  card: { backgroundColor: uiColors.surface, borderRadius: 10, padding: 12, marginBottom: 10 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   name: { fontWeight: '700', color: '#273426' },
   status: { fontWeight: '800' },
-  PASS: { color: '#2E7D32' },
-  FAIL: { color: '#C62828' },
-  SKIPPED: { color: '#B26A00' },
+  PASS: { color: uiColors.successText },
+  FAIL: { color: uiColors.dangerText },
+  SKIPPED: { color: uiColors.warningText },
   stage: { marginTop: 5, color: '#667064', fontSize: 12 },
-  error: { marginTop: 6, color: '#C62828' },
-  stack: { marginTop: 6, color: '#555', fontSize: 11 },
-  button: { marginTop: 8, padding: 14, borderRadius: 10, backgroundColor: '#EAF6EA', alignItems: 'center' },
-  buttonText: { color: '#2E7D32', fontWeight: '700' },
+  error: { marginTop: 6, color: uiColors.dangerText },
+  stack: { marginTop: 6, color: uiColors.secondary, fontSize: 11 },
+  button: { marginTop: 8, padding: 14, borderRadius: 10, backgroundColor: uiColors.mint, alignItems: 'center' },
+  buttonText: { color: uiColors.successText, fontWeight: '700' },
 });
 

@@ -1,14 +1,17 @@
 /**
  * avatarConfigs.js
  * ─────────────────────────────────────────────────────────────────────────────
- * Danh mục 18 Avatar 3D Low-Poly phong phú, đa dạng tuyệt đối về diện mạo,
+ * Danh mục 20 nhân vật toàn thân 3D low-poly; giữ ID avatar cũ để đồng bộ.
+ * Tương thích các thuộc tính diện mạo trước đây:
  * màu da, kiểu tóc, phụ kiện (mũ len beanie, mũ lưỡi trai, tai nghe gaming,
  * kính trí thức, râu quai nón...) và biểu cảm phong phú (chớp mắt, nháy mắt,
  * ngạc nhiên 'oh', cười tươi) cho toàn bộ hệ thống ShiftSync.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-export const AVATAR_OPTIONS = [
+import { COSTUME_AVATARS } from './costumeAvatarConfigs.js';
+
+const LEGACY_AVATAR_OPTIONS = [
   {
     id: 'dilan',
     label: 'Dilan',
@@ -288,6 +291,18 @@ export const AVATAR_OPTIONS = [
     },
   },
 ];
+
+export const AVATAR_OPTIONS = COSTUME_AVATARS.map((avatar, index) => ({
+  ...avatar,
+  props: {
+    ...(LEGACY_AVATAR_OPTIONS[index % LEGACY_AVATAR_OPTIONS.length]?.props || {}),
+    skinColor: avatar.skin,
+    hairColor: avatar.hair,
+    costumeKind: avatar.kind,
+    bodyColor: avatar.body,
+    accessoryColor: avatar.accent,
+  },
+}));
 
 export function getAvatar3DProps(id) {
   const found = AVATAR_OPTIONS.find(a => a.id === id);

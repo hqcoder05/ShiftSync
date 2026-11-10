@@ -1,0 +1,12 @@
+gradle.beforeProject { p ->
+    p.afterEvaluate {
+        if (p.path == ':app' && p.plugins.hasPlugin('com.android.application')) {
+            p.extensions.getByName('android').defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+                '-DCMAKE_JOB_POOLS=shiftsync_compile=1',
+                '-DCMAKE_JOB_POOL_COMPILE=shiftsync_compile',
+                '-DCMAKE_JOB_POOL_LINK=shiftsync_compile'
+            ])
+            p.extensions.getByName('react').extraPackagerArgs.addAll(['--max-workers', '1'])
+        }
+    }
+}

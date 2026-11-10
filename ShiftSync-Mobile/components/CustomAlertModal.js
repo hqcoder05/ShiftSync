@@ -1,3 +1,4 @@
+import { ensureTouchTarget } from '../utils/touchTarget';
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -9,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { setAlertListener } from '../utils/alert';
+import { colors } from '../theme/appTheme';
 
 export default function CustomAlertModal() {
   const [config, setConfig] = useState(null);
@@ -65,9 +67,9 @@ export default function CustomAlertModal() {
   const msgLower = message.toLowerCase();
 
   let iconEmoji = 'ℹ️';
-  let badgeColor = '#EFF6FF';
-  let badgeBorder = '#BFDBFE';
-  let iconColor = '#2563EB';
+  let badgeColor = colors.sky;
+  let badgeBorder = '#D3DEE9';
+  let iconColor = colors.info;
 
   if (
     titleLower.includes('thành công') ||
@@ -75,18 +77,18 @@ export default function CustomAlertModal() {
     titleLower.includes('đồng ý')
   ) {
     iconEmoji = '✓';
-    badgeColor = '#ECFDF5';
-    badgeBorder = '#A7F3D0';
-    iconColor = '#059669';
+    badgeColor = colors.mint;
+    badgeBorder = '#CEDFD4';
+    iconColor = colors.success;
   } else if (
     titleLower.includes('lỗi') ||
     titleLower.includes('thất bại') ||
     msgLower.includes('không thể')
   ) {
     iconEmoji = '✕';
-    badgeColor = '#FEF2F2';
-    badgeBorder = '#FECACA';
-    iconColor = '#DC2626';
+    badgeColor = colors.rose;
+    badgeBorder = '#E8CBD0';
+    iconColor = colors.danger;
   } else if (
     titleLower.includes('trùng') ||
     titleLower.includes('vượt') ||
@@ -94,18 +96,18 @@ export default function CustomAlertModal() {
     titleLower.includes('lưu ý')
   ) {
     iconEmoji = '⚠️';
-    badgeColor = '#FFFBEB';
-    badgeBorder = '#FDE68A';
-    iconColor = '#D97706';
+    badgeColor = colors.butter;
+    badgeBorder = '#E8DDBD';
+    iconColor = colors.warning;
   } else if (
     titleLower.includes('xác nhận') ||
     titleLower.includes('nhận ca') ||
     titleLower.includes('đổi ca')
   ) {
     iconEmoji = '🤝';
-    badgeColor = '#EEF2FF';
-    badgeBorder = '#C7D2FE';
-    iconColor = '#4F46E5';
+    badgeColor = colors.lavender;
+    badgeBorder = '#DCD8E8';
+    iconColor = colors.info;
   }
 
   const renderedButtons =
@@ -171,9 +173,9 @@ export default function CustomAlertModal() {
               }
 
               return (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   key={idx}
-                  style={[styles.btnBase, btnStyle]}
+                  style={ensureTouchTarget([styles.btnBase, btnStyle])}
                   activeOpacity={0.8}
                   onPress={() => handleClose(btn.onPress)}
                 >
@@ -191,7 +193,7 @@ export default function CustomAlertModal() {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.58)',
+    backgroundColor: '#28313B80',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -209,17 +211,17 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 22,
     padding: 22,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
     elevation: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: colors.line,
   },
   iconCircle: {
     width: 52,
@@ -237,14 +239,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.ink,
     textAlign: 'center',
     marginBottom: 8,
     lineHeight: 22,
   },
   message: {
     fontSize: 13.5,
-    color: '#475569',
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 19.5,
     marginBottom: 20,
@@ -269,7 +271,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   defaultBtn: {
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.orange,
   },
   defaultBtnText: {
     color: '#FFFFFF',
@@ -277,17 +279,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelBtn: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.canvas,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.line,
   },
   cancelBtnText: {
-    color: '#475569',
+    color: colors.secondary,
     fontSize: 14,
     fontWeight: '600',
   },
   destructiveBtn: {
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
   },
   destructiveBtnText: {
     color: '#FFFFFF',

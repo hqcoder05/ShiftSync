@@ -1,194 +1,135 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native';
+import { colors as uiColors } from '../theme/koreanPalette';
+import { createAppStyles } from '../theme/appTheme';
+import { ensureTouchTarget } from '../utils/touchTarget';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Rect } from 'react-native-svg';
-import { login } from '../services/authService';
-import { getBaseUrl } from '../services/api';
-import { validateLoginForm } from '../utils/validators';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { runApiSessionChange } from '../services/api';
+import { login } from '../services/authService';
+import { validateLoginForm } from '../utils/validators';
 import { registerForPushNotificationsAsync } from '../services/pushNotificationHelper';
+import { resetMessagingUnread } from '../services/messagingService';
+import { publishUnreadCount } from '../services/notificationService';
+import ThreeIllustration from '../components/ThreeIllustration';
 
-let LoginMascot3D = null;
-if (Platform.OS === 'web') {
-  try { LoginMascot3D = require('../components/LoginMascot3D.web').default; } catch (e) {}
-}
-
-// Logo giống hệt bên Web, vẽ bằng react-native-svg thay vì thẻ <svg> HTML
-function LogoIcon({ size = 32, color = '#4CAF50' }) {
+function LogoIcon() {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="2" y="4" width="8" height="3" rx="1" fill={color} />
-      <Rect x="12" y="4" width="10" height="3" rx="1" fill={color} />
-      <Rect x="2" y="10" width="14" height="3" rx="1" fill={color} />
-      <Rect x="18" y="10" width="4" height="3" rx="1" fill={color} />
-      <Rect x="2" y="16" width="6" height="3" rx="1" fill={color} />
-      <Rect x="10" y="16" width="12" height="3" rx="1" fill={color} />
+    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
+      <Rect x="2" y="4" width="8" height="3" rx="1" fill={uiColors.orange} />
+      <Rect x="12" y="4" width="10" height="3" rx="1" fill={uiColors.orange} />
+      <Rect x="2" y="10" width="14" height="3" rx="1" fill={uiColors.orange} />
+      <Rect x="18" y="10" width="4" height="3" rx="1" fill={uiColors.orange} />
+      <Rect x="2" y="16" width="6" height="3" rx="1" fill={uiColors.orange} />
+      <Rect x="10" y="16" width="12" height="3" rx="1" fill={uiColors.orange} />
     </Svg>
   );
 }
 
 export default function LoginScreen({ navigation }) {
+  const passwordRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const [mascotStatus, setMascotStatus] = useState('idle');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleLogin = async () => {
+    if (submitting) return;
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
-
-    const errMsg = validateLoginForm(trimmedEmail, trimmedPassword);
-    if (errMsg) {
-      setError(errMsg);
-      setMascotStatus('error');
-      setTimeout(() => setMascotStatus('idle'), 2200);
+    const validationError = validateLoginForm(trimmedEmail, trimmedPassword);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-
+    setError('');
+    setSubmitting(true);
     try {
       const res = await login(trimmedEmail, trimmedPassword);
       const { accessToken, refreshToken, role, email: userEmail } = res.data;
-      await AsyncStorage.multiSet([
-        ['accessToken', accessToken || ''],
+      if (!accessToken) throw new Error('Missing access token');
+      await runApiSessionChange(() => AsyncStorage.multiSet([
+        ['accessToken', accessToken],
         ['refreshToken', refreshToken || ''],
         ['userRole', role || ''],
-        ['userEmail', userEmail || ''],
-      ]);
-      setMascotStatus('success');
-      // Đăng ký FCM Push Token ngầm không làm chậm chuyển trang
-      registerForPushNotificationsAsync().catch((e) => console.log('[Push Init Error]:', e));
-      setTimeout(() => {
-        navigation.replace('MainTabs');
-      }, 1000);
-    } catch (err) {
-      console.log('LOGIN ERROR:', err.message);
-      setMascotStatus('error');
-      setTimeout(() => setMascotStatus('idle'), 2200);
-      const status = err.response?.status;
-      if (status === 401) {
+        ['userEmail', (userEmail || trimmedEmail).trim().toLowerCase()],
+      ]));
+      publishUnreadCount(0);
+      resetMessagingUnread();
+      registerForPushNotificationsAsync().catch(() => {});
+      navigation.replace('MainTabs');
+    } catch (loginError) {
+      if (loginError.response?.status === 401) {
         setError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
-      } else if (status === 0 || !err.response) {
-        setError(`Không kết nối được server (${getBaseUrl()}). Hãy đảm bảo backend đang chạy tại cổng 8080 và thiết bị cùng Wi-Fi.`);
+      } else if (!loginError.response) {
+        setError('Không thể kết nối. Kiểm tra mạng và thử đăng nhập lại.');
       } else {
         setError('Đăng nhập thất bại. Vui lòng thử lại.');
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <View style={styles.page}>
-      <View style={styles.logoRow}>
-        <LogoIcon />
-        <Text style={styles.logoText}>ShiftSync</Text>
-      </View>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left', 'right']}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.page}>
+          <View style={styles.form}>
+            <View style={styles.logoRow}><LogoIcon /><Text style={styles.logoText}>ShiftSync</Text></View>
+            <View style={styles.loginArt}><ThreeIllustration kind="calendar" size={112} /><View style={styles.loginArtAccent}><ThreeIllustration kind="clock" size={72} /></View></View>
+            <Text accessibilityRole="header" style={styles.title}>Đăng nhập</Text>
+            <Text style={styles.subtitle}>Lịch làm việc và đội ngũ của bạn, ở một nơi.</Text>
 
-      {LoginMascot3D && (
-        <View style={{ marginBottom: -10, overflow: 'visible', alignItems: 'center' }}>
-          <LoginMascot3D
-            status={mascotStatus}
-            emailLength={email.length}
-            width={280}
-            height={160}
-          />
-        </View>
-      )}
+            <Text style={styles.label}>Email</Text>
+            <TextInput accessibilityLabel="Email" style={[styles.input, emailFocused && styles.inputFocused]} value={email} onChangeText={setEmail} onFocus={() => setEmailFocused(true)} onBlur={() => setEmailFocused(false)} autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" keyboardType="email-address" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Email của bạn" placeholderTextColor={uiColors.muted} editable={!submitting} />
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={[styles.input, emailFocused && styles.inputFocused]}
-          value={email}
-          onChangeText={setEmail}
-          onFocus={() => { setEmailFocused(true); setMascotStatus('email'); }}
-          onBlur={() => { setEmailFocused(false); setMascotStatus('idle'); }}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="Nhập email..."
-        />
+            <Text style={styles.label}>Mật khẩu</Text>
+            <View style={[styles.passwordField, passwordFocused && styles.inputFocused]}>
+              <TextInput ref={passwordRef} accessibilityLabel="Mật khẩu" style={styles.passwordInput} value={password} onChangeText={setPassword} onFocus={() => setPasswordFocused(true)} onBlur={() => setPasswordFocused(false)} autoCapitalize="none" autoCorrect={false} autoComplete="password" textContentType="password" secureTextEntry={!passwordVisible} returnKeyType="go" onSubmitEditing={handleLogin} placeholder="Mật khẩu của bạn" placeholderTextColor={uiColors.muted} editable={!submitting} />
+              <Pressable accessibilityRole="button" accessibilityLabel={passwordVisible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} onPress={() => setPasswordVisible((visible) => !visible)} style={ensureTouchTarget(styles.passwordToggle)}>
+                <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={22} color={uiColors.secondary} accessible={false} />
+              </Pressable>
+            </View>
 
-        <Text style={styles.label}>Mật khẩu</Text>
-        <TextInput
-          style={[styles.input, passwordFocused && styles.inputFocused]}
-          value={password}
-          onChangeText={setPassword}
-          onFocus={() => { setPasswordFocused(true); setMascotStatus('password'); }}
-          onBlur={() => { setPasswordFocused(false); setMascotStatus('idle'); }}
-          secureTextEntry
-          placeholder="Nhập mật khẩu..."
-        />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable
-          onPress={handleLogin}
-          style={({ pressed }) => [
-            styles.button,
-            pressed && styles.buttonPressed, // hiệu ứng khi nhấn giữ, tương đương :active bên Web
-          ]}
-        >
-          {({ pressed }) => (
-            <Text style={[styles.buttonText, pressed && styles.buttonTextPressed]}>
-              Đăng nhập
-            </Text>
-          )}
-        </Pressable>
-
-        <Text style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: '#999' }}>
-          Server: {getBaseUrl()}
-        </Text>
-      </View>
-    </View>
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting} disabled={submitting} onPress={handleLogin} style={ensureTouchTarget(({ pressed }) => [styles.button, pressed && styles.buttonPressed, submitting && styles.buttonDisabled])}>
+              {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Đăng nhập</Text>}
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: '#EAF6EA',
-    justifyContent: 'center',   // căn giữa theo chiều dọc
-    alignItems: 'center',       // căn giữa theo chiều ngang
-    paddingHorizontal: 20,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 24,
-  },
-  logoText: { fontSize: 24, fontWeight: 'bold', color: '#222' },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 380,
-  },
-  label: { fontSize: 13, color: '#555', marginBottom: 6 },
-  input: {
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: '#f7f7f7',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 15,
-  },
-  inputFocused: {
-    borderColor: '#51A33D',  // giống hiệu ứng :focus bên Web
-  },
-  button: {
-    backgroundColor: '#EAF6EA',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonPressed: {
-    backgroundColor: '#51A33D', // đổi màu khi nhấn, giống :hover/:active bên Web
-    transform: [{ scale: 0.97 }],
-  },
-  buttonText: { fontWeight: 'bold', color: '#333', fontSize: 16 },
-  buttonTextPressed: { color: '#ffffff' },
-  error: { color: '#d32f2f', fontSize: 13, marginBottom: 10 },
+const styles = createAppStyles({
+  safe: { flex: 1, backgroundColor: uiColors.surface },
+  keyboardArea: { flex: 1 },
+  page: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 36 },
+  form: { width: '100%', maxWidth: 420, alignSelf: 'center' },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 24 },
+  loginArt: { height: 130, backgroundColor: uiColors.peach, borderRadius: 24, marginBottom: 28, justifyContent: 'center', alignItems: 'center' },
+  loginArtAccent: { position: 'absolute', bottom: 6, right: 24, transform: [{ rotate: '12deg' }] },
+  logoText: { fontSize: 25, color: uiColors.ink, fontWeight: '600', letterSpacing: -0.6 },
+  title: { fontSize: 30, lineHeight: 38, fontWeight: '600', color: uiColors.ink, marginBottom: 10 },
+  subtitle: { fontSize: 14, lineHeight: 21, color: uiColors.muted, marginBottom: 34 },
+  label: { fontSize: 14, lineHeight: 20, color: uiColors.ink, marginBottom: 8 },
+  input: { minHeight: 52, borderWidth: 1, borderColor: uiColors.lineStrong, borderRadius: 5, backgroundColor: uiColors.surface, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 22, fontSize: 15, color: uiColors.ink },
+  inputFocused: { borderColor: uiColors.orange },
+  passwordField: { flexDirection: 'row', alignItems: 'center', minHeight: 52, borderWidth: 1, borderColor: uiColors.lineStrong, borderRadius: 5, backgroundColor: uiColors.surface, marginBottom: 22 },
+  passwordInput: { flex: 1, minWidth: 0, paddingHorizontal: 14, paddingVertical: 12, minHeight: 50, color: uiColors.ink, fontSize: 15, outlineStyle: 'none' },
+  passwordToggle: { width: 48, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
+  button: { minHeight: 54, backgroundColor: uiColors.orange, borderRadius: 14, borderBottomWidth: 3, borderBottomColor: uiColors.primaryStrong, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  buttonPressed: { backgroundColor: uiColors.orange },
+  buttonDisabled: { opacity: 0.65 },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  error: { color: uiColors.dangerText, fontSize: 13, lineHeight: 19, marginBottom: 14 },
 });

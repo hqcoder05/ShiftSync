@@ -2,11 +2,14 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { registerFcmToken } from './notificationService';
+import { requestReminderPermission } from './localReminders';
+import { getMyShifts } from './shiftService';
 
 // Configure foreground notification presentation
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -21,30 +24,14 @@ export async function registerForPushNotificationsAsync() {
   }
 
   try {
-    // Configure default high-priority channel on Android
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'ShiftSync Notification',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#4CAF50',
-      });
-    }
+    // Local reminders also work without a remote push token, including on simulators.
+    if (!await requestReminderPermission()) return null;
+    // The Dashboard may have loaded before the permission dialog was accepted.
+    // Reconcile immediately after granting permission, including from the offline shift cache.
+    await getMyShifts().catch(() => {});
 
     if (!Device.isDevice) {
       console.log('[FCM Mobile] Running on simulator/emulator - push tokens require a physical device');
-      return null;
-    }
-
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== 'granted') {
-      console.log('[FCM Mobile] User did not grant push notification permission');
       return null;
     }
 

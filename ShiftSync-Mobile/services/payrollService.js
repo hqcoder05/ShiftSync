@@ -1,2 +1,3 @@
 import api from './api';
-export const getMyPayslips = () => api.get('/users/me/payslips');
+import { cachedRequest } from './offlineCache';
+export const getMyPayslips = () => cachedRequest('payslips', () => api.get('/users/me/payslips'));

@@ -3,8 +3,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { resetToLogin } from '../navigation/navigationRef';
+import { getNetworkSnapshot } from './networkState';
 
 const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
+let sessionVersion = 0;
+let authStorage = Promise.resolve();
+const serializeAuthStorage = (work) => {
+  const result = authStorage.then(work);
+  authStorage = result.catch(() => {});
+  return result;
+};
+export function runApiSessionChange(work) {
+  sessionVersion += 1;
+  return serializeAuthStorage(work);
+}
+const sessionChanged = () => Object.assign(new Error('Phiên đăng nhập đã thay đổi.'), { code: 'SESSION_CHANGED' });
+async function readAuthSession() {
+  const values = new Map(await AsyncStorage.multiGet(['accessToken', 'refreshToken', 'userEmail']));
+  return { accessToken: values.get('accessToken'), refreshToken: values.get('refreshToken') || null,
+    email: values.get('userEmail')?.trim().toLowerCase() };
+}
 
 // Tự động trích xuất IP host mà Expo Go đang kết nối, hoặc dùng fallback CURRENT_LAN_IP
 export const getHostIp = () => {
@@ -51,36 +69,77 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  if (!getNetworkSnapshot().online) throw Object.assign(new Error('Đang ngoại tuyến.'), { code: 'OFFLINE' });
+  const version = config._sessionVersion ?? sessionVersion;
+  const boundEmail = config.expectedSessionEmail || config._sessionEmail;
   try {
     // Luôn cập nhật baseURL theo IP động mới nhất
     config.baseURL = getBaseUrl();
-    const token = await AsyncStorage.getItem('accessToken');
+    await authStorage;
+    if (version !== sessionVersion) throw sessionChanged();
+    const { accessToken: token, email } = await readAuthSession();
+    if (version !== sessionVersion || (boundEmail && (!token || email !== boundEmail))) throw sessionChanged();
     if (token) {
+      config._sessionEmail = email;
+      config._sessionVersion = version;
       config.headers.Authorization = `Bearer ${token}`;
     }
     console.log(`[API Req] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
   } catch (e) {
+    if (e.code === 'SESSION_CHANGED' || boundEmail || config.headers?.Authorization) throw e;
     // Ignore AsyncStorage read error
   }
   return config;
 });
 
-let isRefreshing = false;
-let failedQueue = [];
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
+let refreshFlight;
+async function refreshAuthSession(version, expectedEmail) {
+  let ownerEmail = expectedEmail, refreshToken;
+  try {
+    await authStorage;
+    if (version !== sessionVersion) throw sessionChanged();
+    const initial = await readAuthSession();
+    if (version !== sessionVersion || (expectedEmail && initial.email !== expectedEmail)) throw sessionChanged();
+    ownerEmail = initial.email;
+    refreshToken = initial.refreshToken;
+    if (!refreshToken) throw Object.assign(new Error('Phiên đăng nhập đã hết hạn.'), { code: 'NO_REFRESH_TOKEN' });
+    const response = await axios.post(`${getBaseUrl()}/auth/refresh`, { refreshToken }, { timeout: 10000 });
+    if (!response.data?.accessToken) throw new Error('Máy chủ chưa trả về phiên đăng nhập mới.');
+    await serializeAuthStorage(async () => {
+      if (version !== sessionVersion) throw sessionChanged();
+      const current = await readAuthSession();
+      if (version !== sessionVersion || current.email !== ownerEmail || current.refreshToken !== refreshToken) throw sessionChanged();
+      await AsyncStorage.multiSet([
+        ['accessToken', response.data.accessToken],
+        ['refreshToken', response.data.refreshToken || refreshToken],
+      ]);
+      if (version !== sessionVersion) throw sessionChanged();
+    });
+  } catch (error) {
+    if (error.code === 'NO_REFRESH_TOKEN' || [401, 403].includes(error.response?.status)) {
+      await serializeAuthStorage(async () => {
+        if (version !== sessionVersion) return;
+        const current = await readAuthSession();
+        if (version !== sessionVersion || current.email !== ownerEmail || current.refreshToken !== refreshToken) return;
+        const clearedVersion = ++sessionVersion;
+        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userRole', 'userEmail']);
+        if (sessionVersion === clearedVersion) resetToLogin();
+      });
     }
-  });
-  failedQueue = [];
-};
+    throw error;
+  }
+}
 
 api.interceptors.response.use(
-  (response) => response,
+  async (response) => {
+    if (response.config?._sessionEmail) {
+      await authStorage;
+      const current = await readAuthSession();
+      if (current.email !== response.config._sessionEmail
+          || response.config._sessionVersion !== sessionVersion) throw sessionChanged();
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     const method = originalRequest?.method?.toUpperCase() || 'UNKNOWN';
@@ -132,53 +191,22 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      if (isRefreshing) {
-        // Đang có 1 tiến trình refresh token chạy -> đưa request vào hàng đợi
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = await AsyncStorage.getItem('refreshToken');
-        if (refreshToken) {
-          console.log('[API] 401 phát hiện! Đang tự động refresh token...');
-          const refreshUrl = `${getBaseUrl()}/auth/refresh`;
-          const res = await axios.post(refreshUrl, { refreshToken }, { timeout: 10000 });
-
-          if (res.data?.accessToken) {
-            const newAccessToken = res.data.accessToken;
-            const newRefreshToken = res.data.refreshToken || refreshToken;
-
-            console.log('[API] Refresh token thành công! Cập nhật storage và thử lại request...');
-            await AsyncStorage.multiSet([
-              ['accessToken', newAccessToken],
-              ['refreshToken', newRefreshToken],
-            ]);
-
-            processQueue(null, newAccessToken);
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-            return api(originalRequest);
-          }
-        }
-      } catch (refreshErr) {
-        console.log('[API] Refresh token thất bại hoặc phiên đã hết hạn:', refreshErr.message);
-        processQueue(refreshErr, null);
-      } finally {
-        isRefreshing = false;
+      const version = originalRequest._sessionVersion ?? sessionVersion;
+      while (refreshFlight) {
+        const active = refreshFlight;
+        try { await active.promise; }
+        catch (refreshError) { if (active.version === version) throw refreshError; }
+        if (version !== sessionVersion) throw sessionChanged();
+        if (active.version === version) return api(originalRequest);
       }
-
-      // Nếu refresh thất bại hoặc không có refreshToken -> dọn dẹp và đưa về Login
-      await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userRole', 'userEmail']);
-      resetToLogin();
+      if (version !== sessionVersion) throw sessionChanged();
+      const flight = { version, promise: null };
+      flight.promise = refreshAuthSession(version, originalRequest._sessionEmail)
+        .finally(() => { if (refreshFlight === flight) refreshFlight = null; });
+      refreshFlight = flight;
+      await flight.promise;
+      return api(originalRequest);
     }
 
     return Promise.reject(error);

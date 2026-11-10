@@ -1,8 +1,9 @@
 import api from './api';
 import { createLeaveRequest, getMyLeaveRequests } from './leaveService';
+import { vietnamDateKey } from '../utils/vietnamTime';
 
 export const toIsoDate = (dateStr) => {
-  if (!dateStr) return new Date().toISOString().slice(0, 10);
+  if (!dateStr) return vietnamDateKey();
   const trimmed = String(dateStr).trim();
   if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(trimmed)) {
     const parts = trimmed.split(/[-/]/);
@@ -18,7 +19,8 @@ export const toIsoDate = (dateStr) => {
 };
 
 // Lấy danh sách yêu cầu thực tế từ Backend (Leave requests, Swaps, Adjustments)
-export const getMyRequests = async (storeId) => {
+export const getMyRequests = async (storeId, currentUserId) => {
+  if (!currentUserId) return [];
   const allRequests = [];
 
   // 1. Fetch Real Leave Requests
@@ -53,6 +55,12 @@ export const getMyRequests = async (storeId) => {
           reason: l.reason || '',
           content: l.reason || '',
           rejectionReason: l.rejectionReason,
+          requesterId: l.staffId,
+          requesterName: l.staffName,
+          approvedById: l.approvedBy,
+          approvedByName: l.approvedByName,
+          reviewedAt: l.approvedAt,
+          managerNote: l.rejectionReason,
           description: l.status === 'APPROVED'
             ? `Đơn xin nghỉ (${l.requestedDays || 1} ngày) đã được Quản lý phê duyệt.`
             : (l.status === 'REJECTED'
@@ -100,6 +108,12 @@ export const getMyRequests = async (storeId) => {
           startDate: r.startDate,
           endDate: r.endDate,
           requesterName: r.requesterName || 'Nhân viên',
+          requesterId: r.requesterId,
+          storeId: r.storeId,
+          approvedById: r.reviewedById,
+          approvedByName: r.reviewedByName,
+          reviewedAt: r.reviewedAt,
+          managerNote: r.managerNote,
           avatarKey: r.avatarKey,
           targetStaffName: r.targetStaffName || '',
           shiftInfo: r.shiftInfo || '',
@@ -163,7 +177,15 @@ export const getMyRequests = async (storeId) => {
           content: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
           description: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
           reason: 'Hoán đổi ca làm việc giữa 2 nhân sự',
-          createdAt: s.createdAt || new Date().toISOString(),
+          createdAt: s.createdAt || null,
+          employeeRespondedAt: s.employeeRespondedAt,
+          approvedById: s.approvedById,
+          approvedByName: s.approvedByName,
+          reviewedAt: s.reviewedAt,
+          managerNote: s.managerNote,
+          cancelledAt: s.cancelledAt,
+          cancelledById: s.cancelledById,
+          cancelledByName: s.cancelledByName,
           isRealSwap: true,
         });
       });
@@ -172,7 +194,13 @@ export const getMyRequests = async (storeId) => {
     console.log('Error fetching swap requests from backend:', err.message);
   }
 
-  return allRequests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return allRequests.filter((request) => {
+    if (request.isRealSwap) {
+      return String(request.fromStaffId) === String(currentUserId) || String(request.toStaffId) === String(currentUserId);
+    }
+    return String(request.requesterId) === String(currentUserId) &&
+      (!storeId || !request.storeId || String(request.storeId) === String(storeId));
+  }).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 };
 
 // Tạo yêu cầu mới (Xin nghỉ, Đổi ca, Xin vắng)
@@ -202,6 +230,9 @@ export const createStaffRequest = async (requestData, storeId) => {
     });
     return res.data;
   }
+  if (requestData.type === 'SWAP' || requestData.typeCategory === 'swap') {
+    throw new Error('Vui lòng chọn ca của bạn và ca được phân công cho đồng nghiệp để đổi ca.');
+  }
 
   // 2. Generic staff requests (SWAP, ABSENT, SUPPORT, etc.) -> POST /api/requests
   const category = (requestData.typeCategory || requestData.type || 'support').toLowerCase();
@@ -210,13 +241,14 @@ export const createStaffRequest = async (requestData, storeId) => {
   else if (category === 'absent' || category === 'absence') defaultRequestType = 'Yêu cầu xin vắng';
   else if (category === 'leave') defaultRequestType = 'Yêu cầu xin nghỉ';
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = vietnamDateKey();
   const startIso = requestData.startDate ? toIsoDate(requestData.startDate) : todayIso;
   const endIso = requestData.endDate ? toIsoDate(requestData.endDate) : startIso;
 
   const contentText = requestData.content || requestData.reason || requestData.description || 'Yêu cầu gửi tới Quản lý';
 
   const payload = {
+    storeId: storeId || requestData.storeId,
     requesterName: requestData.requesterName || undefined,
     avatarKey: requestData.avatarKey || 'paul',
     requestType: requestData.requestType || defaultRequestType,
@@ -230,4 +262,53 @@ export const createStaffRequest = async (requestData, storeId) => {
 
   const res = await api.post('/requests', payload);
   return res.data;
+};
+
+export const cancelSwapRequest = (id) => api.post(`/swaps/${id}/cancel`);
+
+// Display only persisted actors/timestamps. Legacy records may have no event time.
+export const getRequestTimeline = (request) => {
+  if (!request) return [];
+  const status = request.status || 'PENDING';
+  const approved = status === 'APPROVED';
+  const rejected = status === 'REJECTED';
+  const cancelled = status === 'CANCELLED';
+  if (!request.isRealSwap) {
+    return [
+      { title: 'Đã gửi yêu cầu', state: 'done', actor: request.requesterName, at: request.createdAt },
+      {
+        title: approved ? 'Quản lý đã duyệt' : rejected ? 'Quản lý đã từ chối' : 'Chờ quản lý duyệt',
+        state: approved ? 'done' : rejected ? 'error' : 'active',
+        actor: request.approvedByName,
+        at: request.reviewedAt,
+        note: request.managerNote || request.rejectionReason,
+      },
+    ];
+  }
+  const accepted = !!request.employeeAccepted || approved;
+  const managerReviewed = approved || !!request.approvedById || !!request.reviewedAt;
+  const colleagueRejected = rejected && !accepted && !managerReviewed;
+  return [
+    {
+      title: accepted ? 'Đồng nghiệp đã đồng ý' : colleagueRejected ? 'Đồng nghiệp đã từ chối' : 'Đồng nghiệp xác nhận',
+      state: accepted ? 'done' : colleagueRejected ? 'error' : cancelled || managerReviewed ? 'waiting' : 'active',
+      actor: request.toStaffName,
+      at: request.employeeRespondedAt,
+      note: !accepted && !rejected && !cancelled ? 'Chờ phản hồi từ đồng nghiệp nhận đổi ca.' : null,
+    },
+    {
+      title: approved ? 'Quản lý đã duyệt' : rejected && managerReviewed ? 'Quản lý đã từ chối' : 'Quản lý phê duyệt',
+      state: approved ? 'done' : rejected && managerReviewed ? 'error' : accepted && !cancelled && !rejected ? 'active' : 'waiting',
+      actor: request.approvedByName,
+      at: request.reviewedAt,
+      note: request.managerNote,
+    },
+    {
+      title: approved ? 'Đổi ca hoàn tất' : cancelled ? 'Yêu cầu đã hủy' : rejected ? 'Không thực hiện đổi ca' : 'Hoàn tất',
+      state: approved ? 'done' : cancelled || rejected ? 'error' : 'waiting',
+      actor: cancelled ? request.cancelledByName : null,
+      at: cancelled ? request.cancelledAt : approved ? request.reviewedAt : null,
+      note: approved ? 'Lịch làm của hai nhân viên đã được cập nhật.' : status === 'PENDING' ? 'Lịch làm được đổi sau khi quản lý phê duyệt.' : null,
+    },
+  ];
 };

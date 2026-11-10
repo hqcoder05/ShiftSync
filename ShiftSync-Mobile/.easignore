@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+.git/
+qa-*/
+output/
+android/
+ios/
+.env*
+*.log
+*.dump
+*.jks
+*.keystore

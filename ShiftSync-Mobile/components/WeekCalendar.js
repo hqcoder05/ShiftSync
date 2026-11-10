@@ -1,5 +1,8 @@
+import { ensureTouchTarget } from '../utils/touchTarget';
+import { vietnamCalendarDate } from '../utils/vietnamTime';
 import { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, PanResponder, ScrollView } from 'react-native';
+import { colors } from '../theme/appTheme';
 
 const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const MONTH_LABELS = ['Th1','Th2','Th3','Th4','Th5','Th6','Th7','Th8','Th9','Th10','Th11','Th12'];
@@ -19,7 +22,7 @@ function isSameDay(a, b) {
 
 export default function WeekCalendar({ selectedDate, onSelectDate }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const today = new Date();
+  const today = vietnamCalendarDate();
   const weekStart = startOfWeek(new Date(today.getTime() + weekOffset * 7 * 86400000));
 
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -55,23 +58,25 @@ export default function WeekCalendar({ selectedDate, onSelectDate }) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={goPrevWeek} style={styles.navBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tuần trước" onPress={goPrevWeek} style={ensureTouchTarget(styles.navBtn)}>
           <Text style={styles.navText}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.rangeLabel}>{rangeLabel()}</Text>
-        <TouchableOpacity onPress={goNextWeek} style={styles.navBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tuần tiếp theo" onPress={goNextWeek} style={ensureTouchTarget(styles.navBtn)}>
           <Text style={styles.navText}>›</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.daysRow} {...panResponder.panHandlers}>
+      <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}>
+      <View style={[styles.daysRow, { minWidth: 336, flex: 1 }]}>
         {days.map((d, i) => {
-          const selected = isSameDay(d, selectedDate);
+          const selected = selectedDate && isSameDay(d, selectedDate);
           const isToday = isSameDay(d, today);
           return (
             <TouchableOpacity
+              accessibilityRole="button" accessibilityLabel={`Chọn ngày ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`} accessibilityState={{ selected }} aria-selected={selected}
               key={i}
-              style={[styles.dayCell, selected && styles.dayCellSelected]}
+              style={ensureTouchTarget([styles.dayCell, selected && styles.dayCellSelected])}
               onPress={() => onSelectDate(d)}
             >
               <Text style={[styles.weekdayText, selected && styles.dayTextSelected]}>{WEEKDAY_LABELS[d.getDay()]}</Text>
@@ -80,22 +85,22 @@ export default function WeekCalendar({ selectedDate, onSelectDate }) {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </View></ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16 },
+  card: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  navBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#f2f2f2' },
-  navText: { fontSize: 20, color: '#333', fontWeight: '700', marginTop: -2 },
-  rangeLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
+  navBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.canvas },
+  navText: { fontSize: 20, color: colors.ink, fontWeight: '700', marginTop: -2 },
+  rangeLabel: { fontSize: 14, fontWeight: '600', color: colors.ink },
   daysRow: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCell: { width: 38, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  dayCellSelected: { backgroundColor: '#51A33D' },
-  weekdayText: { fontSize: 11, color: '#999', fontWeight: '600' },
-  dateText: { fontSize: 15, color: '#333', fontWeight: '700' },
+  dayCellSelected: { backgroundColor: colors.orange },
+  weekdayText: { fontSize: 11, color: colors.muted, fontWeight: '600' },
+  dateText: { fontSize: 15, color: colors.ink, fontWeight: '700' },
   dayTextSelected: { color: '#fff' },
-  todayDot: { position: 'absolute', bottom: 6, width: 4, height: 4, borderRadius: 2, backgroundColor: '#51A33D' },
+  todayDot: { position: 'absolute', bottom: 6, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.orange },
 });
