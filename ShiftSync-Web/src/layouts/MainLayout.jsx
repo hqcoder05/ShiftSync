@@ -8,23 +8,28 @@ import { getStoreSwapRequests, getMySwapRequests, approveSwapRequest, rejectSwap
 import { getStoreAdjustmentRequests, getMyAdjustmentRequests, approveAdjustmentRequest, rejectAdjustmentRequest } from '../services/adjustmentService';
 import { getMarketplaceShifts } from '../services/marketplaceService';
 import './MainLayout.css';
-import {useToast} from '../context/ToastContext';
+import { useToast } from '../context/toastContextValue.js';
 import {
   getMyNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  subscribeNotificationStream,
 } from '../services/notificationService';
+import { getApiErrorMessage, isRequestCanceled } from '../services/api';
 
 export default function MainLayout() {
   const toast=useToast();
   const readRequestIds=useRef(new Set());
+  const shownNotificationIds=useRef(new Set());
+  const notificationPopupTimer=useRef(null);
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
   const navigate = useNavigate();
   const location = useLocation();
   const [navMode, setNavMode] = useState(() => localStorage.getItem('ss_flyout_mode') || 'top');
 
   const [stores, setStores] = useState([]);
+  const [storeLoadError, setStoreLoadError] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [pendingSwapCount, setPendingSwapCount] = useState(0);
@@ -32,16 +37,17 @@ export default function MainLayout() {
   const [openShiftsCount, setOpenShiftsCount] = useState(0);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
+  const [notificationPopup, setNotificationPopup] = useState(null);
 
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
 
-  // Load stores
-  useEffect(() => {
-    let isMounted = true;
-    getAllStores()
-      .then((res) => {
-        if (!isMounted) return;
+  const loadStores = useCallback(async (signal) => {
+    if (signal?.aborted) return;
+    try {
+      setStoreLoadError('');
+      const res = await getAllStores(0, 100, '', signal ? { signal } : {});
+      if (signal?.aborted) return;
         const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         if (list && list.length > 0) {
           setStores(list);
@@ -50,10 +56,19 @@ export default function MainLayout() {
           setSelectedStoreId(String(matched.id));
           localStorage.setItem('selectedStoreId', String(matched.id));
         }
-      })
-      .catch((err) => console.info('MainLayout store fetch info:', err.message));
-    return () => { isMounted = false; };
+    } catch (error) {
+      if (!isRequestCanceled(error) && !signal?.aborted) {
+        setStoreLoadError(getApiErrorMessage(error));
+      }
+    }
   }, []);
+
+  // Abort the request on unmount so an older response cannot overwrite a newer store choice.
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => loadStores(controller.signal));
+    return () => controller.abort();
+  }, [loadStores]);
 
   const fetchCounts = useCallback(async () => {
     const t = localStorage.getItem('accessToken') || localStorage.getItem('token');
@@ -184,10 +199,27 @@ export default function MainLayout() {
     }
   }, [selectedStoreId, isManager]);
 
+  const showNotificationPopup = useCallback((detail) => {
+    if (!detail || typeof detail !== 'object') return;
+    const id = detail.id ? String(detail.id) : `${detail.title || ''}:${detail.createdAt || detail.message || ''}`;
+    if (shownNotificationIds.current.has(id)) return;
+    shownNotificationIds.current.add(id);
+    window.setTimeout(() => shownNotificationIds.current.delete(id), 30000);
+    setNotificationPopup({
+      title: detail.title || 'Thông báo mới',
+      message: detail.message || detail.description || 'Bạn có một thông báo mới từ ShiftSync.',
+    });
+    window.clearTimeout(notificationPopupTimer.current);
+    notificationPopupTimer.current = window.setTimeout(() => setNotificationPopup(null), 6000);
+  }, []);
+
   useEffect(() => {
-    fetchCounts();
+    queueMicrotask(fetchCounts);
     const interval = setInterval(fetchCounts, 20000);
-    const handleUpdate = () => fetchCounts();
+    const handleUpdate = (event) => {
+      fetchCounts();
+      showNotificationPopup(event.detail);
+    };
     window.addEventListener('notification_received', handleUpdate);
     window.addEventListener('store_requests_updated', handleUpdate);
     window.addEventListener('store_marketplace_updated', handleUpdate);
@@ -195,12 +227,18 @@ export default function MainLayout() {
 
     return () => {
       clearInterval(interval);
+      window.clearTimeout(notificationPopupTimer.current);
       window.removeEventListener('notification_received', handleUpdate);
       window.removeEventListener('store_requests_updated', handleUpdate);
       window.removeEventListener('store_marketplace_updated', handleUpdate);
       window.removeEventListener('storeChanged', handleUpdate);
     };
-  }, [fetchCounts]);
+  }, [fetchCounts, showNotificationPopup]);
+
+  useEffect(() => subscribeNotificationStream(
+    (notification) => { fetchCounts(); window.dispatchEvent(new CustomEvent('notification_received', { detail: notification })); },
+    () => {},
+  ), [fetchCounts]);
 
   const handleMarkNotificationRead = async (notif) => {
     const id = typeof notif === 'object' && notif !== null ? notif?.id : notif;
@@ -211,7 +249,7 @@ export default function MainLayout() {
     if (item?.source === 'notification' || (!strId.startsWith('leave-') && !strId.startsWith('swap-') && !strId.startsWith('adj-'))) {
       try {
         await markNotificationAsRead(realId);
-      } catch (err) {
+      } catch {
         toast.error('Không đánh dấu đã đọc được. Vui lòng thử lại.');
         return;
       }
@@ -226,7 +264,7 @@ export default function MainLayout() {
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsAsRead();
-    } catch (err) {
+    } catch {
       toast.error('Không đánh dấu tất cả đã đọc được. Vui lòng thử lại.');
       return;
     }
@@ -350,6 +388,12 @@ export default function MainLayout() {
         onOpenSearch={handleOpenSearch}
         onLogout={handleLogout}
       />
+      {storeLoadError && (
+        <div className="ss-api-alert" role="alert">
+          <span>{storeLoadError}</span>
+          <button type="button" onClick={() => loadStores()}>Tải lại</button>
+        </div>
+      )}
       <main
         id="ss-main-content"
         tabIndex={-1}
@@ -365,6 +409,16 @@ export default function MainLayout() {
       >
         <Outlet />
       </main>
+      {notificationPopup && (
+        <aside className="ss-notification-popup" role="status" aria-live="polite">
+          <div className="ss-notification-popup-icon" aria-hidden="true">🔔</div>
+          <div className="ss-notification-popup-content">
+            <strong>{notificationPopup.title}</strong>
+            <p>{notificationPopup.message}</p>
+          </div>
+          <button type="button" onClick={() => setNotificationPopup(null)} aria-label="Đóng thông báo">×</button>
+        </aside>
+      )}
       <footer className="ss-page-footer">
         <span>ShiftSync</span>
         <span className="ss-page-footer-separator" aria-hidden="true">·</span>

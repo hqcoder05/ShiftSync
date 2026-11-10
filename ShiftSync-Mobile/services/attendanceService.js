@@ -18,12 +18,10 @@ export const submitSelfieAttendance = async ({ shiftId, latitude, longitude, pho
         const blob = await res.blob();
         data.append('photo', blob, 'attendance-selfie.jpg');
       } catch (_) {
-        const blob = new Blob(['shiftsync-selfie-mock'], { type: 'image/jpeg' });
-        data.append('photo', blob, 'attendance-selfie.jpg');
+        throw new Error('Không thể đọc ảnh selfie. Vui lòng chụp lại trước khi chấm công.');
       }
     } else {
-      const blob = new Blob(['shiftsync-selfie-mock'], { type: 'image/jpeg' });
-      data.append('photo', blob, 'attendance-selfie.jpg');
+      throw new Error('Vui lòng chụp ảnh selfie trước khi chấm công.');
     }
   } else {
     // Native (iOS & Android)
@@ -34,11 +32,7 @@ export const submitSelfieAttendance = async ({ shiftId, latitude, longitude, pho
         type: 'image/jpeg',
       });
     } else {
-      data.append('photo', {
-        uri: 'file:///placeholder-selfie.jpg',
-        name: 'attendance-selfie.jpg',
-        type: 'image/jpeg',
-      });
+      throw new Error('Vui lòng chụp ảnh selfie trước khi chấm công.');
     }
   }
 

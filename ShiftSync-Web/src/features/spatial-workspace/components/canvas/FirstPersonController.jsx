@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- The first-person controller must persist across callback renders to preserve movement state. */
 /**
  * FirstPersonController.jsx
  * First-Person 3D Walking & Collision Controller for ShiftSync R3F Digital Twin.
@@ -10,7 +11,7 @@
  * - High-frequency calculations in useFrame() with throttled HUD status updates.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PlayerController } from '../../explore/PlayerController.js';
 import { createPlayerAvatar } from '../../explore/PlayerAvatar.js';
@@ -18,6 +19,7 @@ import { extractGlbObstacles } from '../../scene/DigitalTwinModelLoader.js';
 import {getCoffeeFloorLayout} from '../../scene/StoreArrangement.js';
 import { toThreeCoords } from '../../../../components/spatial/spatial.constants.js';
 import { disposeHierarchy } from '../../scene/ResourceManager.js';
+import { configureExplorationCamera } from '../../camera/CameraManager.js';
 
 export default function FirstPersonController({
   layout = { length: 24, width: 16, height: 6 },
@@ -34,15 +36,16 @@ export default function FirstPersonController({
   onInteract = null,
   onPlayerStatusUpdate = null,
   initialLockTarget = null,
-  playerControllerRef = null,
+  onPlayerControllerChange = null,
   paused = false,
 }) {
   const { gl, camera } = useThree();
   const playerAvatarRef = useRef(null);
+  const [playerAvatar, setPlayerAvatar] = useState(null);
   const controllerRef = useRef(null);
   const frameCountRef = useRef(0);
   const toggleViewRef=useRef(onTogglePlayerView);
-  toggleViewRef.current=onTogglePlayerView;
+  useEffect(() => { toggleViewRef.current = onTogglePlayerView; }, [onTogglePlayerView]);
 
   useEffect(() => {
     const controller = controllerRef.current;
@@ -54,9 +57,8 @@ export default function FirstPersonController({
   useEffect(() => {
     const avatar = createPlayerAvatar();
     playerAvatarRef.current = avatar;
+    queueMicrotask(() => setPlayerAvatar(avatar));
 
-    const storeLen = Number(layout?.length) || 24.0;
-    const storeWid = Number(layout?.width) || 16.0;
     const spawnX = 0;
     const spawnZ = 3.8; // Position inside entrance hall with clear view of store interior
     const spawnYaw = 0; // Face inwards toward store center (-Z)
@@ -99,22 +101,19 @@ export default function FirstPersonController({
     }
 
     controllerRef.current = controller;
-    if (playerControllerRef) {
-      playerControllerRef.current = controller;
-    }
+    onPlayerControllerChange?.(controller);
     window.__playerController = controller;
 
     return () => {
       controller.detach();
       delete window.__playerController;
-      if (playerControllerRef) {
-        playerControllerRef.current = null;
-      }
+      onPlayerControllerChange?.(null);
       controllerRef.current = null;
       if (avatar?.group) {
         disposeHierarchy(avatar.group);
       }
       playerAvatarRef.current = null;
+      setPlayerAvatar(null);
     };
   }, [layout?.length, layout?.width, layout?.height]);
 
@@ -127,22 +126,7 @@ export default function FirstPersonController({
 
   // 2b. Set wide immersive FOV for character exploration and restore on exit
   useEffect(() => {
-    if (!camera) return;
-    const prevFov = camera.fov;
-    const prevNear = camera.near;
-    const prevFar = camera.far;
-
-    camera.fov = playerViewMode === 'third_person' ? 68 : 75;
-    camera.near = 0.1;
-    camera.far = 300;
-    camera.updateProjectionMatrix();
-
-    return () => {
-      camera.fov = prevFov;
-      camera.near = prevNear;
-      camera.far = prevFar;
-      camera.updateProjectionMatrix();
-    };
+    return configureExplorationCamera(camera, playerViewMode);
   }, [camera, playerViewMode]);
 
   // 3. Rebuild obstacles if zones, workstations, or GLB model changes
@@ -185,7 +169,7 @@ export default function FirstPersonController({
     }
   },-2);
 
-  return playerAvatarRef.current?.group ? (
-    <primitive object={playerAvatarRef.current.group} dispose={null} />
+  return playerAvatar?.group ? (
+    <primitive object={playerAvatar.group} dispose={null} />
   ) : null;
 }

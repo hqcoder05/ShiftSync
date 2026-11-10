@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   getAllStores,
   createStore,
@@ -70,13 +70,13 @@ export default function AdminPage() {
   const [confirmDelete, setConfirmDelete] = useState(null); // { type: 'store' | 'user', id, name }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const showToast = (title, desc, isError = false) => {
+  const showToast = useCallback((title, desc, isError = false) => {
     setToastMessage({ title, desc, isError });
     setTimeout(() => setToastMessage(null), 4000);
-  };
+  }, []);
 
   // Load initial data
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [storeRes, userRes, overviewRes] = await Promise.allSettled([
@@ -102,11 +102,11 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    queueMicrotask(loadData);
+  }, [loadData]);
 
   // Filter Managers from Users
   const managers = useMemo(() => {

@@ -66,7 +66,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException ex) {
-        logger.warn("Lỗi nghiệp vụ: trạng thái={}, thông báo={}", ex.getStatus(), ex.getMessage());
+        logger.warn("Loi nghiep vu: trang thai={}, thong bao={}", ex.getStatus(), ex.getMessage());
         return new ResponseEntity<>(
             buildResponse(ex.getStatus().name(), ex.getMessage(), null),
             ex.getStatus()
@@ -115,7 +115,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Map<String, Object>> handleAuthenticationException(AuthenticationException ex) {
         return new ResponseEntity<>(
-            buildResponse("UNAUTHORIZED", "Xác thực không thành công", null),
+            buildResponse("UNAUTHORIZED", "Xac thuc khong thanh cong", null),
             HttpStatus.UNAUTHORIZED
         );
     }

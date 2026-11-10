@@ -1,11 +1,33 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useConfirmation } from '../../context/ConfirmationContext';
 import DemandDailyView from './DemandDailyView';
 import DemandWeeklyMatrixView from './DemandWeeklyMatrixView';
 import headcountQuotaService from '../../services/headcountQuotaService';
+import * as shiftService from '../../services/shiftService';
 import './DemandPlanning.css';
 import './DemandPlanningRedesign.css';
 import './DemandPlanningViewport.css';
+
+const replaceDailyQuotaCount = (data, quotaId, count) => ({
+  ...data,
+  shifts: (data.shifts || []).map(shift => ({
+    ...shift,
+    quotas: (shift.quotas || []).map(quota => String(quota.quotaId) === String(quotaId)
+      ? {...quota, count, source: 'SAVED'}
+      : quota),
+  })),
+});
+
+const replaceWeeklyQuotaCount = (data, quotaId, count) => ({
+  ...data,
+  matrixRows: (data.matrixRows || []).map(row => ({
+    ...row,
+    cells: (row.cells || []).map(cell => String(cell.quotaId) === String(quotaId)
+      ? {...cell, count, source: 'SAVED'}
+      : cell),
+  })),
+});
 
 export default function DemandPlanningModal({
   isOpen,
@@ -14,6 +36,7 @@ export default function DemandPlanningModal({
   initialDateIso,
   onSuccess,
 }) {
+  const confirm = useConfirmation();
   const overlayRef=useRef(null);
   const requestSequence = useRef(0);
   const activeScope = useRef(null);
@@ -27,6 +50,7 @@ export default function DemandPlanningModal({
     return()=>{window.removeEventListener('resize',resize);viewport?.removeEventListener('resize',resize);};
   },[isOpen]);
   const [viewMode, setViewMode] = useState('day'); // 'day' | 'week' | 'month'
+  const [quotaSummary, setQuotaSummary] = useState(null);
 
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isAdmin = userRole === 'ADMIN';
@@ -104,7 +128,7 @@ export default function DemandPlanningModal({
 
     fetchBranches();
     return () => { mounted = false; };
-  }, [isOpen, selectedBranchId]);
+  }, [isOpen, selectedBranchId, branches.length, isAdmin, storeId]);
 
   // 2. Fetch Daily or Weekly Quota Data when branch, mode, or date changes
   const fetchData = useCallback(async () => {
@@ -117,12 +141,33 @@ export default function DemandPlanningModal({
     setError(null);
 
     try {
+      const summaryPromise = headcountQuotaService.getQuotaSummary(
+        selectedBranchId,
+        viewMode === 'day' ? selectedDateIso : undefined,
+        viewMode === 'week' ? selectedWeekStartIso : undefined
+      ).catch(err => {
+        console.warn('Quota summary load error:', err);
+        return null;
+      });
+
       if (viewMode === 'day') {
-        const res = await headcountQuotaService.getDailyQuotas(selectedBranchId, selectedDateIso);
-        if (sequence === requestSequence.current) setDailyData(res);
+        const [res, sumRes] = await Promise.all([
+          headcountQuotaService.getDailyQuotas(selectedBranchId, selectedDateIso),
+          summaryPromise
+        ]);
+        if (sequence === requestSequence.current) {
+          setDailyData(res);
+          if (sumRes) setQuotaSummary(sumRes);
+        }
       } else {
-        const res = await headcountQuotaService.getWeeklyQuotas(selectedBranchId, selectedWeekStartIso);
-        if (sequence === requestSequence.current) setWeeklyData(res);
+        const [res, sumRes] = await Promise.all([
+          headcountQuotaService.getWeeklyQuotas(selectedBranchId, selectedWeekStartIso),
+          summaryPromise
+        ]);
+        if (sequence === requestSequence.current) {
+          setWeeklyData(res);
+          if (sumRes) setQuotaSummary(sumRes);
+        }
       }
     } catch (err) {
       if (sequence !== requestSequence.current) return;
@@ -137,9 +182,13 @@ export default function DemandPlanningModal({
   }, [isOpen, selectedBranchId, viewMode, selectedDateIso, selectedWeekStartIso]);
 
   useEffect(() => {
+    const sequenceAtSetup = requestSequence.current;
     activeScope.current = `${selectedBranchId}:${viewMode}:${selectedDateIso}:${selectedWeekStartIso}`;
-    fetchData();
-    return () => { activeScope.current = null; ++requestSequence.current; };
+    queueMicrotask(fetchData);
+    return () => {
+      activeScope.current = null;
+      requestSequence.current = sequenceAtSetup + 1;
+    };
   }, [fetchData, selectedBranchId, viewMode, selectedDateIso, selectedWeekStartIso]);
 
   // ── OPTIMISTIC UPDATE HANDLERS ──
@@ -147,11 +196,13 @@ export default function DemandPlanningModal({
   // A. Day View: Update Count (+/-)
   const handleDailyUpdateCount = async (quotaId, newCount, positionId, shiftType) => {
     if (!dailyData || saving) return;
+    const previousData = dailyData;
+    setDailyData(replaceDailyQuotaCount(previousData, quotaId, newCount));
     setSaving(true);
     try {
       await headcountQuotaService.updateQuota(quotaId, {branchId:selectedBranchId,date:selectedDateIso,shiftType,positionId,count:newCount});
-      await fetchData();
     } catch (err) {
+      setDailyData(previousData);
       showToast(err.response?.data?.message || 'Không thể lưu nhu cầu. Số liệu chưa thay đổi.', 'error');
     } finally { setSaving(false); }
   };
@@ -159,11 +210,14 @@ export default function DemandPlanningModal({
   // B. Weekly View: Update Cell (+/-)
   const handleWeeklyUpdateCell = async (quotaId, delta, currentCount, positionId, date, shiftType) => {
     if (!weeklyData || saving) return;
+    const newCount = Math.max(0, currentCount + delta);
+    const previousData = weeklyData;
+    setWeeklyData(replaceWeeklyQuotaCount(previousData, quotaId, newCount));
     setSaving(true);
     try {
-      await headcountQuotaService.updateQuota(quotaId, {branchId:selectedBranchId,date,shiftType,positionId,count:Math.max(0,currentCount+delta)});
-      await fetchData();
+      await headcountQuotaService.updateQuota(quotaId, {branchId:selectedBranchId,date,shiftType,positionId,count:newCount});
     } catch (err) {
+      setWeeklyData(previousData);
       showToast(err.response?.data?.message || 'Không thể lưu nhu cầu. Số liệu chưa thay đổi.', 'error');
     } finally { setSaving(false); }
   };
@@ -188,6 +242,46 @@ export default function DemandPlanningModal({
   };
 
   // ── ACTION HANDLERS ──
+
+  // Create Custom Shift on selected date
+  const handleCreateCustomShift = async ({ startTime, endTime, name }) => {
+    if (saving || !selectedBranchId) return false;
+    setSaving(true);
+    try {
+      await shiftService.createShift(selectedBranchId, {
+        shiftDate: selectedDateIso,
+        startTime: startTime.length === 5 ? `${startTime}:00` : startTime,
+        endTime: endTime.length === 5 ? `${endTime}:00` : endTime,
+        note: name || 'Ca tùy chỉnh',
+      });
+      showToast('Đã tạo ca làm việc mới!');
+      await fetchData();
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Không thể tạo ca làm việc mới.', 'error');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete Custom Shift
+  const handleDeleteCustomShift = async (shiftId) => {
+    if (saving || !selectedBranchId || !shiftId) return false;
+    if (!(await confirm({ message: 'Bạn có chắc chắn muốn xóa ca làm việc này không?', confirmLabel: 'Xóa' }))) return false;
+    setSaving(true);
+    try {
+      await shiftService.deleteShift(selectedBranchId, shiftId);
+      showToast('Đã xóa ca làm việc.');
+      await fetchData();
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Không thể xóa ca làm việc.', 'error');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Auto-fill quotas according to standard norms
   const handleAutoFill = async () => {
@@ -397,6 +491,81 @@ export default function DemandPlanningModal({
           </div>
         </div>
 
+        {/* ── KPI Summary Bar (100% Backend Headcount Quota Summary API) ── */}
+        {quotaSummary && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            padding: '12px 24px',
+            background: 'linear-gradient(90deg, #f0fdfa 0%, #f8fafc 100%)',
+            borderBottom: '1px solid #ccfbf1',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+              {/* Total Hours */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Tổng giờ định biên:</span>
+                <strong style={{ fontSize: '15px', color: '#0f766e', fontWeight: 700 }}>
+                  {quotaSummary.totalHours ? quotaSummary.totalHours.toLocaleString('vi-VN') : 0} giờ
+                </strong>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  ({quotaSummary.totalQuotas || 0} lượt ca)
+                </span>
+              </div>
+
+              {/* Estimated Cost */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Chi phí ước tính:</span>
+                <strong style={{ fontSize: '15px', color: '#b45309', fontWeight: 700 }}>
+                  {quotaSummary.formattedEstimatedCost || (quotaSummary.estimatedCost ? quotaSummary.estimatedCost.toLocaleString('vi-VN') + ' đ' : '0 đ')}
+                </strong>
+              </div>
+
+              {/* SLA Compliance */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Tuân thủ định biên SLA:</span>
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: (quotaSummary.slaComplianceRate ?? 100) >= 90 ? '#dcfce7' : '#fee2e2',
+                  color: (quotaSummary.slaComplianceRate ?? 100) >= 90 ? '#15803d' : '#b91c1c'
+                }}>
+                  {quotaSummary.slaComplianceRate != null ? `${quotaSummary.slaComplianceRate.toFixed(1)}%` : '100%'}
+                </span>
+              </div>
+            </div>
+
+            {/* Monthly Budget Usage */}
+            {quotaSummary.monthlyQuotaBudget > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Ngân sách tháng: <strong>{Math.round(quotaSummary.monthlyUsedPercentage || 0)}%</strong> ({quotaSummary.budgetStatusText || 'Đang vận hành'})
+                  </div>
+                  <div style={{
+                    width: '120px',
+                    height: '6px',
+                    background: '#e2e8f0',
+                    borderRadius: '3px',
+                    overflow: 'hidden',
+                    marginTop: '3px'
+                  }}>
+                    <div style={{
+                      width: `${Math.min(100, Math.max(0, quotaSummary.monthlyUsedPercentage || 0))}%`,
+                      height: '100%',
+                      background: (quotaSummary.monthlyUsedPercentage || 0) > 100 ? '#ef4444' : (quotaSummary.monthlyUsedPercentage || 0) > 85 ? '#f59e0b' : '#0d9488'
+                    }} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── 3. Main Workspace Content Area ── */}
         <div className="dp-modal-content-area">
           {applyReview && <div role="alert" className="dp-error-card"><p>{applyReview}</p><button type="button" onClick={()=>setApplyReview(null)}>Đã hiểu</button></div>}
@@ -408,6 +577,8 @@ export default function DemandPlanningModal({
               onUpdateCount={handleDailyUpdateCount}
               onUpdateNorm={handleUpdateNorm}
               onAutoFill={handleAutoFill}
+              onCreateShift={handleCreateCustomShift}
+              onDeleteShift={handleDeleteCustomShift}
               onRetry={fetchData}
               saving={saving}
             />

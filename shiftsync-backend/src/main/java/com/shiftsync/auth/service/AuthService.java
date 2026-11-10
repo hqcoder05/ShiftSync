@@ -84,7 +84,7 @@ public class AuthService {
                     .role(user.getSystemRole().name())
                     .build();
         } catch (AuthenticationException e) {
-            throw new BusinessException("Invalid email or password", HttpStatus.UNAUTHORIZED);
+            throw new BusinessException("Email hoac mat khau khong dung", HttpStatus.UNAUTHORIZED);
         }
     }
 
@@ -94,7 +94,7 @@ public class AuthService {
         Object emailObj = redisTemplate.opsForValue().getAndDelete(refreshTokenKey);
 
         if (emailObj == null) {
-            throw new BusinessException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
+            throw new BusinessException("Phien dang nhap da het han hoac khong hop le", HttpStatus.UNAUTHORIZED);
         }
 
         String identity = emailObj.toString();
@@ -107,16 +107,16 @@ public class AuthService {
             userId = UUID.fromString(parts[1]);
             credentialVersion = Long.parseLong(parts[3]);
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
+            throw new BusinessException("Phien dang nhap da het han hoac khong hop le", HttpStatus.UNAUTHORIZED);
         }
         
         // Remove from user's active tokens set
         redisTemplate.opsForSet().remove("user_refresh_tokens:" + userId, request.getRefreshToken());
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User associated with token not found", HttpStatus.UNAUTHORIZED));
+                .orElseThrow(() -> new BusinessException("Khong tim thay tai khoan tuong ung voi phien dang nhap", HttpStatus.UNAUTHORIZED));
         if (user.getCredentialVersion() != credentialVersion) {
-            throw new BusinessException("Phiên đăng nhập đã hết hiệu lực", HttpStatus.UNAUTHORIZED);
+            throw new BusinessException("Phien dang nhap da het hieu luc", HttpStatus.UNAUTHORIZED);
         }
 
         // Generate new token pair

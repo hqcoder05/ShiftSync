@@ -21,13 +21,13 @@ export default function SchedulePlanner({storeId,storeName,storeCategory,layout,
  const timelineEnd=Math.ceil(Math.max(1440,...dayShifts.map(s=>getShiftTimeRange(s).end))/360)*360;
  const warnings=useMemo(()=>plannerWarnings(planned,zones),[planned,zones]);
  const currentAssignments=assignmentsOf(shift);
- useEffect(()=>{setMinute(getShiftTimeRange(shift).start);},[shift?.id]);
+ useEffect(()=>{queueMicrotask(()=>setMinute(getShiftTimeRange(shift).start));},[shift]);
  useEffect(()=>{
-  if(!shift?.id){setEligible({key,status:'idle',list:[]});return;}
-  let active=true;setEligible({key,status:'loading',list:[]});
+  if(!shift?.id){queueMicrotask(()=>setEligible({key,status:'idle',list:[]}));return;}
+  let active=true;queueMicrotask(()=>{if(active)setEligible({key,status:'loading',list:[]});});
   getEligibleStaffForShift(storeId,shift.id).then(response=>{if(active)setEligible({key,status:'ready',list:Array.isArray(response.data)?response.data:response.data?.content||[]});}).catch(()=>{if(active)setEligible({key,status:'error',list:[]});});
   return()=>{active=false;};
- },[storeId,shift?.id,retry]);
+ },[storeId,shift,key,retry]);
  const ready=eligible.key===key&&eligible.status==='ready';
  const eligibleIds=new Set(ready?eligible.list.map(staffIdOf):[]);
  const people=useMemo(()=>{

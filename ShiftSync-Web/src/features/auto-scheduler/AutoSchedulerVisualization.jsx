@@ -15,8 +15,8 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
   const [spatial, setSpatial] = useState(false);
   const [planInvalid, setPlanInvalid] = useState(false);
   const lock = useRef(false), dialog = useRef(null), close = useRef(onClose);
-  close.current = onClose;
-  const changes = useMemo(() => after ? assignmentChanges(before, after) : [], [before, after]);
+  useEffect(() => { close.current = onClose; }, [onClose]);
+  const changes = useMemo(() => after ? assignmentChanges(before, after, result?.assignmentSequence) : [], [before, after, result?.assignmentSequence]);
   const visible = useMemo(() => mode === 'before' || !after ? before : mode === 'after' ? after : replayShifts(before, after, changes, step), [before, after, mode, changes, step]);
   const all = [...new Map([...before, ...(after || [])].map(s => [s.id, s])).values()];
   const chosen = visible.find(s => s.id === shiftId);
@@ -47,12 +47,12 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
     }, 900);
     return () => clearTimeout(timer);
   }, [playing, mode, step, changes]);
-  async function readSaved(openBoard = false) {
+  async function readSaved(openBoard = false, assignmentSequence = result?.assignmentSequence) {
     const response = await getShiftsForStore(storeId);
     const next = shiftsInWindow(response.data, startDate, endDate);
     const nextChanges = assignmentChanges(before, next);
     if (openBoard && nextChanges.length && onReplayOnBoard) {
-      onReplayOnBoard({before, after: next, startDate});
+      onReplayOnBoard({before, after: next, startDate, assignmentSequence});
       return;
     }
     setAfter(next);
@@ -89,7 +89,7 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
       } else {
         // A successful persistent POST has already saved assignments. Never retry it to reload visualization.
         await onSaved();
-        try {await readSaved(replayOnBoard);} catch {setError('Lịch đã được lưu, nhưng chưa tải được phân công để so sánh. Hãy tải lại kết quả.');}
+        try {await readSaved(replayOnBoard, nextResult.assignmentSequence);} catch {setError('Lịch đã được lưu, nhưng chưa tải được phân công để so sánh. Hãy tải lại kết quả.');}
       }
     } catch (e) {
       setError(e.response?.data?.message || 'Chưa xác nhận được kết quả xếp lịch. Kiểm tra lịch trên máy chủ trước khi chạy lại.');
@@ -102,7 +102,7 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
       const response=await applyAutoSchedulePlan(storeId,result.planId);
       setResult(response.data);
       await onSaved();
-      try {await readSaved(replayOnBoard);} catch {setError('Phương án đã được lưu, nhưng chưa tải lại được lịch. Hãy tải lại kết quả.');}
+      try {await readSaved(replayOnBoard, response.data?.assignmentSequence);} catch {setError('Phương án đã được lưu, nhưng chưa tải lại được lịch. Hãy tải lại kết quả.');}
     } catch(error) {
       if([404,409].includes(error.response?.status)) setPlanInvalid(true);
       setError(error.response?.data?.message || 'Chưa xác nhận được việc lưu. Bạn có thể thử áp dụng lại cùng phương án để kiểm tra kết quả.');
@@ -135,7 +135,7 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
         {result?.dryRun && <><button disabled={busy} onClick={() => run(true)}>Tạo bản xem trước mới</button><button className="asv-primary" disabled={busy || planInvalid || !result.planId || !after || !['ADMIN','MANAGER'].includes(localStorage.getItem('userRole'))} onClick={applyPreview}>{busy ? 'Đang xử lý…' : 'Áp dụng phương án này'}</button></>}
         {attempted && !result && <button disabled={busy} onClick={retryRead}>Kiểm tra lịch trên máy chủ</button>}
         {result && !result.dryRun && !after && <button disabled={busy} onClick={retryRead}>Tải lại kết quả đã lưu</button>}
-        {after && !result?.dryRun && changes.length > 0 && <button className="asv-primary" onClick={() => onReplayOnBoard?.({before, after, startDate})}>Phát trên bảng tuần</button>}
+        {after && !result?.dryRun && changes.length > 0 && <button className="asv-primary" onClick={() => onReplayOnBoard?.({before, after, startDate, assignmentSequence: result?.assignmentSequence})}>Phát trên bảng tuần</button>}
       </div>
       <p className="asv-notice">{result ? result.dryRun ? 'Đây là phương án chưa lưu vào lịch. Áp dụng sẽ lưu đúng phân công đã xem; nếu dữ liệu thay đổi, hệ thống yêu cầu tạo bản xem trước mới.' : 'Kết quả này đã được lưu trên máy chủ. Phát lại chỉ giúp đọc các thay đổi, không phải mô phỏng thuật toán.' : 'Chọn “Thử phương án” để xem tác động không lưu, hoặc “Xếp & lưu” để áp dụng ngay.'}</p>
       {result?.dryRun && result.planExpiresAt && <p className="asv-notice">Phương án có hiệu lực đến {new Date(result.planExpiresAt).toLocaleTimeString('vi-VN')}. {planInvalid ? 'Cần tạo bản xem trước mới trước khi áp dụng.' : 'Các phân công tay hiện có được giữ nguyên.'}</p>}

@@ -9,16 +9,9 @@ import { useState } from 'react';
 import WorkstationEquipment from './WorkstationEquipment.jsx';
 import {
   X,
-  UserCheck,
   CalendarOff,
   Sparkles,
-  ShieldAlert,
-  MapPin,
   Users,
-  Box,
-  Zap,
-  TrendingUp,
-  Award,
   Clock,
   CheckCircle2,
   AlertTriangle,
@@ -26,23 +19,20 @@ import {
   Video,
   Search,
   FlaskConical,
-  RotateCcw,
   RotateCw,
   UserMinus,
-  MoveRight,
   Wrench,
   Check,
   Loader2,
 } from 'lucide-react';
 import { getZoneStatus, getZoneStatusColor, getZoneStatusExplanation, getRoleTheme } from '../visualization/ZoneStatus';
 import { findReplacementCandidates } from '../simulation/SimulationValidator';
-import { getZoneIcon, getShortZoneName, getZoneShiftRequirements } from '../../../components/spatial/spatial.constants';
+import { getZoneIcon, getZoneShiftRequirements } from '../../../components/spatial/spatial.constants';
 import AttentionCenter from './inspector/AttentionCenter';
 import { getStaffId, areSameStaff } from '../utils/staffIdentity';
 
 export default function SpatialInspector({
   isOpen = true,
-  onClose,
   selectedZone = null,
   selectedStaff = null,
   selectedWorkstation = null,
@@ -58,8 +48,6 @@ export default function SpatialInspector({
   isFollowingEmployee = false,
   zones = [],
   staff = [],
-  layout = { length: 24, width: 16, height: 6 },
-  storeName = 'Chi nhánh cửa hàng',
   onRunAlgorithm,
   isAllocating = false,
   // Workstation Layout Editor
@@ -77,7 +65,6 @@ export default function SpatialInspector({
   workstationOccupancies = null,
   // Simulation Sandbox
   isSimulating = false,
-  onToggleSimulation,
   onSimulateRemoveStaff,
   onSimulateMoveStaff,
   onSimulateSwapStaff,
@@ -106,9 +93,6 @@ export default function SpatialInspector({
       staffByZone[zid].push(s);
     }
   });
-
-  const totalCapacity = zones.reduce((sum, z) => sum + (z.capacity || 4), 0);
-  const occupancyRate = totalCapacity > 0 ? Math.min(100, Math.round((staff.length / totalCapacity) * 100)) : 0;
 
   return (
     <aside className="se-inspector" aria-label="Chi tiết cửa hàng"
@@ -1101,11 +1085,11 @@ export default function SpatialInspector({
                           ? isAssigningCandidate === c.id
                           : isAssigningCandidate;
 
-                        let actionLabel = '+ Gán vào ca';
-                        let actionColor = '#10B981';
-                        let badgeText = 'Chưa xếp ca';
-                        let badgeBg = '#E0F2FE';
-                        let badgeColor = '#0369A1';
+                        let actionLabel;
+                        let actionColor;
+                        let badgeText;
+                        let badgeBg;
+                        let badgeColor;
 
                         if (c.availabilityStatus === 'TRANSFER') {
                           actionLabel = '⇄ Điều chuyển';

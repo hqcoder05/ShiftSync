@@ -16,7 +16,6 @@ import path from 'node:path';
 import * as THREE from 'three';
 import {
   loadDigitalTwinModel,
-  classifyModelHierarchy,
   mapWorkstationsToGlb,
   extractGlbObstacles,
   GLB_WORKSTATION_KEYS,
@@ -41,7 +40,7 @@ describe('Digital Twin Model Loader & Semantic Parser', () => {
     assert.strictEqual(obstacles.length,2);assert.strictEqual(obstacles.filter(o=>o.id==='pos').length,1);assert.strictEqual(obstacles.find(o=>o.id==='extra').minX,3.5);
   });
   // Pre-load binary GLB buffer from filesystem for fast, deterministic unit test execution
-  const glbPath = path.resolve(process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
+  const glbPath = path.resolve(globalThis.process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
   const glbBuffer = fs.readFileSync(glbPath);
   const arrayBuffer = glbBuffer.buffer.slice(
     glbBuffer.byteOffset,

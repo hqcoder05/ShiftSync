@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Three.js scene controllers intentionally keep stable resource lifecycles between React renders. */
 import StoreDesigner from '../store-designer/StoreDesigner.jsx';
 import {useStoreDesign} from '../store-designer/useStoreDesign.js';
 /**
@@ -13,43 +14,15 @@ import {useStoreDesign} from '../store-designer/useStoreDesign.js';
 
 import { getShiftTimeRange, isWithinShift } from './utils/shiftTimeRange.js';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useConfirmation } from '../../context/ConfirmationContext';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-
-// Feature modules
-import {
-  buildStoreEnvironment,
-  setEnvironmentXRayMode,
-  setEnvironmentLayersVisibility,
-} from './scene/StoreEnvironment';
-import { buildZoneDecal, createZoneTagSprite } from './scene/ZoneDecals';
-import {
-  buildZoneFurniture,
-  buildWorkstationObject,
-  createWorkstationTagSprite,
-} from './scene/FurnitureBuilder';
-import {
-  createStylizedAvatar,
-  setAvatarSelected,
-  setAvatarTargetPosition,
-  updateAvatarStateMachine,
-} from './scene/StylizedAvatars';
-import { CameraController } from './camera/CameraController';
-import { CameraManager } from './camera/CameraManager';
-import { toast } from '../../context/ToastContext';
-import { useWebSocket } from '../../context/WebSocketContext';
+import { toast } from '../../context/toastApi.js';
+import { useWebSocket } from '../../context/webSocketContextValue.js';
 import {
   CAMERA_MODES,
-  getOverviewCameraConfig,
-  getTopDownCameraConfig,
-  getZoneFocusCameraConfig,
-  getEmployeeFocusCameraConfig,
-  getWorkstationFocusCameraConfig,
 } from './camera/CameraModes';
 
 // Mode 2 Exploration
-import { createPlayerAvatar } from './explore/PlayerAvatar';
-import { PlayerController } from './explore/PlayerController';
 import ExploreHUD from './components/ExploreHUD';
 
 // Mode 4 Simulation Room
@@ -57,7 +30,6 @@ import { useSpatialViewStore } from './state/spatialViewStore';
 import { useSimulationStore } from './simulation/simulationStore';
 import { compareSimulationImpact } from './simulation/SimulationImpactCalculator';
 import { generateSimulationAutoSchedule } from './simulation/SimulationAutoScheduler';
-import { DragTransfer } from './interaction/DragTransfer';
 import SimulationBanner from './components/Simulation/SimulationBanner';
 import SimulationImpactPanel from './components/Simulation/SimulationImpactPanel';
 import SimulationDiffModal from './components/Simulation/SimulationDiffModal';
@@ -66,9 +38,8 @@ import ExitWarningModal from './components/Simulation/ExitWarningModal';
 import { assignStaffToShift, removeStaffFromShift, swapStaffZones } from '../../services/shiftService';
 import { getStoreWorkstations, updateStoreWorkstation } from '../../services/layoutService';
 import { getStoreAttendance } from '../../services/attendanceService';
-import { getStaffId, getAssignmentId, areSameStaff } from './utils/staffIdentity';
+import { getStaffId, areSameStaff } from './utils/staffIdentity';
 import { resolveWorkstationOccupancies } from './utils/workstationOccupancy';
-import { WorkstationDragController } from './interaction/WorkstationDragController';
 import WorkstationEditorBanner from './components/WorkstationEditorBanner';
 
 // React DOM Overlays
@@ -80,11 +51,8 @@ import SpatialActionDialog from './components/SpatialActionDialog.jsx';
 import { entityIdentity, resolveInfoSelection } from './utils/spatialInfoModel.js';
 import SpatialTimeline from './components/SpatialTimeline';
 import TwoDSpatialSchematic from '../../components/spatial/TwoDSpatialSchematic';
-import { toThreeCoords, getDeterministicPersonOffset, getZoneShiftRequirements } from '../../components/spatial/spatial.constants';
+import { toThreeCoords, getZoneShiftRequirements } from '../../components/spatial/spatial.constants';
 
-import { ResourceManager, isSharedResource, disposeHierarchy } from './scene/ResourceManager';
-import { SceneGraphManager } from './scene/SceneGraphManager';
-import { mapWorkstationsToGlb, extractGlbObstacles } from './scene/DigitalTwinModelLoader';
 import DigitalTwinCanvas from './components/canvas/DigitalTwinCanvas.jsx';
 import { OPERATIONS_EVENT_NAMES, getOperationsEventSummary, isEventForStore } from './utils/operationsRealtime.js';
 
@@ -101,7 +69,6 @@ export default function SpatialWorkspace({
   onDateChange,
   onRunAlgorithm,
   isAllocating = false,
-  allocatedSequence = [],
   allDateShifts = [],
   activeDate,
   currentShift = null,
@@ -117,6 +84,7 @@ export default function SpatialWorkspace({
   planningTimeMinutes = null,
   onPlanningZoneSelect = null,
 }) {
+  const confirm = useConfirmation();
   const {snapshot: designSnapshot, accept: acceptDesign} = useStoreDesign(selectedStoreId || storeId);
   const layout = designSnapshot?.document?.floor || suppliedLayout;
   const [designerOpen, setDesignerOpen] = useState(false);
@@ -175,6 +143,7 @@ export default function SpatialWorkspace({
   const [isSavingWorkstation, setIsSavingWorkstation] = useState(false);
   const workstationDragControllerRef = useRef(null);
   const workstationMeshesRef = useRef([]);
+  const avatarMeshesRef = useRef([]);
 
   // RBAC permissions: Only ADMIN or MANAGER can reposition workstations
   const userRole = useMemo(() => {
@@ -199,7 +168,6 @@ export default function SpatialWorkspace({
   const [internalWorkstations, setInternalWorkstations] = useState([]);
   const [isWorkstationsLoading, setIsWorkstationsLoading] = useState(false);
   const [workstationsError, setWorkstationsError] = useState(null);
-  const [isGlbLoaded, setIsGlbLoaded] = useState(false);
 
   const effectiveWorkstations = useMemo(
     () => (Array.isArray(workstations) ? workstations : internalWorkstations),
@@ -228,7 +196,7 @@ export default function SpatialWorkspace({
     return () => OPERATIONS_EVENT_NAMES.forEach((eventName) => window.removeEventListener(eventName, refreshLiveOperations));
   }, [refreshLiveOperations]);
   useEffect(() => {
-    setOperationsLiveState({ lastUpdatedAt: null, label: '' });
+    queueMicrotask(() => setOperationsLiveState({ lastUpdatedAt: null, label: '' }));
     const reconnect = event => {
       if (isEventForStore(event.detail, activeStoreId)) setOperationsRefreshKey(value => value + 1);
     };
@@ -244,14 +212,16 @@ export default function SpatialWorkspace({
   useEffect(() => {
     if (Array.isArray(workstations)) return;
     if (!activeStoreId) {
-      setInternalWorkstations([]);
+      queueMicrotask(() => setInternalWorkstations([]));
       return;
     }
 
     let isCurrent = true;
-    setInternalWorkstations([]);
-    setIsWorkstationsLoading(true);
-    setWorkstationsError(null);
+    queueMicrotask(() => {
+      setInternalWorkstations([]);
+      setIsWorkstationsLoading(true);
+      setWorkstationsError(null);
+    });
 
     getStoreWorkstations(activeStoreId)
       .then((res) => {
@@ -279,30 +249,32 @@ export default function SpatialWorkspace({
 
   // Store Selection Isolation Guard: Reset workstation selection and draft preview when activeStoreId changes (Scenario D & E)
   useEffect(() => {
-    setSelectedZone(null);
-    setSelectedStaff(null);
-    setSelectedWorkstation(null);
-    setDraftWorkstationCoords(null);
-    setWorkstationCollision(null);
-    setCameraFocusTarget(null);
-    setCameraMode(CAMERA_MODES.OVERVIEW);
-    workstationDragControllerRef.current?.clearSelection();
+    queueMicrotask(() => {
+      setSelectedZone(null);
+      setSelectedStaff(null);
+      setSelectedWorkstation(null);
+      setDraftWorkstationCoords(null);
+      setWorkstationCollision(null);
+      setCameraFocusTarget(null);
+      setCameraMode(CAMERA_MODES.OVERVIEW);
+      workstationDragControllerRef.current?.clearSelection();
+    });
   }, [activeStoreId, setCameraMode]);
 
   // A deleted entity must not remain selectable or retain a camera focus target.
   useEffect(() => {
     const missingZone = selectedZone && !zones.some(zone => zone.id === selectedZone.id);
     const missingWorkstation = selectedWorkstation && !effectiveWorkstations.some(ws => ws.id === selectedWorkstation.id);
-    if (missingZone) setSelectedZone(null);
-    if (missingWorkstation) {
-      setSelectedWorkstation(null);
-      setDraftWorkstationCoords(null);
-      workstationDragControllerRef.current?.clearSelection();
-    }
-    if (missingZone || missingWorkstation) {
+    if (missingZone || missingWorkstation) queueMicrotask(() => {
+      if (missingZone) setSelectedZone(null);
+      if (missingWorkstation) {
+        setSelectedWorkstation(null);
+        setDraftWorkstationCoords(null);
+        workstationDragControllerRef.current?.clearSelection();
+      }
       setCameraFocusTarget(null);
       setCameraMode(CAMERA_MODES.OVERVIEW);
-    }
+    });
   }, [zones, effectiveWorkstations, selectedZone, selectedWorkstation, setCameraMode]);
 
   // Real Attendance records & dynamic fetch (Phase 2B)
@@ -312,14 +284,16 @@ export default function SpatialWorkspace({
 
   useEffect(() => {
     if (!activeStoreId) {
-      setAttendanceRecords([]);
+      queueMicrotask(() => setAttendanceRecords([]));
       return;
     }
 
     const queryDate = activeDate || currentShift?.date || new Date().toISOString().split('T')[0];
     let isCurrent = true;
-    setIsAttendanceLoading(true);
-    setAttendanceError(null);
+    queueMicrotask(() => {
+      setIsAttendanceLoading(true);
+      setAttendanceError(null);
+    });
 
     getStoreAttendance(activeStoreId, queryDate, queryDate)
       .then((res) => {
@@ -349,7 +323,6 @@ export default function SpatialWorkspace({
 
   // DragTransfer real-time validation HUD state
   const [dragValidationState, setDragValidationState] = useState(null);
-  const [dragTargetZone, setDragTargetZone] = useState(null);
 
 
 
@@ -362,7 +335,7 @@ export default function SpatialWorkspace({
     return 600; // 10:00 default
   });
   const [isPlayingTimeline, setIsPlayingTimeline] = useState(false);
-  useEffect(()=>{if(planningMode&&Number.isFinite(planningTimeMinutes))setCurrentTimeMinutes(planningTimeMinutes);},[planningMode,planningTimeMinutes]);
+  useEffect(()=>{if(planningMode&&Number.isFinite(planningTimeMinutes))queueMicrotask(()=>setCurrentTimeMinutes(planningTimeMinutes));},[planningMode,planningTimeMinutes]);
   const [timelineSpeed, setTimelineSpeed] = useState(1);
 
   // Mode D: Dedicated Workforce Simulation Store
@@ -387,7 +360,11 @@ export default function SpatialWorkspace({
     canUndo,
     canRedo,
   } = useSimulationStore();
-  if (typeof window !== 'undefined') window.__useSimulationStore = useSimulationStore;
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    window.__useSimulationStore = useSimulationStore;
+    return () => { delete window.__useSimulationStore; };
+  }, []);
 
   // Keyboard shortcuts for Simulation Undo / Redo
   useEffect(() => {
@@ -416,7 +393,13 @@ export default function SpatialWorkspace({
   // Digital Twin Subsystem & Interaction Refs
   const dragTransferRef = useRef(null);
   const cameraManagerRef = useRef(null);
+  const handleCameraManagerChange = useCallback((manager) => {
+    cameraManagerRef.current = manager;
+  }, []);
   const playerControllerRef = useRef(null);
+  const handlePlayerControllerChange = useCallback((controller) => {
+    playerControllerRef.current = controller;
+  }, []);
   const zonesRef = useRef(zones);
   const staffRef = useRef(staff);
 
@@ -433,10 +416,12 @@ export default function SpatialWorkspace({
     if (currentShift?.startTime) {
       const parts = currentShift.startTime.split(':');
       const newMinutes = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-      setCurrentTimeMinutes(newMinutes);
-      setIsPlayingTimeline(false); // pause auto-play when shift switches
+      queueMicrotask(() => {
+        setCurrentTimeMinutes(newMinutes);
+        setIsPlayingTimeline(false); // pause auto-play when shift switches
+      });
     }
-  }, [currentShift?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentShift?.id]);
 
   // ── 1. Temporal Staff Resolver (Bridges Real Shift Data to Timeline) ──
   const temporalStaff = useMemo(() => {
@@ -448,11 +433,6 @@ export default function SpatialWorkspace({
 
     const list = [];
     sourceShifts.forEach((shift) => {
-      const partsStart = (shift.startTime || '06:00').split(':');
-      const startM = parseInt(partsStart[0], 10) * 60 + parseInt(partsStart[1], 10);
-      const partsEnd = (shift.endTime || '14:00').split(':');
-      const endM = parseInt(partsEnd[0], 10) * 60 + parseInt(partsEnd[1], 10);
-
       // Check if this shift covers currentTimeMinutes
       if (isWithinShift(currentTimeMinutes, shift)) {
         if (Array.isArray(shift.shiftAssignments) && shift.shiftAssignments.length > 0) {
@@ -533,14 +513,14 @@ export default function SpatialWorkspace({
     return type ? { type, id: entityIdentity(type, item) } : null;
   }, [selectedStaff, selectedWorkstation, selectedZone]);
   const infoSelection = useMemo(() => resolveInfoSelection(selectedEntity, { staff: displayStaff, workstations: effectiveWorkstations, zones: viewZones }), [selectedEntity, displayStaff, effectiveWorkstations, viewZones]);
-  useEffect(() => { setIsDrawerOpen(false); }, [selectedEntity?.type, selectedEntity?.id]);
+  useEffect(() => { queueMicrotask(() => setIsDrawerOpen(false)); }, [selectedEntity?.type, selectedEntity?.id]);
   const closeInfo = useCallback(() => {
     setSelectedStaff(null); setSelectedWorkstation(null); setSelectedZone(null);
     workstationDragControllerRef.current?.clearSelection();
   }, []);
-  useEffect(() => { closeInfo(); setIsDrawerOpen(false); }, [activeStoreId, currentShift?.id, activeDate, closeInfo]);
+  useEffect(() => { queueMicrotask(() => { closeInfo(); setIsDrawerOpen(false); }); }, [activeStoreId, currentShift?.id, activeDate, closeInfo]);
   useEffect(() => {
-    if (selectedEntity && !infoSelection) { closeInfo(); setIsDrawerOpen(false); }
+    if (selectedEntity && !infoSelection) queueMicrotask(() => { closeInfo(); setIsDrawerOpen(false); });
   }, [selectedEntity, infoSelection, closeInfo]);
   useEffect(() => {
     if (!infoSelection || planningMode || isEditingLayout) return;
@@ -649,11 +629,13 @@ export default function SpatialWorkspace({
   useEffect(() => {
     if (!realtimeFocusRequest) return;
     const zone = zones.find((item) => String(item.id) === realtimeFocusRequest.zoneId);
-    if (zone) {
-      handleFocusZone(zone);
-      toast.info(realtimeFocusRequest.label, `Cập nhật tại ${zone.name}`);
-    }
-    setRealtimeFocusRequest(null);
+    queueMicrotask(() => {
+      if (zone) {
+        handleFocusZone(zone);
+        toast.info(realtimeFocusRequest.label, `Cập nhật tại ${zone.name}`);
+      }
+      setRealtimeFocusRequest(null);
+    });
   }, [realtimeFocusRequest, zones, handleFocusZone]);
 
   const handleSceneZoneSelection = useCallback((zone, { focus = true } = {}) => {
@@ -695,7 +677,7 @@ export default function SpatialWorkspace({
   }, [setCameraMode, setFollowingStaff]);
 
   useEffect(()=>{
-    if(followingStaff&&!displayStaff.some(person=>areSameStaff(person,followingStaff)))handleStopFollowStaff();
+    if(followingStaff&&!displayStaff.some(person=>areSameStaff(person,followingStaff)))queueMicrotask(handleStopFollowStaff);
   },[followingStaff,displayStaff,handleStopFollowStaff]);
 
   // Verified Zone Shift Requirements Map (Data-driven Heatmap & Attention source of truth)
@@ -1021,9 +1003,12 @@ export default function SpatialWorkspace({
     let forceOverride = true;
     if (!candidate.isCurrentlyAssigned && !candidate.hasAvailabilityMatch) {
       const shiftTimeDesc = currentShift.startTime && currentShift.endTime ? ` (${currentShift.startTime} - ${currentShift.endTime})` : '';
-      const confirmAssign = window.confirm(
-        `Nhân sự ${candidate.name} chưa đăng ký lịch rảnh vào khung giờ này${shiftTimeDesc}.\n\nBạn có chắc chắn muốn chỉ định bổ sung vào ca làm việc này không?`
-      );
+      const confirmAssign = await confirm({
+        title: 'Xác nhận chỉ định bổ sung',
+        message: `Nhân sự ${candidate.name} chưa đăng ký lịch rảnh vào khung giờ này${shiftTimeDesc}.\n\nBạn có chắc chắn muốn chỉ định bổ sung vào ca làm việc này không?`,
+        confirmLabel: 'Vẫn chỉ định',
+        tone: 'primary',
+      });
       if (!confirmAssign) return;
     }
 
@@ -1336,7 +1321,7 @@ export default function SpatialWorkspace({
     else toast.info('Cửa hàng chưa có trạm làm việc để xem.');
   }, [selectedWorkstation, effectiveWorkstations, handleFocusWorkstation]);
 
-  const handleWorkstationDraftMove = useCallback(({ ws, targetCoords, isValid, collision, isEnd, reset }) => {
+  const handleWorkstationDraftMove = useCallback(({ targetCoords, collision, reset }) => {
     if (reset) { setDraftWorkstationCoords(null); setWorkstationCollision(null); return; }
     if (targetCoords) setDraftWorkstationCoords(targetCoords);
     if (collision !== undefined) setWorkstationCollision(collision);
@@ -1346,9 +1331,8 @@ export default function SpatialWorkspace({
     useSimulationStore.getState().transferStaff(getStaffId(emp), targetZone);
   }, []);
 
-  const handleSimulationValidationChange = useCallback((check, nearestZone) => {
+  const handleSimulationValidationChange = useCallback((check) => {
     setDragValidationState(check);
-    setDragTargetZone(nearestZone);
   }, []);
 
   // 2D Fallback view (Mode B: Mặt bằng)
@@ -1585,6 +1569,8 @@ export default function SpatialWorkspace({
             layout={layout}
             viewZones={viewZones}
             onPhysicalLayoutReady={handlePhysicalLayoutReady}
+            onAvatarMeshesChange={(meshes) => { avatarMeshesRef.current = meshes; }}
+            onWorkstationMeshesChange={(meshes) => { workstationMeshesRef.current = meshes; }}
             zones={zones}
             staff={displayStaff}
             workstations={effectiveWorkstations}
@@ -1638,9 +1624,10 @@ export default function SpatialWorkspace({
             onSimulationTransfer={handleSimulationTransfer}
             onSimulationValidationChange={handleSimulationValidationChange}
             cameraManagerRef={cameraManagerRef}
+            onCameraManagerChange={handleCameraManagerChange}
             workstationDragControllerRef={workstationDragControllerRef}
             dragTransferRef={dragTransferRef}
-            playerControllerRef={playerControllerRef}
+            onPlayerControllerChange={handlePlayerControllerChange}
           />)}
 
           {(isWorkstationsLoading || isAttendanceLoading || workstationsError || attendanceError) && (

@@ -347,7 +347,6 @@ export function buildStoreEnvironment(layout = { length: 24, width: 16, height: 
   // Backstage Storage Shelving Rack (Deep spatial detail)
   const storageRack = new THREE.Group();
   storageRack.position.set(-len * 0.42, 0, -wid * 0.38);
-  const rackFrameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6 });
   const shelfMat = new THREE.MeshStandardMaterial({ color: 0x78350F, roughness: 0.7 });
 
   [0.4, 1.0, 1.6].forEach((sy) => {

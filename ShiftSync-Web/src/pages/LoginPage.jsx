@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login, isLoggingOut } from '../services/authService';
+import { login } from '../services/authService';
 import { validateLoginForm } from '../utils/validators';
 import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
-import { requestFcmToken } from '../config/firebase';
-import { registerFcmToken } from '../services/notificationService';
 import './LoginPage.css';
+
+const DEMO_ACCOUNTS = [
+  { label: 'Quan tri vien demo', email: 'admin.demo@shiftsync.local', role: 'ADMIN' },
+  { label: 'Quan ly demo', email: 'manager.demo@shiftsync.local', role: 'MANAGER' },
+  { label: 'Nguyen Minh Anh', email: 'anh.demo@shiftsync.local', role: 'STAFF' },
+  { label: 'Tran Quoc Bao', email: 'bao.demo@shiftsync.local', role: 'STAFF' },
+  { label: 'Le Thu Ha', email: 'ha.demo@shiftsync.local', role: 'STAFF' },
+  { label: 'Pham Gia Huy', email: 'huy.demo@shiftsync.local', role: 'STAFF' },
+  { label: 'Vo Ngoc Lan', email: 'lan.demo@shiftsync.local', role: 'STAFF' },
+  { label: 'Do Duc Minh', email: 'minh.demo@shiftsync.local', role: 'STAFF' },
+];
 
 const LogoIcon = ({ size = 36, color = '#16A34A' }) => (
   <svg width={size} height={size} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -65,6 +74,13 @@ export default function LoginPage() {
     setMascotStatus('idle');
   };
 
+  const handleQuickFill = (demoEmail) => {
+    setEmail(demoEmail);
+    setPassword('password123');
+    setError('');
+    setMascotStatus('idle');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -90,15 +106,6 @@ export default function LoginPage() {
       localStorage.removeItem('selectedStoreId');
 
       setMascotStatus('success');
-      // Xin quyền và lấy FCM Token gửi lên Backend ngầm
-      requestFcmToken().then((fcmToken) => {
-        if (fcmToken && !isLoggingOut() && localStorage.getItem('accessToken') === token) {
-          registerFcmToken(fcmToken).then(() => {
-            if (localStorage.getItem('accessToken') === token) sessionStorage.setItem('fcmToken', fcmToken);
-          }).catch((e) => console.log('[FCM Web Register Error]:', e));
-        }
-      }).catch((e) => console.log('[FCM Web Permission Error]:', e));
-
       setTimeout(() => {
         navigate('/');
       }, 1000);
@@ -109,13 +116,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setError('');
-    setMascotStatus('idle');
   };
 
   return (
@@ -238,58 +238,27 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="login-quick-roles" style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px', textAlign: 'center' }}>
-               Tài khoản thử nghiệm (Click để điền nhanh)
+          <section className="login-quick-roles" aria-label="Tai khoan demo dang hoat dong" style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px dashed #e2e8f0' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', margin: '0 0 8px', textAlign: 'center' }}>
+              Tai khoan demo dang hoat dong
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px' }}>
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => handleQuickFill(account.email)}
+                  style={{ fontSize: '11.5px', padding: '7px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <strong>{account.label}</strong><br />
+                  <span style={{ color: '#64748b' }}>{account.role} · {account.email}</span>
+                </button>
+              ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('manager.pvd@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>QL Phạm Văn Đồng</strong><br /><span style={{ color: '#64748b' }}>manager.pvd@...</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('manager.lm81@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>QL Landmark 81</strong><br /><span style={{ color: '#64748b' }}>manager.lm81@...</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>Quản trị viên</strong><br /><span style={{ color: '#64748b' }}>admin@shiftsync.com</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('pvd.staff01@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>Nhân viên PVD</strong><br /><span style={{ color: '#64748b' }}>pvd.staff01@...</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('lm81.staff01@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>Nhân viên LM81</strong><br /><span style={{ color: '#64748b' }}>lm81.staff01@...</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('pvd.staff02@shiftsync.com')}
-                style={{ fontSize: '11.5px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', textAlign: 'left' }}
-              >
-                 <strong>NV Thu ngân</strong><br /><span style={{ color: '#92400e' }}>pvd.staff02@...</span>
-              </button>
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '6px' }}>
-              Mật khẩu mặc định: <strong style={{ color: '#475569' }}>password123</strong>
-            </div>
-          </div>
+            <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', margin: '7px 0 0' }}>
+              Mat khau demo: <strong style={{ color: '#475569' }}>password123</strong>
+            </p>
+          </section>
 
           <div className="login-card-footer">
             <span className="login-security-badge">

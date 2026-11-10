@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useConfirmation } from '../context/ConfirmationContext';
 import Sidebar from '../components/Sidebar';
 import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getAllStores } from '../services/storeService';
@@ -32,7 +33,7 @@ const tomorrowInVietnam = () => {
 };
 
 export default function SkillsPage() {
-  const [stores, setStores] = useState([]);
+  const confirm = useConfirmation();
   const [storeId, setStoreId] = useState('');
   const [skills, setSkills] = useState([]);
   const [search, setSearch] = useState('');
@@ -54,7 +55,6 @@ export default function SkillsPage() {
     getAllStores()
       .then((res) => {
         const list = res.data?.content || res.data || [];
-        setStores(list);
         if (list.length) {
           const saved = localStorage.getItem('selectedStoreId');
           const target = (saved && list.find((s) => String(s.id) === String(saved))) || list[0];
@@ -65,20 +65,20 @@ export default function SkillsPage() {
       .catch(() => setError('Không tải được danh sách chi nhánh'));
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!storeId) return;
     try {
       const res = await getSkillsByStore(storeId);
       const data = res.data;
       setSkills(Array.isArray(data) ? data : data.content || []);
-    } catch (e) {
+    } catch {
       setError('Không tải được danh sách vị trí');
     }
-  };
+  }, [storeId]);
 
   useEffect(() => {
-    load();
-  }, [storeId]);
+    queueMicrotask(load);
+  }, [load]);
 
   const filtered = skills.filter((sk) =>
     sk.name.toLowerCase().includes(search.toLowerCase())
@@ -148,7 +148,7 @@ export default function SkillsPage() {
   };
 
   const handleDelete = async (skillId, skillName) => {
-    if (!window.confirm(`Xoá vị trí "${skillName}"?`)) return;
+    if (!(await confirm({ message: `Xoá vị trí "${skillName}"?`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteSkill(storeId, skillId);
       setSuccess(`Đã xoá vị trí "${skillName}".`);

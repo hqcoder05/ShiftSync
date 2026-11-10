@@ -1,17 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { ToastContext } from './toastContextValue.js';
+import { setGlobalToastHandler } from './toastApi.js';
 import './ToastContext.css';
-
-const ToastContext = createContext(null);
-
-let globalToastHandler = null;
-
-export const toast = {
-  success: (message, title) => globalToastHandler?.({ type: 'success', message, title }),
-  error: (message, title) => globalToastHandler?.({ type: 'error', message, title }),
-  warning: (message, title) => globalToastHandler?.({ type: 'warning', message, title }),
-  info: (message, title) => globalToastHandler?.({ type: 'info', message, title }),
-};
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -35,9 +26,9 @@ export function ToastProvider({ children }) {
   }, [removeToast]);
 
   React.useEffect(() => {
-    globalToastHandler = showToast;
+    setGlobalToastHandler(showToast);
     return () => {
-      globalToastHandler = null;
+      setGlobalToastHandler(null);
     };
   }, [showToast]);
 
@@ -91,18 +82,4 @@ export function ToastProvider({ children }) {
       </div>
     </ToastContext.Provider>
   );
-}
-
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    return {
-      showToast: toast.info,
-      success: toast.success,
-      error: toast.error,
-      warning: toast.warning,
-      info: toast.info,
-    };
-  }
-  return context;
 }

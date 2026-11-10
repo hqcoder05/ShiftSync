@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
-import { getAvatar3DProps, getAvatarForEmployee, AVATAR_OPTIONS } from './avatarConfigs';
+import { getAvatar3DProps, getAvatarForEmployee } from './avatarConfigs';
 import { getAvatarThumbnail } from './avatarThumbnails';
 
 /**
@@ -30,7 +30,6 @@ if (typeof window !== 'undefined' && !window.__ss_clock_filter_installed) {
 }
 
 // Global 3D snapshot cache
-const snapshotCache = new Map();
 
 // Helper to build 3D Head Mesh
 function buildAvatarHeadMesh(props) {
@@ -376,7 +375,7 @@ export default function Avatar3DWeb({
   const snapshotUri = useMemo(() => {
     try {
       return getAvatarThumbnail(resolvedAvatarId);
-    } catch (e) {
+    } catch {
       return null;
     }
   }, [resolvedAvatarId]);
@@ -420,7 +419,7 @@ export default function Avatar3DWeb({
       const rootGroup = new THREE.Group();
       scene.add(rootGroup);
 
-      const { headGroup, eyeL, eyeR, normalMouth, browGroup } = buildAvatarHeadMesh(finalProps);
+      const { headGroup, eyeL, eyeR, browGroup } = buildAvatarHeadMesh(finalProps);
       rootGroup.add(headGroup);
 
       let lastTime = performance.now();
@@ -515,8 +514,8 @@ export default function Avatar3DWeb({
       };
 
       animate();
-    } catch (err) {
-      setWebglError(true);
+    } catch {
+      queueMicrotask(() => setWebglError(true));
     }
 
     return () => {
@@ -525,7 +524,7 @@ export default function Avatar3DWeb({
         try {
           renderer.forceContextLoss?.();
           renderer.dispose();
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         if (renderer.domElement && renderer.domElement.parentNode) {
           renderer.domElement.parentNode.removeChild(renderer.domElement);
         }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAllStores } from '../services/storeService';
 import { getStoreLeaveRequests, getMyLeaveRequests } from '../services/leaveService';
@@ -42,7 +42,6 @@ export default function RequestPage() {
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
-  const [loading, setLoading] = useState(true);
 
   // Real-time domain metrics
   const [stats, setStats] = useState({
@@ -57,18 +56,19 @@ export default function RequestPage() {
     getAllStores().then((res) => {
       const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
       setStores(list);
-      if (list.length > 0 && !storeId) {
-        const firstId = String(list[0].id);
-        setStoreId(firstId);
-        localStorage.setItem('selectedStoreId', firstId);
+      if (list.length > 0) {
+        setStoreId((currentStoreId) => {
+          if (currentStoreId) return currentStoreId;
+          const firstId = String(list[0].id);
+          localStorage.setItem('selectedStoreId', firstId);
+          return firstId;
+        });
       }
     });
   }, []);
 
   useEffect(() => {
     if (!storeId) return;
-    setLoading(true);
-
     const loadStats = async () => {
       try {
         if (isManager) {
@@ -124,8 +124,6 @@ export default function RequestPage() {
         }
       } catch (e) {
         console.error('Error loading operations stats:', e);
-      } finally {
-        setLoading(false);
       }
     };
 

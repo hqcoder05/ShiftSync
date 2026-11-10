@@ -35,7 +35,7 @@ export const refreshToken = (token) => {
 
 export const logout = async () => {
   loggingOut = true;
-  try { await waitForFcmRegistration(); } catch (_) { /* Registration did not succeed. */ }
+  try { await waitForFcmRegistration(); } catch { /* Registration did not succeed. */ }
   const rt = localStorage.getItem('refreshToken');
   const fcmToken = sessionStorage.getItem('fcmToken');
   if (fcmToken) {

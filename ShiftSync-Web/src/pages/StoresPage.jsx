@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useConfirmation } from '../context/ConfirmationContext';
 import Sidebar from '../components/Sidebar';
 import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getAllStores, createStore, updateStore, deleteStore } from '../services/storeService';
 import { getSkillsByStore, createSkill, updateSkill, deleteSkill } from '../services/skillService';
+import { getApiErrorMessage, isRequestCanceled } from '../services/api';
 import Store3DManager from '../components/spatial/Store3DManager';
 import './StoresPage.css';
 
@@ -54,6 +56,7 @@ function ColorPicker({ value, onChange }) {
 }
 
 export default function StoresPage() {
+  const confirm = useConfirmation();
   const [stores, setStores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -101,21 +104,29 @@ export default function StoresPage() {
   }, []);
 
   // Tải danh sách chi nhánh từ API
-  const load = async () => {
+  const load = useCallback(async (signal) => {
+    if (signal?.aborted) return;
     setLoading(true);
     setError('');
     try {
-      const res = await getAllStores();
+      const res = await getAllStores(0, 100, '', signal ? { signal } : {});
+      if (signal?.aborted) return;
       const dataList = Array.isArray(res.data) ? res.data : (res.data?.content || []);
       setStores(dataList);
-    } catch (e) {
-      setError('Không tải được danh sách chi nhánh. Vui lòng thử lại sau.');
+    } catch (error) {
+      if (!isRequestCanceled(error) && !signal?.aborted) {
+        setError(getApiErrorMessage(error, 'Không tải được danh sách chi nhánh. Vui lòng thử lại sau.'));
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => load(controller.signal));
+    return () => controller.abort();
+  }, [load]);
 
   // Load skills khi expand store
   const loadSkills = useCallback(async (storeId) => {
@@ -187,7 +198,7 @@ export default function StoresPage() {
   };
 
   const handleDeleteSkill = async (storeId, skillId, skillName) => {
-    if (!window.confirm(`Xoá vị trí "${skillName}"?`)) return;
+    if (!(await confirm({ message: `Xoá vị trí "${skillName}"?`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteSkill(storeId, skillId);
       loadSkills(storeId);
@@ -266,13 +277,11 @@ export default function StoresPage() {
               lat: parseFloat(d.lat),
               lng: parseFloat(d.lon),
             }));
-            setSuggestions((prev) => {
-              const combined = [...localMatches];
-              apiSuggestions.forEach((item) => {
-                if (!combined.some((c) => c.name === item.name)) combined.push(item);
-              });
-              return combined;
+            const combined = [...localMatches];
+            apiSuggestions.forEach((item) => {
+              if (!combined.some((c) => c.name === item.name)) combined.push(item);
             });
+            setSuggestions(combined);
             if (data[0]) {
               setForm((prev) => ({
                 ...prev,
@@ -332,7 +341,7 @@ export default function StoresPage() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Xoá chi nhánh "${name}"?`)) return;
+    if (!(await confirm({ message: `Xoá chi nhánh "${name}"?`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteStore(id);
       load();

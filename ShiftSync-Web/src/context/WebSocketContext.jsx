@@ -1,9 +1,8 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client } from '@stomp/stompjs';
-import { toast } from './ToastContext';
+import { toast } from './toastApi.js';
+import { WebSocketContext } from './webSocketContextValue.js';
 import { getMyProfile } from '../services/employeeService';
-
-const WebSocketContext = createContext(null);
 
 export function WebSocketProvider({ children }) {
   const [connected, setConnected] = useState(false);
@@ -185,12 +184,4 @@ export function WebSocketProvider({ children }) {
       {children}
     </WebSocketContext.Provider>
   );
-}
-
-export function useWebSocket() {
-  const ctx = useContext(WebSocketContext);
-  if (!ctx) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
-  }
-  return ctx;
 }

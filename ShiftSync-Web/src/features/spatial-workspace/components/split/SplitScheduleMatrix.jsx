@@ -13,22 +13,16 @@
  * - Seamless return to full 3D Twin mode
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  Users,
   Clock,
   CheckCircle2,
-  AlertTriangle,
   Search,
   Video,
   Sparkles,
   Zap,
-  Layers,
-  ArrowRight,
   Columns2,
   X,
-  Plus,
-  Briefcase,
 } from 'lucide-react';
 import { getRoleTheme } from '../../visualization/ZoneStatus';
 import { getZoneIcon, getZoneShiftRequirements } from '../../../../components/spatial/spatial.constants';
@@ -37,11 +31,9 @@ export default function SplitScheduleMatrix({
   currentShift,
   allDateShifts = [],
   onSelectShift,
-  activeDate,
   staff = [],
   zones = [],
   skills = [],
-  employees = [],
   onSelectStaff,
   onFocusStaff,
   onFollowStaff,
@@ -355,9 +347,9 @@ export default function SplitScheduleMatrix({
                             {emp.skillName || emp.role || 'Nhân viên'}
                           </span>
                           <span>•</span>
-                          <span style={{ color: '#0284C7', cursor: 'pointer' }} onClick={() => matchedZone && onFocusZone?.(matchedZone)}>
+                          <button type="button" style={{ color: '#0284C7', cursor: 'pointer', background: 'none', border: 0, padding: 0, font: 'inherit' }} onClick={() => matchedZone && onFocusZone?.(matchedZone)}>
                             {emp.zoneName || matchedZone?.name || 'Chưa gán quầy'}
-                          </span>
+                          </button>
                         </div>
                       </div>
                     </div>

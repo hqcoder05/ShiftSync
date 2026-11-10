@@ -13,6 +13,11 @@ export default defineConfig({
     },
   },
   plugins: [react()],
+  build: {
+    // Three.js is isolated behind lazy-loaded 3D routes; its compressed vendor
+    // chunk is intentionally ~185 kB, so the generic 500 kB warning is noise.
+    chunkSizeWarningLimit: 750,
+  },
   define: {
     global: 'window',
   },

@@ -33,7 +33,7 @@ class NotificationDeliveryAuditTest {
             for(int i=0;i<120;i++)executor.execute(blocked);
             assertTrue(entered.await(5,TimeUnit.SECONDS));
             assertEquals(100,executor.getThreadPoolExecutor().getQueue().size());
-            var service=new NotificationService(null,null,null,null,null,null,executor);
+            var service=new NotificationService(null,null,null,null,null,null,executor,null);
             var transactions=new RecordingTransactions();
             var template=new TransactionTemplate(transactions);
             var laterAfterCommit=new AtomicBoolean();

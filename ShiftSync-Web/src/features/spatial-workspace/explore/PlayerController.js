@@ -185,8 +185,8 @@ export class PlayerController {
     // When Point Lock is active, camera orientation is driven by the locked target
     if (this.targetLock) return;
 
-    let deltaX = 0;
-    let deltaY = 0;
+    let deltaX;
+    let deltaY;
 
     if (this.isPointerLocked) {
       deltaX = e.movementX || 0;
@@ -261,7 +261,6 @@ export class PlayerController {
     const targetPos = new THREE.Vector3();
 
     if (entity.type === 'staff') {
-      const empId = getStaffId(entity.item || entity);
       const avatar = avatarMeshes.find((a) => areSameStaff(a.userData?.employee, entity.item || entity));
       if (avatar) {
         targetMesh = avatar;
@@ -334,7 +333,7 @@ export class PlayerController {
           this.keys.flyDown = true;
         }
         break;
-      case 'KeyE':
+      case 'KeyE': {
         // Interact with nearby entity or locked target
         const activeEntity = this.nearbyEntity || (this.targetLock ? {
           type: this.targetLock.type,
@@ -346,6 +345,7 @@ export class PlayerController {
           this.onInteract(activeEntity);
         }
         break;
+      }
       case 'KeyF':
       case 'KeyL':
         // Toggle Point Lock
@@ -781,8 +781,8 @@ export class PlayerController {
     // 1. Check Staff Avatars
     if (Array.isArray(staff) && staff.length > 0) {
       for (const emp of staff) {
-        let tx = 0;
-        let tz = 0;
+        let tx;
+        let tz;
         let avatarMesh = null;
 
         // Try to get real-time position from avatar mesh

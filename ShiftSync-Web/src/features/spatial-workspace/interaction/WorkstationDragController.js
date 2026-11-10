@@ -95,6 +95,11 @@ export class WorkstationDragController {
     this.attach();
   }
 
+  updateCameraContext(camera, controls) {
+    this.camera = camera;
+    this.controls = controls;
+  }
+
   attach() {
     if (this.dom?.addEventListener) {
       this.dom.addEventListener('pointerdown', this._onPointerDown);

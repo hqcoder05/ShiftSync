@@ -54,7 +54,7 @@ export default function Dashboard({
 }) {
   const navigate = useNavigate();
   const [scheduleTab, setScheduleTab] = useState("timeline"); // "timeline" | "spatial"
-  const [chartTab, setChartTab] = useState("hours"); // "hours" | "assigned"
+  const [chartTab, setChartTab] = useState("hours"); // "hours" | "assigned" | "shift_colors"
   const [processingId, setProcessingId] = useState(null);
 
   const {
@@ -65,6 +65,8 @@ export default function Dashboard({
     pendingItems = [],
     attendance = [],
     assigned = [],
+    shiftColors = [],
+    shiftCategories = [],
     hours = [],
     spatial = {},
   } = data || {};
@@ -104,7 +106,8 @@ export default function Dashboard({
   const hasAssignedData = assigned.some((day) =>
     Object.values(day.counts || {}).some((count) => count > 0),
   );
-  const hasChartData = chartTab === "hours" ? hasHoursData : hasAssignedData;
+  const hasShiftColorData = shiftColors.some((day) => Object.values(day.counts || {}).some((count) => count > 0));
+  const hasChartData = chartTab === "hours" ? hasHoursData : chartTab === "assigned" ? hasAssignedData : hasShiftColorData;
   const coverage = shifts.length ? Math.round(k.coverage || 0) : null;
 
   return (
@@ -384,6 +387,15 @@ export default function Dashboard({
                     <CalendarDays size={13} />
                     <span>Số ca theo vị trí</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`db-subtab-btn ${chartTab === "shift_colors" ? "active" : ""}`}
+                    aria-pressed={chartTab === "shift_colors"}
+                    onClick={() => setChartTab("shift_colors")}
+                  >
+                    <span aria-hidden="true">🎨</span>
+                    <span>Màu sắc ca làm việc</span>
+                  </button>
                 </div>
                 <div className="db-chart-period-controls" aria-label="Chọn kỳ biểu đồ">
                   <div className="db-chart-period-options" role="group" aria-label="Khoảng thời gian">
@@ -446,7 +458,7 @@ export default function Dashboard({
                 )}
                 <HoursChart days={hours} today={date} />
               </>
-            ) : (
+            ) : chartTab === "assigned" ? (
               <>
                 <div className="db-chart-legend">
                   {positions.map((p) => (
@@ -461,6 +473,15 @@ export default function Dashboard({
                   positions={positions}
                   today={date}
                 />
+              </>
+            ) : (
+              <>
+                <div className="db-chart-legend">
+                  {shiftCategories.map((shift) => (
+                    <span key={shift.id}><i style={{ background: shift.color }} />{shift.name}</span>
+                  ))}
+                </div>
+                <AssignedChart days={shiftColors} positions={shiftCategories} today={date} />
               </>
             )}
           </section>

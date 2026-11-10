@@ -32,7 +32,7 @@ public class DailyQuotaResponse {
     // 3 Operational Position KPIs
     private List<DailyPositionKpi> positionKpis;
 
-    // Timeline Shifts (Ca Sáng 06:00-14:00, Ca Chiều 14:00-22:00)
+    // Timeline Shifts (Ca Sáng 06:00-14:00, Ca Chiều 14:00-22:00, plus custom shifts)
     private List<DailyShiftQuota> shifts;
 
     // Bottom Warning Banner
@@ -68,12 +68,15 @@ public class DailyQuotaResponse {
     @AllArgsConstructor
     public static class DailyShiftQuota {
         private UUID id;
-        private String name; // "Ca Sáng" or "Ca Chiều"
+        private UUID shiftId;
+        private String name; // "Ca Sáng" or "Ca Chiều" or custom name
         private String startTime; // "06:00"
         private String endTime; // "14:00"
         private double durationHours;
         private List<Integer> timelineHours; // [6, 8, 10, 12] or [14, 16, 18, 20]
         private List<DailyQuotaCell> quotas;
+        private boolean isCustom;
+        private String status;
     }
 
     @Data
@@ -87,6 +90,7 @@ public class DailyQuotaResponse {
         private int excessCount;
         private int unclassifiedAssignedCount; // Shift-level total; do not sum across positions
         private String quotaId;
+        private UUID shiftId;
         private UUID positionId;
         private String positionName;
         private String positionCode;

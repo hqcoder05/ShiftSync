@@ -676,7 +676,8 @@
     padding: 0 18px;
   }
   .ssn-search {
-    min-width: 0;
+    flex: 0 0 38px;
+    min-width: 38px;
     width: 38px;
     justify-content: center;
     border: 0;
@@ -882,6 +883,8 @@
   .ssn-ico,
   .ssn .ssnf .ssn-ico,
   .ssn-search {
+    flex-basis: 36px;
+    min-width: 36px;
     width: 36px;
   }
   .ssn-secondary {
@@ -903,6 +906,12 @@
   }
   .ssn-command {
     max-height: calc(100dvh - 24px);
+  }
+}
+
+@media (max-width: 360px) {
+  .ssn-logo > span {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar3DWeb from './Avatar3DWeb';
 import { AVATAR_OPTIONS } from './avatarConfigs';
@@ -14,17 +14,11 @@ export default function AvatarCollectionModal({
   const navigate = useNavigate();
   const [previewAvatarId, setPreviewAvatarId] = useState(currentAvatarId || 'dilan');
   const [savingAvatar, setSavingAvatar] = useState(false);
-  const [thumbnails, setThumbnails] = useState({});
-
-  useEffect(() => {
-    try {
-      setThumbnails(getAllAvatarThumbnails());
-    } catch (e) {}
-  }, []);
+  const [thumbnails] = useState(() => getAllAvatarThumbnails());
 
   useEffect(() => {
     if (isOpen) {
-      setPreviewAvatarId(currentAvatarId || 'dilan');
+      queueMicrotask(() => setPreviewAvatarId(currentAvatarId || 'dilan'));
     }
   }, [isOpen, currentAvatarId]);
 

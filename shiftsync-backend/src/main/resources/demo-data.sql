@@ -7,13 +7,14 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO staff (id, full_name, gender, email, phone, password_hash, avatar_id, system_role, deleted, version)
 VALUES
- ('d0000000-0000-0000-0000-000000000010', 'Demo Manager', 'MALE', 'manager.demo@shiftsync.local', '0900000010', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'manager-male', 'MANAGER', false, 0),
- ('d0000000-0000-0000-0000-000000000011', 'Nguyễn Minh Anh', 'FEMALE', 'anh.demo@shiftsync.local', '0900000011', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'barista-female', 'STAFF', false, 0),
- ('d0000000-0000-0000-0000-000000000012', 'Trần Quốc Bảo', 'MALE', 'bao.demo@shiftsync.local', '0900000012', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'barista-male', 'STAFF', false, 0),
- ('d0000000-0000-0000-0000-000000000013', 'Lê Thu Hà', 'FEMALE', 'ha.demo@shiftsync.local', '0900000013', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'cashier-female', 'STAFF', false, 0),
- ('d0000000-0000-0000-0000-000000000014', 'Phạm Gia Huy', 'MALE', 'huy.demo@shiftsync.local', '0900000014', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'waiter-male', 'STAFF', false, 0),
- ('d0000000-0000-0000-0000-000000000015', 'Võ Ngọc Lan', 'FEMALE', 'lan.demo@shiftsync.local', '0900000015', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'waiter-female', 'STAFF', false, 0),
- ('d0000000-0000-0000-0000-000000000016', 'Đỗ Đức Minh', 'MALE', 'minh.demo@shiftsync.local', '0900000016', '$2a$10$cy6l1jtAuFvxzZXf9y918elm/yqSqp1ScTKTTxDnUbwlYGR7sdJhu', 'chef-male', 'STAFF', false, 0)
+ ('d0000000-0000-0000-0000-000000000009', 'Quản trị viên Demo', 'OTHER', 'admin.demo@shiftsync.local', '0900000009', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'admin', 'ADMIN', false, 0),
+ ('d0000000-0000-0000-0000-000000000010', 'Demo Manager', 'MALE', 'manager.demo@shiftsync.local', '0900000010', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'manager-male', 'MANAGER', false, 0),
+ ('d0000000-0000-0000-0000-000000000011', 'Nguyễn Minh Anh', 'FEMALE', 'anh.demo@shiftsync.local', '0900000011', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'barista-female', 'STAFF', false, 0),
+ ('d0000000-0000-0000-0000-000000000012', 'Trần Quốc Bảo', 'MALE', 'bao.demo@shiftsync.local', '0900000012', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'barista-male', 'STAFF', false, 0),
+ ('d0000000-0000-0000-0000-000000000013', 'Lê Thu Hà', 'FEMALE', 'ha.demo@shiftsync.local', '0900000013', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'cashier-female', 'STAFF', false, 0),
+ ('d0000000-0000-0000-0000-000000000014', 'Phạm Gia Huy', 'MALE', 'huy.demo@shiftsync.local', '0900000014', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'waiter-male', 'STAFF', false, 0),
+ ('d0000000-0000-0000-0000-000000000015', 'Võ Ngọc Lan', 'FEMALE', 'lan.demo@shiftsync.local', '0900000015', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'waiter-female', 'STAFF', false, 0),
+ ('d0000000-0000-0000-0000-000000000016', 'Đỗ Đức Minh', 'MALE', 'minh.demo@shiftsync.local', '0900000016', '$2a$10$0K5tFHLimJVg5IlZOI.lwOlTNgDXvvFr/Zz00Ci8nEu.MncyHGsYC', 'chef-male', 'STAFF', false, 0)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO contract_type (id, store_id, name, max_weekly_hours, ot_multiplier, default_hourly_rate)

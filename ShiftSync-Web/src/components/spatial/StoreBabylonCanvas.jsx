@@ -211,7 +211,6 @@ export default function StoreBabylonCanvas({
   storeName = 'Chi nhánh cửa hàng',
   onRunAlgorithm,
   isAllocating = false,
-  allocatedSequence = [],
   onSwitchEngine,
 }) {
   const canvasRef = useRef(null);

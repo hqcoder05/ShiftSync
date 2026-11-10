@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import StaffAvailabilityPage from './StaffAvailabilityPage';
 import ShiftRegistrationForm from '../components/ShiftRegistrationForm';
 import { getAllStores } from '../services/storeService';
@@ -7,26 +8,23 @@ import { getStaffByStore, assignStaffToStore } from '../services/employmentServi
 import { getContractTypes } from '../services/contractTypeService';
 import { getSkillsByStore, getStaffSkills } from '../services/skillService';
 import { getEmployees, updateEmployee } from '../services/employeeService';
-import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts } from '../services/shiftService';
+import { getShiftsForStore, createShift, updateShift, deleteShift, publishShifts, assignStaffToShift, getEligibleStaffForShift } from '../services/shiftService';
 import { getStaffAvailability } from '../services/availabilityService';
 import { getStoreLayout, getStoreZones, allocateZonesForShift } from '../services/layoutService';
 import Store3DCanvas from '../components/spatial/Store3DCanvas';
 import CompactDropdownFilter from '../components/CompactDropdownFilter';
 import DemandPlanningModal from '../components/demand-planning/DemandPlanningModal';
-import { Compass, Clock, Users } from 'lucide-react';
-import iconCard from '../assets/icons/icon-credit-card.png';
+import ShiftQrModal from '../components/attendance/ShiftQrModal';
+import { Compass, Users } from 'lucide-react';
 import iconAi from '../assets/icons/icon-ai.png';
-import iconUser from '../assets/icons/icon-user.png';
-import iconLocation from '../assets/icons/location_on.png';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './SchedulePage.css';
 import './schedule-redesign.css';
 import './shift-form.css';
-import api from '../services/api';
+import api, {getApiErrorMessage, isRequestCanceled} from '../services/api';
 import {getStoreConfiguration} from '../services/storeConfigService';
 import {newShiftDefaults,validateShiftForm,shiftRegistrationDeadline} from '../utils/shiftForm.js';
-import SchedulePlanner from '../features/schedule-planner/SchedulePlanner.jsx';
 import AutoSchedulerVisualization from '../features/auto-scheduler/AutoSchedulerVisualization.jsx';
 import {assignmentChanges, replayShifts, shiftsInWindow} from '../features/auto-scheduler/visualizationModel.js';
 import {assignmentsOf} from '../features/schedule-planner/plannerModel.js';
@@ -34,7 +32,7 @@ import ScheduleReveal from '../features/auto-scheduler/ScheduleReveal.jsx';
 
 /* ── Helpers ────────────────────────────────────────────── */
 // Pastel colour palette for schedule views
-export const PRESET_COLORS = [
+const PRESET_COLORS = [
   '#8DD9CC', // Pastel Mint / Teal (Barista / Primary)
   '#F4A8C4', // Pastel Rose / Blush Pink (Cashier)
   '#A5B4FC', // Pastel Periwinkle / Lavender (Waiter / Service)
@@ -44,9 +42,9 @@ export const PRESET_COLORS = [
   '#C4B5FD', // Pastel Soft Violet
   '#86EFAC', // Pastel Soft Sage Green
 ];
-export const SHIFT_COLORS = PRESET_COLORS;
+const SHIFT_COLORS = PRESET_COLORS;
 
-export const ROLE_PASTEL_MAP = {
+const ROLE_PASTEL_MAP = {
   barista: '#8DD9CC',
   'pha chế': '#8DD9CC',
   cashier: '#F4A8C4',
@@ -63,7 +61,7 @@ export const ROLE_PASTEL_MAP = {
   manager: '#93C5FD',
 };
 
-export const PASTEL_COLOR_MAP = {
+const PASTEL_COLOR_MAP = {
   // Teal / Cyan -> Pastel Mint
   '#5bc8b8': '#8DD9CC',
   '#0d9488': '#8DD9CC',
@@ -107,14 +105,14 @@ export const PASTEL_COLOR_MAP = {
   '#818cf8': '#A5B4FC',
 };
 
-export const toPastelColor = (hex) => {
+const toPastelColor = (hex) => {
   if (!hex || typeof hex !== 'string') return PRESET_COLORS[0];
   const lower = hex.toLowerCase().trim();
   if (PASTEL_COLOR_MAP[lower]) return PASTEL_COLOR_MAP[lower];
   return hex;
 };
 
-export const defaultColorFor = (name = '') => {
+const defaultColorFor = (name = '') => {
   if (!name) return PRESET_COLORS[0];
   const lower = name.toLowerCase().trim();
   for (const [key, val] of Object.entries(ROLE_PASTEL_MAP)) {
@@ -123,12 +121,6 @@ export const defaultColorFor = (name = '') => {
     }
   }
   return PRESET_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % PRESET_COLORS.length];
-};
-
-export const getSkillColor = (sk) => {
-  if (!sk) return PRESET_COLORS[0];
-  if (sk.description && sk.description.startsWith('#')) return toPastelColor(sk.description);
-  return defaultColorFor(sk.name);
 };
 
 const colorFor = (name = '') => defaultColorFor(name);
@@ -168,9 +160,6 @@ function getWeekDates(baseDate = new Date()) {
 const fmtDM = (d) =>
   `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-const fmtFull = (d) =>
-  `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-
 const toISODate = (d) => {
   if (!d) return '';
   const date = d instanceof Date ? d : new Date(d);
@@ -202,7 +191,7 @@ const fmtDateRangeText = (d) => {
 };
 
 /* ── Helper: Resolve Shift Position / Skill Name ── */
-export const resolveShiftPositionName = (shift, assignment, storeSkills = [], employeeObj = null) => {
+const resolveShiftPositionName = (shift, assignment, storeSkills = [], employeeObj = null) => {
   // 1. Direct assignment skillName if non-generic
   if (assignment?.skillName && assignment.skillName !== 'Nhân viên' && assignment.skillName !== 'Staff') {
     return assignment.skillName;
@@ -279,7 +268,7 @@ export const resolveShiftPositionName = (shift, assignment, storeSkills = [], em
 };
 
 /* ── Helper: Resolve Position Color ── */
-export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
+const getShiftPositionColor = (shift, emp, storeSkills = []) => {
   // 1. Resolve position name first
   let posName = shift?.positionName || shift?.skillName;
   if (!posName || posName === 'Nhân viên' || posName === 'Staff') {
@@ -345,6 +334,7 @@ export const getShiftPositionColor = (shift, emp, storeSkills = []) => {
 
 /* ── Component ────────────────────────────────────────────── */
 export default function SchedulePage() {
+  const confirm = useConfirmation();
   const navigate = useNavigate();
   const location = useLocation();
   const userRole = localStorage.getItem('userRole') || 'STAFF';
@@ -360,8 +350,8 @@ export default function SchedulePage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab === 'availability') setScheduleSubTab('availability');
-    else if (!tab) setScheduleSubTab('board');
+    if (tab === 'availability') queueMicrotask(() => setScheduleSubTab('availability'));
+    else if (!tab) queueMicrotask(() => setScheduleSubTab('board'));
   }, [location.search]);
 
   /* -- data state -- */
@@ -379,6 +369,11 @@ export default function SchedulePage() {
   /* -- Demand Planning Modal state -- */
   const [showDemandModal, setShowDemandModal] = useState(false);
   const [demandTargetDate, setDemandTargetDate] = useState('');
+  const [demandAssignmentShift, setDemandAssignmentShift] = useState(null);
+  const [demandEligibleStaff, setDemandEligibleStaff] = useState([]);
+  const [loadingDemandEligibleStaff, setLoadingDemandEligibleStaff] = useState(false);
+  const [assigningDemandStaffId, setAssigningDemandStaffId] = useState(null);
+  const [demandOverrideMode, setDemandOverrideMode] = useState(false);
 
   /* -- Auto Schedule AI Modal state -- */
   const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
@@ -397,7 +392,7 @@ export default function SchedulePage() {
   );
   useEffect(() => {
     if (new URLSearchParams(location.search).get('view') === '3d') {
-      setViewMode('3D');
+      queueMicrotask(() => setViewMode('3D'));
     }
   }, [location.search]);
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -408,7 +403,6 @@ export default function SchedulePage() {
   const [selected3DShiftId, setSelected3DShiftId] = useState(null);
   const [isAllocating3D, setIsAllocating3D] = useState(false);
   const [allocatedSequence, setAllocatedSequence] = useState([]);
-  const [spatialPerspectiveMode, setSpatialPerspectiveMode] = useState('3D'); // '3D' | 'SPLIT'
 
   /* -- filter state: Compact Dropdown Filter -- */
   const [selectedSkills, setSelectedSkills] = useState(['ALL']);
@@ -423,6 +417,7 @@ export default function SchedulePage() {
   /* -- edit mode for shift modal -- */
   const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
   const [editingShift, setEditingShift] = useState(null); // shift being edited
+  const [qrShift, setQrShift] = useState(null);
 
   /* -- "Tạo lịch" modal -- */
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -432,7 +427,7 @@ export default function SchedulePage() {
   useEffect(()=>{
     if(!showRegisterModal||!storeId)return;
     const abort=new AbortController();
-    setRegisterTemplateState('loading');setRegisterTemplates([]);setAttendanceConfig(null);
+    queueMicrotask(()=>{setRegisterTemplateState('loading');setRegisterTemplates([]);setAttendanceConfig(null);});
     api.get(`/stores/${storeId}/shift-templates`,{signal:abort.signal}).then(({data})=>{if(!abort.signal.aborted){setRegisterTemplates(Array.isArray(data)?data.filter(t=>t.isActive!==false):[]);setRegisterTemplateState('ready');}}).catch(()=>{if(!abort.signal.aborted)setRegisterTemplateState('error');});
     getStoreConfiguration(storeId).then(({data})=>{if(!abort.signal.aborted)setAttendanceConfig(data);}).catch(()=>{});
     return()=>abort.abort();
@@ -514,27 +509,66 @@ export default function SchedulePage() {
     }, 4500);
   };
 
+  const openDemandAssignment = async (shift) => {
+    setDemandAssignmentShift(shift);
+    setDemandEligibleStaff([]);
+    setDemandOverrideMode(false);
+    setLoadingDemandEligibleStaff(true);
+    try {
+      const { data } = await getEligibleStaffForShift(storeId, shift.id);
+      setDemandEligibleStaff(Array.isArray(data) ? data : (data?.content || []));
+    } catch (error) {
+      showToast('Không tải được nhân sự phù hợp', error.response?.data?.message || 'Vui lòng thử lại.');
+    } finally {
+      setLoadingDemandEligibleStaff(false);
+    }
+  };
+
+  const assignDemandStaff = async (staff) => {
+    if (!demandAssignmentShift) return;
+    const staffId = staff.staffId || staff.id;
+    setAssigningDemandStaffId(staffId);
+    try {
+      if (demandOverrideMode && !(await confirm({ title: 'Xác nhận gán ngoại lệ', message: 'Gán ngoại lệ sẽ bỏ qua kiểm tra lịch rảnh, kỹ năng hoặc giới hạn giờ. Bạn có chắc muốn tiếp tục?', confirmLabel: 'Vẫn gán', tone: 'primary' }))) return;
+      await assignStaffToShift(storeId, demandAssignmentShift.id, staffId, null, demandOverrideMode);
+      showToast(demandOverrideMode ? 'Đã gán ngoại lệ' : 'Đã phân công nhân viên', `${staff.fullName || staff.staffName || 'Nhân viên'} đã được gán vào ca.`);
+      setDemandAssignmentShift(null);
+      // Function declarations are hoisted; this handler always calls the current render's loader.
+      // eslint-disable-next-line react-hooks/immutability
+      await loadData();
+      notifyShiftUpdates();
+    } catch (error) {
+      showToast('Không thể phân công', error.response?.data?.message || 'Nhân viên không đủ điều kiện cho ca này.');
+    } finally {
+      setAssigningDemandStaffId(null);
+    }
+  };
+
   /* -- Datepicker Popover State -- */
   const [showCalendarPopover, setShowCalendarPopover] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const dateNavWrapRef = useRef(null);
-  const clickTimeoutRef = useRef(null);
 
   const menuRef = useRef(null);
+  const scheduleLoadSequence = useRef({value: 0, foreground: 0});
 
   /* ── Computed dates ────────────────────────────── */
   const weekDatesFull = useMemo(() => getWeekDates(currentDate), [currentDate]);
   useEffect(()=>{
     const params=new URLSearchParams(location.search);
     if(params.get('action')!=='auto')return;
-    setAutoScheduleDates({startDate:toISODate(weekDatesFull[0]),endDate:toISODate(weekDatesFull.at(-1))});
-    setShowAutoScheduleModal(true);
+    queueMicrotask(()=>{
+      setAutoScheduleDates({startDate:toISODate(weekDatesFull[0]),endDate:toISODate(weekDatesFull.at(-1))});
+      setShowAutoScheduleModal(true);
+    });
     params.delete('action');
     navigate({pathname:location.pathname,search:params.toString()},{replace:true});
   },[location.pathname,location.search,navigate,weekDatesFull]);
-  const today = currentDate;
-  const displayedDates = viewMode === 'Ngày' ? [currentDate] : weekDatesFull;
+  const displayedDates = useMemo(
+    () => (viewMode === 'Ngày' ? [currentDate] : weekDatesFull),
+    [viewMode, currentDate, weekDatesFull]
+  );
   const publishSummary = useMemo(() => {
     const startDate = toISODate(displayedDates[0]);
     const endDate = toISODate(displayedDates.at(-1));
@@ -599,18 +633,6 @@ export default function SchedulePage() {
     setCurrentDate(new Date());
   };
 
-  const handleSelectWeek = (targetDate) => {
-    setCurrentDate(new Date(targetDate));
-    setViewMode('Tuần');
-    setShowCalendarPopover(false);
-  };
-
-  const handleSelectSpecificDay = (targetDate) => {
-    setCurrentDate(new Date(targetDate));
-    setViewMode('Ngày');
-    setShowCalendarPopover(false);
-  };
-
   const handleCalendarDayClick = (date) => {
     setCurrentDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
     setShowCalendarPopover(false);
@@ -651,7 +673,7 @@ export default function SchedulePage() {
   useEffect(() => {
     const handleStorageSync = (e) => {
       if (e.key === 'shiftsync_schedule_refresh') {
-        loadData();
+        loadData({background: true});
       }
     };
     window.addEventListener('storage', handleStorageSync);
@@ -723,12 +745,6 @@ export default function SchedulePage() {
   }, [storeId]);
 
   /* ── 3D Spatial Computing Computations ── */
-  const active3DDayIndex = useMemo(() => {
-    const curIso = toISODate(currentDate);
-    const idx = weekDatesFull.findIndex((d) => toISODate(d) === curIso);
-    return idx >= 0 ? idx : 0;
-  }, [currentDate, weekDatesFull]);
-
   const active3DDate = currentDate;
   const activeDateShifts = allShifts.filter((s) => s.shiftDate === toISODate(active3DDate) && s.status !== 'CANCELLED');
 
@@ -817,15 +833,20 @@ export default function SchedulePage() {
   };
 
   /* ── Load staff + shifts + skills ───────────────────────── */
-  const loadData = () => {
-    if (!storeId) return;
-    setLoading(true);
-    setError('');
+  function loadData({background = false} = {}) {
+    if (!storeId) return Promise.resolve();
+    const requestSequence = ++scheduleLoadSequence.current.value;
+    if (!background) {
+      scheduleLoadSequence.current.foreground = requestSequence;
+      setLoading(true);
+      setError('');
+    }
     // The schedule board needs the complete active-store roster so empty rows,
     // assignment rendering, filters, and headcounts are not truncated by the
     // employment endpoint's default 20-item page.
     return Promise.all([getStaffByStore(storeId, 0, 100), getShiftsForStore(storeId), getSkillsByStore(storeId).catch(() => ({ data: [] }))])
       .then(([staffRes, shiftsRes, skillsRes]) => {
+        if (requestSequence !== scheduleLoadSequence.current.value) return;
         const loadedSkills = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
         if (loadedSkills.length > 0) {
           setSkills(loadedSkills);
@@ -988,9 +1009,18 @@ export default function SchedulePage() {
         setAssignments(map);
         setAllShifts(shiftsInRange);
       })
-      .catch(() => setError('Không tải được lịch làm việc'))
-      .finally(() => setLoading(false));
-  };
+      .catch((err) => {
+        if (requestSequence !== scheduleLoadSequence.current.value || isRequestCanceled(err)) return;
+        console.error('Không tải được dữ liệu lịch làm việc:', err);
+        // Background synchronisation must keep the last working board visible.
+        // It is retried by the next real-time event instead of turning a brief
+        // connection hiccup into a blocking page-level error.
+        if (!background) setError(`Không tải được lịch làm việc: ${getApiErrorMessage(err)}`);
+      })
+      .finally(() => {
+        if (!background && requestSequence === scheduleLoadSequence.current.foreground) setLoading(false);
+      });
+  }
 
   const notifyShiftUpdates = () => {
     window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
@@ -1002,15 +1032,16 @@ export default function SchedulePage() {
   useEffect(() => {
     loadData();
     const allReqs = JSON.parse(localStorage.getItem('cross_store_requests') || '[]');
-    setCrossStoreRequests(allReqs);
-  }, [storeId, weekStartIso]); // eslint-disable-line
+    queueMicrotask(() => setCrossStoreRequests(allReqs));
+  // The loader is re-created on each render; reloading only follows the store/date window.
+  }, [storeId, weekStartIso]); // eslint-disable-line react-hooks/exhaustive-deps -- reload is intentionally keyed only to store/date.
 
   useEffect(() => {
     let timer;
     const handleSync = (event) => {
       if (event.detail?.storeId && String(event.detail.storeId) !== String(storeId)) return;
       clearTimeout(timer);
-      timer = setTimeout(() => loadData(), 150);
+      timer = setTimeout(() => loadData({background: true}), 500);
     };
     const events = ['store_shifts_updated', 'store_marketplace_updated', 'store_connection_restored'];
     events.forEach(name => window.addEventListener(name, handleSync));
@@ -1018,6 +1049,9 @@ export default function SchedulePage() {
       clearTimeout(timer);
       events.forEach(name => window.removeEventListener(name, handleSync));
     };
+  // The event subscription is deliberately keyed to the current store/date window.
+  // `loadData` is recreated by render state and must not resubscribe listeners after each load.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, weekStartIso]);
 
   const pendingCrossStoreRequests = crossStoreRequests.filter(
@@ -1025,11 +1059,6 @@ export default function SchedulePage() {
   );
 
   /* ── Derived lists ─────────────────────────────── */
-  const employeesWithShifts = employees.filter((e) => {
-    const empId = e.staffId || e.id;
-    return assignments[empId] && Object.keys(assignments[empId]).length > 0;
-  });
-
   const visibleEmployees = employees.filter((e) => {
     const name = e.staffFullName || e.fullName || '';
     const empId = e.staffId || e.id;
@@ -1278,7 +1307,7 @@ export default function SchedulePage() {
       await createShift(storeId, payload);
       try {
         await publishShifts(storeId, targetDateIso, targetDateIso);
-      } catch (pubErr) {
+      } catch {
         // Continue even if already published
       }
       showToast(
@@ -1583,7 +1612,9 @@ export default function SchedulePage() {
         const isFull = addUserForm.employmentType === 'FULL_TIME';
         const matched = cts.find((c) => c.name?.toLowerCase().includes(isFull ? 'full' : 'part'));
         contractTypeId = matched ? matched.id : cts[0]?.id;
-      } catch {}
+      } catch {
+        // The API may not expose contract types to this account.
+      }
 
       if (!contractTypeId) {
         setError('Không tìm thấy loại hợp đồng hợp lệ');
@@ -1659,7 +1690,7 @@ export default function SchedulePage() {
       const response = await getShiftsForStore(storeId);
       const before = shiftsInWindow(response.data, startDate, endDate);
       const store = stores.find(s => String(s.id) === String(storeId));
-      setAutoVisualization({storeId, storeName: store?.name || 'Cửa hàng', storeCategory: store?.category || 'OTHER', layout: storeLayout, zones: storeZones, employees, skills, before, startDate, endDate, replayOnBoard: !['3D', 'Planner'].includes(viewMode)});
+      setAutoVisualization({storeId, storeName: store?.name || 'Cửa hàng', storeCategory: store?.category || 'OTHER', layout: storeLayout, zones: storeZones, employees, skills, before, startDate, endDate, replayOnBoard: viewMode !== '3D'});
       setShowAutoScheduleModal(false);
     } catch (err) {
       showToast('Không tải được lịch hiện tại', err.response?.data?.message || 'Chưa chạy xếp lịch. Vui lòng thử lại.');
@@ -1667,7 +1698,7 @@ export default function SchedulePage() {
   };
   const handleRunAutoSchedule = () => prepareAutoVisualization(toISODate(weekDatesFull[0]), toISODate(weekDatesFull[weekDatesFull.length - 1]));
 
-  const matrixReplayChanges = useMemo(() => matrixAutoReplay ? assignmentChanges(matrixAutoReplay.before, matrixAutoReplay.after) : [], [matrixAutoReplay]);
+  const matrixReplayChanges = useMemo(() => matrixAutoReplay ? assignmentChanges(matrixAutoReplay.before, matrixAutoReplay.after, matrixAutoReplay.assignmentSequence) : [], [matrixAutoReplay]);
   useEffect(() => {
     if (loading || !matrixAutoReplay?.playing || matrixAutoReplay.step >= matrixReplayChanges.length) return;
     const timer = setTimeout(() => setMatrixAutoReplay(current => {
@@ -1710,12 +1741,14 @@ export default function SchedulePage() {
     if (!activeMatrixReplayChange || !matrixAutoReplay) return;
     const changedShift = [...matrixAutoReplay.after, ...matrixAutoReplay.before].find(shift => shift.id === activeMatrixReplayChange.shiftId);
     const date = changedShift?.shiftDate || changedShift?.date;
-    if (date && !weekDatesFull.some(day => toISODate(day) === date)) setCurrentDate(new Date(`${date}T12:00:00`));
+    if (date && !weekDatesFull.some(day => toISODate(day) === date)) {
+      queueMicrotask(() => setCurrentDate(new Date(`${date}T12:00:00`)));
+    }
   }, [activeMatrixReplayChange, matrixAutoReplay, weekDatesFull]);
 
   /* ── Render ────────────────────────────────────── */
   return (
-    <div className={`sch-page ${['3D','Planner'].includes(viewMode) && scheduleSubTab === 'board' ? 'sch-page--explorer' : ''}`}>
+    <div className={`sch-page ${viewMode === '3D' && scheduleSubTab === 'board' ? 'sch-page--explorer' : ''}`}>
       {scheduleSubTab === 'board' && <header className="sch-page-heading">
         <div className="sch-page-heading-copy">
           <h1>Lịch làm việc</h1>
@@ -1782,7 +1815,6 @@ export default function SchedulePage() {
               <Compass size={13} />
               <span>Không gian 3D</span>
             </button>
-            <button type="button" className={`sch-toggle-btn ${viewMode === 'Planner' ? 'active' : ''}`} onClick={()=>setViewMode('Planner')} title="Lập kế hoạch theo vị trí trong không gian 3D">Lập kế hoạch 3D</button>
           </div>
 
           <div className="sch-header-right">
@@ -2075,7 +2107,7 @@ export default function SchedulePage() {
         {error && <p className="sch-error">{error}</p>}
 
         {/* Schedule View: 3D Spatial View vs 2D Matrix Table */}
-        {viewMode === 'Planner'?<SchedulePlanner key={storeId} storeId={storeId} storeName={stores.find(s=>String(s.id)===String(storeId))?.name||'Cửa hàng'} storeCategory={stores.find(s=>String(s.id)===String(storeId))?.category||'OTHER'} layout={storeLayout} zones={storeZones} employees={employees} skills={skills} shifts={allShifts} date={toISODate(currentDate)} onDateChange={value=>setCurrentDate(new Date(`${value}T12:00:00`))} onExit={()=>setViewMode('Tuần')} onReload={loadData} onOpenAutoSchedule={handleRunAutoSchedule} isAutoScheduling={autoScheduling}/>:viewMode === '3D' ? (
+        {viewMode === '3D' ? (
           <div className="sch-explorer-stage">
             {/* 3D Canvas Spatial Model - Full Expanded Height & Width */}
             <div className="sch-explorer-frame">
@@ -2126,8 +2158,8 @@ export default function SchedulePage() {
               <div className="sch-matrix-playback-info">
                 <span className={`sch-matrix-playback-icon ${matrixAutoReplay.playing ? 'is-playing' : ''}`} aria-hidden="true">✦</span>
                 <div className="sch-matrix-playback-copy">
-                  <strong>{matrixAutoReplay.playing ? 'Đang phát lại xếp ca' : matrixAutoReplay.step >= matrixReplayChanges.length ? 'Đã phát xong' : 'Đang tạm dừng'}</strong>
-                  <span role="status">{activeMatrixReplayChange ? `${activeMatrixReplayChange.type === 'added' ? 'Đã xếp' : 'Đã bỏ'} ${activeMatrixReplayChange.assignment.staffName || employees.find(person => String(person.staffId || person.id) === String(activeMatrixReplayChange.assignment.staffId))?.fullName || 'nhân viên'}${activeMatrixReplayDate?.shiftDate ? ` · ${activeMatrixReplayDate.shiftDate.split('-').reverse().join('/')}` : ''}` : 'Sẵn sàng phát lại các phân công đã lưu'}</span>
+                  <strong>{matrixAutoReplay.playing ? 'Đang phát theo thứ tự thuật toán' : matrixAutoReplay.step >= matrixReplayChanges.length ? 'Đã phát xong' : 'Đang tạm dừng'}</strong>
+                  <span role="status">{activeMatrixReplayChange ? `${activeMatrixReplayChange.type === 'added' ? 'Đã xếp' : 'Đã bỏ'} ${activeMatrixReplayChange.assignment.staffName || employees.find(person => String(person.staffId || person.id) === String(activeMatrixReplayChange.assignment.staffId))?.fullName || 'nhân viên'}${activeMatrixReplayDate?.shiftDate ? ` · ${activeMatrixReplayDate.shiftDate.split('-').reverse().join('/')}` : ''}` : 'Sẵn sàng phát lại theo thứ tự thuật toán đã quyết định'}</span>
                 </div>
               </div>
               <div className="sch-matrix-playback-timeline">
@@ -2287,7 +2319,7 @@ export default function SchedulePage() {
                               <div
                                 key={'req-chip-' + (shift.id || idx)}
                                 className="sch-demand-chip"
-                                onClick={() => { setDemandTargetDate(shift.shiftDate || iso); setShowDemandModal(true); }} title="Bấm để mở Kế hoạch Định biên nhân sự ngày này"
+                                onClick={() => openDemandAssignment(shift)} title="Bấm để chọn và gán nhân viên phù hợp cho ca này"
                               >
                                 <div className="sch-demand-chip-time">
                                   {fmtTimeAMPM(shift.startTime)} – {fmtTimeAMPM(shift.endTime)}
@@ -2354,7 +2386,7 @@ export default function SchedulePage() {
                         const iso = toISODate(d);
                         const rawCellShifts = replayMatrixAssignments[empId]?.[iso] || [];
 
-                        const cellShifts = selectedSkills.includes('ALL')
+                        const filteredCellShifts = selectedSkills.includes('ALL')
                           ? rawCellShifts
                           : rawCellShifts.filter((s) => {
                               const sSkillId = s.skillId || s.location;
@@ -2369,6 +2401,12 @@ export default function SchedulePage() {
                                 );
                               });
                             });
+                        // Đảm bảo các ca được sắp xếp theo trình tự thời gian bắt đầu (ca sáng xếp trước)
+                        const cellShifts = [...filteredCellShifts].sort((a, b) => {
+                          const tA = a.startTime || '';
+                          const tB = b.startTime || '';
+                          return tA.localeCompare(tB);
+                        });
                         const isEmpty = cellShifts.length === 0;
 
                         const isReplayCell = activeMatrixReplayChange && String(activeMatrixReplayChange.assignment.staffId) === String(empId) && (activeMatrixReplayDate?.shiftDate || activeMatrixReplayDate?.date) === iso;
@@ -2386,6 +2424,12 @@ export default function SchedulePage() {
                               const isMenuOpen = menuFor?.shift?.id === s.id && menuFor.empId === empId && menuFor.dateIso === iso;
                               const isRevealing = Boolean(isReplayCell && activeMatrixReplayChange?.type === 'added' && activeMatrixReplayChange.shiftId === s.id);
 
+                              // Tính delay animation tuần tự: ca nào xếp trước (ngày trước, giờ trước) thì animation chạy trước
+                              const dayIdx = displayedDates.findIndex((d) => toISODate(d) === iso);
+                              const [sH = 8] = (s.startTime || '08:00').split(':').map(Number);
+                              const timeRank = (dayIdx >= 0 ? dayIdx : 0) * 4 + (sH < 12 ? 0 : sH < 16 ? 1 : 2);
+                              const staggerDelay = `${Math.min(timeRank * 40 + sIdx * 20, 600)}ms`;
+
                               return (
                                 <div
                                   key={chipKey}
@@ -2396,6 +2440,7 @@ export default function SchedulePage() {
                                   <div
                                     className={`sch-shift-block ${hasManagerNote ? 'has-note-flag' : ''} ${isRevealing ? 'sch-shift-replay-enter' : ''}`}
                                     style={{
+                                      '--stagger-delay': staggerDelay,
                                       background: `repeating-linear-gradient(
                                         135deg,
                                         ${chipColor},
@@ -2535,7 +2580,8 @@ export default function SchedulePage() {
           onDelete={()=>{if(editingShift){handleDeleteShift(editingShift);setShowRegisterModal(false);}}}
           onEmployeeChange={staffId=>{const defaults=getEmpDefaultSkillAndColor(staffId);setRegisterForm({...registerForm,staffId,...(modalMode==='create'?{location:defaults.location,color:defaults.color}:{})});}}
           onSkillChange={id=>{const skill=skills.find(s=>s.id===id);setRegisterForm({...registerForm,location:id,color:skill?getSkillColor(skill):registerForm.color});}}
-          onSettings={()=>{closeRegisterModal();navigate('/settings?tab=attendance');}}/>
+          onSettings={()=>{closeRegisterModal();navigate('/settings?tab=attendance');}}
+          onShowQr={() => setQrShift(editingShift)}/>
       </div>}
 
       {/* ═══ MODAL: Add User to store ═══ */}
@@ -2724,7 +2770,10 @@ export default function SchedulePage() {
         <div className="sch-modal-overlay" onClick={() => setShowViewModal(false)}>
           <div className="sch-modal sch-view-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sch-modal-header">
-              <h2>Thông tin ca làm việc</h2>
+              <div>
+                <span className="sch-view-eyebrow">CHI TIẾT PHÂN CÔNG</span>
+                <h2>Thông tin ca làm việc</h2>
+              </div>
               <button
                 type="button"
                 className="sch-modal-close"
@@ -2741,7 +2790,7 @@ export default function SchedulePage() {
               />
               <div>
                 <div className="sch-view-emp-name">{viewingShift.staffName}</div>
-                <div className="sch-view-emp-role" style={{ color: '#0d9488', fontWeight: 600 }}>
+                <div className="sch-view-emp-role">
                   Hợp đồng: {viewingShift.contractTypeName || 'Full-Time'}
                 </div>
               </div>
@@ -2777,40 +2826,34 @@ export default function SchedulePage() {
                   {fmtTimeAMPM(viewingShift.startTime)} – {fmtTimeAMPM(viewingShift.endTime)}
                 </span>
               </div>
-              <div className="sch-view-item" style={{ gridColumn: '1 / -1' }}>
+              <div className="sch-view-item sch-view-item-wide">
                 <span className="sch-view-item-label">Thiết lập chấm công</span>
-                <span className="sch-view-item-val" style={{ fontWeight: 500 }}>
+                <span className="sch-view-item-val sch-view-attendance-value">
                   Áp dụng cấu hình chấm công chung của chi nhánh.
                 </span>
               </div>
             </div>
 
             {/* Ghi chú */}
-            {viewingShift.note ? (
-              <div className="sch-view-note-box">
-                <div className="sch-view-note-title">Ghi chú</div>
-                <div>{viewingShift.note}</div>
-              </div>
-            ) : (
-              <div className="sch-view-note-box" style={{ fontStyle: 'italic', color: '#94a3b8' }}>
-                Không có ghi chú
-              </div>
-            )}
+            <div className={`sch-view-note-box ${viewingShift.note ? '' : 'is-empty'}`}>
+              <div className="sch-view-note-title">Ghi chú</div>
+              <div>{viewingShift.note || 'Chưa có ghi chú cho ca này.'}</div>
+            </div>
 
-            <div className="sch-modal-actions" style={{ justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+            <div className="sch-view-modal-footer">
               <button
                 type="button"
-                className="sch-cancel-btn"
+                className="sch-view-edit-btn"
                 onClick={() => {
                   setShowViewModal(false);
                   openEditModal(viewingShift, viewingShift.empId);
                 }}
               >
-                Sửa ca này
+                Chỉnh sửa ca
               </button>
               <button
                 type="button"
-                className="sch-save-btn"
+                className="sch-view-close-btn"
                 onClick={() => setShowViewModal(false)}
               >
                 Đóng
@@ -3060,6 +3103,47 @@ export default function SchedulePage() {
         </div>
       )}
 
+      {/* Chọn nhân sự cho một ô nhu cầu định biên */}
+      {demandAssignmentShift && (
+        <div className="sch-modal-overlay" onClick={() => !assigningDemandStaffId && setDemandAssignmentShift(null)}>
+          <div className="sch-modal sch-demand-assign-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="sch-modal-header">
+              <div>
+                <span className="sch-avail-modal-eyebrow">PHÂN CÔNG THEO NHU CẦU</span>
+                <h2 className="sch-avail-modal-title">Chọn nhân viên cho ca</h2>
+                <span className="sch-avail-modal-sub">{demandAssignmentShift.shiftDate} · {fmtTimeAMPM(demandAssignmentShift.startTime)} – {fmtTimeAMPM(demandAssignmentShift.endTime)}</span>
+              </div>
+              <button type="button" className="sch-modal-close" disabled={Boolean(assigningDemandStaffId)} onClick={() => setDemandAssignmentShift(null)}>&times;</button>
+            </div>
+            <div className="sch-avail-modal-body">
+              <p className="sch-demand-assign-note">Chỉ hiển thị nhân viên đủ điều kiện theo kỹ năng, lịch rảnh, ca trùng và giới hạn giờ làm.</p>
+              {loadingDemandEligibleStaff ? <p className="sch-demand-assign-empty">Đang kiểm tra nhân sự phù hợp…</p>
+                : demandEligibleStaff.length === 0 && !demandOverrideMode ? <div className="sch-demand-no-match">
+                    <strong>Chưa có nhân viên đáp ứng toàn bộ điều kiện.</strong>
+                    <p>Có thể do thiếu kỹ năng, chưa đăng ký lịch rảnh, trùng ca, nghỉ phép hoặc đã chạm giới hạn giờ.</p>
+                    <div>
+                      <button type="button" onClick={() => { setDemandTargetDate(demandAssignmentShift.shiftDate); setDemandAssignmentShift(null); setShowDemandModal(true); }}>Điều chỉnh nhu cầu</button>
+                      <button type="button" onClick={() => { setDemandAssignmentShift(null); setScheduleSubTab('availability'); }}>Xem lịch khả dụng</button>
+                      <button type="button" className="override" onClick={() => { setDemandOverrideMode(true); setDemandEligibleStaff(employees.filter((employee) => (employee.staffId || employee.id) && !(demandAssignmentShift.shiftAssignments || []).some((assignment) => String(assignment.staffId) === String(employee.staffId || employee.id)))); }}>Gán ngoại lệ</button>
+                    </div>
+                  </div>
+                : <div className="sch-demand-candidates">
+                  {demandOverrideMode && <p className="sch-demand-override-warning">Chế độ ngoại lệ: chỉ dùng khi quản lý đã xác nhận nhân sự vẫn có thể làm ca. Hệ thống vẫn chặn nhân viên không còn làm việc tại chi nhánh.</p>}
+                  {demandEligibleStaff.map((staff) => {
+                    const staffId = staff.staffId || staff.id;
+                    const name = staff.staffFullName || staff.fullName || 'Nhân viên';
+                    return <div className="sch-demand-candidate" key={staffId}>
+                      <Avatar3DWeb avatarId={staff.avatarId || getAvatarForEmployee(staff)} name={name} size={34} />
+                      <div><strong>{name}</strong><span>{staff.contractType?.name || 'Chưa có loại hợp đồng'}</span></div>
+                      <button type="button" disabled={Boolean(assigningDemandStaffId)} onClick={() => assignDemandStaff(staff)}>{assigningDemandStaffId === staffId ? 'Đang gán…' : 'Gán vào ca'}</button>
+                    </div>;
+                  })}
+                </div>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══ TOAST NOTIFICATION ═══ */}
       {toastNotification && (
         <div className="sch-toast">
@@ -3233,8 +3317,17 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {autoVisualization && <AutoSchedulerVisualization snapshot={autoVisualization} onClose={() => setAutoVisualization(null)} onSaved={async () => {await loadData(); notifyShiftUpdates();}} onReplayOnBoard={({before, after, startDate}) => { setViewMode('Tuần'); setScheduleSubTab('board'); setCurrentDate(new Date(`${startDate}T12:00:00`)); setSelectedEmployees(['ALL']); setSelectedSkills(['ALL']); setMatrixAutoReplay({before, after, step: 0, playing: true}); setAutoVisualization(null); }}/>}
+      {autoVisualization && <AutoSchedulerVisualization snapshot={autoVisualization} onClose={() => setAutoVisualization(null)} onSaved={async () => {await loadData(); notifyShiftUpdates();}} onReplayOnBoard={({before, after, startDate, assignmentSequence}) => { setViewMode('Tuần'); setScheduleSubTab('board'); setCurrentDate(new Date(`${startDate}T12:00:00`)); setSelectedEmployees(['ALL']); setSelectedSkills(['ALL']); setMatrixAutoReplay({before, after, assignmentSequence, step: 0, playing: true}); setAutoVisualization(null); }}/>}
 
+      {qrShift && (
+        <ShiftQrModal
+          isOpen={!!qrShift}
+          onClose={() => setQrShift(null)}
+          storeId={storeId}
+          shift={qrShift}
+          storeName={stores.find((s) => String(s.id) === String(storeId))?.name}
+        />
+      )}
     </div>
   );
 }

@@ -39,3 +39,9 @@ export const getStoreLeaveBalances = (storeId, year) => {
   return api.get(`/stores/${storeId}/leave-requests/balances${q}`);
 };
 
+export const getLeaveProvenanceCandidates = (storeId, leaveId) =>
+  api.get(`/stores/${storeId}/leave-requests/${leaveId}/provenance-candidates`);
+
+export const reconcileLeaveProvenance = (storeId, leaveId, data) =>
+  api.put(`/stores/${storeId}/leave-requests/${leaveId}/provenance`, data);
+

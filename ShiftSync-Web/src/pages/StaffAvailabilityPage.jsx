@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import { getAllStores } from '../services/storeService';
 import { getStoreConfiguration } from '../services/storeConfigService';
 import { getStaffByStore } from '../services/employmentService';
@@ -93,6 +94,7 @@ const calcSlotHours = (startTime, endTime) => {
 const slotTimeLabel = (slot) => `${fmtTime(slot.startTime)} – ${fmtTime(slot.endTime)}${fmtTime(slot.endTime) < fmtTime(slot.startTime) ? ' (+1 ngày)' : ''}`;
 
 export default function StaffAvailabilityPage() {
+  const confirm = useConfirmation();
   const navigate = useNavigate();
 
   /* -- Store & Navigation state -- */
@@ -162,7 +164,7 @@ export default function StaffAvailabilityPage() {
 
   const handleDeleteAvailability = async (slotId) => {
     if (!slotId) return;
-    if (!window.confirm('Bạn có chắc chắn muốn xoá khung giờ rảnh này?')) return;
+    if (!(await confirm({ message: 'Bạn có chắc chắn muốn xoá khung giờ rảnh này?', confirmLabel: 'Xóa' }))) return;
     try {
       await deleteAvailability(slotId);
       showToast('Đã xoá thành công! ', 'Khung giờ rảnh đã được gỡ bỏ.');
@@ -181,11 +183,12 @@ export default function StaffAvailabilityPage() {
       .then((res) => {
         const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setStores(list);
-        if (list && list.length > 0 && !storeId) {
+        if (list?.length > 0) setStoreId((currentStoreId) => {
+          if (currentStoreId) return currentStoreId;
           const first = list[0].id;
-          setStoreId(first);
           localStorage.setItem('selectedStoreId', String(first));
-        }
+          return first;
+        });
       })
       .catch(() => {});
   }, []);
@@ -193,7 +196,7 @@ export default function StaffAvailabilityPage() {
   /* ── Load Skills ── */
   useEffect(() => {
     let cancelled = false;
-    setAvailabilityToleranceMinutes(null);
+    queueMicrotask(() => setAvailabilityToleranceMinutes(null));
     if (storeId) getStoreConfiguration(storeId)
       .then(response => { if (!cancelled) setAvailabilityToleranceMinutes(response.data.availabilityToleranceMinutes ?? null); })
       .catch(() => { if (!cancelled) setAvailabilityToleranceMinutes(null); });
@@ -211,7 +214,7 @@ export default function StaffAvailabilityPage() {
   }, [storeId]);
 
   /* ── Main Data Loader ── */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       if (isStaff) {
@@ -322,11 +325,12 @@ export default function StaffAvailabilityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isStaff, storeId, weekDatesFull]);
 
   useEffect(() => {
-    loadData();
-  }, [storeId, toISODate(weekDatesFull[0])]);
+    const timerId = window.setTimeout(loadData, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadData]);
 
   /* ── Date navigation handlers ── */
   const handlePrevWeek = () => {
@@ -352,7 +356,7 @@ export default function StaffAvailabilityPage() {
   };
 
   /* ── Check if Employee has assigned shift on day ── */
-  const getEmployeeShiftOnDate = (empId, dateIso) => {
+  const getEmployeeShiftOnDate = useCallback((empId, dateIso) => {
     return assignedShifts.find((s) => {
       if (s.shiftDate !== dateIso) return false;
       if (s.staffId === empId || s.assignedStaffId === empId || s.employeeId === empId) return true;
@@ -361,10 +365,10 @@ export default function StaffAvailabilityPage() {
       }
       return false;
     });
-  };
+  }, [assignedShifts]);
 
   /* ── Check employee weekly slot counts (free vs assigned) ── */
-  const getEmployeeWeeklySlotStats = (empId) => {
+  const getEmployeeWeeklySlotStats = useCallback((empId) => {
     const empSlots = availabilityMap[empId] || [];
     let freeCount = 0;
     let assignedCount = 0;
@@ -399,7 +403,7 @@ export default function StaffAvailabilityPage() {
       isFullyOccupied: empSlots.length > 0 && freeCount === 0 && assignedCount > 0,
       isPartiallyOrFullyFree: empSlots.length > 0 && freeCount > 0,
     };
-  };
+  }, [availabilityMap, weekDatesFull, getEmployeeShiftOnDate]);
 
   /* ── Filtered Employees ── */
   const filteredEmployees = useMemo(() => {
@@ -427,7 +431,7 @@ export default function StaffAvailabilityPage() {
 
       return true;
     });
-  }, [employees, searchKeyword, selectedSkillFilter, selectedStatusFilter, availabilityMap, assignedShifts, weekDatesFull]);
+  }, [employees, searchKeyword, selectedSkillFilter, selectedStatusFilter, getEmployeeWeeklySlotStats]);
 
   /* ── Overall KPI Analytics ── */
   const totalStaffCount = employees.length;
@@ -469,7 +473,7 @@ export default function StaffAvailabilityPage() {
       occupiedStaffCount,
       assignedRate,
     };
-  }, [employees, availabilityMap, assignedShifts, weekDatesFull]);
+  }, [employees, getEmployeeWeeklySlotStats]);
 
   /* ── Open Quick Assign Modal (For unassigned free slots) ── */
   const handleOpenAssignModal = (emp, slot, date) => {

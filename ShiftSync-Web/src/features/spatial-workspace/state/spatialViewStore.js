@@ -23,7 +23,7 @@ export const DEFAULT_LAYERS = Object.freeze({
   showGeofence: false,
 });
 
-export const useSpatialViewStore = create((set, get) => ({
+export const useSpatialViewStore = create((set) => ({
   // ── Visualization View State ──
   cameraMode: CAMERA_MODES.OVERVIEW,
   use2DFallback: false,

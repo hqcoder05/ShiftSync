@@ -15,8 +15,6 @@ public class CompensationRevisionRepository {
     private static final String UNTRACKED_FILTER = """
             h.entity_type=? AND h.entity_id=? AND h.operation='UPDATE'
               AND NOT EXISTS (SELECT 1 FROM payroll_untracked_reconciliation m WHERE m.history_id=h.id)
-              AND h.recorded_at > COALESCE((SELECT min(r.created_at) FROM payroll_effective_revision r
-                    WHERE r.entity_type=h.entity_type AND r.entity_id=h.entity_id), '-infinity'::timestamptz)
               AND CASE h.entity_type
                 WHEN 'employment' THEN (h.old_values->'hourly_rate', h.old_values->'contract_type_id') IS DISTINCT FROM (h.new_values->'hourly_rate', h.new_values->'contract_type_id')
                 WHEN 'contract_type' THEN (h.old_values->'default_hourly_rate', h.old_values->'max_weekly_hours', h.old_values->'ot_multiplier') IS DISTINCT FROM (h.new_values->'default_hourly_rate', h.new_values->'max_weekly_hours', h.new_values->'ot_multiplier')

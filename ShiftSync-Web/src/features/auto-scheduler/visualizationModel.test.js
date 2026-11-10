@@ -67,3 +67,22 @@ test('preview rejects a saved response or a plan from another store or schedulin
     assert.throws(()=>previewShifts([],invalid,result.startDate,result.endDate,'store'));
   }
 });
+
+test('assignmentChanges follows the scheduler decision sequence when it is available', () => {
+  const before = [];
+  const after = [
+    { id: 'fri_night', shiftDate: '2026-11-06', startTime: '20:00', endTime: '23:00', shiftAssignments: [{ staffId: 'u1' }] },
+    { id: 'mon_morning', shiftDate: '2026-11-02', startTime: '08:00', endTime: '12:00', shiftAssignments: [{ staffId: 'u2' }] },
+    { id: 'mon_afternoon', shiftDate: '2026-11-02', startTime: '13:00', endTime: '17:00', shiftAssignments: [{ staffId: 'u3' }] },
+    { id: 'wed_morning', shiftDate: '2026-11-04', startTime: '08:00', endTime: '12:00', shiftAssignments: [{ staffId: 'u4' }] },
+  ];
+
+  const changes = assignmentChanges(before, after, [
+    { sequence: 0, shiftId: 'wed_morning', staffId: 'u4' },
+    { sequence: 1, shiftId: 'fri_night', staffId: 'u1' },
+    { sequence: 2, shiftId: 'mon_afternoon', staffId: 'u3' },
+    { sequence: 3, shiftId: 'mon_morning', staffId: 'u2' },
+  ]);
+  assert.equal(changes.length, 4);
+  assert.deepEqual(changes.map(change => change.shiftId), ['wed_morning', 'fri_night', 'mon_afternoon', 'mon_morning']);
+});

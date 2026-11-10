@@ -303,8 +303,28 @@ public class HeadcountQuotaService {
         Shift afternoonShift = resolveCanonicalShift(shifts, date, mid, close, false, open, close);
 
         List<DailyQuotaResponse.DailyShiftQuota> shiftQuotas = new ArrayList<>();
-        shiftQuotas.add(buildDailyShiftQuota(morningShift, "Ca Sáng (" + openStr + "-" + midStr + ")", openStr, midStr, generateTimelineHours(open, mid), positions, true, date));
-        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, "Ca Chiều (" + midStr + "-" + closeStr + ")", midStr, closeStr, generateTimelineHours(mid, close), positions, false, date));
+        String morningStart = morningShift != null && morningShift.getStartTime() != null ? String.format("%02d:%02d", morningShift.getStartTime().getHour(), morningShift.getStartTime().getMinute()) : openStr;
+        String morningEnd = morningShift != null && morningShift.getEndTime() != null ? String.format("%02d:%02d", morningShift.getEndTime().getHour(), morningShift.getEndTime().getMinute()) : midStr;
+        String morningName = (morningShift != null && morningShift.getNote() != null && !morningShift.getNote().isBlank()) ? morningShift.getNote() : "Ca Sáng";
+        shiftQuotas.add(buildDailyShiftQuota(morningShift, morningName + " (" + morningStart + "-" + morningEnd + ")", morningStart, morningEnd, generateTimelineHours(morningShift != null ? morningShift.getStartTime() : open, morningShift != null ? morningShift.getEndTime() : mid), positions, true, date, false));
+
+        String afternoonStart = afternoonShift != null && afternoonShift.getStartTime() != null ? String.format("%02d:%02d", afternoonShift.getStartTime().getHour(), afternoonShift.getStartTime().getMinute()) : midStr;
+        String afternoonEnd = afternoonShift != null && afternoonShift.getEndTime() != null ? String.format("%02d:%02d", afternoonShift.getEndTime().getHour(), afternoonShift.getEndTime().getMinute()) : closeStr;
+        String afternoonName = (afternoonShift != null && afternoonShift.getNote() != null && !afternoonShift.getNote().isBlank()) ? afternoonShift.getNote() : "Ca Chiều";
+        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, afternoonName + " (" + afternoonStart + "-" + afternoonEnd + ")", afternoonStart, afternoonEnd, generateTimelineHours(afternoonShift != null ? afternoonShift.getStartTime() : mid, afternoonShift != null ? afternoonShift.getEndTime() : close), positions, false, date, false));
+
+        if (shifts != null) {
+            for (Shift s : shifts) {
+                if (s != null && s.getShiftDate() != null && s.getShiftDate().equals(date)
+                        && (morningShift == null || !s.getId().equals(morningShift.getId()))
+                        && (afternoonShift == null || !s.getId().equals(afternoonShift.getId()))) {
+                    String sStart = String.format("%02d:%02d", s.getStartTime().getHour(), s.getStartTime().getMinute());
+                    String sEnd = String.format("%02d:%02d", s.getEndTime().getHour(), s.getEndTime().getMinute());
+                    String sName = (s.getNote() != null && !s.getNote().isBlank()) ? s.getNote() : ("Ca " + sStart + "-" + sEnd);
+                    shiftQuotas.add(buildDailyShiftQuota(s, sName + " (" + sStart + "-" + sEnd + ")", sStart, sEnd, generateTimelineHours(s.getStartTime(), s.getEndTime()), positions, false, date, true));
+                }
+            }
+        }
 
         // Evaluate Position KPIs
         List<DailyQuotaResponse.DailyPositionKpi> kpis = new ArrayList<>();
@@ -511,7 +531,7 @@ public class HeadcountQuotaService {
 
     private DailyQuotaResponse.DailyShiftQuota buildDailyShiftQuota(
             Shift shift, String name, String startTime, String endTime,
-            List<Integer> timelineHours, List<PositionDTO> positions, boolean isMorning, LocalDate date) {
+            List<Integer> timelineHours, List<PositionDTO> positions, boolean isMorning, LocalDate date, boolean isCustom) {
 
         List<DailyQuotaResponse.DailyQuotaCell> cells = new ArrayList<>();
         Map<UUID, Integer> reqMap = new HashMap<>();
@@ -527,7 +547,7 @@ public class HeadcountQuotaService {
         for (PositionDTO pos : positions) {
             Integer count = reqMap.get(pos.getId());
             if (count == null) {
-                count = suggestedCount(pos, date, isMorning);
+                count = isCustom ? 0 : suggestedCount(pos, date, isMorning);
             }
 
             int min = pos.getDefaultMin();
@@ -551,6 +571,7 @@ public class HeadcountQuotaService {
             }
 
             String quotaId = (shift != null ? shift.getId().toString() : "temp") + "_" + pos.getId();
+            UUID realShiftId = shift != null ? shift.getId() : null;
 
             cells.add(DailyQuotaResponse.DailyQuotaCell.builder()
                     .source(reqMap.containsKey(pos.getId()) ? "SAVED" : "SUGGESTED")
@@ -559,6 +580,7 @@ public class HeadcountQuotaService {
                     .excessCount(Math.max(0, assignedCount(shift, pos.getId()) - count))
                     .unclassifiedAssignedCount(assignedCount(shift, null))
                     .quotaId(quotaId)
+                    .shiftId(realShiftId)
                     .positionId(pos.getId())
                     .positionName(pos.getName())
                     .positionCode(pos.getCode())
@@ -579,12 +601,15 @@ public class HeadcountQuotaService {
 
         return DailyQuotaResponse.DailyShiftQuota.builder()
                 .id(shift != null ? shift.getId() : UUID.randomUUID())
+                .shiftId(shift != null ? shift.getId() : null)
                 .name(name)
                 .startTime(startTime)
                 .endTime(endTime)
                 .durationHours(durationHours)
                 .timelineHours(timelineHours)
                 .quotas(cells)
+                .isCustom(isCustom)
+                .status(shift != null && shift.getStatus() != null ? shift.getStatus().name() : "DRAFT")
                 .build();
     }
 
@@ -987,21 +1012,56 @@ public class HeadcountQuotaService {
         }
 
         // Update shift requirement in database if count is provided
-        if (req.getDate() != null && req.getShiftType() != null && req.getPositionId() != null && req.getCount() != null) {
+        if (req.getDate() != null && req.getPositionId() != null && req.getCount() != null) {
             Store store = lockedStore;
-
-            LocalTime open = getStoreOpenTime(store);
-            LocalTime mid = getStoreMidTime(store);
-            LocalTime close = getStoreCloseTime(store);
-
-            LocalTime start = req.getShiftType().equalsIgnoreCase("morning") ? open : mid;
-            LocalTime end = req.getShiftType().equalsIgnoreCase("morning") ? mid : close;
 
             Skill skill = skillRepository.findByIdAndStoreId(req.getPositionId(), branchId)
                     .orElseThrow(() -> new BusinessException("Position/Skill not found in this store: " + req.getPositionId(), HttpStatus.NOT_FOUND));
-            Shift shift = getOrCreateShift(store, slotDate(req.getDate(), open, start), start, end, req.getShiftType().equalsIgnoreCase("morning") ? "Ca Sáng" : "Ca Chiều");
+
+            Shift shift = null;
+
+            // 1. Try to resolve shift by UUID from shiftType or quotaId
+            UUID targetShiftId = null;
+            if (req.getShiftType() != null && !req.getShiftType().equalsIgnoreCase("morning") && !req.getShiftType().equalsIgnoreCase("afternoon")) {
+                try {
+                    targetShiftId = UUID.fromString(req.getShiftType());
+                } catch (IllegalArgumentException ignored) {}
+            }
+            if (targetShiftId == null && quotaId != null && !quotaId.startsWith("temp") && !quotaId.startsWith("norm_")) {
+                int underscoreIdx = quotaId.indexOf('_');
+                String possibleShiftId = underscoreIdx > 0 ? quotaId.substring(0, underscoreIdx) : quotaId;
+                try {
+                    targetShiftId = UUID.fromString(possibleShiftId);
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            if (targetShiftId != null) {
+                shift = shiftRepository.findById(targetShiftId)
+                        .filter(s -> s.getStore() != null && s.getStore().getId().equals(branchId))
+                        .orElse(null);
+            }
+
+            // 2. Fallback to canonical morning/afternoon shift resolution if not resolved by UUID
+            if (shift == null && req.getShiftType() != null) {
+                LocalTime open = getStoreOpenTime(store);
+                LocalTime mid = getStoreMidTime(store);
+                LocalTime close = getStoreCloseTime(store);
+
+                LocalTime start = req.getShiftType().equalsIgnoreCase("morning") ? open : mid;
+                LocalTime end = req.getShiftType().equalsIgnoreCase("morning") ? mid : close;
+
+                shift = getOrCreateShift(store, slotDate(req.getDate(), open, start), start, end, req.getShiftType().equalsIgnoreCase("morning") ? "Ca Sáng" : "Ca Chiều");
+            }
 
             if (shift != null) {
+                if (shift.getStatus() != ShiftStatus.DRAFT) {
+                    throw new BusinessException("Chỉ được sửa định biên của ca nháp", HttpStatus.CONFLICT);
+                }
+                if (payrollPeriodRepository.existsByStoreIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualAndStatusIn(
+                        store.getId(), shift.getShiftDate(), shift.getShiftDate(), List.of(com.shiftsync.payroll.enums.PayrollPeriodStatus.CONFIRMED, com.shiftsync.payroll.enums.PayrollPeriodStatus.PAID))) {
+                    throw new BusinessException("Không thể sửa định biên trong kỳ lương đã chốt", HttpStatus.CONFLICT);
+                }
+
                 requireCapacity(shift, skill.getId(), req.getCount());
                 if (shift.getRequirements() == null) {
                     shift.setRequirements(new ArrayList<>());

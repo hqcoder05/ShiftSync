@@ -146,7 +146,7 @@ export function validateSkillForZone(employee, zone, shiftRequirements = []) {
 /**
  * Check if employee is currently available or on approved leave.
  */
-export function validateEmployeeAvailability(employee, shiftDate = null) {
+export function validateEmployeeAvailability(employee) {
   if (!employee) return { valid: false, reason: 'Chưa chọn nhân sự' };
 
   if (employee.isOnLeave) {

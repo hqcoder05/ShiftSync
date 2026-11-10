@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import PayrollPage from './PayrollPage';
 import Sidebar from '../components/Sidebar';
 import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getEmployees, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
-import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
+import { getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
+import { getApiErrorMessage, isRequestCanceled } from '../services/api';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
 import AddUserModal from '../components/AddUserModal';
 import './EmployeesPage.css';
@@ -20,6 +22,7 @@ const getEmployeeAvatarId = (emp) => {
 };
 
 export default function EmployeesPage() {
+  const confirm = useConfirmation();
   const navigate = useNavigate();
   const location = useLocation();
   const isContracts = location.pathname === '/employees/contracts';
@@ -52,37 +55,43 @@ export default function EmployeesPage() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async (signal) => {
+    if (signal?.aborted) return;
     setLoading(true); 
     setError('');
     try {
       const activeStoreId = selectedStoreId || null;
-      const res = await getEmployees(page, 20, search, activeStoreId);
+      const res = await getEmployees(page, 20, search, activeStoreId, signal ? { signal } : {});
+      if (signal?.aborted) return;
       const list = res.data?.content || res.data || [];
       setEmployees(Array.isArray(list) ? list : []);
       setTotalPages(res.data?.totalPages || 1);
     } catch (err) {
+      if (isRequestCanceled(err) || signal?.aborted) return;
       if (err.response?.status === 403) {
         setError('Hết phiên đăng nhập hoặc không có quyền truy cập cửa hàng này (Lỗi 403).');
       } else {
-        setError(err.response?.data?.message || 'Không tải được danh sách nhân viên');
+        setError(getApiErrorMessage(err, 'Không tải được danh sách nhân viên'));
       }
       setEmployees([]);
     } finally { 
-      setLoading(false); 
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, [page, search, selectedStoreId]);
 
-  const fetchStores = async () => {
+  const fetchStores = useCallback(async (signal) => {
+    if (signal?.aborted) return;
     try { 
-      const res = await getAllStores(); 
+      const res = await getAllStores(0, 100, '', signal ? { signal } : {});
+      if (signal?.aborted) return;
       const list = res.data?.content || res.data || [];
       setStores(Array.isArray(list) ? list : []); 
     } catch (err) {
-      console.error('Không tải được danh sách cửa hàng (403/Forbidden):', err);
+      if (isRequestCanceled(err) || signal?.aborted) return;
+      console.error('Không tải được danh sách cửa hàng:', getApiErrorMessage(err));
       setStores([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handleStoreChange = (e) => {
@@ -94,8 +103,17 @@ export default function EmployeesPage() {
     return () => window.removeEventListener('storeChanged', handleStoreChange);
   }, []);
 
-  useEffect(() => { fetchEmployees(); }, [page, search, selectedStoreId]);
-  useEffect(() => { fetchStores(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => fetchEmployees(controller.signal));
+    return () => controller.abort();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => fetchStores(controller.signal));
+    return () => controller.abort();
+  }, [fetchStores]);
 
   const openCreate = () => {
     if (!canCreateUser) {
@@ -106,7 +124,7 @@ export default function EmployeesPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Xoá nhân viên này?')) return;
+    if (!(await confirm({ message: 'Xoá nhân viên này?', confirmLabel: 'Xóa' }))) return;
     try { 
       await deleteEmployee(id); 
       fetchEmployees();

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CalendarDays, Search, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import { getAllStores } from '../services/storeService';
 import {
   getMarketplaceShifts,
@@ -16,12 +17,9 @@ import {
   approveSwapRequest,
   rejectSwapRequest,
   cancelSwapRequest,
+  createSwapRequest,
 } from '../services/swapService';
-import {
-  getStoreAdjustmentRequests,
-  approveAdjustmentRequest,
-  rejectAdjustmentRequest,
-} from '../services/adjustmentService';
+import { getStoreAdjustmentRequests } from '../services/adjustmentService';
 import {
   createWorkforceRequest,
   getIncomingWorkforceRequests,
@@ -30,6 +28,8 @@ import {
   cancelWorkforceRequest,
   createWorkforceProposal,
   getEligibleStaffForRequest,
+  getMyWorkforceProposals,
+  respondToWorkforceProposal,
 } from '../services/workforceService';
 import { getPositions } from '../services/headcountQuotaService';
 import Avatar3DWeb from '../components/Avatar3DWeb';
@@ -38,7 +38,6 @@ import './MarketplacePage.css';
 import './marketplace-redesign.css';
 import {marketplaceTiming,vietnamDate} from '../utils/marketplaceTime.js';
 
-const toISODate = (d) => d.toISOString().slice(0, 10);
 const formatVietnamDeadline = (timestamp) => Number.isFinite(timestamp)
   ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(timestamp))
   : 'trước giờ bắt đầu ca';
@@ -80,11 +79,15 @@ const cleanText = (str) => {
           s = decoded;
           continue;
         }
-      } catch (e) {}
+      } catch {
+        // Keep the original value when a legacy record cannot be decoded.
+      }
       break;
     }
     result = s;
-  } catch {}
+  } catch {
+    // Keep the original value when a legacy record cannot be decoded.
+  }
 
   // Safe fallback clean for multi-encoded characters in legacy database records
   if (result.includes('Ã') || result.includes('Â') || result.includes('„')) {
@@ -147,6 +150,7 @@ const fmtDateTimeVN = (isoStr) => {
 };
 
 export default function MarketplacePage() {
+  const confirm = useConfirmation();
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || localStorage.getItem('storeId') || '');
   const [employees, setEmployees] = useState([]);
@@ -162,15 +166,16 @@ export default function MarketplacePage() {
   const [storeShifts, setStoreShifts] = useState([]);
   const [requestsList, setRequestsList] = useState([]);
   const [storeSwapList, setStoreSwapList] = useState([]);
-  const [adjustmentsList, setAdjustmentsList] = useState([]);
+  const [, setAdjustmentsList] = useState([]);
   const [incomingWorkforce, setIncomingWorkforce] = useState([]);
   const [outgoingWorkforce, setOutgoingWorkforce] = useState([]);
+  const [myWorkforceProposals, setMyWorkforceProposals] = useState([]);
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState('');
   const [storeShiftsError, setStoreShiftsError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
-  const [mpActionLoadingId, setMpActionLoadingId] = useState(null);
+  const [, setMpActionLoadingId] = useState(null);
   const [claimLoadingId, setClaimLoadingId] = useState(null);
   const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [search, setSearch] = useState('');
@@ -184,7 +189,7 @@ export default function MarketplacePage() {
   const [toast, setToast] = useState('');
 
   // URL Tab parsing & synchronization
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const urlTab = (searchParams.get('tab') || '').toUpperCase();
   const getInitialTab = () => {
     if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') return 'WORKFORCE';
@@ -203,10 +208,12 @@ export default function MarketplacePage() {
   const [shiftEligibleStaffMap, setShiftEligibleStaffMap] = useState({});
 
   useEffect(() => {
-    if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') setActiveTab('WORKFORCE');
-    else if (urlTab === 'SWAP' || urlTab === 'SWAPS') setActiveTab('SWAP');
-    else if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') setActiveTab('OPEN');
-    else if (urlTab === 'FILLED') setActiveTab('FILLED');
+    queueMicrotask(() => {
+      if (urlTab === 'WORKFORCE' || urlTab === 'CROSS_STORE') setActiveTab('WORKFORCE');
+      else if (urlTab === 'SWAP' || urlTab === 'SWAPS') setActiveTab('SWAP');
+      else if (urlTab === 'OPEN' || urlTab === 'OPEN_NEEDS') setActiveTab('OPEN');
+      else if (urlTab === 'FILLED') setActiveTab('FILLED');
+    });
   }, [urlTab]);
 
   // Eligible Candidates Modal (Calling backend ShiftAssignmentValidator)
@@ -223,7 +230,6 @@ export default function MarketplacePage() {
     otRisk: false,         // Có xung đột lịch / Rà soát OT
     hasApplicant: true,    // Đã có ứng viên chờ duyệt
   });
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState('CURRENT');
   const [roleFilters, setRoleFilters] = useState({ all: true });
   const [selectedTimePeriod, setSelectedTimePeriod] = useState('ALL'); // 'ALL' | 'MORNING' | 'AFTERNOON' | 'NIGHT'
 
@@ -235,8 +241,6 @@ export default function MarketplacePage() {
   const [publishPushNotif, setPublishPushNotif] = useState(true);
   const [publishCrossBranch, setPublishCrossBranch] = useState(true);
 
-  const [showApplicantsModal, setShowApplicantsModal] = useState(false);
-  const [selectedShiftForApplicants, setSelectedShiftForApplicants] = useState(null);
 
   const [showOtPolicyModal, setShowOtPolicyModal] = useState(false);
   const [showAuditLogModal, setShowAuditLogModal] = useState(false);
@@ -275,10 +279,13 @@ export default function MarketplacePage() {
       .then((res) => {
         const list = res.data?.content || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setStores(list);
-        if (list.length > 0 && !storeId) {
-          const firstId = String(list[0].id);
-          setStoreId(firstId);
-          localStorage.setItem('selectedStoreId', firstId);
+        if (list.length > 0) {
+          setStoreId((currentStoreId) => {
+            if (currentStoreId) return currentStoreId;
+            const firstId = String(list[0].id);
+            localStorage.setItem('selectedStoreId', firstId);
+            return firstId;
+          });
         }
       })
       .catch((err) => console.info('Marketplace store fetch:', err.message));
@@ -294,25 +301,8 @@ export default function MarketplacePage() {
     return () => window.removeEventListener('storeChanged', handleStoreChanged);
   }, []);
 
-  // 2.1. Listen to real-time status updates across components
-  useEffect(() => {
-    const handleSyncUpdate = () => {
-      loadData();
-    };
-    window.addEventListener('store_requests_updated', handleSyncUpdate);
-    window.addEventListener('store_marketplace_updated', handleSyncUpdate);
-    window.addEventListener('store_shifts_updated', handleSyncUpdate);
-    window.addEventListener('store_attendance_updated', handleSyncUpdate);
-    return () => {
-      window.removeEventListener('store_requests_updated', handleSyncUpdate);
-      window.removeEventListener('store_marketplace_updated', handleSyncUpdate);
-      window.removeEventListener('store_shifts_updated', handleSyncUpdate);
-      window.removeEventListener('store_attendance_updated', handleSyncUpdate);
-    };
-  }, [storeId]);
-
   // 3. Load all dynamic data from backend
-  const loadData = () => {
+  const loadData = useCallback(() => {
     if (!storeId) return;
     setLoading(true);
     setMarketplaceError('');
@@ -333,8 +323,9 @@ export default function MarketplacePage() {
       isManager ? getStoreAdjustmentRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       isManager ? getIncomingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       isManager ? getOutgoingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      getMyWorkforceProposals().catch(() => ({ data: [] })),
     ])
-      .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes, adjRes, incWfRes, outWfRes]) => {
+      .then(([mpRes, shiftsRes, staffRes, reqList, posList, storeSwapsRes, adjRes, incWfRes, outWfRes, myProposalsRes]) => {
         const mpList = Array.isArray(mpRes.data) ? mpRes.data : (mpRes.data?.content || []);
         const shList = Array.isArray(shiftsRes.data) ? shiftsRes.data : (shiftsRes.data?.content || []);
         const rawStaff = Array.isArray(staffRes.data) ? staffRes.data : (staffRes.data?.content || []);
@@ -354,14 +345,32 @@ export default function MarketplacePage() {
         setAdjustmentsList(rawAdjs);
         setIncomingWorkforce(rawIncWf);
         setOutgoingWorkforce(rawOutWf);
+        const rawMyProposals = Array.isArray(myProposalsRes?.data) ? myProposalsRes.data : (myProposalsRes?.data?.content || []);
+        setMyWorkforceProposals(rawMyProposals);
         setPositions(Array.isArray(posList) ? posList : []);
       })
       .finally(() => setLoading(false));
-  };
+  }, [storeId, isManager]);
 
   useEffect(() => {
-    loadData();
-  }, [storeId]);
+    const timerId = window.setTimeout(loadData, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadData]);
+
+  // Keep the displayed marketplace synchronized with store-scoped realtime events.
+  useEffect(() => {
+    const handleSyncUpdate = () => loadData();
+    window.addEventListener('store_requests_updated', handleSyncUpdate);
+    window.addEventListener('store_marketplace_updated', handleSyncUpdate);
+    window.addEventListener('store_shifts_updated', handleSyncUpdate);
+    window.addEventListener('store_attendance_updated', handleSyncUpdate);
+    return () => {
+      window.removeEventListener('store_requests_updated', handleSyncUpdate);
+      window.removeEventListener('store_marketplace_updated', handleSyncUpdate);
+      window.removeEventListener('store_shifts_updated', handleSyncUpdate);
+      window.removeEventListener('store_attendance_updated', handleSyncUpdate);
+    };
+  }, [loadData]);
 
   const currentStore = stores.find((s) => String(s.id) === String(storeId));
 
@@ -524,7 +533,7 @@ export default function MarketplacePage() {
           .catch(() => {});
       }
     });
-  }, [isManager, storeId, understaffedShifts]);
+  }, [isManager, storeId, understaffedShifts, shiftEligibleStaffMap]);
 
   // 8. Dynamic Swap Requests from /api/requests and /stores/{storeId}/swaps
   const allSwapRequests = useMemo(() => {
@@ -622,10 +631,6 @@ export default function MarketplacePage() {
   const pendingSwapCount = useMemo(() => {
     return allSwapRequests.filter((s) => s.status === 'PENDING').length;
   }, [allSwapRequests]);
-
-  const pendingAdjustmentCount = useMemo(() => {
-    return (adjustmentsList || []).filter((a) => a.status === 'PENDING').length;
-  }, [adjustmentsList]);
 
   const pendingIncomingWorkforceCount = useMemo(() => {
     return incomingWorkforceRequests.length;
@@ -751,7 +756,7 @@ export default function MarketplacePage() {
 
   // 14. Real Actions
   const handleOpenEligibleCandidates = async (shift) => {
-    if(!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự. Xem lại trong Lịch sử ca.');setClock(Date.now());return;}
+    if(!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự. Xem lại trong Lịch sử ca.');setClock((current) => current + 1);return;}
     setSelectedShiftForEligibility(shift);
     setShowEligibleCandidatesModal(true);
     setLoadingEligibleCandidates(true);
@@ -759,7 +764,7 @@ export default function MarketplacePage() {
       const res = await getEligibleStaffForShift(storeId, shift.id);
       const list = Array.isArray(res.data) ? res.data : [];
       setEligibleCandidatesList(list);
-    } catch (err) {
+    } catch {
       setEligibleCandidatesList([]);
       showToast('Lỗi: Không thể tải danh sách ứng viên đủ điều kiện.');
     } finally {
@@ -768,7 +773,7 @@ export default function MarketplacePage() {
   };
 
   const handleAssignCandidateFromModal = async (staffId, staffName) => {
-    if(!marketplaceTiming(selectedShiftForEligibility).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự.');setClock(Date.now());return;}
+    if(!marketplaceTiming(selectedShiftForEligibility).recruitmentOpen){showToast('Ca đã đóng nhận nhân sự.');setClock((current) => current + 1);return;}
     if (!selectedShiftForEligibility) return;
     setAssigningCandidateId(staffId);
     try {
@@ -819,7 +824,7 @@ export default function MarketplacePage() {
 
   const handleClaimMarketplaceAction = async (shiftId) => {
     const shift=rawOpenShifts.find(s=>s.id===shiftId);
-    if(!shift||!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận. Vui lòng chọn ca khác.');setClock(Date.now());return;}
+    if(!shift||!marketplaceTiming(shift).recruitmentOpen){showToast('Ca đã đóng nhận. Vui lòng chọn ca khác.');setClock((current) => current + 1);return;}
     if (!shiftId || claimLoadingId) return;
     setClaimLoadingId(shiftId);
     try {
@@ -921,7 +926,7 @@ export default function MarketplacePage() {
 
   const handleCancelSwap = async (req) => {
     if (!req?.id) return;
-    if (!window.confirm('Bạn có chắc muốn hủy yêu cầu hoán đổi ca này?')) return;
+    if (!(await confirm({ message: 'Bạn có chắc muốn hủy yêu cầu hoán đổi ca này?', confirmLabel: 'Hủy yêu cầu' }))) return;
     setActionLoadingId(req.id);
     try {
       if (req.isShiftSwap) {
@@ -941,40 +946,7 @@ export default function MarketplacePage() {
     }
   };
 
-  // 16. Attendance Adjustment Actions
-  const handleApproveAdjustment = async (req) => {
-    if (!req?.id) return;
-    setActionLoadingId(req.id);
-    try {
-      await approveAdjustmentRequest(storeId, req.id);
-      showToast(`Đã phê duyệt giải trình chấm công của ${req.staffName || 'nhân viên'}!`);
-      loadData();
-      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
-      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId } }));
-    } catch (err) {
-      showToast(`Lỗi: Lỗi phê duyệt: ${err.response?.data?.message || err.message || 'Không thể duyệt.'}`);
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const handleRejectAdjustment = async (req) => {
-    if (!req?.id) return;
-    setActionLoadingId(req.id);
-    try {
-      await rejectAdjustmentRequest(storeId, req.id);
-      showToast(`Lỗi: Đã từ chối giải trình chấm công của ${req.staffName || 'nhân viên'}.`);
-      loadData();
-      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
-      window.dispatchEvent(new CustomEvent('store_attendance_updated', { detail: { storeId } }));
-    } catch (err) {
-      showToast(`Lỗi: Lỗi từ chối: ${err.response?.data?.message || err.message || 'Không thể từ chối.'}`);
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  // 17. Workforce Request Actions
+  // 16. Workforce Request Actions
   const handleRejectWorkforce = async (req) => {
     if (!req?.id) return;
     setActionLoadingId(req.id);
@@ -985,6 +957,19 @@ export default function MarketplacePage() {
       window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi: Lỗi: ${err.response?.data?.message || err.message || 'Thao tác thất bại.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRespondWorkforceProposal = async (proposalId, accepted) => {
+    setActionLoadingId(proposalId);
+    try {
+      await respondToWorkforceProposal(proposalId, { accepted });
+      showToast(accepted ? 'Đã chấp nhận đề xuất điều động ca làm việc!' : 'Đã từ chối đề xuất điều động.', 'success');
+      loadData();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Thao tác phản hồi đề xuất thất bại.', 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -1345,8 +1330,9 @@ export default function MarketplacePage() {
 
             {/* Chi nhánh cần hỗ trợ */}
             <div className="mp-filter-group">
-              <div className="mp-filter-group-title">Chi nhánh cần hỗ trợ</div>
+              <label className="mp-filter-group-title" htmlFor="marketplace-store-filter">Chi nhánh cần hỗ trợ</label>
               <select
+                id="marketplace-store-filter"
                 className="mp-filter-select"
                 value={storeId}
                 onChange={(e) => {
@@ -1978,6 +1964,16 @@ export default function MarketplacePage() {
                     <span>Yêu cầu gửi đi (Outgoing)</span>
                     <span className="mp-tab-badge">{outgoingWorkforceRequests.length}</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`mp-subtab-btn ${workforceSubTab === 'MY_PROPOSALS' ? 'active' : ''}`}
+                    onClick={() => setWorkforceSubTab('MY_PROPOSALS')}
+                  >
+                    <span>Đề xuất điều động cá nhân</span>
+                    <span className="mp-tab-badge badge-blue">
+                      {myWorkforceProposals.filter((p) => p.status === 'PENDING').length}
+                    </span>
+                  </button>
                 </div>
                 {isManager && (
                   <button
@@ -2089,6 +2085,72 @@ export default function MarketplacePage() {
                       </tbody>
                     </table>
                   )
+                ) : workforceSubTab === 'MY_PROPOSALS' ? (
+                  myWorkforceProposals.length === 0 ? (
+                    <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
+                      <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Bạn không có đề xuất điều động chi viện ca làm việc nào đang chờ duyệt.</p>
+                    </div>
+                  ) : (
+                    <table className="mp-table">
+                      <thead>
+                        <tr>
+                          <th>Đề xuất từ</th>
+                          <th>Thông tin nhân sự</th>
+                          <th>Thời điểm gửi</th>
+                          <th>Trạng thái</th>
+                          <th style={{ textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myWorkforceProposals.map((prop) => (
+                          <tr key={prop.id}>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                                {prop.proposedByName || 'Quản lý chi nhánh'}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#64748b' }}>Chi viện ca liên cửa hàng</div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 500, color: '#0f172a' }}>{prop.staffName || 'Tôi'}</div>
+                              <div style={{ fontSize: 12, color: '#64748b' }}>{prop.staffEmail}</div>
+                            </td>
+                            <td style={{ fontSize: 13, color: '#64748b' }}>
+                              {fmtDateTimeVN(prop.createdAt)}
+                            </td>
+                            <td>{renderStatusBadge(prop.status)}</td>
+                            <td>
+                              <div className="mp-table-actions">
+                                {prop.status === 'PENDING' ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-claim"
+                                      style={{ padding: '6px 12px', fontSize: 12, background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                                      disabled={actionLoadingId === prop.id}
+                                      onClick={() => handleRespondWorkforceProposal(prop.id, true)}
+                                    >
+                                      {actionLoadingId === prop.id ? 'Đang duyệt...' : 'Đồng ý'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="mp-btn-action-reject"
+                                      style={{ padding: '6px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer' }}
+                                      disabled={actionLoadingId === prop.id}
+                                      onClick={() => handleRespondWorkforceProposal(prop.id, false)}
+                                    >
+                                      Từ chối
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: '#94a3b8' }}>Đã hoàn tất</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
                 ) : (
                   outgoingWorkforceRequests.length === 0 ? (
                     <div style={{ background: '#ffffff', padding: 40, borderRadius: 12, textAlign: 'center' }}>
@@ -2108,7 +2170,6 @@ export default function MarketplacePage() {
                       </thead>
                       <tbody>
                         {outgoingWorkforceRequests.map((wf) => {
-                          const isPending = wf.status === 'PENDING';
                           return (
                             <tr key={wf.id}>
                               <td>

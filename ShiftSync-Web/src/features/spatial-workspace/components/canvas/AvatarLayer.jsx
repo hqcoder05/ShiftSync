@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Avatar meshes are imperative scene resources and must not be recreated for callback identity changes. */
 /**
  * AvatarLayer.jsx
  * Declarative Workforce Avatars Layer for ShiftSync R3F Digital Twin.

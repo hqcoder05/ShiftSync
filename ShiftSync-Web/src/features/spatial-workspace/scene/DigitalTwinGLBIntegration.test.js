@@ -20,7 +20,7 @@ import { PlayerController } from '../explore/PlayerController.js';
 import { WorkstationDragController } from '../interaction/WorkstationDragController.js';
 
 describe('Digital Twin GLB Integration Suite', () => {
-  const glbPath = path.resolve(process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
+  const glbPath = path.resolve(globalThis.process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
   const glbBuffer = fs.readFileSync(glbPath);
   const arrayBuffer = glbBuffer.buffer.slice(
     glbBuffer.byteOffset,
@@ -55,7 +55,6 @@ describe('Digital Twin GLB Integration Suite', () => {
     const manager = new SceneGraphManager({ layout });
     const modelData = await loadDigitalTwinModel({ arrayBuffer });
     manager.setStoreModelDirect(modelData);
-
     const env = manager.getEnvGroup();
 
     // Toggle walls off
@@ -91,7 +90,6 @@ describe('Digital Twin GLB Integration Suite', () => {
     const modelData = await loadDigitalTwinModel({ arrayBuffer });
     manager.setStoreModelDirect(modelData);
 
-    const env = manager.getEnvGroup();
     const sampleWall = modelData.wallMeshes[0];
     const originalMat = sampleWall.userData.originalMat;
     assert.ok(originalMat, 'Wall must have originalMat stored');

@@ -358,7 +358,7 @@ export function getAllAvatarThumbnails() {
     // Immediately dispose the offscreen WebGL renderer to free hardware context!
     try {
       renderer.dispose();
-    } catch (e) { /* ignore */ }
+    } catch { /* Renderer disposal is best-effort. */ }
   } catch (err) {
     console.warn('Failed to pre-render avatar thumbnails:', err);
   }

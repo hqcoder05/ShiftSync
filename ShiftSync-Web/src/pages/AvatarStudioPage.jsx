@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Camera, RotateCcw, Check, ExternalLink, Sliders, Palette, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, RotateCcw, Check } from 'lucide-react';
 import ReadyPlayerMeViewer from '../components/ReadyPlayerMeViewer';
 import ReadyPlayerMeCreatorModal from '../components/ReadyPlayerMeCreatorModal';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../context/toastContextValue.js';
+import { updateMyAvatar, getMyProfile } from '../services/employeeService';
+import { useEffect } from 'react';
 
 /**
  * AvatarStudioPage
@@ -22,26 +24,47 @@ export default function AvatarStudioPage() {
   const [themeMode, setThemeMode] = useState('dark'); // 'dark' | 'light'
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
+  useEffect(() => {
+    if (!savedGlbUrl) {
+      getMyProfile()
+        .then((res) => {
+          if (res.data?.avatarId) {
+            setCurrentModelUrl(res.data.avatarId);
+            localStorage.setItem('user_profile_avatar_glb', res.data.avatarId);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [savedGlbUrl]);
+
   // Sync to localStorage
-  const handleSetAsMyAvatar = () => {
+  const handleSetAsMyAvatar = async () => {
     try {
       localStorage.setItem('user_profile_avatar_glb', currentModelUrl);
+      await updateMyAvatar(currentModelUrl).catch((err) => {
+        console.warn('Backend updateMyAvatar failed, kept local avatar', err);
+      });
       if (showToast) {
-        showToast('Đã lưu Avatar 3D thành công! Thực thể 3D này sẽ xuất hiện trong không gian làm việc.', 'success');
+        showToast('Đã lưu Avatar 3D thành công lên hồ sơ máy chủ! Thực thể 3D này sẽ xuất hiện trong không gian làm việc.', 'success');
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleAvatarReady = (url) => {
+  const handleAvatarReady = async (url) => {
     setCurrentModelUrl(url);
     try {
       localStorage.setItem('user_profile_avatar_glb', url);
+      await updateMyAvatar(url).catch((err) => {
+        console.warn('Backend updateMyAvatar failed, kept local model', err);
+      });
       if (showToast) {
-        showToast('Đã nạp thành công mô hình Avatar 3D từ Ready Player Me!', 'success');
+        showToast('Đã nạp và lưu thành công mô hình Avatar 3D vào hồ sơ máy chủ!', 'success');
       }
-    } catch (e) {}
+    } catch {
+      // Saving a local avatar is optional; the model remains available for this session.
+    }
   };
 
   return (

@@ -554,6 +554,10 @@ public AutoScheduleService(
 // 4, 5, 6. Dynamic MRV Assignment Loop (Lỗi 4: Cập nhật domain size động sau mỗi lần gán ca)
         List<Slot> remainingSlots = new ArrayList<>(slots);
         List<ShiftAssignment> newAssignments = new ArrayList<>();
+        // Identity is intentional: local repair can mutate an existing assignment
+        // object into a later decision. Keep the moment that final decision won.
+        Map<ShiftAssignment, Integer> assignmentDecisionOrder = new IdentityHashMap<>();
+        int[] nextDecisionOrder = {0};
         // Thu thập các slot không tìm được ứng viên, để thử Local Repair sau vòng lặp chính
         List<Slot> unassignedSlots = new ArrayList<>();
 
@@ -649,6 +653,7 @@ public AutoScheduleService(
             
             double slotDuration = getDurationInHours(bestSlot.getShift());
             newAssignments.add(assignment);
+            assignmentDecisionOrder.put(assignment, nextDecisionOrder[0]++);
             bestEmp.getCurrentSchedule().add(bestSlot.getShift());
             bestEmp.setAssignedHours(bestEmp.getAssignedHours() + slotDuration);
 
@@ -664,7 +669,8 @@ public AutoScheduleService(
         List<Slot> stillUnassigned = Collections.emptyList();
         if (!unassignedSlots.isEmpty()) {
             log.info("Xếp ca tự động: còn {} vị trí chưa được phân công; bắt đầu điều chỉnh lịch...", unassignedSlots.size());
-            stillUnassigned = attemptLocalRepair(unassignedSlots, newAssignments, staffMap, schedConfig, storeConfig);
+            stillUnassigned = attemptLocalRepair(unassignedSlots, newAssignments, staffMap, schedConfig, storeConfig,
+                    assignmentDecisionOrder, nextDecisionOrder);
         }
         int localRepairRescuedCount = unassignedSlotsBeforeRepair - stillUnassigned.size();
         int finalUnassignedCount = stillUnassigned.size();
@@ -899,6 +905,18 @@ public AutoScheduleService(
                 .plannedShifts(draftShifts.stream().map(shift->AutoSchedulePlanMapper.snapshot(storeId,shift,
                         plannedAssignments.getOrDefault(shift.getId(),List.of()),requirementCoverages.stream()
                                 .filter(row->Objects.equals(row.getShiftId(),shift.getId())).toList())).toList())
+                .assignmentSequence(java.util.stream.IntStream.range(0, newAssignments.size())
+                        .mapToObj(index -> {
+                            ShiftAssignment assignment = newAssignments.get(index);
+                            return com.shiftsync.shift.dto.AutoScheduleAssignmentStepDTO.builder()
+                                    .sequence(assignmentDecisionOrder.getOrDefault(assignment, index))
+                                    .shiftId(assignment.getShift().getId())
+                                    .staffId(assignment.getStaff().getId())
+                                    .zoneId(assignment.getZone() == null ? null : assignment.getZone().getId())
+                                    .workstationId(assignment.getWorkstation() == null ? null : assignment.getWorkstation().getId())
+                                    .requiredSkillId(assignment.getRequiredSkillId())
+                                    .build();
+                        }).toList())
                 .availabilityToleranceMinutes(storeConfig.getAvailabilityToleranceMinutes())
                 .storeId(storeId)
                 .startDate(request.getStartDate())
@@ -963,6 +981,16 @@ public AutoScheduleService(
                                   Map<UUID, StaffData> staffMap,
                                   SchedulerConfiguration schedConfig,
                                   StoreConfiguration storeConfig) {
+        return attemptLocalRepair(unassignedSlots, currentAssignments, staffMap, schedConfig, storeConfig, null, null);
+    }
+
+    private List<Slot> attemptLocalRepair(List<Slot> unassignedSlots,
+                                          List<ShiftAssignment> currentAssignments,
+                                          Map<UUID, StaffData> staffMap,
+                                          SchedulerConfiguration schedConfig,
+                                          StoreConfiguration storeConfig,
+                                          Map<ShiftAssignment, Integer> assignmentDecisionOrder,
+                                          int[] nextDecisionOrder) {
         // Thoát sớm nếu không có slot nào cần repair
         if (unassignedSlots == null || unassignedSlots.isEmpty()) {
             return Collections.emptyList();
@@ -1083,6 +1111,9 @@ public AutoScheduleService(
                 existingAssignment.setRequiredSkillId(unassignedSlot.getSkillId());
                 existingAssignment.setZone(unassignedSlot.getZone());
                 existingAssignment.setWorkstation(unassignedSlot.getWorkstation());
+                if (assignmentDecisionOrder != null) {
+                    assignmentDecisionOrder.put(existingAssignment, nextDecisionOrder[0]++);
+                }
 
                 // Thêm assignment mới: staffY → otherShift (kế thừa requiredSkillId gốc của otherShift)
                 ShiftAssignment backfillAssignment = ShiftAssignment.builder()
@@ -1094,6 +1125,9 @@ public AutoScheduleService(
                         .source(AssignmentSource.AUTO)
                         .build();
                 currentAssignments.add(backfillAssignment);
+                if (assignmentDecisionOrder != null) {
+                    assignmentDecisionOrder.put(backfillAssignment, nextDecisionOrder[0]++);
+                }
 
                 log.info("Điều chỉnh lịch: chuyển nhân viên {} từ ca {} sang ca {}, thay thế bằng {}",
                         staffXId, otherShift.getId(), unassignedSlot.getShift().getId(),

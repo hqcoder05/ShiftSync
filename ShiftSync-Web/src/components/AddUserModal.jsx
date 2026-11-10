@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User,
   Mail,
@@ -48,7 +48,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
   // 3. Reset form and load skills from Backend Source of Truth
   useEffect(() => {
     if (isOpen && (isAdmin || isManager)) {
-      setForm({
+      queueMicrotask(() => {
+        setForm({
         fullName: '',
         email: '',
         phone: '',
@@ -65,7 +66,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
       // Fetch dynamic skills from backend
       const activeStoreId = storeId || localStorage.getItem('selectedStoreId') || '';
       setLoadingSkills(true);
-      getAllSkills(activeStoreId)
+        getAllSkills(activeStoreId)
         .then((res) => {
           const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
           setSkillsList(list);
@@ -74,9 +75,10 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           console.warn('Lỗi tải kỹ năng:', err);
           setSkillsList([]);
         })
-        .finally(() => {
-          setLoadingSkills(false);
-        });
+          .finally(() => {
+            setLoadingSkills(false);
+          });
+      });
     }
   }, [isOpen, storeId, isAdmin, isManager]);
 

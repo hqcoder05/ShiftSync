@@ -126,7 +126,7 @@ describe('ARC-IMP-02: CameraManager Facade Unit Tests', () => {
   it('5. Transitions camera on FOCUS_ZONE and FOCUS_WORKSTATION', () => {
     const dom = createMockDom();
     let coordsConverted = false;
-    const mockToThreeCoords = (x, y, z, lay) => {
+    const mockToThreeCoords = (x, y, z) => {
       coordsConverted = true;
       return [x - 12, y, z - 8];
     };
@@ -199,13 +199,10 @@ describe('ARC-IMP-02: CameraManager Facade Unit Tests', () => {
 
   it('8. Safe disposal disposes controls and detaches listeners cleanly', () => {
     const dom = createMockDom();
-    let interactionReported = false;
     const mgr = new CameraManager({
       domElement: dom,
       layout,
-      onUserOrbitStart: () => {
-        interactionReported = true;
-      },
+      onUserOrbitStart: () => {},
     });
 
     assert.ok(mgr.getControls());

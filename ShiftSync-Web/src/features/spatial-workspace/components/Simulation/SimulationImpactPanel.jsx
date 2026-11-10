@@ -9,11 +9,10 @@
  * - Zone-level staffing delta
  */
 
-import { TrendingUp, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export default function SimulationImpactPanel({
   impact = null,
-  isDrawerOpen = false,
 }) {
   if (!impact) return null;
 

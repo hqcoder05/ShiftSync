@@ -63,14 +63,29 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody TestNotificationRequest request) {
         
-        notificationService.sendNotification(
+        var notification = notificationService.sendTestNotification(
                 userDetails.getId(), 
-                null,
                 request.getTitle() != null ? request.getTitle() : "Test Notification", 
                 request.getBody() != null ? request.getBody() : "This is a test notification from ShiftSync", 
                 request.getData());
 
-        return ResponseEntity.ok().body(Map.of("message", "Test notification triggered"));
+        return ResponseEntity.ok().body(Map.of("message", "Đã tạo thông báo thử", "notification", notification));
+    }
+
+    @Operation(summary = "Schedule a background notification test for yourself")
+    @PostMapping("/notifications/test/delayed")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> scheduleTestNotification(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody(required = false) TestNotificationRequest request) {
+        String title = request != null && request.getTitle() != null
+                ? request.getTitle() : "Kiểm tra thông báo Windows";
+        String body = request != null && request.getBody() != null
+                ? request.getBody() : "Thông báo này được gửi sau 10 giây khi tab ShiftSync đã đóng.";
+        Map<String, String> data = request != null ? request.getData() : null;
+        notificationService.scheduleTestNotification(
+                userDetails.getId(), title, body, data, java.time.Duration.ofSeconds(10));
+        return ResponseEntity.accepted().body(Map.of("message", "Đã hẹn gửi thông báo sau 10 giây"));
     }
 
     @Operation(summary = "Get notification preferences")

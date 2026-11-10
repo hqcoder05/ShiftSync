@@ -218,7 +218,10 @@ export function getRoleColor(roleOrSkill = '') {
  * Deterministic pseudo-random offset within zone bounds to scatter 3D humans
  * stably behind workstations/counters without position jumps across component re-renders.
  */
-export function getDeterministicPersonOffset(zoneId = '', index = 0, total = 1, spanX = 2.4, spanZ = 2.0) {
+export function getDeterministicPersonOffset(...args) {
+  const index = args[1] ?? 0;
+  const total = args[2] ?? 1;
+  const spanX = args[3] ?? 2.4;
   if (total <= 1) {
     // Single staff: place directly behind the workstation counter
     return [0, 0.75];

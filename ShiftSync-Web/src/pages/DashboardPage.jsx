@@ -11,8 +11,9 @@ import { getStoreLeaveRequests, approveLeaveRequest, rejectLeaveRequest } from "
 import { getStoreSwapRequests, approveSwapRequest, rejectSwapRequest } from "../services/swapService";
 import { getStoreAdjustmentRequests, approveAdjustmentRequest, rejectAdjustmentRequest } from "../services/adjustmentService";
 import { getStoreLayout, getStoreZones } from "../services/layoutService";
+import { getStoreDashboardMetrics } from "../services/dashboardService";
 import { getAvatarForEmployee } from "../components/avatarConfigs";
-import { toast } from "../context/ToastContext";
+import { toast } from '../context/toastApi.js';
 import { getChartBuckets, getChartRange, toChartISO } from "../components/dashboard/chartPeriods";
 
 const fmtISO = (d) => {
@@ -67,6 +68,7 @@ export default function DashboardPage() {
   const [storeSkills, setStoreSkills] = useState([]);
   const [storeLayout, setStoreLayout] = useState({ length: 24, width: 16, height: 5 });
   const [storeZones, setStoreZones] = useState([]);
+  const [backendMetrics, setBackendMetrics] = useState(null);
   const [generalRequests, setGeneralRequests] = useState([]);
   const [pendingLeave, setPendingLeave] = useState([]);
   const [pendingSwap, setPendingSwap] = useState([]);
@@ -130,13 +132,14 @@ export default function DashboardPage() {
   const reloadLiveData = useCallback(async () => {
     if (!selectedStoreId || mutatingRef.current) return;
     try {
-      const [shiftRes, attRes, reqRes, leaveRes, swapRes, adjRes] = await Promise.allSettled([
+      const [shiftRes, attRes, reqRes, leaveRes, swapRes, adjRes, dashMetricsRes] = await Promise.allSettled([
         getShiftsForStore(selectedStoreId),
         getStoreAttendance(selectedStoreId, toChartISO(chartRange.start), toChartISO(chartRange.end)),
         getRequests(),
         getStoreLeaveRequests(selectedStoreId, "PENDING"),
         getStoreSwapRequests(selectedStoreId, "PENDING"),
         getStoreAdjustmentRequests(selectedStoreId, "PENDING"),
+        getStoreDashboardMetrics(selectedStoreId, toChartISO(chartRange.start), toChartISO(chartRange.end)),
       ]);
 
       const failures = [];
@@ -163,6 +166,9 @@ export default function DashboardPage() {
         const d = Array.isArray(adjRes.value.data) ? adjRes.value.data : (adjRes.value.data?.content || []);
         setPendingAdj(d);
       } else failures.push('giải trình');
+      if (dashMetricsRes.status === "fulfilled" && dashMetricsRes.value?.data) {
+        setBackendMetrics(dashMetricsRes.value.data);
+      }
       setDataLoadErrors((current) => [...new Set([...current.filter((item) => !['lịch làm việc', 'chấm công', 'yêu cầu', 'nghỉ phép', 'đổi ca', 'giải trình'].includes(item)), ...failures])]);
     } catch (err) {
       console.warn("Error reloading dashboard live data:", err);
@@ -170,7 +176,7 @@ export default function DashboardPage() {
   }, [selectedStoreId, chartRange.start, chartRange.end]);
 
   useEffect(() => {
-    reloadLiveData();
+    queueMicrotask(reloadLiveData);
   }, [reloadLiveData]);
 
   // Realtime WebSocket & Storage listeners
@@ -511,6 +517,45 @@ export default function DashboardPage() {
     });
   }, [chartBuckets, shifts, positions, selectedEmp]);
 
+  // Categories keep the color configured on each real shift. Identical shift
+  // names/times are grouped so a daily column describes the working shifts,
+  // not the positions that happened to be assigned.
+  const shiftCategories = useMemo(() => {
+    const categories = new Map();
+    shifts.forEach((shift) => {
+      const name = shift.name || shift.shiftName || 'Ca chưa đặt tên';
+      const start = shift.startTime || '';
+      const end = shift.endTime || '';
+      const key = `${name}|${start}|${end}|${shift.color || ''}`;
+      if (!categories.has(key)) categories.set(key, {
+        id: key,
+        name: `${name}${start && end ? ` (${start}–${end})` : ''}`,
+        color: shift.color || '#64748b',
+      });
+    });
+    return [...categories.values()];
+  }, [shifts]);
+
+  const shiftColorData = useMemo(() => chartBuckets.map((bucket) => {
+    const startISO = fmtISO(bucket.start);
+    const endISO = fmtISO(bucket.end);
+    const counts = Object.fromEntries(shiftCategories.map((category) => [category.id, 0]));
+    shifts.filter((shift) => {
+      const shiftDate = shift.shiftDate || shift.date;
+      return shiftDate >= startISO && shiftDate <= endISO;
+    }).forEach((shift) => {
+      const name = shift.name || shift.shiftName || 'Ca chưa đặt tên';
+      const start = shift.startTime || '';
+      const end = shift.endTime || '';
+      const key = `${name}|${start}|${end}|${shift.color || ''}`;
+      const assignments = shift.shiftAssignments?.length || (shift.staffId || shift.staffName ? 1 : 0);
+      if (!selectedEmp || shift.shiftAssignments?.some((a) => String(a.staffId || a.employeeId || '') === selectedEmp.id || (a.staffName || a.employeeName) === selectedEmp.name) || String(shift.staffId || '') === selectedEmp.id || shift.staffName === selectedEmp.name) {
+        counts[key] = (counts[key] || 0) + assignments;
+      }
+    });
+    return { day: bucket.day, label: bucket.label, isAnchor: bucket.isAnchor, counts };
+  }), [chartBuckets, shifts, shiftCategories, selectedEmp]);
+
   const hoursData = useMemo(() => {
     return chartBuckets.map((bucket) => {
       const startISO = fmtISO(bucket.start);
@@ -601,9 +646,6 @@ export default function DashboardPage() {
       totalScheduledHours += dur * Math.max(1, assigned);
     });
 
-    const coverage = totalRequired > 0 ? (totalAssigned / totalRequired) * 100 : 100;
-    const laborCost = totalScheduledHours * 30000;
-
     let todayAtt = attendanceList.filter((a) => {
       const aDate = a.shiftDate || a.date || a.attendanceDate || (a.checkInTime ? fmtISO(new Date(a.checkInTime)) : "");
       return aDate === dateISO;
@@ -615,20 +657,38 @@ export default function DashboardPage() {
     const lateAtt = todayAtt.filter((a) => a.status === "LATE");
     const absentAtt = todayAtt.filter((a) => a.status === "ABSENT");
 
-    const lateRate = todayAtt.length > 0 ? (lateAtt.length / todayAtt.length) * 100 : 0;
-    const absentRate = totalAssigned > 0 ? (absentAtt.length / totalAssigned) * 100 : 0;
+    // Use backend calculated metrics when viewing whole store, fallback to client calculations
+    const coverage = (!selectedEmp && backendMetrics?.scheduling?.coverage != null)
+      ? backendMetrics.scheduling.coverage
+      : (totalRequired > 0 ? (totalAssigned / totalRequired) * 100 : 100);
+
+    const laborCost = (!selectedEmp && backendMetrics?.payroll?.laborCost != null)
+      ? Number(backendMetrics.payroll.laborCost)
+      : totalScheduledHours * 30000;
+
+    const lateRate = (!selectedEmp && backendMetrics?.attendance?.lateRate != null)
+      ? backendMetrics.attendance.lateRate
+      : (todayAtt.length > 0 ? (lateAtt.length / todayAtt.length) * 100 : 0);
+
+    const absentRate = (!selectedEmp && backendMetrics?.attendance?.absentRate != null)
+      ? backendMetrics.attendance.absentRate
+      : (totalAssigned > 0 ? (absentAtt.length / totalAssigned) * 100 : 0);
+
+    const openShiftsCount = (!selectedEmp && backendMetrics?.scheduling?.openShiftCount != null)
+      ? backendMetrics.scheduling.openShiftCount
+      : openShifts;
 
     const pendingRequests = detailedPendingItems.length;
 
     return {
-      openShifts,
+      openShifts: openShiftsCount,
       coverage,
       laborCost,
       lateRate,
       absentRate,
       pendingRequests,
     };
-  }, [shifts, dateISO, selectedEmp, attendanceList, detailedPendingItems]);
+  }, [shifts, dateISO, selectedEmp, attendanceList, detailedPendingItems, backendMetrics]);
 
   // Current Store Name
   const currentStore = useMemo(() => {
@@ -646,6 +706,8 @@ export default function DashboardPage() {
       pendingItems: detailedPendingItems,
       attendance: dayAttendance,
       assigned: assignedData,
+      shiftColors: shiftColorData,
+      shiftCategories,
       hours: hoursData,
       spatial: {
         store: currentStore,
@@ -654,7 +716,7 @@ export default function DashboardPage() {
         activeShifts: shifts,
       },
     };
-  }, [date, positions, kpis, timelineShifts, requestsSummary, detailedPendingItems, dayAttendance, assignedData, hoursData, currentStore, storeLayout, storeZones, shifts]);
+  }, [date, positions, kpis, timelineShifts, requestsSummary, detailedPendingItems, dayAttendance, assignedData, shiftColorData, shiftCategories, hoursData, currentStore, storeLayout, storeZones, shifts]);
 
   // 14. CSV Export
   const handleExport = useCallback(() => {

@@ -16,7 +16,7 @@ export function buildRoleOutfit({ roleName = '', roleTheme = {}, seed = 0 }) {
   const headwearMeshes = [];
   let leftArmProp = null;
   let rightArmProp = null;
-  let roleType = 'general';
+  let roleType;
 
   // 1. Barista / Pha chế
   if (norm.includes('barista') || norm.includes('pha chế')) {

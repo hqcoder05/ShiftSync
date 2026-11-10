@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore } from '../services/employmentService';
 import {
@@ -11,25 +10,22 @@ import {
   getMyPayslips,
   downloadPayslipPdf,
 } from '../services/payrollService';
-import { toast } from '../context/ToastContext';
+import { toast } from '../context/toastApi.js';
 import Payroll3DCharacterWeb from '../components/Payroll3DCharacterWeb';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import './PayrollPage.css';
 
-// Illustrations
-import luongIllustration from '../assets/illustrations/luong.png';
-
 // Format currency to standard Vietnamese Dong faithfully as whole integer VND
-export const formatVND = (num) => {
+const formatVND = (num) => {
   if (num === null || num === undefined || isNaN(num)) return '—';
   const val = Math.round(Number(num));
   return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
 };
 
 // Format payroll hours to 2 decimal places (e.g., 0.00h, 0.02h, 7.50h, 8.00h)
-export const formatHours = (num) => {
+const formatHours = (num) => {
   if (num === null || num === undefined || isNaN(num)) return '0.00h';
   return Number(num).toFixed(2) + 'h';
 };
@@ -41,13 +37,12 @@ const formatPeriodLabel = (startDate, endDate) => {
     const [sy, sm, sd] = startDate.split('-');
     const [ey, em, ed] = endDate.split('-');
     return `Tháng ${sm}/${sy} (${sd}/${sm} – ${ed}/${em}/${ey})`;
-  } catch (e) {
+  } catch {
     return `${startDate} – ${endDate}`;
   }
 };
 
 export default function PayrollPage() {
-  const navigate = useNavigate();
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
   const isStaff = !isManager;
@@ -80,7 +75,7 @@ export default function PayrollPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const cleanLabel = periodLabel ? String(periodLabel).replace(/[\/\s–—\(\)]+/g, '_') : payrollId;
+      const cleanLabel = periodLabel ? String(periodLabel).replace(/[/\s–—()]+/g, '_') : payrollId;
       link.download = `Phieu_Luong_${cleanLabel}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
@@ -153,7 +148,7 @@ export default function PayrollPage() {
   }, [storeId, isStaff]);
 
   // Load periods from API when store changes (Manager)
-  const fetchPeriods = (selectFirst = true) => {
+  const fetchPeriods = useCallback((selectFirst = true) => {
     if (!storeId || isStaff) return;
     getPayrollPeriods(storeId)
       .then(({ data }) => {
@@ -166,12 +161,10 @@ export default function PayrollPage() {
             status: p.status,
           }));
           setPeriods(mapped);
-          if (selectFirst || !selectedPeriod) {
-            setSelectedPeriod(mapped[0]);
-          } else {
-            const matched = mapped.find((p) => p.id === selectedPeriod.id);
-            setSelectedPeriod(matched || mapped[0]);
-          }
+          setSelectedPeriod((currentPeriod) => {
+            if (selectFirst || !currentPeriod) return mapped[0];
+            return mapped.find((period) => period.id === currentPeriod.id) || mapped[0];
+          });
         } else {
           setPeriods([]);
           setSelectedPeriod(null);
@@ -183,13 +176,13 @@ export default function PayrollPage() {
         setSelectedPeriod(null);
         setStaffData([]);
       });
-  };
+  }, [storeId, isStaff]);
 
   useEffect(() => {
-    if (!isStaff) {
-      fetchPeriods(true);
-    }
-  }, [storeId, isStaff]);
+    if (isStaff) return undefined;
+    const timerId = window.setTimeout(() => fetchPeriods(true), 0);
+    return () => window.clearTimeout(timerId);
+  }, [isStaff, fetchPeriods]);
 
   // Load staff personal payslips (Staff)
   useEffect(() => {
@@ -253,7 +246,7 @@ export default function PayrollPage() {
           setStaffData([]);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         setPeriods([]);
         setSelectedPeriod(null);
         setStaffData([]);
@@ -263,7 +256,7 @@ export default function PayrollPage() {
   // Fetch payslips for selected period
   useEffect(() => {
     if (!storeId || !selectedPeriod?.id) {
-      setStaffData([]);
+      queueMicrotask(() => setStaffData([]));
       return;
     }
     getPayslips(storeId, selectedPeriod.id)
@@ -447,8 +440,8 @@ export default function PayrollPage() {
         try {
           await updatePayrollStatus(storeId, selectedPeriod.id, 'CONFIRMED');
           setSelectedPeriod((p) => ({ ...p, status: 'CONFIRMED' }));
-        } catch (e) {
-          // ignore
+        } catch {
+          // The period may already be confirmed.
         }
       }
     } catch (err) {
@@ -480,8 +473,8 @@ export default function PayrollPage() {
       try {
         await updatePayrollStatus(storeId, selectedPeriod.id, 'CONFIRMED');
         setSelectedPeriod((p) => ({ ...p, status: 'CONFIRMED' }));
-      } catch (e) {
-        // ignore
+      } catch {
+        // The period may already be confirmed.
       }
     }
     setShowExportModal(false);

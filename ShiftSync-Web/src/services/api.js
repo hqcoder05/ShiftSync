@@ -3,7 +3,17 @@ import axios from 'axios';
 // Same-origin in the browser; Vite proxies development requests to Docker.
 // Production can supply VITE_API_URL or reverse-proxy /api and /ws.
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const api = axios.create({ baseURL: API_BASE_URL });
+const api = axios.create({ baseURL: API_BASE_URL, timeout: 15000 });
+
+export const isRequestCanceled = (error) =>
+  error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError';
+
+export const getApiErrorMessage = (error, fallback = 'Không thể kết nối tới máy chủ. Vui lòng thử lại.') => {
+  if (isRequestCanceled(error)) return '';
+  if (error?.code === 'ECONNABORTED') return 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.';
+  if (error?.response?.status >= 500) return 'Máy chủ đang gặp sự cố tạm thời. Vui lòng thử lại.';
+  return error?.response?.data?.message || error?.message || fallback;
+};
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
@@ -34,6 +44,10 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
+
+    if (!isRequestCanceled(error)) {
+      error.userMessage = getApiErrorMessage(error);
+    }
 
     if (error.response && status === 401 && !originalRequest._retry) {
       if (

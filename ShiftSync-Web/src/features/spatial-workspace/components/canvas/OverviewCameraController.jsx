@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Orbit controls are long-lived scene resources and are not recreated for prop callback changes. */
 /**
  * OverviewCameraController.jsx
  * Declarative Camera Subsystem & Orbit Controls Controller for ShiftSync R3F Digital Twin.
@@ -22,7 +23,7 @@ export default function OverviewCameraController({
   isExploreMode = false,
   isDraggingObject = false,
   onUserOrbitStart = null,
-  cameraManagerRef = null,
+  onCameraManagerChange = null,
 }) {
   const { gl, size, camera, scene, set } = useThree();
   const managerInstanceRef = useRef(null);
@@ -41,16 +42,12 @@ export default function OverviewCameraController({
     });
 
     managerInstanceRef.current = manager;
-    if (cameraManagerRef) {
-      cameraManagerRef.current = manager;
-    }
+    onCameraManagerChange?.(manager);
 
     return () => {
       manager.dispose();
       managerInstanceRef.current = null;
-      if (cameraManagerRef) {
-        cameraManagerRef.current = null;
-      }
+      onCameraManagerChange?.(null);
     };
   }, [layout?.length, layout?.width, layout?.height]);
 

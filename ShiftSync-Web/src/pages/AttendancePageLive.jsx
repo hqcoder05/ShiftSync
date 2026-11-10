@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import { getAllStores } from '../services/storeService';
 import { getEmployees } from '../services/employeeService';
-import { getStoreAttendance, updateAttendanceRecord, getMyAttendance, getAttendancePhoto } from '../services/attendanceService';
+import { getStoreAttendance, updateAttendanceRecord, deleteAttendanceRecord, getMyAttendance, getAttendancePhoto, scanAttendance } from '../services/attendanceService';
 import {
   createAdjustmentRequest,
   getMyAdjustmentRequests,
@@ -20,9 +21,14 @@ import {
   updateLeaveReason,
   getLeaveImpact,
   getLeaveTypes,
+  getMyLeaveBalance,
+  getStoreLeaveBalances,
+  getLeaveProvenanceCandidates,
+  reconcileLeaveProvenance,
 } from '../services/leaveService';
-import { toast } from '../context/ToastContext';
+import { toast } from '../context/toastApi.js';
 import Avatar3DWeb from '../components/Avatar3DWeb';
+import ShiftQrModal from '../components/attendance/ShiftQrModal';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
 import './AttendancePageLive.css';
 
@@ -61,7 +67,7 @@ const fmtShortDate = (dStr) => {
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     return `${dow}, ${day}/${month}`;
-  } catch (e) {
+  } catch {
     return dStr;
   }
 };
@@ -75,7 +81,7 @@ const fmtTimeAMPM = (value) => {
     const period = h < 12 ? 'AM' : 'PM';
     h = h % 12 === 0 ? 12 : h % 12;
     return `${String(h).padStart(2, '0')}:${m} ${period}`;
-  } catch (e) {
+  } catch {
     return '—';
   }
 };
@@ -136,6 +142,7 @@ const getAttendanceStatus = (row) => {
 };
 
 export default function AttendancePageLive() {
+  const confirm = useConfirmation();
   const navigate = useNavigate();
   const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
   const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
@@ -174,6 +181,30 @@ export default function AttendancePageLive() {
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('ALL');
   const [leaveSearch, setLeaveSearch] = useState('');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [loadingLeaveBalance, setLoadingLeaveBalance] = useState(false);
+  const [qrShiftModal, setQrShiftModal] = useState(null);
+
+  const fetchLeaveBalance = useCallback(async () => {
+    if (!storeId) return;
+    setLoadingLeaveBalance(true);
+    try {
+      const res = await getMyLeaveBalance(storeId);
+      setLeaveBalance(res.data);
+    } catch (err) {
+      console.error('Failed to fetch leave balance:', err);
+    } finally {
+      setLoadingLeaveBalance(false);
+    }
+  }, [storeId]);
+
+  useEffect(() => {
+    if (showLeaveModal && storeId) {
+      const requestId = setTimeout(() => { void fetchLeaveBalance(); }, 0);
+      return () => clearTimeout(requestId);
+    }
+    return undefined;
+  }, [showLeaveModal, storeId, fetchLeaveBalance]);
   const [showImpactModal, setShowImpactModal] = useState(false);
   const [selectedLeaveImpact, setSelectedLeaveImpact] = useState(null);
   const [pendingApproveLeaveId, setPendingApproveLeaveId] = useState(null);
@@ -205,6 +236,10 @@ export default function AttendancePageLive() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [showStoreLeaveBalances, setShowStoreLeaveBalances] = useState(false);
+  const [storeLeaveBalances, setStoreLeaveBalances] = useState([]);
+  const [provenanceDialog, setProvenanceDialog] = useState(null);
+  const [provenanceReason, setProvenanceReason] = useState('');
 
   const handlePreviewAttendancePhoto = useCallback(async (row, kind) => {
     try {
@@ -221,6 +256,67 @@ export default function AttendancePageLive() {
       toast.error(photoError.response?.data?.message || 'Không thể tải ảnh xác thực.');
     }
   }, [isStaff, storeId]);
+
+  const openStoreLeaveBalances = async () => {
+    if (!storeId) return;
+    setActionLoading(true);
+    try {
+      const { data } = await getStoreLeaveBalances(storeId, new Date().getFullYear());
+      setStoreLeaveBalances(Array.isArray(data) ? data : []);
+      setShowStoreLeaveBalances(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể tải quỹ phép của chi nhánh.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleQrCheckIn = () => {
+    const qrToken = window.prompt('Quét hoặc dán mã QR của ca làm việc');
+    if (!qrToken?.trim()) return;
+    if (!navigator.geolocation) return toast.error('Trình duyệt không hỗ trợ lấy vị trí để xác thực chấm công.');
+    setActionLoading(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        await scanAttendance({ qrToken: qrToken.trim(), latitude: position.coords.latitude, longitude: position.coords.longitude });
+        toast.success('Đã chấm công bằng mã QR.');
+        const result = await getMyAttendance();
+        setRows(result.data || []);
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể chấm công bằng mã QR.');
+      } finally { setActionLoading(false); }
+    }, () => { setActionLoading(false); toast.error('Cần cho phép vị trí để chấm công bằng QR.'); }, { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  const openLeaveProvenance = async (leave) => {
+    if (!storeId) return;
+    setActionLoading(true);
+    try {
+      const { data } = await getLeaveProvenanceCandidates(storeId, leave.id);
+      setProvenanceReason('Đối soát phân công đã gỡ do đơn nghỉ phép.');
+      setProvenanceDialog({ leave, candidates: (Array.isArray(data) ? data : []).map((item) => ({ ...item, selected: true })) });
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể tải các phân công cần đối soát.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const saveLeaveProvenance = async () => {
+    if (!provenanceDialog || !provenanceReason.trim()) return toast.warning('Vui lòng ghi lý do đối soát.');
+    const assignmentIds = provenanceDialog.candidates.filter((item) => item.selected).map((item) => item.assignmentId);
+    setActionLoading(true);
+    try {
+      await reconcileLeaveProvenance(storeId, provenanceDialog.leave.id, { assignmentIds, reason: provenanceReason.trim() });
+      toast.success('Đã đối soát các phân công bị ảnh hưởng bởi đơn nghỉ.');
+      setProvenanceDialog(null);
+      await fetchLeaves();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể lưu đối soát.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Edit attendance state (Quản lý chỉnh sửa giờ chấm công & Giải trình)
   const [editingRow, setEditingRow] = useState(null);
@@ -306,13 +402,29 @@ export default function AttendancePageLive() {
     }
   };
 
+  const handleDeleteAttendance = async () => {
+    if (!editingRow || !storeId || !(await confirm({ message: `Xóa bản ghi chấm công của ${editingRow.staffName || 'nhân viên'}?`, confirmLabel: 'Xóa' }))) return;
+    setIsSaving(true);
+    try {
+      await deleteAttendanceRecord(storeId, editingRow.id);
+      setRows((previous) => previous.filter((row) => String(row.id) !== String(editingRow.id)));
+      setEditingRow(null);
+      toast.success('Đã xóa bản ghi chấm công.');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không thể xóa bản ghi chấm công.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Refs for outside click handling
   const dateNavWrapRef = useRef(null);
   const clickTimeoutRef = useRef(null);
   const storeFilterRef = useRef(null);
 
   // Compute dates based on offset
-  const today = new Date(Date.now() + dayOffset * 86400000);
+  const [todayAnchor] = useState(() => new Date());
+  const today = new Date(todayAnchor.getTime() + dayOffset * 86400000);
   const weekDatesFull = useMemo(() => {
     const base = new Date();
     base.setDate(base.getDate() + weekOffset * 7);
@@ -398,8 +510,10 @@ export default function AttendancePageLive() {
   // Load attendance data
   useEffect(() => {
     if (!isStaff && !storeId) return;
-    setLoading(true);
-    setError('');
+    queueMicrotask(() => {
+      setLoading(true);
+      setError('');
+    });
     const fetchPromise = isStaff
       ? getMyAttendance()
       : getStoreAttendance(storeId, fromDate, toDate);
@@ -468,7 +582,7 @@ export default function AttendancePageLive() {
           setLeaveTypes([]);
           setLeaveTypesError('Không tìm thấy danh mục loại nghỉ phép từ hệ thống.');
         }
-      } catch (e) {
+      } catch {
         setLeaveTypes([]);
         setLeaveTypesError('Không thể tải danh mục loại nghỉ phép từ máy chủ.');
       } finally {
@@ -499,8 +613,10 @@ export default function AttendancePageLive() {
   }, [storeId, isManager]);
 
   useEffect(() => {
-    fetchLeaves();
-    fetchAdjustments();
+    queueMicrotask(() => {
+      fetchLeaves();
+      fetchAdjustments();
+    });
   }, [fetchLeaves, fetchAdjustments]);
 
   // Realtime updates for requests & adjustments
@@ -619,7 +735,7 @@ export default function AttendancePageLive() {
 
   const handleCancelLeave = async (leaveId) => {
     const sId = storeId || localStorage.getItem('selectedStoreId');
-    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn xin nghỉ này?')) return;
+    if (!(await confirm({ message: 'Bạn có chắc chắn muốn hủy đơn xin nghỉ này?', confirmLabel: 'Hủy đơn', tone: 'primary' }))) return;
     setActionLoading(true);
     try {
       await cancelLeaveRequest(sId, leaveId);
@@ -1120,6 +1236,7 @@ export default function AttendancePageLive() {
               </div>
 
               <div className="att-topbar-actions">
+                {!isManager && <div className="att-capsule-card" style={{ marginRight: '8px' }}><button type="button" className="att-capsule-payroll-btn" onClick={handleQrCheckIn} disabled={actionLoading}>Chấm công QR</button></div>}
                 <div className="att-capsule-card" style={{ marginRight: '8px' }}>
                   <button
                     type="button"
@@ -1133,6 +1250,15 @@ export default function AttendancePageLive() {
             <div className="att-capsule-card">
               {isManager && (
                 <>
+                  <button
+                    type="button"
+                    className="att-capsule-payroll-btn"
+                    onClick={openStoreLeaveBalances}
+                    title="Xem quỹ phép của toàn bộ nhân viên"
+                  >
+                    Quỹ phép nhân viên
+                  </button>
+                  <div className="att-capsule-divider" />
                   <button
                     type="button"
                     className="att-capsule-payroll-btn"
@@ -1455,18 +1581,47 @@ export default function AttendancePageLive() {
 
                         {/* Thao tác */}
                         <td>
-                          {isManager ? (
-                            <button
-                              type="button"
-                              className="att-edit-btn"
-                              onClick={() => handleOpenEdit(row)}
-                              title="Chỉnh sửa giờ chấm công của nhân viên"
-                            >
-                              Sửa
-                            </button>
-                          ) : (
-                            <span className="att-muted">—</span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {isManager && (
+                              <button
+                                type="button"
+                                className="att-edit-btn"
+                                onClick={() => handleOpenEdit(row)}
+                                title="Chỉnh sửa giờ chấm công của nhân viên"
+                              >
+                                Sửa
+                              </button>
+                            )}
+                            {row.shiftId && (
+                              <button
+                                type="button"
+                                className="att-qr-btn"
+                                onClick={() => setQrShiftModal({
+                                  id: row.shiftId,
+                                  shiftDate: row.shiftDate,
+                                  startTime: row.scheduledStart,
+                                  endTime: row.scheduledEnd,
+                                  name: row.skillName || row.staffName || 'Ca làm việc'
+                                })}
+                                title="Mở mã QR chấm công ca này"
+                                style={{
+                                  padding: '3px 7px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  borderRadius: '4px',
+                                  border: '1px solid #a7f3d0',
+                                  background: '#f0fdf4',
+                                  color: '#047857',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                QR
+                              </button>
+                            )}
+                            {!isManager && !row.shiftId && (
+                              <span className="att-muted">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1814,7 +1969,7 @@ export default function AttendancePageLive() {
                             )}
 
                             {!isPending && (
-                              <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                              userRole === 'ADMIN' && !r.assignmentProvenanceComplete ? <button type="button" className="tw-btn-cancel" onClick={() => openLeaveProvenance(r)} disabled={actionLoading}>Đối soát ca gỡ</button> : <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
                             )}
                           </td>
                         </tr>
@@ -1936,6 +2091,15 @@ export default function AttendancePageLive() {
                 <button
                   type="button"
                   className="att-cancel-btn"
+                  style={{ color: '#b42318' }}
+                  onClick={handleDeleteAttendance}
+                  disabled={isSaving}
+                >
+                  Xóa bản ghi
+                </button>
+                <button
+                  type="button"
+                  className="att-cancel-btn"
                   onClick={() => setEditingRow(null)}
                   disabled={isSaving}
                 >
@@ -1950,6 +2114,27 @@ export default function AttendancePageLive() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showStoreLeaveBalances && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setShowStoreLeaveBalances(false)}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-label="Quỹ phép nhân viên" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760 }}>
+            <div className="att-modal-header"><h3>Quỹ phép nhân viên · {new Date().getFullYear()}</h3><button type="button" className="att-modal-close" onClick={() => setShowStoreLeaveBalances(false)} aria-label="Đóng">&times;</button></div>
+            <div className="ed-pay-table-wrapper"><table className="ed-pay-table"><thead><tr><th>Nhân viên</th><th>Tổng cấp</th><th>Đã dùng</th><th>Chờ duyệt</th><th>Còn lại</th></tr></thead><tbody>{storeLeaveBalances.length ? storeLeaveBalances.map((balance) => <tr key={balance.staffId || balance.userId}><td>{balance.staffName || balance.fullName || 'Nhân viên'}</td><td>{balance.totalEntitlement ?? balance.annualEntitlement ?? 0}</td><td>{balance.usedDays ?? 0}</td><td>{balance.pendingDays ?? 0}</td><td><strong>{balance.remainingDays ?? 0}</strong></td></tr>) : <tr><td colSpan="5">Chưa có dữ liệu quỹ phép.</td></tr>}</tbody></table></div>
+          </div>
+        </div>
+      )}
+
+      {provenanceDialog && (
+        <div className="att-modal-overlay" onClick={() => !actionLoading && setProvenanceDialog(null)}>
+          <div className="att-modal-content" role="dialog" aria-modal="true" aria-label="Đối soát phân công nghỉ phép" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760 }}>
+            <div className="att-modal-header"><h3>Đối soát ca đã gỡ</h3><button type="button" className="att-modal-close" onClick={() => setProvenanceDialog(null)} aria-label="Đóng">&times;</button></div>
+            <p>Chọn các phân công đã bị gỡ do đơn nghỉ của {provenanceDialog.leave.staffName || 'nhân viên'}.</p>
+            {provenanceDialog.candidates.map((candidate) => <label key={candidate.assignmentId} style={{ display: 'flex', gap: 8, padding: '8px 0' }}><input type="checkbox" checked={candidate.selected} onChange={() => setProvenanceDialog((previous) => ({ ...previous, candidates: previous.candidates.map((item) => item.assignmentId === candidate.assignmentId ? { ...item, selected: !item.selected } : item) }))} />{candidate.shiftDate} · {candidate.startTime?.slice(0, 5)}–{candidate.endTime?.slice(0, 5)}</label>)}
+            <label className="att-form-group">Lý do đối soát<input className="att-time-input" value={provenanceReason} onChange={(event) => setProvenanceReason(event.target.value)} /></label>
+            <div className="att-modal-actions"><button type="button" className="att-cancel-btn" onClick={() => setProvenanceDialog(null)}>Hủy</button><button type="button" className="att-save-btn" onClick={saveLeaveProvenance} disabled={actionLoading}>Lưu đối soát</button></div>
           </div>
         </div>
       )}
@@ -2067,6 +2252,49 @@ export default function AttendancePageLive() {
               >&times;</button>
             </div>
             <form className="att-edit-form" onSubmit={handleCreateLeaveSubmit}>
+              {/* Thẻ hiển thị số dư ngày phép nhân viên */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '12px 14px',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    Số dư phép năm {leaveBalance?.year || new Date().getFullYear()}
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                    {loadingLeaveBalance ? (
+                      <span style={{ fontSize: '13px', color: '#94a3b8' }}>Đang tải số dư...</span>
+                    ) : leaveBalance ? (
+                      <span>
+                        <strong style={{ color: '#059669' }}>{leaveBalance.remainingDays}</strong> / {leaveBalance.annualEntitlement + (leaveBalance.carryOverDays || 0)} ngày còn lại
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '13px', color: '#64748b' }}>Tiêu chuẩn 12 ngày/năm</span>
+                    )}
+                  </div>
+                </div>
+                {leaveBalance && (
+                  <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
+                    <span style={{ background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '4px', fontWeight: 500 }}>
+                      Đã dùng: {leaveBalance.usedDays || 0}
+                    </span>
+                    {leaveBalance.pendingDays > 0 && (
+                      <span style={{ background: '#fffbeb', color: '#92400e', padding: '3px 8px', borderRadius: '4px', fontWeight: 500 }}>
+                        Chờ duyệt: {leaveBalance.pendingDays}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="att-form-group">
                 <label>Loại nghỉ phép</label>
                 {loadingLeaveTypes ? (
@@ -2272,6 +2500,15 @@ export default function AttendancePageLive() {
             </div>
           </div>
         </div>
+      )}
+      {qrShiftModal && (
+        <ShiftQrModal
+          isOpen={!!qrShiftModal}
+          onClose={() => setQrShiftModal(null)}
+          storeId={storeId}
+          shift={qrShiftModal}
+          storeName={stores.find((s) => String(s.id) === String(storeId))?.name}
+        />
       )}
     </div>
   );

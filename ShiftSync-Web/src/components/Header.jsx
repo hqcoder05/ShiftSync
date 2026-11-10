@@ -24,7 +24,6 @@ import {
   Clock,
   CheckCheck,
   FileText,
-  AlertCircle,
   Sparkles,
   LayoutGrid,
   TrendingUp,
@@ -47,7 +46,6 @@ import {
 } from 'lucide-react';
 import AvatarCollectionModal from './AvatarCollectionModal';
 import Avatar3DWeb from './Avatar3DWeb';
-import { AVATAR_OPTIONS, getAvatarById } from './avatarConfigs';
 
 // Biểu tượng Logo Độc Quyền ShiftSync (Aero-Precision Kinetic Shift & Sync Monogram)
 const ShiftSyncLogoMark = ({ size = 26 }) => (
@@ -445,8 +443,10 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
   }, [selectedStoreId, isManager]);
 
   useEffect(() => {
-    fetchNotifications();
-    fetchHeaderCounts();
+    queueMicrotask(() => {
+      fetchNotifications();
+      fetchHeaderCounts();
+    });
     const interval = setInterval(() => {
       fetchNotifications();
       fetchHeaderCounts();
@@ -666,8 +666,10 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
 
   // Close flyout on route change
   useEffect(() => {
-    setActiveFlyoutKey(null);
-    setMobileDrawerOpen(false);
+    queueMicrotask(() => {
+      setActiveFlyoutKey(null);
+      setMobileDrawerOpen(false);
+    });
   }, [location.pathname, location.search]);
 
   // Close flyout and popovers on Escape or outside click

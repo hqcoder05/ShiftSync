@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
-import { getZoneThemeColor, toThreeCoords, getCapacityState, getZoneIcon, getShortZoneName, getOccupancyColor } from './spatial.constants';
+import { toThreeCoords, getCapacityState, getZoneIcon, getShortZoneName, getOccupancyColor } from './spatial.constants';
 import Workstation from './Workstation';
 
 /**
@@ -32,7 +32,6 @@ export default function StoreZone({
   const [isHovered, setIsHovered] = useState(false);
 
   const [threeX, threeY, threeZ] = toThreeCoords(zone.x, zone.y, zone.z, layout);
-  const themeColor = getZoneThemeColor(zone);
   const capacity = zone.capacity || 4;
   const occupancyColor = getOccupancyColor(assignedCount, capacity);
   const isElevated = (zone.z || 0) > 0.5;

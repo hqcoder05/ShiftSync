@@ -5,6 +5,6 @@ import lombok.Data;
 
 @Data
 public class LogoutRequest {
-    @NotBlank(message = "Refresh token is required")
+    @NotBlank(message = "Thieu refresh token")
     private String refreshToken;
 }

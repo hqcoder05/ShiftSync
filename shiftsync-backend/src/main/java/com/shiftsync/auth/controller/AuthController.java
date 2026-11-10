@@ -49,7 +49,7 @@ public class AuthController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Successfully authenticated"),
         @ApiResponse(responseCode = "400", description = "Invalid request payload"),
-        @ApiResponse(responseCode = "401", description = "Invalid email or password")
+        @ApiResponse(responseCode = "401", description = "Email hoac mat khau khong dung")
     })
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
@@ -61,7 +61,7 @@ public class AuthController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Token successfully refreshed"),
         @ApiResponse(responseCode = "400", description = "Invalid request payload"),
-        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
+        @ApiResponse(responseCode = "401", description = "Phien dang nhap da het han hoac khong hop le")
     })
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         AuthResponse response = authService.refresh(request);

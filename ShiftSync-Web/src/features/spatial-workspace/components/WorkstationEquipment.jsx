@@ -19,10 +19,13 @@ function EquipmentPanel({ storeId, workstationId, canEdit = false }) {
  const busy = useRef(false);
  const id = useId();
  useEffect(() => {
-  setEditor(null); setSaveError(''); setNotice('');
-  if (!storeId || !workstationId) return;
   const controller = new AbortController();
-  setState({ key, loading: true });
+  queueMicrotask(() => {
+   if (controller.signal.aborted) return;
+   setEditor(null); setSaveError(''); setNotice('');
+   if (storeId && workstationId) setState({ key, loading: true });
+  });
+  if (!storeId || !workstationId) return () => controller.abort();
   getWorkstationEquipment(storeId, workstationId, controller.signal).then(response => {
    if (!controller.signal.aborted) {
     if (!Array.isArray(response.data)) throw new Error('Invalid equipment response');

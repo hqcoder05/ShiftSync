@@ -12,8 +12,8 @@
  */
 
 // Mock minimal browser globals for CanvasTexture in Node before importing Three.js modules
-if (typeof global.document === 'undefined') {
-  global.document = {
+if (typeof globalThis.document === 'undefined') {
+  globalThis.document = {
     createElement: (tag) => {
       if (tag === 'canvas') {
         return {
@@ -53,7 +53,6 @@ import {
 } from '../../components/spatial/spatial.constants.js';
 import {
   WorkstationDragController,
-  WORKSTATION_COLLISION_RADIUS,
 } from './interaction/WorkstationDragController.js';
 import {
   resolveWorkstationOccupancies,
@@ -436,7 +435,7 @@ describe('PHASE 2C — Scenario D: Async Race Condition & Store Selection Isolat
     let collision = { isColliding: true };
 
     // Function simulating the store isolation guard in SpatialWorkspace.jsx
-    const handleStoreChange = (newStoreId) => {
+    const handleStoreChange = () => {
       selectedWorkstation = null;
       draftCoords = null;
       collision = null;
@@ -490,7 +489,6 @@ describe('PHASE 2C — Scenario F: Cross-Feature Stability & Shared Material Saf
     assert.equal(isFurnitureSharedMaterial(dummyCustomMat), false);
 
     // If an object is registered in shared materials, it must be preserved
-    const mockShared = {};
     assert.equal(isFurnitureSharedMaterial(null), false);
     assert.equal(isFurnitureSharedMaterial(undefined), false);
   });

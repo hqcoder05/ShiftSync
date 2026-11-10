@@ -4,8 +4,8 @@
  */
 
 // Mock minimal browser globals for CanvasTexture in Node before importing Three.js modules
-if (typeof global.document === 'undefined') {
-  global.document = {
+if (typeof globalThis.document === 'undefined') {
+  globalThis.document = {
     createElement: (tag) => {
       if (tag === 'canvas') {
         return {

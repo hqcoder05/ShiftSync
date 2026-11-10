@@ -7,6 +7,11 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
+const seededUnit = (index, salt) => {
+  const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+};
+
 export default function SteamParticles({ layout = { length: 24, width: 16 } }) {
   const storeLen = Number(layout?.length) || 24.0;
   const storeWid = Number(layout?.width) || 16.0;
@@ -15,10 +20,10 @@ export default function SteamParticles({ layout = { length: 24, width: 16 } }) {
 
   const particleData = useMemo(() => {
     return Array.from({ length: 8 }, (_, i) => ({
-      initX: (Math.random() - 0.5) * 0.22,
-      initY: Math.random() * 0.7,
-      initZ: (Math.random() - 0.5) * 0.22,
-      speed: 0.25 + Math.random() * 0.2,
+      initX: (seededUnit(i, 1) - 0.5) * 0.22,
+      initY: seededUnit(i, 2) * 0.7,
+      initZ: (seededUnit(i, 3) - 0.5) * 0.22,
+      speed: 0.25 + seededUnit(i, 4) * 0.2,
       seed: i * 1.8,
     }));
   }, []);

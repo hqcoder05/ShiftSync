@@ -11,9 +11,7 @@
  *    - Subtle showroom floor reflections giving the digital twin an executive SaaS look.
  */
 
-import { useMemo } from 'react';
 import { Environment, Lightformer, ContactShadows, MeshReflectorMaterial } from '@react-three/drei';
-import * as THREE from 'three';
 
 export default function DigitalTwinStudioEnvironment({
   layout = { length: 24, width: 16, height: 6 },

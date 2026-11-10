@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Link as LinkIcon, Upload, Check, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Sparkles, Link as LinkIcon, Upload, Check } from 'lucide-react';
 
 /**
  * ReadyPlayerMeCreatorModal
@@ -17,11 +17,10 @@ export default function ReadyPlayerMeCreatorModal({
   isOpen,
   onClose,
   onAvatarReady,
-  currentAvatarUrl = '',
 }) {
   const [activeTab, setActiveTab] = useState('creator'); // 'creator' | 'url' | 'file'
   const [inputUrl, setInputUrl] = useState('');
-  const [isExporting, setIsExporting] = useState(false);
+  const [, setIsExporting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const iframeRef = useRef(null);
 
@@ -436,7 +435,7 @@ export default function ReadyPlayerMeCreatorModal({
 function safeParseJson(str) {
   try {
     return JSON.parse(str);
-  } catch (e) {
+  } catch {
     return null;
   }
 }

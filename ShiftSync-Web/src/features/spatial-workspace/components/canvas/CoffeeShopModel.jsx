@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Model loading is intentionally tied to asset lifecycle, not parent callback identities. */
 /**
  * CoffeeShopModel.jsx
  * Declarative Store Environment Model Loader for ShiftSync R3F Digital Twin.
@@ -43,21 +44,23 @@ export default function CoffeeShopModel({
   useEffect(() => () => { if (sourceData?.modelRoot) disposeHierarchy(sourceData.modelRoot); }, [sourceData]);
   const modelData = useMemo(() => sourceData && designDocument ? buildDesignModel(designDocument, sourceData.modelRoot) : sourceData, [sourceData, designDocument]);
   useEffect(() => { onModelLoaded?.(modelData); return () => { if (modelData?.customDesign) disposeDesignModel(modelData); }; }, [modelData, onModelLoaded]);
-  const [loadError, setLoadError] = useState(null);
   const proceduralGroupRef = useRef(null);
   const glbGroupRef = useRef(null);
 
   // 1. Asynchronously load the GLB Digital Twin Model
   useEffect(() => {
     let isCurrent = true;
-    setLoadError(null);
-    setModelData(null);
-    onModelLoaded?.(null);
+    const clearModel = () => {
+      queueMicrotask(() => {
+        if (!isCurrent) return;
+        setModelData(null);
+        onModelLoaded?.(null);
+      });
+    };
+    clearModel();
 
     if (!useGLB) {
       onLoadStateChange?.({status:'idle'});
-      setModelData(null);
-      if (typeof onModelLoaded === 'function') onModelLoaded(null);
       return () => { isCurrent = false; };
     }
     onLoadStateChange?.({status:'loading'});
@@ -79,7 +82,6 @@ export default function CoffeeShopModel({
       .catch((err) => {
         if (!isCurrent) return;
         console.warn('[CoffeeShopModel] GLB load error, using procedural store fallback:', err?.message || err);
-        setLoadError(err);
         setModelData(null);
         onModelLoaded?.(null);
         onLoadStateChange?.({status:'error'});

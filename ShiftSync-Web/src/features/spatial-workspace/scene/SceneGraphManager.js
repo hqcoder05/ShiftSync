@@ -15,7 +15,7 @@ import {
   setEnvironmentXRayMode,
   setEnvironmentLayersVisibility,
 } from './StoreEnvironment.js';
-import { ResourceManager, disposeHierarchy } from './ResourceManager.js';
+import { disposeHierarchy } from './ResourceManager.js';
 import {
   loadDigitalTwinModel,
   DEFAULT_DIGITAL_TWIN_GLB_URL,

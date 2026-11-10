@@ -86,7 +86,7 @@ export function simulateAutoSchedule({
   };
 }
 
-export function generateSimulationAutoSchedule(zones = [], availableEmployees = [], skills = []) {
+export function generateSimulationAutoSchedule(zones = [], availableEmployees = []) {
   const result = simulateAutoSchedule({ availableEmployees, zones });
   return result.allocatedStaff || [];
 }

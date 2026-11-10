@@ -15,7 +15,6 @@
  * - Provides graceful fallback to procedural geometry if network/file errors occur.
  */
 
-import * as THREE from 'three';
 import {geometryFootprint} from './StoreArrangement.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { toThreeCoords } from '../../../components/spatial/spatial.constants.js';
@@ -230,15 +229,12 @@ export function loadDigitalTwinModel({
     }
 
     // 3. Headless Node.js test environment fallback: attempt to read file from filesystem if available
-    if (
-      typeof process !== 'undefined' &&
-      process.versions?.node &&
-      typeof window === 'undefined'
-    ) {
+    const nodeProcess = globalThis.process;
+    if (nodeProcess?.versions?.node && typeof window === 'undefined') {
       try {
         const nodeRequire =
           globalThis.require ||
-          (typeof module !== 'undefined' && module.require ? module.require.bind(module) : null);
+          (globalThis.module?.require ? globalThis.module.require.bind(globalThis.module) : null);
 
         if (nodeRequire) {
           const fs = nodeRequire('fs');
@@ -247,11 +243,11 @@ export function loadDigitalTwinModel({
           if (fs && path) {
             // Resolve relative to project root or web folder
             const candidatePaths = [
-              path.resolve(process.cwd(), 'public' + url),
-              path.resolve(process.cwd(), 'ShiftSync-Web/public' + url),
-              path.resolve(process.cwd(), '../ShiftSync-Web/public' + url),
-              path.resolve(process.cwd(), 'ShiftSync_CoffeeShop_DigitalTwin.glb'),
-              path.resolve(process.cwd(), '../ShiftSync_CoffeeShop_DigitalTwin.glb'),
+              path.resolve(nodeProcess.cwd(), 'public' + url),
+              path.resolve(nodeProcess.cwd(), 'ShiftSync-Web/public' + url),
+              path.resolve(nodeProcess.cwd(), '../ShiftSync-Web/public' + url),
+              path.resolve(nodeProcess.cwd(), 'ShiftSync_CoffeeShop_DigitalTwin.glb'),
+              path.resolve(nodeProcess.cwd(), '../ShiftSync_CoffeeShop_DigitalTwin.glb'),
             ];
 
             for (const p of candidatePaths) {
@@ -267,7 +263,7 @@ export function loadDigitalTwinModel({
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Fall through to loader.load
       }
     }
@@ -421,6 +417,7 @@ export function mapWorkstationsToGlb(
  * @returns {Array<{ minX: number, maxX: number, minZ: number, maxZ: number, name: string, type: string, id?: string }>}
  */
 export function extractGlbObstacles(modelRoot, layout = null, additionalWorkstationMeshes = []) {
+  void layout;
   if (!modelRoot) return [];
   const obstacles = [];
   const visible = node => { for(let n=node;n;n=n.parent) if(n.visible===false)return false;return true; };

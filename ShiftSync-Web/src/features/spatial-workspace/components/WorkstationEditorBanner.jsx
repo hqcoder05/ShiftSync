@@ -3,7 +3,7 @@
  * Floating visual banner and control strip for the Workstation Layout Editor in ShiftSync 3D Digital Twin.
  */
 
-import { Wrench, Check, X, AlertTriangle, Loader2, ArrowRight, RotateCw } from 'lucide-react';
+import { Wrench, Check, X, AlertTriangle, Loader2, RotateCw } from 'lucide-react';
 
 export default function WorkstationEditorBanner({
   isEditing = true,

@@ -12,7 +12,6 @@ import * as THREE from 'three';
  */
 export default function AttendanceBadge3DWeb({
   status = 'idle',
-  userName = 'Nhân viên',
   width = 200,
   height = 220,
   className = '',

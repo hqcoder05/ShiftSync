@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useConfirmation } from '../../context/ConfirmationContext';
 import {
   getStoreLayout,
   saveStoreLayout,
@@ -13,7 +14,7 @@ import {
 } from '../../services/layoutService';
 import Store3DCanvas from './Store3DCanvas';
 import { SPATIAL_TYPES, STORE_CATEGORIES, getZoneIcon, getZoneThemeColor } from './spatial.constants';
-import { Box, Plus, Save, Compass, Trash2, Layers, Wrench, Sparkles, RefreshCw } from 'lucide-react';
+import { Plus, Save, Compass, Trash2, Layers, Wrench, Sparkles, RefreshCw } from 'lucide-react';
 
 /**
  * Store3DManager
@@ -25,6 +26,7 @@ import { Box, Plus, Save, Compass, Trash2, Layers, Wrench, Sparkles, RefreshCw }
  * - Workstations manager (Workstations within Zones)
  */
 export default function Store3DManager({ storeId, storeName, showToast }) {
+  const confirm = useConfirmation();
   const [layout, setLayout] = useState({ length: 24, width: 16, height: 5 });
   const [zones, setZones] = useState([]);
   const [workstations, setWorkstations] = useState([]);
@@ -107,7 +109,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
   }, [storeId, selectedTemplateId]);
 
   useEffect(() => {
-    loadSpatialData();
+    queueMicrotask(loadSpatialData);
   }, [loadSpatialData]);
 
   // Save Store Dimensions
@@ -134,7 +136,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
     if (!selectedTemplateId) return;
     const selectedTpl = templates.find((t) => t.id === selectedTemplateId);
     const confirmMsg = `Xác nhận áp dụng mẫu "${selectedTpl?.name || 'Mẫu cửa hàng'}"?\n\nHệ thống sẽ tự động cấu hình kích thước và khởi tạo danh sách phân khu & trạm làm việc chuẩn.`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirm({ title: 'Áp dụng mẫu cửa hàng', message: confirmMsg, confirmLabel: 'Áp dụng', tone: 'primary' }))) return;
 
     setApplyingTemplate(true);
     try {
@@ -195,7 +197,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
 
   // Delete Zone
   const handleDeleteZone = async (zone) => {
-    if (!window.confirm(`Xác nhận xoá khu vực "${zone.name}"?\nHành động này không thể hoàn tác.`)) return;
+    if (!(await confirm({ message: `Xác nhận xoá khu vực "${zone.name}"?\nHành động này không thể hoàn tác.`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteStoreZone(storeId, zone.id);
       showToast?.(`✓ Đã xoá khu vực "${zone.name}"`);
@@ -242,7 +244,7 @@ export default function Store3DManager({ storeId, storeName, showToast }) {
 
   // Delete Workstation
   const handleDeleteWs = async (ws) => {
-    if (!window.confirm(`Xác nhận xoá trạm làm việc "${ws.name}"?`)) return;
+    if (!(await confirm({ message: `Xác nhận xoá trạm làm việc "${ws.name}"?`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteStoreWorkstation(storeId, ws.id);
       showToast?.(`✓ Đã xoá trạm làm việc "${ws.name}"`);

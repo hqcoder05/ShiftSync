@@ -23,11 +23,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** Explicit opt-in; fixtures require shiftsync_scheduler_test on a local test port. */
+/** Explicit opt-in; fixtures require the local shiftsync_scheduler_test database. */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:postgresql://127.0.0.1:${TEST_DB_PORT:55432}/shiftsync_scheduler_test",
+        "spring.datasource.url=jdbc:postgresql://127.0.0.1:${TEST_DB_PORT:5432}/shiftsync_scheduler_test",
         "spring.datasource.username=${TEST_DB_USER:postgres}",
-        "spring.datasource.password=${TEST_DB_PASSWORD:stabilization-local-only}"
+        "spring.datasource.password=${TEST_DB_PASSWORD:postgres}"
 })
 @ActiveProfiles("scheduler-postgres")
 @EnabledIfSystemProperty(named = "shiftsync.scheduler.postgres-tests", matches = "true")

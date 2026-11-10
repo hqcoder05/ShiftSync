@@ -89,6 +89,10 @@ public class AutoScheduleResult {
     @Schema(description = "Complete resulting snapshots of the eligible draft shifts, including preserved assignments. Dry-run IDs are temporary and must never be used to mutate persisted data.")
     private List<ShiftDTO> plannedShifts = new ArrayList<>();
 
+    @Builder.Default
+    @Schema(description = "Assignments in the exact order accepted by the scheduling algorithm; used for deterministic replay in the client")
+    private List<AutoScheduleAssignmentStepDTO> assignmentSequence = new ArrayList<>();
+
     private String inputVersion;
     private UUID planId;
     private java.time.OffsetDateTime planExpiresAt;

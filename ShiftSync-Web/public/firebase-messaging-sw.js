@@ -1,8 +1,9 @@
 // public/firebase-messaging-sw.js
+/* global importScripts, firebase, clients */
 
 // 1. Nhập thư viện Firebase SDK tương thích cho Service Worker
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-messaging-compat.js');
 
 // 2. Cấu hình Firebase
 const firebaseConfig = {
@@ -23,9 +24,9 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Nhận notification ngầm:', payload);
 
-  const title = payload.notification?.title || payload.data?.title || 'ShiftSync';
+  const title = payload.data?.title || 'ShiftSync';
   const options = {
-    body: payload.notification?.body || payload.data?.message || 'Bạn có thông báo mới từ hệ thống.',
+    body: payload.data?.message || 'Bạn có thông báo mới từ hệ thống.',
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     data: payload.data || {}

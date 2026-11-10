@@ -336,7 +336,7 @@
 .sch-replay-cell-flash.is-removed { border-color: #d97706; }
 .sch-bits-reveal { position: relative; transform-origin: center; }
 .sch-replay-flying-card { font-family: inherit; filter: drop-shadow(0 12px 18px rgba(35, 23, 8, .25)); transform-origin: center; }
-.sch-replay-flying-card .sch-shift-block { margin: 0; border: 2px solid #f59e0b; }
+.sch-replay-flying-card .sch-shift-block { margin: 0; border: 2px solid #f59e0b; animation: none !important; }
 .sch-page .sch-table .sch-replay-source-active { background: #fff1ce; box-shadow: inset 0 0 0 2px #f59e0b; }
 .sch-bits-reveal[data-active] { z-index: 2; }
 .sch-page .sch-shift-replay-enter { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ss-ac) 45%, transparent), 0 8px 22px color-mix(in srgb, var(--ss-ac) 18%, transparent); }
@@ -411,11 +411,24 @@
 .sch-emp-name { color: var(--ss-tx); font-size: 12.5px; }
 .sch-emp-role { color: var(--ss-mu); font-size: 11px; }
 .sch-shift-wrap { margin-bottom: 4px; }
+@keyframes sch-shift-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .sch-shift-block {
   min-height: 51px;
   border: 1px solid rgba(25, 18, 10, 0.08);
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(25, 18, 10, 0.08);
+  animation: sch-shift-pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--stagger-delay, 0ms);
 }
 .sch-shift-block:hover {
   transform: translateY(-2px);

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- GLTF loading is keyed by asset URL; re-running for object identity changes leaks GPU resources. */
 /**
  * WorkstationAssetModel.jsx
  * Declarative 3D Employee Workstation GLB Asset Loader for ShiftSync Digital Twin.
@@ -13,7 +14,6 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createWorkstationTagSprite } from '../../scene/FurnitureBuilder.js';
 import { disposeHierarchy } from '../../scene/ResourceManager.js';

@@ -1,8 +1,8 @@
 import api from './api';
 
-export const getShiftsForStore = (storeId, status) => {
+export const getShiftsForStore = (storeId, status, config = {}) => {
   const q = status ? `?status=${status}` : '';
-  return api.get(`/stores/${storeId}/shifts${q}`);
+  return api.get(`/stores/${storeId}/shifts${q}`, config);
 };
 
 export const createShift = (storeId, data) =>

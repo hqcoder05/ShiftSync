@@ -643,6 +643,53 @@ class HeadcountQuotaDemandRemediationTest {
         assertEquals(1, shift.getRequirements().size());
         assertEquals(0, shift.getRequirements().get(0).getRequiredCount());
     }
+
+    @Test
+    @DisplayName("Test 11: Custom surge shifts are included in getDailyQuotas and updateable via specific shift ID")
+    void test11_CustomShiftsIncludedAndDirectlyUpdateable() {
+        UUID customShiftId = UUID.randomUUID();
+        Shift customSurgeShift = Shift.builder()
+                .id(customShiftId)
+                .store(store)
+                .shiftDate(testDate)
+                .startTime(LocalTime.of(11, 0))
+                .endTime(LocalTime.of(14, 0))
+                .note("Ca Trưa Cao Điểm")
+                .status(ShiftStatus.DRAFT)
+                .requirements(new ArrayList<>())
+                .build();
+
+        Shift canMorning = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(testDate)
+                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(15, 0)).status(ShiftStatus.DRAFT).build();
+        Shift canAfternoon = Shift.builder().id(UUID.randomUUID()).store(store).shiftDate(testDate)
+                .startTime(LocalTime.of(15, 0)).endTime(LocalTime.of(22, 0)).status(ShiftStatus.DRAFT).build();
+
+        when(shiftRepository.findByStoreIdAndShiftDate(storeId, testDate))
+                .thenReturn(List.of(canMorning, canAfternoon, customSurgeShift));
+        when(shiftRepository.findById(customShiftId))
+                .thenReturn(Optional.of(customSurgeShift));
+
+        // 1. Verify getDailyQuotas includes canonical morning, canonical afternoon, PLUS custom surge shift
+        var dailyRes = headcountQuotaService.getDailyQuotas(storeId, testDate);
+        assertEquals(3, dailyRes.getShifts().size());
+        var thirdShift = dailyRes.getShifts().get(2);
+        assertTrue(thirdShift.isCustom());
+        assertEquals("11:00", thirdShift.getStartTime());
+        assertEquals("14:00", thirdShift.getEndTime());
+        assertEquals(customShiftId, thirdShift.getShiftId());
+
+        // 2. Update quota using specific shift ID
+        UpdateQuotaRequest customReq = new UpdateQuotaRequest();
+        customReq.setBranchId(storeId);
+        customReq.setDate(testDate);
+        customReq.setShiftType(customShiftId.toString());
+        customReq.setPositionId(baristaSkill.getId());
+        customReq.setCount(3);
+
+        headcountQuotaService.updateQuota(customShiftId + "_" + baristaSkill.getId(), customReq);
+
+        assertEquals(1, customSurgeShift.getRequirements().size());
+        assertEquals(3, customSurgeShift.getRequirements().get(0).getRequiredCount());
+        verify(shiftRepository).save(customSurgeShift);
+    }
 }
-
-

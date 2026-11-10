@@ -18,11 +18,32 @@ import { CameraController } from './CameraController.js';
 import {
   CAMERA_MODES,
   getOverviewCameraConfig,
-  getTopDownCameraConfig,
   getZoneFocusCameraConfig,
   getEmployeeFocusCameraConfig,
   getWorkstationFocusCameraConfig,
 } from './CameraModes.js';
+
+/**
+ * Applies the temporary projection used while a user walks through the twin.
+ * Keeping this Three.js mutation outside of React components makes the
+ * lifecycle explicit and gives callers a matching restore function.
+ */
+export function configureExplorationCamera(camera, viewMode) {
+  if (!camera?.isPerspectiveCamera) return () => {};
+
+  const previous = { fov: camera.fov, near: camera.near, far: camera.far };
+  camera.fov = viewMode === 'third_person' ? 68 : 75;
+  camera.near = 0.1;
+  camera.far = 300;
+  camera.updateProjectionMatrix();
+
+  return () => {
+    camera.fov = previous.fov;
+    camera.near = previous.near;
+    camera.far = previous.far;
+    camera.updateProjectionMatrix();
+  };
+}
 
 export class CameraManager {
   /**

@@ -22,7 +22,7 @@ export default function ScheduleReveal({active, replayKey, motionMode = 'system'
       || table?.tHead?.rows[0]?.cells[cell?.cellIndex];
     const initialTarget = element.getBoundingClientRect();
     if (initialTarget.bottom > window.innerHeight - 24 || initialTarget.top < 130) {
-      element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
+      element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'auto'});
     }
     const target = element.getBoundingClientRect();
     const origin = source?.getBoundingClientRect();

@@ -30,7 +30,6 @@ import { toThreeCoords } from '../../../components/spatial/spatial.constants';
 export default function ExploreHUD({
   layout = { length: 24, width: 16 },
   zones = [],
-  staff = [],
   playerPosition = { x: 0, z: 0 },
   playerYaw = 0,
   nearbyEntity = null,

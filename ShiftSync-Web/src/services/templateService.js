@@ -1,13 +1,13 @@
 import api from './api';
 
-export const getShiftTemplates = (storeId) =>
-  api.get(`/stores/${storeId}/shift-templates`);
+export const getShiftTemplates = (storeId, config) =>
+  api.get(`/stores/${storeId}/shift-templates`, config);
 
-export const createShiftTemplate = (storeId, data) =>
-  api.post(`/stores/${storeId}/shift-templates`, data);
+export const createShiftTemplate = (storeId, data, config) =>
+  api.post(`/stores/${storeId}/shift-templates`, data, config);
 
-export const updateShiftTemplate = (storeId, templateId, data) =>
-  api.put(`/stores/${storeId}/shift-templates/${templateId}`, data);
+export const updateShiftTemplate = (storeId, templateId, data, config) =>
+  api.put(`/stores/${storeId}/shift-templates/${templateId}`, data, config);
 
-export const deleteShiftTemplate = (storeId, templateId) =>
-  api.delete(`/stores/${storeId}/shift-templates/${templateId}`);
+export const deleteShiftTemplate = (storeId, templateId, config) =>
+  api.delete(`/stores/${storeId}/shift-templates/${templateId}`, config);

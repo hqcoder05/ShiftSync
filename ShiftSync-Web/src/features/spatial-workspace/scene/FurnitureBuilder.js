@@ -80,7 +80,7 @@ function createWallMenuTexture(title = 'SHIFTSYNC OPERATIONS') {
 /**
  * 1. Barista Coffee Bar Workstation (Living Detail Upgrade)
  */
-export function buildBaristaWorkstation(width = 3.6, depth = 1.8) {
+export function buildBaristaWorkstation(width = 3.6) {
   const group = new THREE.Group();
 
   // 1.1 Main Wooden Counter Base with beveled front panels
@@ -758,7 +758,7 @@ export function buildGenericWorkstation(width = 2.8) {
  */
 export function buildZoneFurniture(zoneOrName = '', width = 3.6) {
   let zoneType = '';
-  let name = '';
+  let name;
 
   if (typeof zoneOrName === 'object' && zoneOrName !== null) {
     zoneType = String(zoneOrName.zoneType || '').toUpperCase();

@@ -1,8 +1,8 @@
 import api from './api';
 
-export const getAllStores = (page = 0, size = 100, search = '') => {
+export const getAllStores = (page = 0, size = 100, search = '', config = {}) => {
   const s = search ? `&search=${encodeURIComponent(search)}` : '';
-  return api.get(`/stores?page=${page}&size=${size}${s}`);
+  return api.get(`/stores?page=${page}&size=${size}${s}`, config);
 };
 export const getStoreById = (id) => api.get(`/stores/${id}`);
 export const createStore = (data) => api.post('/stores', data);

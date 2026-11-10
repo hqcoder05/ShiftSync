@@ -8,9 +8,6 @@ import * as THREE from 'three';
  * Rê chuột: nghiêng thẻ hologram cầu vồng
  */
 export default function HoloCard3DWeb({
-  userName = 'Nhân viên',
-  role = 'Nhân viên bán hàng',
-  staffCode = 'SS-001',
   avatarColor = '#4ade80',
   width = 280,
   height = 175,

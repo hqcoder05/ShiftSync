@@ -12,7 +12,7 @@
 import { validateSkillForZone } from './SimulationValidator';
 import { getStaffId } from '../utils/staffIdentity';
 
-export function calculateWorkforceMetrics(staffList = [], zones = [], shiftRequirements = []) {
+export function calculateWorkforceMetrics(staffList = [], zones = []) {
   const staffByZone = {};
   staffList.forEach((s) => {
     const zid = s.zoneId || s.zone?.id;
@@ -107,9 +107,9 @@ export function calculateWorkforceMetrics(staffList = [], zones = [], shiftRequi
 /**
  * Compare before (production snapshot) and after (simulated state)
  */
-export function compareSimulationImpact(beforeStaff = [], afterStaff = [], zones = [], shiftRequirements = []) {
-  const beforeMetrics = calculateWorkforceMetrics(beforeStaff, zones, shiftRequirements);
-  const afterMetrics = calculateWorkforceMetrics(afterStaff, zones, shiftRequirements);
+export function compareSimulationImpact(beforeStaff = [], afterStaff = [], zones = []) {
+  const beforeMetrics = calculateWorkforceMetrics(beforeStaff, zones);
+  const afterMetrics = calculateWorkforceMetrics(afterStaff, zones);
 
   const coverageDelta = afterMetrics.coveragePercent - beforeMetrics.coveragePercent;
   const understaffedDelta = afterMetrics.understaffedCount - beforeMetrics.understaffedCount;

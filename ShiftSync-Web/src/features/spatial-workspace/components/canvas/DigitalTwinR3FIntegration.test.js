@@ -63,15 +63,14 @@ import * as THREE from 'three';
 import { CameraManager } from '../../camera/CameraManager.js';
 import { CAMERA_MODES } from '../../camera/CameraModes.js';
 import { PlayerController } from '../../explore/PlayerController.js';
-import { WorkstationDragController } from '../../interaction/WorkstationDragController.js';
-import { loadDigitalTwinModel, mapWorkstationsToGlb, extractGlbObstacles } from '../../scene/DigitalTwinModelLoader.js';
+import { loadDigitalTwinModel, extractGlbObstacles } from '../../scene/DigitalTwinModelLoader.js';
 import { resolveWorkstationOccupancies, OCCUPANCY_STATES } from '../../utils/workstationOccupancy.js';
 import { disposeHierarchy, ResourceManager } from '../../scene/ResourceManager.js';
 import { toThreeCoords } from '../../../../components/spatial/spatial.constants.js';
 
 describe('MISSION R3F-001 — React Three Fiber Architecture Integration Suite', () => {
   const layout = { length: 24, width: 16, height: 6 };
-  const glbPath = path.resolve(process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
+  const glbPath = path.resolve(globalThis.process.cwd(), 'public/models/store-v2/shiftsync-cafe.glb');
   const glbBuffer = fs.readFileSync(glbPath);
   const arrayBuffer = glbBuffer.buffer.slice(
     glbBuffer.byteOffset,
@@ -102,7 +101,7 @@ describe('MISSION R3F-001 — React Three Fiber Architecture Integration Suite',
   };
 
   it('1. All R3F declarative components exist and declare valid default export signatures', () => {
-    const canvasDir = path.resolve(process.cwd(), 'src/features/spatial-workspace/components/canvas');
+    const canvasDir = path.resolve(globalThis.process.cwd(), 'src/features/spatial-workspace/components/canvas');
     const componentFiles = [
       'DigitalTwinCanvas.jsx',
       'DigitalTwinLighting.jsx',
@@ -128,7 +127,7 @@ describe('MISSION R3F-001 — React Three Fiber Architecture Integration Suite',
 
   it('2. Single Canvas Architecture: Verifies single WebGL canvas containment & no competing renderers', () => {
     const canvasFilePath = path.resolve(
-      process.cwd(),
+      globalThis.process.cwd(),
       'src/features/spatial-workspace/components/canvas/DigitalTwinCanvas.jsx'
     );
     const canvasCode = fs.readFileSync(canvasFilePath, 'utf8');

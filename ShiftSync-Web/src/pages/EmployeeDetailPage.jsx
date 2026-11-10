@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useConfirmation } from '../context/ConfirmationContext';
 import { getEmployeeById, getEmployees, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { getAllStores } from '../services/storeService';
 import { getStoresByStaff, assignStaffToStore, updateEmployment } from '../services/employmentService';
 import { getContractTypes } from '../services/contractTypeService';
 import { getShiftsForStore } from '../services/shiftService';
-import { getAllSkills, getSkillsByStore, getStaffSkills, updateStaffSkills } from '../services/skillService';
+import { getAllSkills, getStaffSkills, updateStaffSkills } from '../services/skillService';
 import { getStoreAttendance } from '../services/attendanceService';
+import { getStaffAvailability } from '../services/availabilityService';
+import { getCompensationHistory, reconcileCompensationHistory } from '../services/historicalCompensationService';
+import { getApiErrorMessage, isRequestCanceled } from '../services/api';
 import Avatar3DWeb from '../components/Avatar3DWeb';
-import { AVATAR_OPTIONS, getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
+import { getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
 import { Plus, Search } from 'lucide-react';
 import './EmployeeDetailPage.css';
@@ -28,6 +32,7 @@ const tomorrowInVietnam = () => {
 };
 
 export default function EmployeeDetailPage() {
+  const confirm = useConfirmation();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -38,9 +43,11 @@ export default function EmployeeDetailPage() {
   const [payContracts, setPayContracts] = useState([]);
   const [paySaving, setPaySaving] = useState(false);
   const [shifts, setShifts] = useState([]);
-  const [skills, setSkills] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [availability, setAvailability] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [profileParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => ['info', 'schedule', 'attendance', 'contract', 'payroll'].includes(profileParams.get('tab')) ? profileParams.get('tab') : 'info'); // info | schedule | attendance | contract
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -49,17 +56,15 @@ export default function EmployeeDetailPage() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [selectedAvatarId, setSelectedAvatarId] = useState('dilan');
   const [toastMessage, setToastMessage] = useState('');
+  const [compensationHistory, setCompensationHistory] = useState(null);
+  const [historyReconciliation, setHistoryReconciliation] = useState({ effectiveDate: '', hourlyRate: '', evidence: '' });
+  const [historySaving, setHistorySaving] = useState(false);
   const toastTimerRef = useRef(null);
 
   // Metadata per employee (persisted in localStorage by employee.id)
   const [empMeta, setEmpMeta] = useState({
-    dob: '15/08/1998 (26 tuổi)',
-    gender: 'Nam',
-    cccd: '079098001234',
-    address: 'Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-    emergencyName: 'Nguyễn Văn B',
-    emergencyRelation: 'Anh trai',
-    emergencyPhone: '(+84) 0987 654 321'
+    dob: 'Chưa cập nhật', gender: 'Chưa cập nhật', cccd: 'Chưa cập nhật', address: 'Chưa cập nhật',
+    emergencyName: 'Chưa cập nhật', emergencyRelation: 'Chưa cập nhật', emergencyPhone: 'Chưa cập nhật'
   });
 
   // Edit Form state
@@ -163,74 +168,87 @@ export default function EmployeeDetailPage() {
 
   // Fetch real employee and related data
   useEffect(() => {
+    const controller = new AbortController();
+    const requestConfig = { signal: controller.signal };
+
     async function loadData() {
       setLoading(true);
+      setLoadError('');
       setStaffSkillsLoaded(false);
+      let primaryError = null;
       try {
         // 1. Load Stores
         let storeList = [];
         try {
-          const storeRes = await getAllStores();
+          const storeRes = await getAllStores(0, 100, '', requestConfig);
           storeList = Array.isArray(storeRes.data) ? storeRes.data : (storeRes.data?.content || []);
           setStores(storeList);
         } catch (e) {
           console.warn('Cannot load stores:', e);
+          primaryError ??= e;
         }
 
         // 2. Load Employee
         let empData = null;
         if (id && id !== 'profile') {
           try {
-            const res = await getEmployeeById(id);
+            const res = await getEmployeeById(id, requestConfig);
             empData = res.data;
           } catch (e) {
             console.warn('Cannot get employee by id:', e);
+            primaryError ??= e;
           }
         }
 
         if (!empData) {
           try {
-            const listRes = await getEmployees(0, 50);
+            const listRes = await getEmployees(0, 50, '', null, requestConfig);
             const list = listRes.data?.content || listRes.data || [];
             if (list.length > 0) {
               empData = (id && list.find(u => String(u.id) === String(id))) || list[0];
             }
           } catch (e) {
             console.warn('Cannot get employees list:', e);
+            primaryError ??= e;
           }
         }
 
         if (!empData) {
           setEmployee(null);
+          if (!isRequestCanceled(primaryError)) {
+            setLoadError(getApiErrorMessage(primaryError, 'Không tìm thấy hồ sơ nhân viên.'));
+          }
           return;
         }
 
         setEmployee(empData);
+        setLoadError('');
 
         // 3. Load Metadata for this employee
-        const savedMetaStr = localStorage.getItem(`emp_meta_${empData.id}`);
         let currentMeta = {
           dob: empData.dateOfBirth || 'Chưa cập nhật', gender: empData.gender || 'Chưa cập nhật',
           cccd: empData.cccd || 'Chưa cập nhật', address: empData.address || 'Chưa cập nhật',
           emergencyName: 'Chưa cập nhật', emergencyRelation: 'Chưa cập nhật', emergencyPhone: 'Chưa cập nhật'
         };
-        if (savedMetaStr) {
-          try {
-            currentMeta = { ...currentMeta, ...JSON.parse(savedMetaStr) };
-          } catch {}
-        }
-        currentMeta.gender = empData.gender === 'FEMALE' ? 'Nữ' : empData.gender === 'OTHER' ? 'Khác' : 'Nam';
+        currentMeta.gender = empData.gender === 'FEMALE' ? 'Nữ' : empData.gender === 'OTHER' ? 'Khác' : empData.gender === 'MALE' ? 'Nam' : 'Chưa cập nhật';
         setEmpMeta(currentMeta);
 
         // 4. Load Stores by Staff
         let aList = [];
         if (empData.id) {
           try {
-            const assignRes = await getStoresByStaff(empData.id);
+            const assignRes = await getStoresByStaff(empData.id, requestConfig);
             aList = Array.isArray(assignRes.data) ? assignRes.data : (assignRes.data?.content || []);
             setAssignedStores(aList);
           } catch (e) {
             console.warn('Cannot get stores by staff:', e);
+          }
+          try {
+            const availabilityRes = await getStaffAvailability(empData.id);
+            setAvailability(Array.isArray(availabilityRes.data) ? availabilityRes.data : []);
+          } catch (e) {
+            console.warn('Cannot load staff availability:', e);
+            setAvailability([]);
           }
         }
 
@@ -254,7 +272,7 @@ export default function EmployeeDetailPage() {
         let fetchedAllSkills = [];
         let skillsCatalogLoaded = false;
         try {
-          const allSkRes = await getAllSkills();
+          const allSkRes = await getAllSkills(undefined, requestConfig);
           fetchedAllSkills = Array.isArray(allSkRes.data) ? allSkRes.data : (allSkRes.data?.content || []);
           skillsCatalogLoaded = true;
           setAllSkills(fetchedAllSkills);
@@ -264,7 +282,7 @@ export default function EmployeeDetailPage() {
 
         if (empData.id) {
           try {
-            const staffSkRes = await getStaffSkills(empData.id);
+            const staffSkRes = await getStaffSkills(empData.id, requestConfig);
             const assignedIds = Array.isArray(staffSkRes.data) ? staffSkRes.data : [];
             const matched = fetchedAllSkills.filter(sk => assignedIds.includes(sk.id));
             setStaffSkills(matched);
@@ -281,7 +299,7 @@ export default function EmployeeDetailPage() {
         // 7. Load Shifts for Store to calculate real schedule & KPIs
         if (targetStoreId) {
           try {
-            const shiftsRes = await getShiftsForStore(targetStoreId);
+            const shiftsRes = await getShiftsForStore(targetStoreId, undefined, requestConfig);
             const sData = Array.isArray(shiftsRes.data) ? shiftsRes.data : (shiftsRes.data?.content || []);
             setShifts(sData);
           } catch (e) {
@@ -289,19 +307,9 @@ export default function EmployeeDetailPage() {
             setShifts([]);
           }
 
-          // 8. Load Skills for Store
+          // 8. Load Attendance for Store
           try {
-            const skillsRes = await getSkillsByStore(targetStoreId);
-            const skData = Array.isArray(skillsRes.data) ? skillsRes.data : (skillsRes.data?.content || []);
-            setSkills(skData);
-          } catch (e) {
-            console.warn('Cannot load skills:', e);
-            setSkills([]);
-          }
-
-          // 9. Load Attendance for Store
-          try {
-            const attRes = await getStoreAttendance(targetStoreId);
+            const attRes = await getStoreAttendance(targetStoreId, undefined, undefined, requestConfig);
             const attData = Array.isArray(attRes.data) ? attRes.data : (attRes.data?.content || []);
             setAttendance(attData);
           } catch (e) {
@@ -310,17 +318,47 @@ export default function EmployeeDetailPage() {
           }
         }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     loadData();
-  }, [id]);
+    return () => controller.abort();
+  }, [id, reloadKey]);
 
   // Primary active employment
   const activeEmployment = useMemo(() => {
     return assignedStores.find(a => a.status === 'ACTIVE') || assignedStores[0] || null;
   }, [assignedStores]);
+
+  useEffect(() => {
+    if (activeTab !== 'payroll' || !activeEmployment?.storeId || !activeEmployment?.id) return;
+    let current = true;
+    getCompensationHistory(activeEmployment.storeId, 'employment', activeEmployment.id)
+      .then(({ data }) => { if (current) setCompensationHistory(data); })
+      .catch(() => { if (current) setCompensationHistory(null); });
+    return () => { current = false; };
+  }, [activeTab, activeEmployment?.storeId, activeEmployment?.id]);
+
+  const saveHistoricalCompensation = async (event) => {
+    event.preventDefault();
+    if (!activeEmployment?.storeId || !activeEmployment?.id) return;
+    setHistorySaving(true);
+    try {
+      await reconcileCompensationHistory(activeEmployment.storeId, 'employment', activeEmployment.id, {
+        effectiveDate: historyReconciliation.effectiveDate,
+        hourlyRate: Number(historyReconciliation.hourlyRate),
+        contractTypeId: activeEmployment.contractType?.id,
+        evidence: historyReconciliation.evidence,
+      });
+      const { data } = await getCompensationHistory(activeEmployment.storeId, 'employment', activeEmployment.id);
+      setCompensationHistory(data);
+      setHistoryReconciliation({ effectiveDate: '', hourlyRate: '', evidence: '' });
+      showToast('Đã lưu mốc lương lịch sử có căn cứ.');
+    } catch (error) {
+      showToast(`Không thể đối soát lịch sử: ${error.response?.data?.message || error.message}`);
+    } finally { setHistorySaving(false); }
+  };
 
   const openPayEdit = async () => {
     try {
@@ -371,7 +409,7 @@ export default function EmployeeDetailPage() {
   const contractTypeName = useMemo(() => {
     if (activeEmployment?.contractType?.name) {
       const n = activeEmployment.contractType.name;
-      if (n.toLowerCase().includes('full')) return 'Chưa có loại hợp đồng';
+      if (n.toLowerCase().includes('full')) return 'Toàn thời gian (FT)';
       if (n.toLowerCase().includes('part')) return 'Bán thời gian (PT)';
       return n;
     }
@@ -382,7 +420,7 @@ export default function EmployeeDetailPage() {
   const hourlyRateNum = useMemo(() => {
     if (activeEmployment?.hourlyRate) return Number(activeEmployment.hourlyRate);
     if (activeEmployment?.contractType?.defaultHourlyRate) return Number(activeEmployment.contractType.defaultHourlyRate);
-    return 28000;
+    return 0;
   }, [activeEmployment]);
 
   // Filter shifts specifically assigned to this employee
@@ -460,11 +498,12 @@ export default function EmployeeDetailPage() {
         const endH = parseInt(s.endTime.slice(0, 2), 10);
         return acc + Math.max(0, endH - startH);
       }
-      return acc + 7;
+      return acc;
     }, 0);
 
-    const targetHours = (activeEmployment?.contractType?.maxWeeklyHours || 40) * 4; // 160h
-    const targetPercent = targetHours > 0 ? Math.min(100, Math.round((monthTotalHours / targetHours) * 100)) : 95;
+    const weeklyHours = Number(activeEmployment?.contractType?.maxWeeklyHours);
+    const targetHours = Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours * 4 : null;
+    const targetPercent = targetHours ? Math.min(100, Math.round((monthTotalHours / targetHours) * 100)) : 0;
 
     // 3. Attendance score
     const myAtt = attendance.filter(a =>
@@ -483,7 +522,7 @@ export default function EmployeeDetailPage() {
     return {
       weekCount: weekAssignedCount > 0 ? weekAssignedCount : myShifts.length,
       monthHours: monthTotalHours,
-      targetHours: targetHours > 0 ? targetHours : 150,
+      targetHours,
       targetPercent,
       attScore: attScore.toFixed(1),
       estimatedSalary,
@@ -491,51 +530,36 @@ export default function EmployeeDetailPage() {
     };
   }, [weekDays, myShifts, activeEmployment, attendance, employee, hourlyRateNum]);
 
-  // Shift availability priority calculation
+  // Availability is based on the staff member's declared availability, never on assigned shifts.
   const availabilityStats = useMemo(() => {
-    let morningCount = 0;
-    let afternoonCount = 0;
-    let nightCount = 0;
-
-    myShifts.forEach(s => {
-      const startH = s.startTime ? parseInt(s.startTime.slice(0, 2), 10) : 8;
-      if (startH < 12) morningCount++;
-      else if (startH < 18) afternoonCount++;
-      else nightCount++;
+    const covers = (startHour, endHour) => availability.some((slot) => {
+      const start = Number(String(slot.startTime || '').slice(0, 2));
+      const end = Number(String(slot.endTime || '').slice(0, 2));
+      return Number.isFinite(start) && Number.isFinite(end) && start <= startHour && end >= endHour;
     });
-
     return {
-      morning: morningCount >= afternoonCount ? 'Khả dụng cao (Ưu tiên)' : 'Khả dụng',
-      afternoon: afternoonCount > 0 ? 'Khả dụng cao' : 'Khả dụng',
-      night: nightCount > 0 ? 'Khả dụng' : 'Không đăng ký'
+      morning: covers(6, 14) ? 'Đã đăng ký' : 'Chưa đăng ký',
+      afternoon: covers(14, 22) ? 'Đã đăng ký' : 'Chưa đăng ký',
+      night: covers(22, 24) ? 'Đã đăng ký' : 'Chưa đăng ký'
     };
-  }, [myShifts]);
+  }, [availability]);
 
-  // Dynamic Pay Matrix based on store skills and employee assignments
+  // Show only skills actually assigned to this staff member and the current contractual rate.
   const payMatrix = useMemo(() => {
-    if (skills.length > 0) {
-      return skills.map((sk, index) => {
+    if (staffSkills.length > 0 && Number.isFinite(hourlyRateNum)) {
+      return staffSkills.map((sk, index) => {
         const isPrimary = index === 0;
-        let rate = hourlyRateNum;
-        if (!isPrimary) {
-          rate = Math.max(22000, hourlyRateNum - (index * 1500));
-        }
         return {
           id: sk.id,
           name: sk.name,
           type: isPrimary ? 'Định mức chính' : 'Kiêm nhiệm',
-          rate: `${rate.toLocaleString('vi-VN')} đ/giờ`,
+          rate: `${hourlyRateNum.toLocaleString('vi-VN')} đ/giờ`,
           color: index === 0 ? 'var(--emp-primary)' : index === 1 ? 'var(--emp-secondary)' : 'var(--emp-outline)'
         };
       });
     }
-
-    return [
-      { id: '1', name: 'Barista chuyên nghiệp', type: 'Định mức chính', rate: `${hourlyRateNum.toLocaleString('vi-VN')} đ/giờ`, color: 'var(--emp-primary)' },
-      { id: '2', name: 'Thu ngân (Cashier)', type: 'Kiêm nhiệm', rate: `${Math.max(20000, hourlyRateNum - 2000).toLocaleString('vi-VN')} đ/giờ`, color: 'var(--emp-secondary)' },
-      { id: '3', name: 'Bếp / Pha chế phụ (Kitchen)', type: 'Kiêm nhiệm', rate: `${Math.max(20000, hourlyRateNum - 2500).toLocaleString('vi-VN')} đ/giờ`, color: 'var(--emp-outline)' }
-    ];
-  }, [skills, hourlyRateNum]);
+    return [];
+  }, [staffSkills, hourlyRateNum]);
 
   // Password validation helper
   const validatePassword = (pwd) => {
@@ -599,7 +623,7 @@ export default function EmployeeDetailPage() {
         }
       }
 
-      // 3. Persist extra metadata per employee
+      // 3. Only retain fields that the current backend profile API supports.
       const updatedMeta = {
         ...empMeta,
         cccd: editForm.cccd,
@@ -608,7 +632,6 @@ export default function EmployeeDetailPage() {
         gender: editForm.gender || empMeta.gender
       };
       setEmpMeta(updatedMeta);
-      localStorage.setItem(`emp_meta_${employee.id}`, JSON.stringify(updatedMeta));
 
       // 4. Update staff skills in backend atomically
       try {
@@ -617,7 +640,7 @@ export default function EmployeeDetailPage() {
         await updateStaffSkills(employee.id, skillIdsToSave);
         setStaffSkills([...selectedSkills]);
       } catch (err) {
-        throw new Error('Không lưu được kỹ năng: ' + (err.response?.data?.message || err.message) + '. Thông tin cơ bản có thể đã được lưu.');
+        throw new Error('Không lưu được kỹ năng: ' + (err.response?.data?.message || err.message) + '. Thông tin cơ bản có thể đã được lưu.', { cause: err });
       }
 
       // Update local state
@@ -678,19 +701,9 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  // Helper initials
-  const initials = useMemo(() => {
-    if (!employee?.fullName) return 'TU';
-    const parts = employee.fullName.trim().split(' ');
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }, [employee?.fullName]);
-
-  const empCode = useMemo(() => {
-    if (!employee?.id) return 'SS-8492';
-    const str = String(employee.id).replace(/-/g, '');
-    return `SS-${str.slice(0, 4).toUpperCase()}`;
-  }, [employee?.id]);
+  const empCode = employee?.id
+    ? `SS-${String(employee.id).replace(/-/g, '').slice(0, 4).toUpperCase()}`
+    : 'Chưa có mã';
 
   if (loading && !employee) {
     return (
@@ -704,7 +717,18 @@ export default function EmployeeDetailPage() {
   }
 
   if (!employee) {
-    return <section className="ed-page-container"><div className="hr-detail-panel ed-card"><h1>Không tải được hồ sơ nhân viên</h1><p>Vui lòng kiểm tra lại nhân viên hoặc thử tải lại trang.</p><Link to="/employees">Về danh sách nhân viên</Link></div></section>;
+    return (
+      <section className="ed-page-container">
+        <div className="hr-detail-panel ed-card" role="alert">
+          <h1>Không tải được hồ sơ nhân viên</h1>
+          <p>{loadError || 'Vui lòng kiểm tra lại nhân viên hoặc thử tải lại trang.'}</p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button type="button" className="ed-action-btn primary" onClick={() => setReloadKey((key) => key + 1)}>Thử lại</button>
+            <Link to="/employees">Về danh sách nhân viên</Link>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -840,9 +864,9 @@ export default function EmployeeDetailPage() {
                   <button
                     type="button"
                     className="ed-more-item danger"
-                    onClick={() => {
+                    onClick={async () => {
                       setShowMoreMenu(false);
-                      if (confirm(`Bạn có chắc chắn muốn xóa nhân viên ${employee?.fullName}?`)) {
+                      if (await confirm({ message: `Bạn có chắc chắn muốn xóa nhân viên ${employee?.fullName}?`, confirmLabel: 'Xóa' })) {
                         deleteEmployee(employee.id)
                           .then(() => {
                             showToast('Đã xóa nhân viên!');
@@ -935,7 +959,7 @@ export default function EmployeeDetailPage() {
                 </div>
                 <div className="ed-kpi-val-row">
                   <span className="ed-kpi-val">{kpis.monthHours}</span>
-                  <span className="ed-kpi-sub">/ {kpis.targetHours}h</span>
+                  <span className="ed-kpi-sub">{kpis.targetHours ? `/ ${kpis.targetHours}h` : ' / Chưa có chỉ tiêu'}</span>
                 </div>
                 <div className="ed-progress-bar">
                   <div className="ed-progress-fill" style={{ width: `${kpis.targetPercent}%` }}></div>
@@ -993,7 +1017,7 @@ export default function EmployeeDetailPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>domain</span>
-              <span>Cụm vận hành Khu vực Hồ Chí Minh</span>
+              <span>{primaryStoreName}</span>
             </div>
           </div>
         </div>
@@ -1088,7 +1112,7 @@ export default function EmployeeDetailPage() {
                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
                   {kpis.monthHours} giờ
                 </div>
-                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>Chỉ tiêu: {kpis.targetHours}h ({kpis.targetPercent}%)</span>
+                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>{kpis.targetHours ? `Chỉ tiêu: ${kpis.targetHours}h (${kpis.targetPercent}%)` : 'Chưa có chỉ tiêu hợp đồng'}</span>
               </div>
 
               <div style={{ padding: '16px', borderRadius: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
@@ -1140,9 +1164,23 @@ export default function EmployeeDetailPage() {
                       </td>
                     </tr>
                   ))}
+                  {payMatrix.length === 0 && <tr><td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--emp-outline)' }}>Chưa có kỹ năng hoặc mức lương hợp đồng để hiển thị.</td></tr>}
                 </tbody>
               </table>
             </div>
+            {['ADMIN'].includes(localStorage.getItem('userRole') || localStorage.getItem('role')) && compensationHistory && (
+              <div style={{ marginTop: 24 }}>
+                <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>Lịch sử điều khoản lương</h4>
+                {compensationHistory.untrackedChanges && <p style={{ color: '#b42318', fontSize: 12 }}>Có thay đổi lịch sử chưa được đối soát. Mở phần quản trị bảng lương để bổ sung căn cứ.</p>}
+                {compensationHistory.revisions?.length ? <div className="ed-pay-table-wrapper"><table className="ed-pay-table"><thead><tr><th>Ngày hiệu lực</th><th>Lương giờ</th><th>Căn cứ</th></tr></thead><tbody>{compensationHistory.revisions.map((revision) => <tr key={revision.revisionId}><td>{revision.effectiveDate}</td><td>{Number(revision.terms?.hourlyRate || 0).toLocaleString('vi-VN')} đ/giờ</td><td>{revision.evidence || 'Chưa ghi nhận'}</td></tr>)}</tbody></table></div> : <p style={{ color: 'var(--emp-outline)', fontSize: 13 }}>Chưa có mốc lương lịch sử.</p>}
+                <form onSubmit={saveHistoricalCompensation} style={{ display: 'grid', gridTemplateColumns: '150px 160px 1fr auto', gap: 8, marginTop: 12 }}>
+                  <input required type="date" max={new Date().toISOString().slice(0, 10)} value={historyReconciliation.effectiveDate} onChange={(event) => setHistoryReconciliation((previous) => ({ ...previous, effectiveDate: event.target.value }))} />
+                  <input required min="0" type="number" placeholder="Lương giờ" value={historyReconciliation.hourlyRate} onChange={(event) => setHistoryReconciliation((previous) => ({ ...previous, hourlyRate: event.target.value }))} />
+                  <input required minLength="10" placeholder="Căn cứ đối soát (ít nhất 10 ký tự)" value={historyReconciliation.evidence} onChange={(event) => setHistoryReconciliation((previous) => ({ ...previous, evidence: event.target.value }))} />
+                  <button className="ed-btn-primary" disabled={historySaving}>{historySaving ? 'Đang lưu…' : 'Thêm mốc cũ'}</button>
+                </form>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -1422,6 +1460,7 @@ export default function EmployeeDetailPage() {
                       </td>
                     </tr>
                   ))}
+                  {payMatrix.length === 0 && <tr><td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--emp-outline)' }}>Chưa có kỹ năng hoặc mức lương hợp đồng để hiển thị.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -1489,10 +1528,10 @@ export default function EmployeeDetailPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--emp-primary)' }}>store</span>
                   <span>{primaryStoreName} (Chi nhánh chính)</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--emp-surface-low)', fontSize: '13px', fontWeight: 600, color: 'var(--emp-on-surface-variant)' }}>
+                {secondaryStoreName !== 'Chưa phân công' && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--emp-surface-low)', fontSize: '13px', fontWeight: 600, color: 'var(--emp-on-surface-variant)' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--emp-outline)' }}>store</span>
                   <span>{secondaryStoreName} (Chi nhánh hỗ trợ)</span>
-                </div>
+                </div>}
               </div>
             </div>
 

@@ -7,10 +7,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.TaskScheduler;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.stream.Collectors;
 
 import org.springframework.scheduling.annotation.Async;
@@ -36,6 +40,7 @@ public class NotificationService {
     private final SseEmitterService sseEmitterService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     private final @org.springframework.beans.factory.annotation.Qualifier("notificationExecutor") java.util.concurrent.Executor notificationExecutor;
+    private final @org.springframework.beans.factory.annotation.Qualifier("taskScheduler") TaskScheduler taskScheduler;
 
     // Removed @Async so this executes in caller's thread, allowing transaction sync.
     public void sendNotification(UUID userId, NotificationType type, String title, String body, Map<String, String> data) {
@@ -53,6 +58,25 @@ public class NotificationService {
         } else {
             submitNotification(task);
         }
+    }
+
+    /**
+     * The settings-page test must be observable immediately. Persist and publish
+     * the in-app record before returning HTTP success; the optional FCM delivery
+     * can remain asynchronous.
+     */
+    @Transactional
+    public InAppNotificationDTO sendTestNotification(UUID userId, String title, String body, Map<String, String> data) {
+        InAppNotificationDTO notification = createInAppNotification(userId, "GENERAL", title, body);
+        submitNotification(() -> sendPushNotification(userId, null, title, body, data));
+        return notification;
+    }
+
+    /** Schedules a background-push test that survives the caller closing its tab. */
+    public void scheduleTestNotification(UUID userId, String title, String body, Map<String, String> data, Duration delay) {
+        taskScheduler.schedule(
+                () -> sendNotification(userId, null, title, body, data),
+                Instant.now().plus(delay));
     }
 
     private void submitNotification(Runnable task) {
@@ -77,36 +101,48 @@ public class NotificationService {
                 log.warn("Không thể lưu thông báo trong ứng dụng cho người dùng {}: {}", userId, e.getMessage());
             }
 
-            // Check preference
-            if (type != null) {
-                NotificationPreference pref = preferenceRepository.findByStaffIdAndNotificationType(userId, type).orElse(null);
-                if (pref != null && !pref.isEnabled()) {
-                    log.info("Người dùng {} đã tắt loại thông báo {}; bỏ qua thông báo đẩy.", userId, type);
-                    return;
-                }
-            }
+            sendPushNotification(userId, type, title, body, data);
+        } catch (Exception e) {
+            log.error("Lỗi xử lý bất đồng bộ khi gửi thông báo cho người dùng {}", userId, e);
+        }
+    }
 
-            List<UserDeviceToken> tokens = userDeviceTokenRepository.findByUserId(userId);
-            
-            if (tokens.isEmpty()) {
-                log.info("Không tìm thấy mã thiết bị của người dùng: {}", userId);
+    private void sendPushNotification(UUID userId, NotificationType type, String title, String body, Map<String, String> data) {
+        // Check preference
+        if (type != null) {
+            NotificationPreference pref = preferenceRepository.findByStaffIdAndNotificationType(userId, type).orElse(null);
+            if (pref != null && !pref.isEnabled()) {
+                log.info("Người dùng {} đã tắt loại thông báo {}; bỏ qua thông báo đẩy.", userId, type);
                 return;
             }
+        }
+
+        List<UserDeviceToken> tokens = userDeviceTokenRepository.findByUserId(userId);
+        if (tokens.isEmpty()) {
+            log.info("Không tìm thấy mã thiết bị của người dùng: {}", userId);
+            return;
+        }
 
         List<String> fcmTokens = tokens.stream()
                 .map(UserDeviceToken::getFcmToken)
                 .collect(Collectors.toList());
 
-        MulticastMessage.Builder messageBuilder = MulticastMessage.builder()
-                .setNotification(com.google.firebase.messaging.Notification.builder()
-                        .setTitle(title)
-                        .setBody(body)
-                        .build())
-                .addAllTokens(fcmTokens);
-
-        if (data != null && !data.isEmpty()) {
-            messageBuilder.putAllData(data);
+        // Send a data-only FCM message. The service worker renders exactly one
+        // Windows notification while the app is in the background; an FCM
+        // notification payload would be auto-rendered first and cause a duplicate.
+        Map<String, String> pushData = new HashMap<>();
+        if (data != null) {
+            pushData.putAll(data);
         }
+        pushData.putIfAbsent("title", title);
+        pushData.putIfAbsent("message", body);
+        if (type != null) {
+            pushData.putIfAbsent("type", type.name());
+        }
+
+        MulticastMessage.Builder messageBuilder = MulticastMessage.builder()
+                .addAllTokens(fcmTokens)
+                .putAllData(pushData);
 
         MulticastMessage message = messageBuilder.build();
 
@@ -134,9 +170,6 @@ public class NotificationService {
             log.error("Lỗi gửi thông báo Firebase cho người dùng {}", userId, e);
         } catch (Exception e) {
             log.error("Lỗi bất ngờ khi gửi thông báo", e);
-        }
-        } catch (Exception e) {
-            log.error("Lỗi xử lý bất đồng bộ khi gửi thông báo cho người dùng {}", userId, e);
         }
     }
 

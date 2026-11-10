@@ -1,25 +1,39 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { ConfirmationProvider } from './context/ConfirmationContext';
 import { WebSocketProvider } from './context/WebSocketContext';
 import { ThemeProvider } from './components/navbar/theme';
 import MainLayout from './layouts/MainLayout';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import SchedulePage from './pages/SchedulePage';
-import AttendancePage from './pages/AttendancePageLive';
 import LegacyRequestRedirect from './components/LegacyRequestRedirect';
-import ShiftTemplatesPage from './pages/ShiftTemplatesPage';
-import MarketplacePage from './pages/MarketplacePage';
-import EmployeesPage from './pages/EmployeesPage';
-import EmployeeDetailPage from './pages/EmployeeDetailPage';
-import StoresPage from './pages/StoresPage';
-import SkillsPage from './pages/SkillsPage';
-import SettingsPage from './pages/SettingsPage';
-import DemandPlanningPage from './pages/DemandPlanningPage';
-import AdminPage from './pages/AdminPage';
-import AvatarStudioPage from './pages/AvatarStudioPage';
 import './components/employee-module-redesign.css';
 import './pages/attendance-redesign.css';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const AttendancePage = lazy(() => import('./pages/AttendancePageLive'));
+const ShiftTemplatesPage = lazy(() => import('./pages/ShiftTemplatesPage'));
+const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
+const EmployeeDetailPage = lazy(() => import('./pages/EmployeeDetailPage'));
+const StoresPage = lazy(() => import('./pages/StoresPage'));
+const SkillsPage = lazy(() => import('./pages/SkillsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const DemandPlanningPage = lazy(() => import('./pages/DemandPlanningPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const AvatarStudioPage = lazy(() => import('./pages/AvatarStudioPage'));
+const routeLoadingStyle = {
+  display: 'grid',
+  minHeight: '40dvh',
+  placeItems: 'center',
+  color: 'var(--ss-tx, #1c1612)',
+  fontSize: '0.9375rem',
+};
+
+function RouteLoadingFallback() {
+  return <main aria-busy="true" aria-label="Đang tải nội dung" style={routeLoadingStyle}>Đang tải nội dung…</main>;
+}
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
@@ -49,8 +63,10 @@ export default function App() {
   return (
     <ThemeProvider initial="dark">
       <ToastProvider>
+        <ConfirmationProvider>
         <WebSocketProvider>
           <BrowserRouter>
+            <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
 
@@ -97,8 +113,10 @@ export default function App() {
                 <Route path="/avatar-studio" element={<AvatarStudioPage />} />
               </Route>
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </WebSocketProvider>
+        </ConfirmationProvider>
       </ToastProvider>
     </ThemeProvider>
   );

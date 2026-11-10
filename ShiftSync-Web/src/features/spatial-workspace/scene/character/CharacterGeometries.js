@@ -189,7 +189,7 @@ class CharacterGeometryCache {
       if (typeof desc.get === 'function') {
         try {
           this[name];
-        } catch (e) {
+        } catch {
           // ignore
         }
       }

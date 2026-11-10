@@ -4,7 +4,6 @@
  * for the 3D Workforce Digital Twin.
  */
 
-import * as THREE from 'three';
 
 export const CAMERA_MODES = {
   OVERVIEW: 'OVERVIEW',

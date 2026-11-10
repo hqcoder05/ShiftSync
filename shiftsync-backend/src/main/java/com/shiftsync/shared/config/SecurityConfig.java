@@ -89,7 +89,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setContentType("application/json;charset=UTF-8");
                     response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
-                    response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"Full authentication is required to access this resource\"}");
+                    response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"Can dang nhap de truy cap tai nguyen nay\"}");
                 })
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

@@ -38,7 +38,7 @@ export default function CompactDropdownFilter({
       prevSkillsRef.current = incoming;
       setTempSkills(selectedSkills);
     }
-  }, [selectedSkills]); // eslint-disable-line
+  }, [selectedSkills]);
 
   useEffect(() => {
     const incoming = JSON.stringify(selectedEmployees);
@@ -46,7 +46,7 @@ export default function CompactDropdownFilter({
       prevEmpsRef.current = incoming;
       setTempEmployees(selectedEmployees);
     }
-  }, [selectedEmployees]); // eslint-disable-line
+  }, [selectedEmployees]);
 
   // Close on outside click
   useEffect(() => {
@@ -186,13 +186,12 @@ export default function CompactDropdownFilter({
       {isOpen && (
         <div className="cdf-popover">
           {/* Top Master Checkbox: Tất cả */}
-          <div className="cdf-master-row" onClick={handleToggleMasterAll}>
+          <div className="cdf-master-row">
             <label className="cdf-checkbox-label">
               <input
                 type="checkbox"
                 checked={isMasterAll}
                 onChange={handleToggleMasterAll}
-                onClick={(e) => e.stopPropagation()}
               />
               <span className="cdf-checkbox-custom" />
               <span className="cdf-row-text cdf-bold">Tất cả (Vị trí & Người dùng)</span>
@@ -203,24 +202,22 @@ export default function CompactDropdownFilter({
 
           {/* Group 1: Vị trí (Skills/Roles) */}
           <div className="cdf-group">
-            <div className="cdf-group-header" onClick={handleToggleSkillGroup}>
+            <div className="cdf-group-header">
               <label className="cdf-checkbox-label">
                 <input
                   type="checkbox"
                   checked={isAllSkillsSelected}
                   onChange={handleToggleSkillGroup}
-                  onClick={(e) => e.stopPropagation()}
                 />
                 <span className="cdf-checkbox-custom" />
                 <span className="cdf-group-title">Vị trí công việc</span>
               </label>
 
-              <div className="cdf-group-actions" onClick={(e) => e.stopPropagation()}>
+              <div className="cdf-group-actions">
                 <button
                   type="button"
                   className="cdf-action-only"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
                     setTempSkills(['ALL']);
                     setTempEmployees([]);
                   }}
@@ -258,14 +255,12 @@ export default function CompactDropdownFilter({
                     <div
                       key={sk.id}
                       className="cdf-sub-item"
-                      onClick={() => handleToggleSkill(sk.id)}
                     >
                       <label className="cdf-checkbox-label">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleSkill(sk.id)}
-                          onClick={(e) => e.stopPropagation()}
                         />
                         <span className="cdf-checkbox-custom" />
                         <span
@@ -295,24 +290,22 @@ export default function CompactDropdownFilter({
 
           {/* Group 2: Người dùng / Nhân viên (Employees) */}
           <div className="cdf-group">
-            <div className="cdf-group-header" onClick={handleToggleEmployeeGroup}>
+            <div className="cdf-group-header">
               <label className="cdf-checkbox-label">
                 <input
                   type="checkbox"
                   checked={isAllEmployeesSelected}
                   onChange={handleToggleEmployeeGroup}
-                  onClick={(e) => e.stopPropagation()}
                 />
                 <span className="cdf-checkbox-custom" />
                 <span className="cdf-group-title">Người dùng</span>
               </label>
 
-              <div className="cdf-group-actions" onClick={(e) => e.stopPropagation()}>
+              <div className="cdf-group-actions">
                 <button
                   type="button"
                   className="cdf-action-only"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
                     setTempEmployees(['ALL']);
                     setTempSkills([]);
                   }}
@@ -350,14 +343,12 @@ export default function CompactDropdownFilter({
                     <div
                       key={emp.staffId || emp.id}
                       className="cdf-sub-item"
-                      onClick={() => handleToggleEmployee(empKey)}
                     >
                       <label className="cdf-checkbox-label">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleEmployee(empKey)}
-                          onClick={(e) => e.stopPropagation()}
                         />
                         <span className="cdf-checkbox-custom" />
                         <span className="cdf-sub-text">{empKey}</span>

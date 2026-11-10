@@ -54,9 +54,13 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'ShiftSync-Web/package-lock.json'
 
-    - name: Build web application
-      run: npm ci && npm run build
+    - name: Lint, test and build web application
+      run: npm ci && npm run lint && npm run test && npm run build
       working-directory: ShiftSync-Web
+
+    - name: Bundle mobile web application
+      run: npm ci && npm run export:web
+      working-directory: ShiftSync-Mobile
 
     - name: Run Maven Tests
       run: mvn -B --no-transfer-progress clean test

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Compass, MapPin, Box, Layers, Users, Armchair, Activity, PanelRightOpen, PanelRightClose, RotateCcw, Footprints, Wrench, Eye, Undo2, Redo2, FlaskConical } from 'lucide-react';
+import { Compass, MapPin, Box, Layers, Users, Armchair, Activity, RotateCcw, Footprints, Wrench, Eye, Undo2, Redo2, FlaskConical } from 'lucide-react';
 import './store-explorer.css';
 
 export default function SpatialToolbar({
- storeName = 'Cửa hàng', zonesCount = 0, staffCount = 0, currentMode = 'OVERVIEW',
+ currentMode = 'OVERVIEW',
  selectedZone, selectedWorkstation, onFocusSelectedZone, onFocusSelectedWorkstation,
  onResetCamera, onTopDownCamera, onOverviewCamera, onToggle2D, is2DView = false,
  onEnterExplore, isExploreMode = false, isSimulating = false, simulationDiffCount = 0,
@@ -12,7 +12,7 @@ export default function SpatialToolbar({
  onStopFollowEmployee, followingStaffName, isXRayMode = false, onToggleXRay,
  layers = {}, onToggleLayer, heatmapMode = 'STAFFING', onChangeHeatmapMode,
  isEditingLayout = false, onToggleLayoutEditor, onOpenDesigner, canEditLayout = false,
- onFocusWorkstationAsset, isDrawerOpen = true, onToggleDrawer,
+ onFocusWorkstationAsset, isDrawerOpen = true,
 }) {
  const [advanced, setAdvanced] = useState(false);
  const root = useRef(null);

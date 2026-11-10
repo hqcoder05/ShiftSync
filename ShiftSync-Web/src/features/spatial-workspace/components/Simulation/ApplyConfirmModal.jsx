@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react';
-import { Check, AlertTriangle, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Check, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
 
 export default function ApplyConfirmModal({
   isOpen = false,

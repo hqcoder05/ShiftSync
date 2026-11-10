@@ -1,7 +1,7 @@
 import api from './api';
 
 // GET /api/users?page=&size=&storeId=&search=  — tránh gửi search rỗng gây lỗi
-export const getEmployees = (page = 0, size = 20, search = '', storeId = null) => {
+export const getEmployees = (page = 0, size = 20, search = '', storeId = null, config = {}) => {
   let url = `/users?page=${page}&size=${size}`;
   if (storeId) {
     url += `&storeId=${encodeURIComponent(storeId)}`;
@@ -9,7 +9,7 @@ export const getEmployees = (page = 0, size = 20, search = '', storeId = null) =
   if (search && search.trim() !== '') {
     url += `&search=${encodeURIComponent(search)}`;
   }
-  return api.get(url);
+  return api.get(url, config);
 };
 
 // POST /api/users — payload phải khớp UserCreateRequest: fullName, email, password, phone, systemRole, storeId, skillIds
@@ -41,11 +41,13 @@ export const updateEmployee = (id, data) => {
   return api.put(`/users/${id}`, payload);
 };
 
-export const getEmployeeById = (id) => api.get(`/users/${id}`);
+export const getEmployeeById = (id, config = {}) => api.get(`/users/${id}`, config);
 
 export const getMyProfile = () => api.get('/users/me');
 
 export const updateMyProfile = (data) => api.put('/users/me', data);
+
+export const updateMyAvatar = (avatarId) => api.put('/users/me/avatar', { avatarId });
 
 export const getMyShifts = () => api.get('/users/me/shifts');
 

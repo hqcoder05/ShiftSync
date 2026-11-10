@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Zone heatmap meshes retain stable identity to avoid destroying active scene state. */
 /**
  * ZoneVisualizationLayer.jsx
  * Declarative Zone Visualization & Heatmap Layer for ShiftSync R3F Digital Twin.

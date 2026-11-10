@@ -261,12 +261,11 @@ describe('Mode 2: First-Person 3D & Point Lock Unit Tests', () => {
     assert.ok(controller.targetLock);
 
     // 2. Press Escape: Must release Point Lock first!
-    let stopPropagationCalled = false;
     controller.handleKeyDown({
       code: 'Escape',
       target: {},
       preventDefault: () => {},
-      stopPropagation: () => { stopPropagationCalled = true; },
+      stopPropagation: () => {},
     });
 
     assert.equal(controller.targetLock, null);

@@ -29,7 +29,8 @@
   min-height: calc(100vh - 64px);
   font-family: 'Inter', sans-serif;
   color: var(--emp-on-surface);
-  padding-bottom: 80px;
+  /* Keep the final card above the fixed profile action dock. */
+  padding-bottom: 132px;
 }
 
 /* Sub-header Breadcrumb */
@@ -883,6 +884,11 @@
   justify-content: space-between;
 }
 
+@media (max-width: 640px) {
+  .ed-page-container { padding-bottom: 154px; }
+  .ed-bottom-dock { padding: 10px 0 max(10px, env(safe-area-inset-bottom)); }
+  .ed-dock-content { gap: 10px; padding: 0 14px; align-items: flex-start; flex-direction: column; }
+}
 /* ============================================================
    Enhanced Enterprise Modal Styling
    ============================================================ */

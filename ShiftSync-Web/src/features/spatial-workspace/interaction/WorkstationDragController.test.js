@@ -10,7 +10,6 @@ import * as THREE from 'three';
 import {
   WorkstationDragController,
   getWorkstationDragRoot,
-  WORKSTATION_COLLISION_RADIUS,
 } from './WorkstationDragController.js';
 import {
   toThreeCoords,

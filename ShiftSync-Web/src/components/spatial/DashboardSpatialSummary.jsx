@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, Store, Users, MapPin } from "lucide-react";
+import { ArrowUpRight, Store } from "lucide-react";
 import TwoDSpatialSchematic from "./TwoDSpatialSchematic";
 import { getZoneThemeColor } from "./spatial.constants";
 
 export default function DashboardSpatialSummary({
-  store,
   layout = { length: 24, width: 16, height: 5 },
   zones = [],
   activeShifts = [],

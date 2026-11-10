@@ -9,7 +9,7 @@
  * - Fast actions: View Diff, Run AI Simulation, Reset, Apply, Discard
  */
 
-import { FlaskConical, Check, Undo2, ListTree, Sparkles, X, Eye } from 'lucide-react';
+import { FlaskConical, Check, Undo2, ListTree, Sparkles, X } from 'lucide-react';
 
 export default function SimulationBanner({
   diffCount = 0,

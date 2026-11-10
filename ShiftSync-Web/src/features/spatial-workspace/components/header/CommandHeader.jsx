@@ -1,4 +1,4 @@
-import { ArrowLeft, Calendar, Box, PanelRightOpen, Maximize, Minimize, Wrench } from 'lucide-react';
+import { ArrowLeft, Calendar, Box, PanelRightOpen, Maximize, Minimize } from 'lucide-react';
 import '../store-explorer.css';
 export default function CommandHeader({stores=[], storeName='Cửa hàng',selectedStoreId,onSelectStore,activeDate,onDateChange,currentShift,allDateShifts=[],onSelectShift,attentionCount=0,onOpenAttentionCenter,isSimulating=false,isEditingLayout=false,onToggleSimulation,onOpenAutoSchedule,onPublishSchedule,isDrawerOpen,onToggleDrawer,onExitWorkspace,onFullscreen,isFullscreen=false,zones=[],workstations=[],staff=[],onNavigate,isRealtimeConnected=false,lastOperationsUpdatedAt,latestOperationLabel=''}) {
  const parsedDate = activeDate ? new Date(`${String(activeDate).slice(0,10)}T12:00:00`) : null;

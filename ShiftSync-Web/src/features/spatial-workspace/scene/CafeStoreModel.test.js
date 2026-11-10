@@ -1,7 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import * as THREE from 'three';
 import {CAFE_STORE_URL} from './CafeStoreModel.js';
 import {DEFAULT_DIGITAL_TWIN_GLB_URL,loadDigitalTwinModel,mapWorkstationsToGlb,extractGlbObstacles} from './DigitalTwinModelLoader.js';
 import {arrangeStoreInterior,geometryFootprint,overlaps} from './StoreArrangement.js';

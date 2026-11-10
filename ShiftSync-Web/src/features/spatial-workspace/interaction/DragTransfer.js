@@ -69,6 +69,11 @@ export class DragTransfer {
     this.attach();
   }
 
+  updateCameraContext(camera, controls) {
+    this.camera = camera;
+    this.controls = controls;
+  }
+
   attach() {
     this.dom.addEventListener('pointerdown', this._onPointerDown);
     window.addEventListener('pointermove', this._onPointerMove);

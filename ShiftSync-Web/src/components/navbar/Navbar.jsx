@@ -22,7 +22,7 @@ import {
   Box,
   ArrowUpRight,
 } from "lucide-react";
-import { useTheme } from "./theme";
+import { useTheme } from './themeContext.js';
 import NotificationBell from "./NotificationBell";
 import {notificationRoute} from "../../utils/notificationNavigation.js";
 import "./navbar.css";

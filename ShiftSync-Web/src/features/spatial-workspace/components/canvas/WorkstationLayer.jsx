@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Workstation mesh creation is an imperative scene lifecycle, not a render callback lifecycle. */
 /**
  * WorkstationLayer.jsx
  * Declarative Workstation Layer for ShiftSync R3F Digital Twin.
@@ -12,7 +13,6 @@
  */
 
 import { useLayoutEffect, useRef } from 'react';
-import * as THREE from 'three';
 import {
   mapWorkstationsToGlb,
 } from '../../scene/DigitalTwinModelLoader.js';

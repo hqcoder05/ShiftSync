@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- Canvas interaction controllers own imperative listeners and retain stable lifecycles. */
 /**
  * DigitalTwinCanvas.jsx
  * Master React Three Fiber Canvas for the ShiftSync 3D Store Digital Twin.
@@ -9,7 +10,7 @@
  * - Zero double-rendering and zero parallel imperative render loops.
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -110,8 +111,7 @@ function CanvasInteractionBridge({
     const dragCtrl = workstationDragControllerRef?.current;
     if (!dragCtrl) return;
 
-    dragCtrl.camera = camera;
-    dragCtrl.controls = cameraManagerRef?.current?.getControls();
+    dragCtrl.updateCameraContext(camera, cameraManagerRef?.current?.getControls());
     dragCtrl.setEnabled(isEditingLayout && !isSimulating && !isExploreMode);
     dragCtrl.updateContext({
       workstationMeshes,
@@ -169,8 +169,7 @@ function CanvasInteractionBridge({
     const dt = dragTransferRef?.current;
     if (!dt) return;
 
-    dt.camera = camera;
-    dt.controls = cameraManagerRef?.current?.getControls();
+    dt.updateCameraContext(camera, cameraManagerRef?.current?.getControls());
     const active = isSimulating && simViewMode === 'after';
     dt.setEnabled(active);
     dt.updateContext({
@@ -313,6 +312,8 @@ export default function DigitalTwinCanvas({
   onPhysicalLayoutReady = null,
   onSelectStaff = null,
   onSelectWorkstation = null,
+  onAvatarMeshesChange = null,
+  onWorkstationMeshesChange = null,
   isExploreMode = false,
   playerViewMode = 'first_person',
   onTogglePlayerView = null,
@@ -331,9 +332,10 @@ export default function DigitalTwinCanvas({
   onSimulationTransfer = null,
   onSimulationValidationChange = null,
   cameraManagerRef = null,
+  onCameraManagerChange = null,
   workstationDragControllerRef = null,
   dragTransferRef = null,
-  playerControllerRef = null,
+  onPlayerControllerChange = null,
   designDocument = null,
   infoSelection = null,
   onCloseInfo = null,
@@ -353,9 +355,14 @@ export default function DigitalTwinCanvas({
   const [workstationMeshes, setWorkstationMeshes] = useState([]);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [isInfoOffscreen, setIsInfoOffscreen] = useState(false);
+  const activePlayerControllerRef = useRef(null);
+  const handlePlayerControllerChange = useCallback((controller) => {
+    activePlayerControllerRef.current = controller;
+    onPlayerControllerChange?.(controller);
+  }, [onPlayerControllerChange]);
   const infoAnchor = useRef(new THREE.Vector3());
   const reframeInfo = () => {
-    const player = playerControllerRef?.current;
+    const player = activePlayerControllerRef.current;
     if (!isExploreMode || !player) { onFocusInfo?.(); return; }
     player.lookAtTarget(infoAnchor.current);
   };
@@ -415,7 +422,10 @@ export default function DigitalTwinCanvas({
           showWorkstations={layers?.showWorkstations !== false}
           showAttendance={layers?.showAttendance !== false}
           selectedWorkstation={selectedWorkstation}
-          onWorkstationMeshesReady={setWorkstationMeshes}
+          onWorkstationMeshesReady={(meshes) => {
+            setWorkstationMeshes(meshes);
+            onWorkstationMeshesChange?.(meshes);
+          }}
           onPhysicalLayoutReady={onPhysicalLayoutReady}
         />
 
@@ -431,7 +441,10 @@ export default function DigitalTwinCanvas({
           layout={layout}
           selectedStaff={selectedStaff}
           showStaff={layers?.showStaff !== false}
-          onAvatarMeshesReady={setAvatarMeshes}
+          onAvatarMeshesReady={(meshes) => {
+            setAvatarMeshes(meshes);
+            onAvatarMeshesChange?.(meshes);
+          }}
         />}
 
         <SceneLabels activeInfoSelection={infoSelection} />
@@ -452,7 +465,7 @@ export default function DigitalTwinCanvas({
           isExploreMode={isExploreMode}
           isDraggingObject={isDraggingObject || isOperationDialogOpen}
           onUserOrbitStart={onUserOrbitStart}
-          cameraManagerRef={cameraManagerRef}
+          onCameraManagerChange={onCameraManagerChange}
         />
 
         {/* 8. First-Person 3D Walking & Sliding Collision Controller */}
@@ -472,7 +485,7 @@ export default function DigitalTwinCanvas({
             onInteract={onInteract}
             onPlayerStatusUpdate={onPlayerStatusUpdate}
             initialLockTarget={initialLockTarget}
-            playerControllerRef={playerControllerRef}
+            onPlayerControllerChange={handlePlayerControllerChange}
             paused={Boolean(infoSelection) || isOperationDialogOpen}
           />
         )}
