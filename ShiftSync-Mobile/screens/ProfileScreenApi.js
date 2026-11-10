@@ -1,31 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
+import { colors as uiColors } from '../theme/koreanPalette';
+import { createAppStyles } from '../theme/appTheme';
+import { ensureTouchTarget } from '../utils/touchTarget';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
-  Image,
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import BottomNavbar from '../components/BottomNavbar';
-import Avatar3D from '../components/Avatar3D';
-import EmployeeCard3D from '../components/EmployeeCard3D';
-import { AVATAR_OPTIONS, getAvatar3DProps } from '../components/avatarConfigs';
-import { getAllAvatarThumbnails } from '../components/avatarThumbnails';
-import { getMyProfile, getMyStores, updateMyProfile, updateMyAvatar } from '../services/profileService';
+import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import UserAvatar from '../components/UserAvatar';
+import { validatePersonalInfo } from '../utils/profileValidation';
+import { savePersonalDraft } from '../services/profileDrafts';
+import { clearShiftReminders } from '../services/localReminders';
+import { publishUnreadCount } from '../services/notificationService';
+import { resetMessagingUnread } from '../services/messagingService';
+import { AVATAR_OPTIONS } from '../components/avatarConfigs';
+import { getMyProfile, getMyStores } from '../services/profileService';
+import { runApiSessionChange } from '../services/api';
 import { logout as logoutApi } from '../services/authService';
-import { getStoredAvatar, saveAvatar } from '../services/avatarSync';
-
+import { getStoredAvatar, resolveProfileAvatar, saveAvatar } from '../services/avatarSync';
+import { formatDateDMY } from '../utils/currency';
+import useResumeRefresh from '../utils/useResumeRefresh';
 
 const INITIAL_PROFILE = {
   fullName: '',
@@ -50,7 +59,7 @@ function EditableRow({ label, value, onChangeText, placeholder, keyboardType, la
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder || `Nhập ${label.toLowerCase()}...`}
-          placeholderTextColor="#A0A0A0"
+          placeholderTextColor={uiColors.muted}
           keyboardType={keyboardType || 'default'}
           secureTextEntry={secureTextEntry}
           textAlign="right"
@@ -63,6 +72,8 @@ function EditableRow({ label, value, onChangeText, placeholder, keyboardType, la
 }
 
 export default function ProfileScreen({ navigation }) {
+  useResumeRefresh(navigation, () => loadProfile(false));
+  const bottomNavbarPadding = useBottomNavbarPadding();
   const [profile, setProfile] = useState(INITIAL_PROFILE);
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
@@ -72,6 +83,33 @@ export default function ProfileScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const [motionPreferenceReady, setMotionPreferenceReady] = useState(false);
+  const entrance = useRef(new Animated.Value(1)).current;
+  const hasEntered = useRef(false);
+  const lastSavedDraft = useRef('');
+  const savingDraft = useRef(Promise.resolve());
+  const draftRevision = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
+      if (active) { setReduceMotion(value); setMotionPreferenceReady(true); }
+    }).catch(() => { if (active) setMotionPreferenceReady(true); });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => {
+      setReduceMotion(value);
+      if (value) { entrance.stopAnimation(); entrance.setValue(1); }
+    });
+    return () => { active = false; subscription.remove(); entrance.stopAnimation(); };
+  }, [entrance]);
+  useEffect(() => {
+    if (loading || !motionPreferenceReady || hasEntered.current) return;
+    hasEntered.current = true;
+    if (reduceMotion) { entrance.setValue(1); return; }
+    entrance.setValue(0);
+    Animated.timing(entrance, { toValue: 1, duration: 380, useNativeDriver: true }).start();
+  }, [loading, motionPreferenceReady, reduceMotion, entrance]);
   const [editForm, setEditForm] = useState({
     birthDate: '',
     birthPlace: '',
@@ -90,8 +128,8 @@ export default function ProfileScreen({ navigation }) {
   };
 
   // Load custom profile from Backend API & user-specific AsyncStorage
-  const loadProfile = useCallback(async () => {
-    setLoading(true);
+  const loadProfile = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     // 0. Nạp avatar từ local cache trước để hiển thị tức thì
     const cachedAvatar = await getStoredAvatar(currentUserId);
     setSelectedAvatarId(cachedAvatar);
@@ -103,15 +141,7 @@ export default function ProfileScreen({ navigation }) {
         const userId = apiUser.id;
         setCurrentUserId(userId);
 
-        // 2. Ưu tiên load avatar từ Backend API, fallback sang AsyncStorage
-        if (apiUser.avatarId && AVATAR_OPTIONS.some(a => a.id === apiUser.avatarId)) {
-          setSelectedAvatarId(apiUser.avatarId);
-          await AsyncStorage.setItem('@user_profile_avatar', apiUser.avatarId);
-          await AsyncStorage.setItem(`@user_profile_avatar_${userId}`, apiUser.avatarId);
-        } else {
-          const savedAvatar = await getStoredAvatar(userId);
-          setSelectedAvatarId(savedAvatar);
-        }
+        setSelectedAvatarId(await resolveProfileAvatar(apiUser));
 
         // 3. Load custom data specifically for this user
         const userStorageKey = `@user_profile_custom_${userId}`;
@@ -156,14 +186,14 @@ export default function ProfileScreen({ navigation }) {
         setProfile({
           fullName: apiUser.fullName || '',
           email: apiUser.email || '',
-          phone: apiUser.phone || customData.phone || '',
+          phone: customData.pendingPhone ? customData.phone || '' : ('phone' in apiUser ? apiUser.phone || '' : customData.phone || ''),
           staffCode: userId ? `NV-${String(userId).slice(0, 6).toUpperCase()}` : '',
           storeName,
           storeAddress,
           position,
-          birthDate: customData.birthDate || '',
-          birthPlace: customData.birthPlace || '',
-          gender: customData.gender || '',
+          birthDate: customData.pendingPersonalInfo || !('birthDate' in apiUser) ? customData.birthDate || '' : apiUser.birthDate || '',
+          birthPlace: customData.pendingPersonalInfo || !('birthPlace' in apiUser) ? customData.birthPlace || '' : apiUser.birthPlace || '',
+          gender: customData.pendingPersonalInfo || !('gender' in apiUser) ? customData.gender || '' : ({ MALE: 'Nam', FEMALE: 'Nữ', OTHER: 'Khác' }[apiUser.gender] || apiUser.gender || ''),
         });
       }
     } catch (apiErr) {
@@ -187,54 +217,49 @@ export default function ProfileScreen({ navigation }) {
     loadProfile();
   }, [loadProfile]);
 
-  // Update field directly inline and save to user-specific AsyncStorage
-  const updateField = (key, val) => {
-    setProfile((prev) => {
-      const next = { ...prev, [key]: val };
-      if (currentUserId) {
-        const userStorageKey = `@user_profile_custom_${currentUserId}`;
-        AsyncStorage.setItem(userStorageKey, JSON.stringify({
-          birthDate: next.birthDate,
-          birthPlace: next.birthPlace,
-          gender: next.gender,
-          phone: next.phone,
-        })).catch(() => {});
-      }
-      return next;
-    });
-    setSaveStatus('Đã lưu');
-    setTimeout(() => setSaveStatus(''), 2000);
-  };
+  useEffect(() => navigation.addListener('focus', () => loadProfile(false)), [navigation, loadProfile]);
 
-  const handleSavePersonalInfo = () => {
-    updateField('birthDate', editForm.birthDate);
-    updateField('birthPlace', editForm.birthPlace);
-    updateField('phone', editForm.phone);
-    updateField('gender', editForm.gender);
-    if (editForm.phone && editForm.phone !== profile.phone) {
-      // UserUpdateRequest requires fullName and email as well as phone.
-      // Sending only phone makes the backend reject the update with 400.
-      updateMyProfile({
-        fullName: profile.fullName,
-        email: profile.email,
-        phone: editForm.phone,
-      }).then(({ data }) => {
-        if (data?.phone) {
-          setProfile((prev) => ({ ...prev, phone: data.phone }));
-        }
-      }).catch(() => {
-        setSaveStatus('Chưa đồng bộ máy chủ');
-        setTimeout(() => setSaveStatus(''), 2500);
-      });
-    }
-    setShowEditModal(false);
+  const personalErrors = validatePersonalInfo(editForm);
+  const saveDraft = (close = false) => {
+    if (Object.keys(validatePersonalInfo(editForm)).length) { setSaveStatus('Kiểm tra thông tin'); return; }
+    const snapshot = { ...editForm };
+    const signature = JSON.stringify(snapshot);
+    if (signature === lastSavedDraft.current) { if (close) setShowEditModal(false); return; }
+    lastSavedDraft.current = signature;
+    const revision = ++draftRevision.current;
+    setSaveStatus('Đang lưu...');
+    // Persist each debounced edit immediately; the service serializes writes and drains newer drafts.
+    savingDraft.current = (async () => {
+      try {
+        const synced = await savePersonalDraft(currentUserId, snapshot);
+        if (!mounted.current || revision !== draftRevision.current) return;
+        setProfile((prev) => ({ ...prev, ...snapshot }));
+        setSaveStatus(synced ? 'Đã lưu' : 'Đã lưu trên máy');
+      } catch { if (mounted.current && revision === draftRevision.current) { lastSavedDraft.current = ''; setSaveStatus('Chưa lưu được'); } }
+    })();
+    if (close) setShowEditModal(false);
   };
+  const handleSavePersonalInfo = () => saveDraft(true);
+  const closeEditor = () => {
+    if (Object.keys(validatePersonalInfo(editForm)).length) setShowEditModal(false);
+    else saveDraft(true);
+  };
+  useEffect(() => {
+    if (!showEditModal || !currentUserId || Object.keys(personalErrors).length) return;
+    const signature = JSON.stringify(editForm);
+    if (signature === lastSavedDraft.current) return;
+    const timer = setTimeout(() => saveDraft(false), 500);
+    return () => clearTimeout(timer);
+  }, [editForm, showEditModal, currentUserId]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
 
     const performLogout = async () => {
       setLoggingOut(true);
+      await clearShiftReminders().catch(() => {});
+      publishUnreadCount(0);
+      resetMessagingUnread();
       const storageKeys = [
         'accessToken',
         'refreshToken',
@@ -243,12 +268,7 @@ export default function ProfileScreen({ navigation }) {
         '@user_profile_custom_data',
         '@user_profile_avatar',
       ];
-      if (currentUserId) {
-        storageKeys.push(
-          `@user_profile_custom_${currentUserId}`,
-          `@user_profile_avatar_${currentUserId}`,
-        );
-      }
+
 
       try {
         const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
@@ -258,7 +278,7 @@ export default function ProfileScreen({ navigation }) {
       } catch (_) {}
 
       try {
-        await AsyncStorage.multiRemove(storageKeys);
+        await runApiSessionChange(() => AsyncStorage.multiRemove(storageKeys));
       } catch (e) {
         // ignore
       } finally {
@@ -280,11 +300,11 @@ export default function ProfileScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       {/* Header */}
       <View style={styles.header}>
-        <Pressable
+        <Pressable accessibilityRole="button"
           onPress={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();
@@ -293,10 +313,10 @@ export default function ProfileScreen({ navigation }) {
             }
           }}
           hitSlop={15}
-          style={styles.closeBtn}
+          style={ensureTouchTarget(styles.closeBtn)}
           accessibilityLabel="Đóng hồ sơ"
         >
-          <Text style={styles.closeIcon}>✕</Text>
+          <Ionicons name="chevron-back" size={23} color={uiColors.ink} />
         </Pressable>
         <Text style={styles.title}>Hồ sơ</Text>
         <View style={styles.saveStatusWrap}>
@@ -306,33 +326,94 @@ export default function ProfileScreen({ navigation }) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#428531" />
+          <ActivityIndicator size="large" color={uiColors.primaryStrong} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* ═══ THẺ NHÂN VIÊN 3D FLIP 2 MẶT (CHÂN THỰC & ĐỘNG) ═══ */}
-          <EmployeeCard3D
-            profile={profile}
-            selectedAvatarId={selectedAvatarId}
-            getAvatar3DProps={getAvatar3DProps}
-            onOpenAvatarPicker={() => {
-              setPreviewAvatarId(selectedAvatarId || 'dilan');
-              setShowAvatarPicker(true);
-            }}
-            onEditPersonalInfo={() => {
-              setEditForm({
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavbarPadding }]} showsVerticalScrollIndicator={false}>
+          <Animated.View style={{ opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }}>
+          <View style={styles.identityCard}>
+            <View style={styles.portraitBanner}>
+              <View pointerEvents="box-none" style={styles.bannerTopline}>
+                <Text style={styles.bannerCaption}>Ảnh đại diện</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Đổi ảnh đại diện"
+                  accessibilityHint="Mở bộ sưu tập nhân vật để chọn ảnh cho hồ sơ"
+                  onPress={() => {
+                    setPreviewAvatarId(selectedAvatarId || 'dilan');
+                    setShowAvatarPicker(true);
+                  }}
+                  style={ensureTouchTarget(({ pressed }) => [styles.avatarEditBadge, pressed && styles.actionPressed])}
+                >
+                  <Ionicons name="pencil-outline" size={18} color={uiColors.ink} />
+                </Pressable>
+              </View>
+              <View style={styles.bannerPortraitWrap}>
+                <UserAvatar avatarId={selectedAvatarId} framing="full" size={230} style={styles.bannerAvatar} />
+              </View>
+            </View>
+            <View style={styles.identityContent}>
+              <Text style={styles.nameDisplay}>{profile.fullName || 'Nhân viên'}</Text>
+              <Text style={styles.identityStore}>{profile.storeName || 'Chưa phân công chi nhánh'}</Text>
+              <Text style={styles.positionSubtitle}>{profile.position || 'Chưa phân công vị trí'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}><Ionicons name="briefcase-outline" size={19} color={uiColors.secondary} /></View>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Công việc</Text>
+                <Text style={styles.sectionSubtitle}>Thông tin tại chi nhánh</Text>
+              </View>
+            </View>
+            {[
+              ['Mã nhân viên', profile.staffCode],
+              ['Chi nhánh', profile.storeName],
+              ['Địa chỉ', profile.storeAddress],
+            ].map(([label, value], index) => (
+              <View key={label} style={[styles.inlineWorkRow, index === 2 && styles.lastRow]}>
+                <Text style={styles.workLabel}>{label}</Text>
+                <Text style={styles.inlineWorkValue}>{value || '—'}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}><Ionicons name="person-outline" size={19} color={uiColors.secondary} /></View>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Chỉnh sửa thông tin cá nhân" style={ensureTouchTarget(({ pressed }) => [styles.editProfileBtn, pressed && styles.actionPressed])} onPress={() => {
+              const initialForm = {
                 birthDate: profile.birthDate || '',
                 birthPlace: profile.birthPlace || '',
                 phone: profile.phone || '',
                 gender: profile.gender || '',
-              });
+              };
+              lastSavedDraft.current = JSON.stringify(initialForm);
+              setEditForm(initialForm);
               setShowEditModal(true);
-            }}
-          />
+              }}>
+                <Ionicons name="pencil-outline" size={14} color={uiColors.primaryStrong} />
+                <Text style={styles.editProfileText}>Chỉnh sửa</Text>
+              </Pressable>
+            </View>
+            <EditableRow label="Ngày sinh" value={/^\d{4}-\d{2}-\d{2}$/.test(profile.birthDate) ? formatDateDMY(profile.birthDate) : profile.birthDate} editable={false} />
+            <EditableRow label="Nơi sinh" value={profile.birthPlace} editable={false} />
+            <EditableRow label="Điện thoại" value={profile.phone} editable={false} />
+            <EditableRow label="Giới tính" value={profile.gender} editable={false} last />
+          </View>
 
           {/* ═══ THÔNG TIN ĐĂNG NHẬP (Group 138) ═══ */}
-          <Text style={styles.sectionTitle}>Thông tin đăng nhập</Text>
-          <View style={styles.whiteBlock}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}><Ionicons name="shield-checkmark-outline" size={19} color={uiColors.secondary} /></View>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Thông tin đăng nhập</Text>
+              </View>
+            </View>
             <EditableRow
               label="Email"
               value={profile.email}
@@ -349,122 +430,99 @@ export default function ProfileScreen({ navigation }) {
           </View>
 
           {/* ═══ ĐĂNG XUẤT (Group 139) ═══ */}
-          <Pressable
+          <Pressable accessibilityRole="button"
             onPress={handleLogout}
             disabled={loggingOut}
-            style={[styles.logoutBtn, loggingOut && styles.logoutBtnDisabled]}
+            style={ensureTouchTarget(({ pressed }) => [styles.logoutBtn, loggingOut && styles.logoutBtnDisabled, pressed && styles.actionPressed])}
           >
-            <Text style={styles.logoutText}>Đăng xuất</Text>
+            <View style={styles.logoutLabel}>
+              {loggingOut ? <ActivityIndicator size="small" color={uiColors.dangerText} /> : <Ionicons name="log-out-outline" size={20} color={uiColors.dangerText} />}
+              <Text style={styles.logoutText}>Đăng xuất</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={uiColors.dangerText} />
           </Pressable>
-          <View style={{ height: 90 }} />
+          </Animated.View>
         </ScrollView>
       )}
       {/* ═══ MODAL CHỌN ẢNH ĐẠI DIỆN 3D ═══ */}
       <Modal
         visible={showAvatarPicker}
         transparent
-        animationType="slide"
+        animationType={reduceMotion ? 'none' : 'slide'}
         onRequestClose={() => setShowAvatarPicker(false)}
       >
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerSheet}>
             {/* Header */}
             <View style={styles.pickerHeaderRow}>
-              <View>
-                <Text style={styles.pickerTitle}>Bộ sưu tập Avatar 3D</Text>
-                <Text style={styles.pickerSubtitle}>Chọn diện mạo 3D phù hợp với bạn</Text>
+              <View style={styles.pickerHeadingCopy}>
+                <Text style={styles.pickerTitle}>Ảnh đại diện</Text>
+                <Text style={styles.pickerSubtitle}>Chọn nhân vật của bạn</Text>
               </View>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityLabel="Đóng chọn ảnh đại diện" accessibilityRole="button"
                 onPress={() => setShowAvatarPicker(false)}
                 hitSlop={12}
-                style={styles.pickerCloseCircle}
+                style={ensureTouchTarget(styles.pickerCloseCircle)}
               >
-                <Text style={styles.pickerCloseX}>✕</Text>
+                <Ionicons name="close" size={21} color={uiColors.secondary} />
               </TouchableOpacity>
             </View>
 
-            {/* ── TOP SPOTLIGHT 3D STAGE (1 WEBGL CONTEXT DUY NHẤT) ── */}
             {(() => {
               const isCurrent = selectedAvatarId === previewAvatarId;
-              const thumbnails = getAllAvatarThumbnails();
-
+              const preview = AVATAR_OPTIONS.find((item) => item.id === previewAvatarId) || AVATAR_OPTIONS[0];
               return (
                 <>
                   <View style={styles.spotlightCard}>
-                    <View style={styles.spotlight3DWrap}>
-                      <Avatar3D size={105} {...getAvatar3DProps(previewAvatarId)} isHovered={true} />
+                    <View style={styles.avatarPreviewWrap}>
+                      <UserAvatar avatarId={preview.id} framing="full" size={150} style={styles.spotlightPortrait} />
+                      {isCurrent && <View style={styles.spotlightUsingTag}><Text style={styles.spotlightUsingText}>✓ Đang dùng</Text></View>}
                     </View>
-                    <View style={styles.spotlightInfo}>
-                      <View style={styles.spotlightNameRow}>
-                        <Text style={styles.spotlightName}>Xem trước 3D</Text>
-                        {profile.fullName ? (
-                          <Text style={styles.spotlightFullName} numberOfLines={1}>
-                            ({profile.fullName})
-                          </Text>
-                        ) : null}
-                        {isCurrent && (
-                          <View style={styles.spotlightUsingTag}>
-                            <Text style={styles.spotlightUsingText}>Đang dùng</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.spotlightHint}>💡 Kéo xoay 360° • Biểu cảm chớp mắt & cười tươi</Text>
-
-                      <TouchableOpacity
-                        style={[
-                          styles.spotlightSelectBtn,
-                          isCurrent && styles.spotlightSelectBtnActive,
-                        ]}
-                        onPress={() => handleSelectAvatar(previewAvatarId)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.spotlightSelectBtnText}>
-                          {isCurrent ? '✓ Đang sử dụng' : 'Áp dụng làm ảnh đại diện'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                    <Text style={styles.spotlightName}>{preview.label}</Text>
+                    <Text style={styles.spotlightHint} numberOfLines={2}>{preview.description}</Text>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dùng ảnh đại diện ${preview.label}`}
+                      disabled={isCurrent}
+                      style={ensureTouchTarget([styles.spotlightSelectBtn, isCurrent && styles.spotlightSelectBtnActive])}
+                      onPress={() => handleSelectAvatar(previewAvatarId)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.spotlightSelectBtnText, isCurrent && styles.spotlightSelectBtnTextActive]}>
+                        {isCurrent ? 'Ảnh đại diện hiện tại' : 'Dùng ảnh đại diện này'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-
-                  <Text style={styles.pickerGridTitle}>Chọn diện mạo 3D ({AVATAR_OPTIONS.length}):</Text>
-
-                  {/* ── GRID 18 ẢNH 3D THỰC TẾ (KHÔNG ICON, KHÔNG TÊN ẢO) ── */}
+                  <View style={styles.pickerGridHeading}>
+                    <Text style={styles.pickerGridTitle}>Chọn phong cách của bạn</Text>
+                    <Text style={styles.pickerGridCount}>{AVATAR_OPTIONS.length} nhân vật</Text>
+                  </View>
                   <FlatList
                     data={AVATAR_OPTIONS}
                     keyExtractor={(item) => item.id}
+                    extraData={`${previewAvatarId}:${selectedAvatarId}`}
                     numColumns={3}
                     columnWrapperStyle={styles.pickerGridRow}
-                    showsVerticalScrollIndicator={true}
-                    style={{ flex: 1, maxHeight: 420 }}
+                    showsVerticalScrollIndicator={false}
+                    style={styles.pickerList}
+                    contentContainerStyle={styles.pickerGridContent}
+                    initialNumToRender={9}
+                    windowSize={3}
                     renderItem={({ item }) => {
                       const isPreviewing = previewAvatarId === item.id;
                       const isSelected = selectedAvatarId === item.id;
-                      const imgUrl = thumbnails[item.id];
-
                       return (
                         <TouchableOpacity
-                          style={[
-                            styles.pickerCard,
-                            isPreviewing && styles.pickerCardPreviewing,
-                            isSelected && styles.pickerCardSelected,
-                          ]}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`Ảnh đại diện ${item.label}${isSelected ? ', đang sử dụng' : ''}`}
+                          accessibilityState={{ selected: isPreviewing }} aria-selected={isPreviewing}
+                          style={ensureTouchTarget([styles.pickerCard, isPreviewing && styles.pickerCardPreviewing])}
                           onPress={() => setPreviewAvatarId(item.id)}
                           activeOpacity={0.7}
                         >
-                          {isSelected && (
-                            <View style={styles.pickerCardCheck}>
-                              <Text style={styles.pickerCardCheckText}>✓</Text>
-                            </View>
-                          )}
-                          {imgUrl ? (
-                            <Image
-                              source={{ uri: imgUrl }}
-                              style={styles.pickerThumbImg}
-                            />
-                          ) : (
-                            <View style={styles.pickerBadgeIcon}>
-                              <Text style={styles.pickerEmojiText}>{item.icon || '👤'}</Text>
-                            </View>
-                          )}
+                          {isSelected && <View style={styles.pickerCardCheck}><Text style={styles.pickerCardCheckText}>✓</Text></View>}
+                          <UserAvatar animated={false} avatarId={item.id} framing="full" size={78} style={styles.pickerPortrait} />
+                          <Text numberOfLines={2} style={[styles.pickerCardName, isPreviewing && styles.pickerCardNameActive]}>{item.label}</Text>
                         </TouchableOpacity>
                       );
                     }}
@@ -480,22 +538,22 @@ export default function ProfileScreen({ navigation }) {
       <Modal
         visible={showEditModal}
         transparent
-        animationType="fade"
-        onRequestClose={() => setShowEditModal(false)}
+        animationType={reduceMotion ? 'none' : 'fade'}
+        onRequestClose={closeEditor}
       >
         <View style={styles.editModalOverlay}>
           <View style={styles.editInfoSheet}>
             <View style={styles.modalHeaderRow}>
-              <View>
+              <View style={styles.modalHeadingCopy}>
                 <Text style={styles.editModalTitle}>Chỉnh sửa thông tin cá nhân</Text>
-                <Text style={styles.editModalSubtitle}>Cập nhật dữ liệu hiển thị mặt sau thẻ 3D</Text>
+                <Text style={styles.editModalSubtitle}>Cập nhật thông tin cá nhân của bạn</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => setShowEditModal(false)}
+              <TouchableOpacity accessibilityLabel="Đóng chỉnh sửa thông tin" accessibilityRole="button"
+                onPress={closeEditor}
                 hitSlop={12}
-                style={styles.modalCloseBtn}
+                style={ensureTouchTarget(styles.modalCloseBtn)}
               >
-                <Text style={styles.modalCloseX}>✕</Text>
+                <Ionicons name="close" size={21} color={uiColors.secondary} />
               </TouchableOpacity>
             </View>
 
@@ -507,8 +565,9 @@ export default function ProfileScreen({ navigation }) {
                   value={editForm.birthDate}
                   onChangeText={(text) => setEditForm((prev) => ({ ...prev, birthDate: text }))}
                   placeholder="VD: 15/08/1998"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={uiColors.muted}
                 />
+                {personalErrors.birthDate && <Text style={{ color: uiColors.dangerText, fontSize: 12, marginTop: 5 }}>{personalErrors.birthDate}</Text>}
               </View>
 
               <View style={styles.modalInputGroup}>
@@ -516,9 +575,10 @@ export default function ProfileScreen({ navigation }) {
                 <TextInput
                   style={styles.modalTextInput}
                   value={editForm.birthPlace}
+                  maxLength={160}
                   onChangeText={(text) => setEditForm((prev) => ({ ...prev, birthPlace: text }))}
                   placeholder="VD: TP. Hồ Chí Minh"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={uiColors.muted}
                 />
               </View>
 
@@ -529,9 +589,10 @@ export default function ProfileScreen({ navigation }) {
                   value={editForm.phone}
                   onChangeText={(text) => setEditForm((prev) => ({ ...prev, phone: text }))}
                   placeholder="VD: 0912 345 678"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={uiColors.muted}
                   keyboardType="phone-pad"
                 />
+                {personalErrors.phone && <Text style={{ color: uiColors.dangerText, fontSize: 12, marginTop: 5 }}>{personalErrors.phone}</Text>}
               </View>
 
               <View style={styles.modalInputGroup}>
@@ -540,9 +601,9 @@ export default function ProfileScreen({ navigation }) {
                   {['Nam', 'Nữ', 'Khác'].map((g) => {
                     const isSelected = editForm.gender === g;
                     return (
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityRole="button"
                         key={g}
-                        style={[styles.genderPill, isSelected && styles.genderPillActive]}
+                        style={ensureTouchTarget([styles.genderPill, isSelected && styles.genderPillActive])}
                         onPress={() => setEditForm((prev) => ({ ...prev, gender: g }))}
                         activeOpacity={0.8}
                       >
@@ -555,8 +616,8 @@ export default function ProfileScreen({ navigation }) {
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.modalSaveBtn}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget(styles.modalSaveBtn)}
                 onPress={handleSavePersonalInfo}
                 activeOpacity={0.8}
               >
@@ -572,533 +633,94 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F3EFF0',
-  },
-  content: {
-    paddingBottom: 50,
-  },
-  header: {
-    height: 64,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F3EFF0',
-  },
-  closeBtn: {
-    padding: 6,
-  },
-  closeIcon: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1E1E1E',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#161616',
-  },
-  saveStatusWrap: {
-    minWidth: 40,
-    alignItems: 'flex-end',
-  },
-  saveStatusText: {
-    fontSize: 13,
-    color: '#428531',
-    fontWeight: '600',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  /* ═══ 3D Holo Card Container ═══ */
-  holoCardContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 4,
-    overflow: 'visible',
-  },
-
-  /* ═══ Profile Card (Yellow #FFF8E1) ═══ */
-  profileCard: {
-    marginHorizontal: 18,
-    marginTop: 8,
-    padding: 20,
-    borderRadius: 15,
-    backgroundColor: '#FFF8E1',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  nameLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  avatarWrapper: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 88,
-    height: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  avatarEditBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#428531',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF8E1',
-  },
-  avatarEditIcon: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-    lineHeight: 14,
-  },
-
-
-
-
-
-
-  nameDisplay: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E1E1E',
-  },
-  positionSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#428531',
-    marginTop: 2,
-  },
-  nameInput: {
-    flex: 1,
-    fontSize: 22,
-    color: '#333333',
-    fontWeight: '600',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  cardLine: {
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    marginVertical: 14,
-  },
-  workDetails: {
-    gap: 6,
-  },
-  inlineWorkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 32,
-  },
-  workLabel: {
-    fontSize: 14.5,
-    color: 'rgba(51, 51, 51, 0.75)',
-    fontWeight: '500',
-    minWidth: 125,
-  },
-  inlineWorkValue: {
-    flex: 1,
-    fontSize: 14.5,
-    color: '#222222',
-    fontWeight: '600',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  inlineWorkInput: {
-    flex: 1,
-    fontSize: 14.5,
-    color: '#333333',
-    fontWeight: '600',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
-  },
-
-  /* ═══ Section Titles ═══ */
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333333',
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 10,
-  },
-
-  /* ═══ White Block Container ═══ */
-  whiteBlock: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 22,
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#EFEAEB',
-  },
-  row: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F2F3',
-  },
-  lastRow: {
-    borderBottomWidth: 0,
-  },
-  rowLabel: {
-    fontSize: 15,
-    color: '#333333',
-    fontWeight: '500',
-  },
-  rowInput: {
-    flex: 1,
-    fontSize: 15,
-    color: 'rgba(51, 51, 51, 0.85)',
-    fontWeight: '500',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginLeft: 16,
-  },
-  rowStaticValue: {
-    fontSize: 15,
-    color: 'rgba(51, 51, 51, 0.75)',
-    fontWeight: '500',
-  },
-
-  /* ═══ Logout Button ═══ */
-  logoutBtn: {
-    alignSelf: 'center',
-    marginTop: 40,
-    marginBottom: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  logoutBtnDisabled: {
-    opacity: 0.55,
-  },
-  logoutText: {
-    fontSize: 20,
-    color: 'rgba(198, 13, 28, 0.9)',
-    textDecorationLine: 'underline',
-    fontWeight: '600',
-  },
-
-  /* ═══ 3D Avatar Picker Modal Styles ═══ */
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  pickerSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: '88%',
-    maxHeight: '92%',
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 24,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  pickerHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#161616',
-  },
-  pickerSubtitle: {
-    fontSize: 12,
-    color: '#666666',
-    marginTop: 2,
-  },
-  pickerCloseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerCloseX: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#555555',
-  },
-  spotlightCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FB',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E9F0',
-    gap: 12,
-    marginBottom: 14,
-  },
-  spotlight3DWrap: {
-    width: 105,
-    height: 105,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spotlightInfo: {
-    flex: 1,
-  },
-  spotlightNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  spotlightName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  spotlightFullName: {
-    fontSize: 13,
-    color: '#555555',
-    fontWeight: '600',
-  },
-  spotlightUsingTag: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  spotlightUsingText: {
-    fontSize: 11,
-    color: '#2E7D32',
-    fontWeight: '700',
-  },
-  spotlightHint: {
-    fontSize: 11.5,
-    color: '#777777',
-    marginTop: 3,
-  },
-  spotlightSelectBtn: {
-    backgroundColor: '#428531',
-    borderRadius: 8,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  spotlightSelectBtnActive: {
-    backgroundColor: '#2E7D32',
-  },
-  spotlightSelectBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-  pickerGridTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#444444',
-    marginBottom: 8,
-  },
-  pickerGridRow: {
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  pickerCard: {
-    width: '31.5%',
-    height: 94,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    padding: 4,
-  },
-  pickerCardPreviewing: {
-    borderColor: '#428531',
-    backgroundColor: '#EDF7EB',
-    borderWidth: 2,
-  },
-  pickerCardSelected: {
-    borderColor: '#428531',
-  },
-  pickerCardCheck: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#428531',
-    borderRadius: 10,
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  pickerCardCheckText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  pickerThumbImg: {
-    width: 80,
-    height: 80,
-    resizeMode: 'contain',
-  },
-  pickerBadgeIcon: {
-    width: 60,
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerEmojiText: {
-    fontSize: 30,
-  },
-
-  /* ═══ MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN STYLES ═══ */
-  editModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  editInfoSheet: {
-    width: '100%',
-    maxWidth: 440,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 22,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  editModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  editModalSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCloseX: {
-    fontSize: 15,
-    color: '#475569',
-    fontWeight: '700',
-  },
-  modalFormContent: {
-    gap: 14,
-  },
-  modalInputGroup: {
-    gap: 6,
-  },
-  modalInputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  modalTextInput: {
-    height: 44,
-    borderWidth: 1.2,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
-  },
-  genderPillsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  genderPill: {
-    flex: 1,
-    height: 38,
-    borderRadius: 9,
-    borderWidth: 1.2,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genderPillActive: {
-    borderColor: '#428531',
-    backgroundColor: '#EDF7EB',
-  },
-  genderPillText: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  genderPillTextActive: {
-    color: '#428531',
-    fontWeight: '700',
-  },
-  modalSaveBtn: {
-    height: 46,
-    backgroundColor: '#428531',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: '#428531',
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  modalSaveBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+const styles = createAppStyles({
+  safe: { flex: 1, backgroundColor: uiColors.canvas },
+  content: { paddingTop: 16 },
+  header: { height: 56, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: uiColors.surface, borderBottomWidth: 1, borderBottomColor: uiColors.line },
+  closeBtn: { marginLeft: -6, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 17, fontWeight: '600', color: uiColors.ink },
+  saveStatusWrap: { minWidth: 40, maxWidth: 100, alignItems: 'flex-end' },
+  saveStatusText: { fontSize: 11, textAlign: 'right', color: uiColors.successText, fontWeight: '500' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  identityCard: { marginHorizontal: 16, marginBottom: 14, padding: 12, borderRadius: 20, backgroundColor: uiColors.surface },
+  portraitBanner: { height: 244, borderRadius: 14, backgroundColor: uiColors.peach, overflow: 'hidden', position: 'relative' },
+  bannerTopline: { position: 'absolute', top: 10, left: 14, right: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 },
+  bannerCaption: { fontSize: 12, lineHeight: 18, fontWeight: '500', color: uiColors.secondary },
+  bannerPortraitWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bannerAvatar: { borderRadius: 0, backgroundColor: 'transparent' },
+  avatarEditBadge: { width: 48, height: 48, borderRadius: 12, backgroundColor: uiColors.surface, alignItems: 'center', justifyContent: 'center' },
+  identityContent: { minWidth: 0, paddingHorizontal: 6, paddingTop: 18, paddingBottom: 8 },
+  nameDisplay: { minWidth: 0, fontSize: 23, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5, color: uiColors.ink },
+  identityStore: { color: uiColors.secondary, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  positionSubtitle: { color: uiColors.muted, fontSize: 12, lineHeight: 19, marginTop: 3 },
+  sectionCard: { marginHorizontal: 16, marginBottom: 14, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 5, backgroundColor: uiColors.surface, borderRadius: 18 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5, minHeight: 40 },
+  sectionIcon: { width: 24, height: 28, alignItems: 'center', justifyContent: 'center' },
+  sectionHeadingCopy: { flex: 1, minWidth: 0 },
+  sectionTitle: { fontSize: 15, lineHeight: 22, fontWeight: '600', color: uiColors.ink },
+  sectionSubtitle: { fontSize: 11, lineHeight: 17, color: uiColors.muted, marginTop: 1 },
+  inlineWorkRow: { flexDirection: 'row', alignItems: 'flex-start', minHeight: 49, paddingVertical: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: uiColors.line },
+  workLabel: { width: 83, flexShrink: 0, fontSize: 12, lineHeight: 20, color: uiColors.muted },
+  inlineWorkValue: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 20, color: uiColors.ink, fontWeight: '500' },
+  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: uiColors.line },
+  lastRow: { borderBottomWidth: 0 },
+  rowLabel: { width: 83, fontSize: 12, lineHeight: 20, color: uiColors.muted },
+  rowInput: { flex: 1, minWidth: 0, fontSize: 14, color: uiColors.ink, paddingVertical: 4, paddingHorizontal: 8 },
+  rowStaticValue: { flex: 1, minWidth: 0, textAlign: 'right', fontSize: 13, lineHeight: 20, color: uiColors.ink, fontWeight: '500' },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 2, marginBottom: 20, paddingVertical: 16, paddingHorizontal: 18, borderRadius: 18, backgroundColor: uiColors.surface },
+  logoutLabel: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoutBtnDisabled: { opacity: 0.55 },
+  logoutText: { fontSize: 14, color: uiColors.dangerText, fontWeight: '500' },
+  actionPressed: { opacity: 0.65 },
+  editProfileBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginRight: -5 },
+  editProfileText: { fontSize: 11, fontWeight: '600', color: uiColors.primaryStrong },
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(25, 31, 40, 0.38)', justifyContent: 'center', alignItems: 'center', padding: 12 },
+  pickerSheet: { width: '100%', maxWidth: 430, height: '92%', maxHeight: 820, backgroundColor: uiColors.surface, borderRadius: 24, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 12, overflow: 'hidden' },
+  pickerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 },
+  pickerHeadingCopy: { flex: 1, minWidth: 0 },
+  pickerTitle: { fontSize: 20, fontWeight: '700', color: uiColors.ink },
+  pickerSubtitle: { fontSize: 12, lineHeight: 18, color: uiColors.muted, marginTop: 4 },
+  pickerCloseCircle: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  spotlightCard: { alignItems: 'center', backgroundColor: uiColors.canvas, borderRadius: 16, padding: 12, marginBottom: 16 },
+  avatarPreviewWrap: { width: 156, height: 152, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  spotlightPortrait: { borderRadius: 0, backgroundColor: 'transparent' },
+  spotlightUsingTag: { position: 'absolute', bottom: 0, backgroundColor: uiColors.surface, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  spotlightUsingText: { fontSize: 10, color: uiColors.primaryStrong, fontWeight: '600' },
+  spotlightName: { fontSize: 18, lineHeight: 24, fontWeight: '700', color: uiColors.ink },
+  spotlightHint: { fontSize: 11, color: uiColors.muted, marginTop: 3, textAlign: 'center', lineHeight: 16 },
+  spotlightSelectBtn: { width: '100%', minHeight: 44, borderRadius: 11, backgroundColor: uiColors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  spotlightSelectBtnActive: { backgroundColor: uiColors.line },
+  spotlightSelectBtnText: { color: uiColors.white, fontSize: 13, fontWeight: '600' },
+  spotlightSelectBtnTextActive: { color: uiColors.secondary },
+  pickerGridHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 12 },
+  pickerGridTitle: { fontSize: 13, fontWeight: '600', color: uiColors.ink, flexShrink: 1 },
+  pickerGridCount: { fontSize: 11, color: uiColors.muted },
+  pickerList: { flex: 1, minHeight: 80 },
+  pickerGridContent: { paddingBottom: 8 },
+  pickerGridRow: { justifyContent: 'space-between', marginBottom: 9 },
+  pickerCard: { width: '31.5%', minHeight: 112, borderRadius: 12, borderWidth: 1.5, borderColor: 'transparent', backgroundColor: uiColors.canvas, alignItems: 'center', justifyContent: 'center', position: 'relative', paddingTop: 5, paddingBottom: 8 },
+  pickerCardPreviewing: { borderColor: uiColors.primary, backgroundColor: uiColors.peach },
+  pickerPortrait: { borderRadius: 0, backgroundColor: 'transparent' },
+  pickerCardName: { fontSize: 10.5, lineHeight: 14, fontWeight: '500', textAlign: 'center', color: uiColors.secondary, marginTop: 3, paddingHorizontal: 3 },
+  pickerCardNameActive: { color: uiColors.primaryStrong, fontWeight: '700' },
+  pickerCardCheck: { position: 'absolute', top: 5, right: 5, backgroundColor: uiColors.primary, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  pickerCardCheckText: { color: uiColors.white, fontSize: 10, fontWeight: 'bold' },
+  editModalOverlay: { flex: 1, backgroundColor: 'rgba(25, 31, 40, 0.38)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  editInfoSheet: { width: '100%', maxWidth: 440, backgroundColor: uiColors.surface, borderRadius: 20, padding: 20 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 16 },
+  modalHeadingCopy: { flex: 1, minWidth: 0 },
+  editModalTitle: { fontSize: 17, lineHeight: 24, fontWeight: '700', color: uiColors.ink },
+  editModalSubtitle: { fontSize: 12, lineHeight: 18, color: uiColors.muted, marginTop: 2 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  modalFormContent: { gap: 14 },
+  modalInputGroup: { gap: 6 },
+  modalInputLabel: { fontSize: 13, fontWeight: '600', color: uiColors.secondary },
+  modalTextInput: { height: 46, borderWidth: 1, borderColor: uiColors.lineStrong, borderRadius: 11, paddingHorizontal: 14, fontSize: 14, color: uiColors.ink, backgroundColor: uiColors.surface },
+  genderPillsRow: { flexDirection: 'row', gap: 10 },
+  genderPill: { flex: 1, height: 40, borderRadius: 10, borderWidth: 1, borderColor: uiColors.lineStrong, backgroundColor: uiColors.surface, alignItems: 'center', justifyContent: 'center' },
+  genderPillActive: { borderColor: uiColors.primary, backgroundColor: uiColors.peach },
+  genderPillText: { fontSize: 13, fontWeight: '500', color: uiColors.secondary },
+  genderPillTextActive: { color: uiColors.primaryStrong, fontWeight: '600' },
+  modalSaveBtn: { height: 46, backgroundColor: uiColors.primary, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  modalSaveBtnText: { fontSize: 15, fontWeight: '600', color: uiColors.white },
 });

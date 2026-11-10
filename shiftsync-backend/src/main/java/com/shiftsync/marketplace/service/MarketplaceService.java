@@ -41,10 +41,17 @@ public class MarketplaceService {
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final TransactionTemplate transactionTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.activity.ShiftClaimRecorder activityClaimRecorder;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.schedulehistory.service.ScheduleHistoryService scheduleHistoryService;
+
     @Transactional(rollbackFor = Exception.class)
     public void publishToMarketplace(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
+        var historyBefore = scheduleHistoryService == null ? null : scheduleHistoryService.snapshot(shift);
 
         if (shift.getStatus() == ShiftStatus.DRAFT) {
             shift.setStatus(ShiftStatus.PUBLISHED);
@@ -75,6 +82,9 @@ public class MarketplaceService {
             shift.setAvailabilityDeadline(deadline);
         }
         shiftRepository.save(shift);
+
+        if (scheduleHistoryService != null) scheduleHistoryService.record(storeId, shiftId,
+                historyBefore, scheduleHistoryService.snapshot(shift), null);
 
                 // Hook FR-19: OPEN_SHIFT_AVAILABLE
         // Find all ACTIVE employments in store
@@ -219,6 +229,8 @@ public class MarketplaceService {
                     .source(com.shiftsync.shift.enums.AssignmentSource.OPEN_SHIFT)
                     .build();
             shiftAssignmentRepository.save(assignment);
+            // Required by Spring in production; legacy standalone tests use the existing constructor.
+            if (activityClaimRecorder != null) activityClaimRecorder.record(assignment);
 
             // Close market if full
             assignedCount++;

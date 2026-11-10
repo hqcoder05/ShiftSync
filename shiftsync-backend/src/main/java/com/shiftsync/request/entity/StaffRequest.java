@@ -25,6 +25,9 @@ public class StaffRequest {
     @Column(name = "requester_name", nullable = false, length = 100)
     private String requesterName;
 
+    private UUID requesterId;
+    private UUID storeId;
+
     @Column(name = "avatar_key", length = 50)
     @Builder.Default
     private String avatarKey = "paul";
@@ -63,4 +66,10 @@ public class StaffRequest {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
+
+    private UUID reviewedById;
+    private String reviewedByName;
+    private OffsetDateTime reviewedAt;
+    @Column(columnDefinition = "TEXT")
+    private String managerNote;
 }

@@ -150,18 +150,10 @@ public class NotificationService {
         InAppNotificationDTO dto = mapToDTO(saved);
 
         // Đẩy thông báo thời gian thực qua Server-Sent Events (SSE)
-        try {
-            sseEmitterService.pushToUser(userId, dto);
-        } catch (Exception e) {
-            log.warn("Failed to push SSE notification to user {}: {}", userId, e.getMessage());
-        }
+        afterCommit(() -> sseEmitterService.pushToUser(userId, dto));
 
         // Đẩy thông báo thời gian thực qua WebSocket
-        try {
-            realtimeEventPublisher.publishNotification(userId, dto);
-        } catch (Exception e) {
-            log.warn("Failed to push WebSocket notification to user {}: {}", userId, e.getMessage());
-        }
+        afterCommit(() -> realtimeEventPublisher.publishNotification(userId, dto));
 
         return dto;
     }
@@ -190,12 +182,29 @@ public class NotificationService {
 
         notif.setRead(true);
         Notification saved = notificationRepository.save(notif);
+        afterCommit(() -> sseEmitterService.pushToUser(userId, Map.of("type", "READ_STATE_CHANGED")));
         return mapToDTO(saved);
     }
 
     @Transactional
     public void markAllAsRead(UUID userId) {
         notificationRepository.markAllAsRead(userId);
+        afterCommit(() -> sseEmitterService.pushToUser(userId, Map.of("type", "READ_STATE_CHANGED")));
+    }
+
+    private void afterCommit(Runnable action) {
+        Runnable safe = () -> {
+            try { action.run(); }
+            catch (Exception e) { log.warn("Realtime notification delivery failed: {}", e.getMessage()); }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { safe.run(); }
+                    });
+        } else {
+            safe.run();
+        }
     }
 
     private InAppNotificationDTO mapToDTO(Notification entity) {

@@ -84,6 +84,14 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserById(userDetails.getId(), userDetails));
     }
 
+    @PutMapping("/me/personal-info")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserDTO> updateMyPersonalInfo(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody com.shiftsync.auth.dto.UserPersonalInfoRequest request) {
+        return ResponseEntity.ok(userService.updatePersonalInfo(userDetails.getId(), request));
+    }
+
     @PutMapping("/me")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Update the current user's profile")

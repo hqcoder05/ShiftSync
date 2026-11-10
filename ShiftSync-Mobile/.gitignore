@@ -44,3 +44,7 @@ yarn-error.*
 qa-*/browsers/
 qa-*/dotslash-cache/
 qa-*/native-export/
+/qa-week3-2026-10-28/
+/output/android/
+qa-*/**/*.apk.part
+/output/**/*.bundle

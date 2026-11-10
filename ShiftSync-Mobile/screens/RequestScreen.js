@@ -1,4 +1,11 @@
-import { useState, useEffect } from 'react';
+import { colors as uiColors } from '../theme/koreanPalette';
+import { createAppStyles } from '../theme/appTheme';
+import ThreeIllustration from '../components/ThreeIllustration';
+import { ensureTouchTarget } from '../utils/touchTarget';
+import { vietnamCalendarDate, calendarDate } from '../utils/vietnamTime';
+import BackIcon from '../components/BackIcon';
+import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,15 +19,19 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  AppState,
 } from 'react-native';
-import { getMyRequests, createStaffRequest, toIsoDate } from '../services/requestService';
+import { getMyRequests, createStaffRequest, toIsoDate, cancelSwapRequest, getRequestTimeline } from '../services/requestService';
 import { getLeaveTypes, getMyLeaveBalance } from '../services/leaveService';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { respondToSwapRequest } from '../services/swapService';
+import { submitCheckedSwap } from '../services/scheduleConflictService';
+import ScheduleConflictAlert from '../components/ScheduleConflictAlert';
 import { showAlert } from '../utils/alert';
-import BottomNavbar from '../components/BottomNavbar';
-import PaperPlane3D from '../components/PaperPlane3D';
+import useActionGuard from '../utils/useActionGuard';
+import { getNetworkSnapshot, subscribeNetwork } from '../services/networkState';
+import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
 
 import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
@@ -61,10 +72,41 @@ const EMPTY_SHIFT = {
   timeRange: '—',
   location: 'Cửa hàng được phân công',
   role: 'Nhân viên',
-  color: '#8DD9CC',
+  color: "#C4DDD3",
 };
 
+const formatTimelineTime = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return null;
+  return new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const RequestTimeline = ({ request }) => (
+  <View style={styles.timeline}>
+    <Text style={styles.detailSectionHeading}>Tiến trình yêu cầu</Text>
+    {request?.isRealSwap && request.createdAt ? <Text style={styles.timelineCreated}>Đã gửi: {formatTimelineTime(request.createdAt)}</Text> : null}
+    {getRequestTimeline(request).map((step, index, steps) => (
+      <View key={index} style={styles.timelineRow}>
+        <View style={styles.timelineTrack}>
+          <View style={[styles.timelineDot, step.state === 'done' && styles.timelineDotDone, step.state === 'active' && styles.timelineDotActive, step.state === 'error' && styles.timelineDotError]}>
+            <Text style={[styles.timelineDotText, step.state !== 'waiting' && styles.timelineDotTextFilled]}>{step.state === 'done' ? '✓' : step.state === 'error' ? '×' : index + 1}</Text>
+          </View>
+          {index < steps.length - 1 ? <View style={styles.timelineLine} /> : null}
+        </View>
+        <View style={styles.timelineBody}>
+          <Text style={styles.timelineTitle}>{step.title}</Text>
+          {step.actor ? <Text style={styles.timelineActor}>{step.actor}</Text> : null}
+          {formatTimelineTime(step.at) ? <Text style={styles.timelineTime}>{formatTimelineTime(step.at)}</Text> : null}
+          {step.note ? <Text style={styles.timelineNote}>{step.note}</Text> : null}
+        </View>
+      </View>
+    ))}
+  </View>
+);
+
 export default function RequestScreen({ navigation, route }) {
+  const { runAction, busy } = useActionGuard();
+  const loadInFlight = useRef(false);
+  const bottomNavbarPadding = useBottomNavbarPadding();
   const [requests, setRequests] = useState([]);
   const [availableShifts, setAvailableShifts] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -73,6 +115,7 @@ export default function RequestScreen({ navigation, route }) {
   const [storeColleagues, setStoreColleagues] = useState([]);
   const [respondingSwapId, setRespondingSwapId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [requestMenuVisible, setRequestMenuVisible] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null); // null | 'APPROVED' | 'PENDING' | 'REJECTED'
 
   // ── Leave Types & Leave Balance (Backend Source of Truth) ──
@@ -104,7 +147,7 @@ export default function RequestScreen({ navigation, route }) {
   const [swapModalVisible, setSwapModalVisible] = useState(false);
   const [absentModalVisible, setAbsentModalVisible] = useState(false);
 
-  const today = new Date();
+  const today = vietnamCalendarDate();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   const dayAfter = new Date(today);
@@ -118,6 +161,7 @@ export default function RequestScreen({ navigation, route }) {
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveError, setLeaveError] = useState(null);
   const [swapError, setSwapError] = useState(null);
+  const [scheduleConflict, setScheduleConflict] = useState(null);
   const [absentError, setAbsentError] = useState(null);
 
   // ── Form States (Đổi ca - Image 3) ──
@@ -135,7 +179,15 @@ export default function RequestScreen({ navigation, route }) {
     const unsub = navigation?.addListener?.('focus', () => {
       loadData();
     });
-    return unsub;
+    const refresh = () => {
+      if (navigation?.isFocused?.() !== false && AppState.currentState === 'active' && getNetworkSnapshot().online) {
+        loadData({ background: true });
+      }
+    };
+    const timer = setInterval(refresh, 15000);
+    const stopNetwork = subscribeNetwork(refresh);
+    const appState = AppState.addEventListener('change', refresh);
+    return () => { unsub?.(); clearInterval(timer); stopNetwork(); appState.remove(); };
   }, [navigation]);
 
   useEffect(() => {
@@ -210,9 +262,11 @@ export default function RequestScreen({ navigation, route }) {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async ({ background = false } = {}) => {
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       let activeUserId = null;
       let userFullName = '';
       let storeId = null;
@@ -231,17 +285,23 @@ export default function RequestScreen({ navigation, route }) {
 
         try {
           const storesRes = await getMyStores(activeUserId).catch(() => null);
-          const activeStore = storesRes?.data?.find((s) => s.status === 'ACTIVE') || storesRes?.data?.[0];
+          const activeStore = storesRes?.data?.find((s) => s.status === 'ACTIVE');
           storeId = activeStore?.storeId || activeStore?.id || null;
           setActiveStoreId(storeId);
         } catch (e) {
           // ignore
         }
+      } else {
+        setCurrentUserId(null);
+        setCurrentUserName('');
+        setCurrentUserAvatarId(null);
+        setActiveStoreId(null);
       }
 
       // Load real requests from Backend (LeaveRequests, Swaps, Adjustments)
-      const reqList = await getMyRequests(storeId);
+      const reqList = await getMyRequests(storeId, activeUserId);
       setRequests(reqList || []);
+      setSelectedRequest((current) => current ? reqList.find((item) => item.id === current.id) || current : null);
 
       // Load leave types and user balance
       if (storeId) {
@@ -249,33 +309,37 @@ export default function RequestScreen({ navigation, route }) {
       }
 
       if (shiftsRes.status === 'fulfilled' && Array.isArray(shiftsRes.value?.data)) {
-        if (!storeId && shiftsRes.value.data.length > 0) {
-          const shiftStoreId = shiftsRes.value.data.find(s => s.storeId)?.storeId;
-          if (shiftStoreId) {
-            storeId = shiftStoreId;
-            setActiveStoreId(storeId);
-          }
-        }
-        const mapped = shiftsRes.value.data.map((s, idx) => {
-          const d = s.shiftDate ? new Date(s.shiftDate) : new Date();
+        const mapped = shiftsRes.value.data.filter((s) => {
+          const ownAssignment = s.shiftAssignments?.some((a) => String(a.staffId) === String(activeUserId));
+          const ownDirectAssignment = String(s.staffId) === String(activeUserId);
+          return activeUserId && storeId && (ownAssignment || ownDirectAssignment) && s.status === 'PUBLISHED' &&
+            String(s.storeId) === String(storeId) && new Date(`${s.shiftDate}T${s.startTime}+07:00`).getTime() > Date.now();
+        }).map((s, idx) => {
+          const d = s.shiftDate ? calendarDate(s.shiftDate) : vietnamCalendarDate();
           const dow = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][d.getDay()];
           const dayStr = String(d.getDate()).padStart(2, '0');
           const monthStr = String(d.getMonth() + 1).padStart(2, '0');
           return {
             id: s.id || `shift-${idx}`,
+            shiftId: s.id,
+            staffId: activeUserId,
+            storeId: s.storeId,
+            shiftDate: s.shiftDate,
             dayLabel: `${dow} (${dayStr}/${monthStr})`,
             timeRange: `${String(s.startTime).slice(0, 5)} - ${String(s.endTime).slice(0, 5)}`,
             location: s.storeAddress || s.storeName || 'Chi nhánh phân công',
             role: s.skillName || s.requiredSkillName || 'Barista',
-            color: '#8DD9CC',
+            color: "#C4DDD3",
           };
         });
 
-        if (mapped.length > 0) {
-          setAvailableShifts(mapped);
-          setSelectedSwapShift(mapped[0]);
-          setSelectedAbsentShift(mapped[0]);
-        }
+        setAvailableShifts(mapped);
+        setSelectedSwapShift((previous) => mapped.find((s) => s.id === (previous?.shiftId || previous?.id)) || mapped[0] || EMPTY_SHIFT);
+        setSelectedAbsentShift((previous) => mapped.find((s) => s.id === (previous?.shiftId || previous?.id)) || mapped[0] || EMPTY_SHIFT);
+      } else {
+        setAvailableShifts([]);
+        setSelectedSwapShift(EMPTY_SHIFT);
+        setSelectedAbsentShift(EMPTY_SHIFT);
       }
 
       // Fetch colleagues from store
@@ -285,6 +349,7 @@ export default function RequestScreen({ navigation, route }) {
           if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
             const colleaguesMap = new Map();
             storeShiftsRes.data.forEach((s) => {
+              if (s.status !== 'PUBLISHED' || new Date(`${s.shiftDate}T${s.startTime}+07:00`).getTime() <= Date.now()) return;
               const assignments = Array.isArray(s.shiftAssignments) && s.shiftAssignments.length > 0
                 ? s.shiftAssignments
                 : (s.staffId || s.assignedStaffId ? [{
@@ -298,7 +363,7 @@ export default function RequestScreen({ navigation, route }) {
                 const staffId = assign.staffId;
                 const staffName = assign.staffName || '';
                 const role = assign.skillName || s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
-                if (staffName && staffId && String(staffId) !== String(activeUserId) && staffName !== 'Chưa phân công' && staffName !== userFullName) {
+                if (staffName && staffId && String(staffId) !== String(activeUserId) && staffName !== 'Chưa phân công') {
                   if (!colleaguesMap.has(staffId)) {
                     colleaguesMap.set(staffId, {
                       id: staffId,
@@ -318,19 +383,24 @@ export default function RequestScreen({ navigation, route }) {
             setStoreColleagues(colleaguesList);
             if (colleaguesList.length > 0) {
               setSelectedSwapStaff((prev) => {
-                if (prev && typeof prev === 'object') return prev;
-                return colleaguesList[0];
+                return colleaguesList.find((item) => String(item.staffId) === String(prev?.staffId || prev)) || colleaguesList[0];
               });
+            } else {
+              setSelectedSwapStaff('');
             }
           }
         } catch (e) {
           // ignore store fetch errors
         }
+      } else {
+        setStoreColleagues([]);
+        setSelectedSwapStaff('');
       }
     } catch (e) {
       console.log('Error loading data:', e);
     } finally {
-      setLoading(false);
+      loadInFlight.current = false;
+      if (!background) setLoading(false);
     }
   };
 
@@ -346,64 +416,67 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Xin nghỉ (Image 1) ──
   const handleSubmitLeave = async () => {
-    setLeaveError(null);
-    if (!selectedLeaveType || leaveTypes.length === 0) {
-      const msg = 'Vui lòng chọn loại nghỉ phép hợp lệ';
-      setLeaveError(msg);
-      showToast('Lưu ý', msg, 'warning');
-      return;
-    }
-    if (!leaveReason.trim()) {
-      const msg = 'Vui lòng nhập lý do xin nghỉ phép';
-      setLeaveError(msg);
-      showToast('Lưu ý', msg, 'warning');
-      return;
-    }
-
-    if (!activeStoreId) {
-      const msg = 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn';
-      setLeaveError(msg);
-      showToast('Lỗi', msg, 'error');
-      return;
-    }
-
-    const duration = calcLeaveDuration(startDate, endDate);
-    const currentType = leaveTypes.find(t => t.code === selectedLeaveType);
-    if (currentType?.deductsAnnualBalance && leaveBalance) {
-      if (duration > leaveBalance.remainingDays) {
-        const msg = `Bạn chỉ còn ${leaveBalance.remainingDays} ngày phép năm (cần ${duration} ngày). Hãy rút ngắn hoặc chọn loại nghỉ khác.`;
+    const submitted = await runAction('submit', async () => {
+      setLeaveError(null);
+      if (!selectedLeaveType || leaveTypes.length === 0) {
+        const msg = 'Vui lòng chọn loại nghỉ phép hợp lệ';
         setLeaveError(msg);
-        showToast('Không đủ ngày phép', msg, 'warning');
+        showToast('Lưu ý', msg, 'warning');
         return;
       }
-    }
+      if (!leaveReason.trim()) {
+        const msg = 'Vui lòng nhập lý do xin nghỉ phép';
+        setLeaveError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
 
-    try {
-      setLoading(true);
-      await createStaffRequest({
-        type: 'LEAVE',
-        typeCategory: 'leave',
-        requestType: 'Yêu cầu xin nghỉ',
-        leaveType: selectedLeaveType,
-        startDate: startDate,
-        endDate: endDate,
-        reason: leaveReason.trim(),
-        content: `Đơn xin nghỉ phép (${selectedLeaveType}) từ ${startDate} đến ${endDate}.\nLý do: ${leaveReason.trim()}`,
-      }, activeStoreId);
-      setLeaveModalVisible(false);
-      setLeaveReason('');
-      setLeaveError(null);
-      showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
-      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
-      triggerLaunchPlane();
-      loadRequests();
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin nghỉ';
-      setLeaveError(errMsg);
-      showToast('Thất bại', errMsg, 'error');
-    } finally {
-      setLoading(false);
-    }
+      if (!activeStoreId) {
+        const msg = 'Không tìm thấy thông tin chi nhánh cửa hàng của bạn';
+        setLeaveError(msg);
+        showToast('Lỗi', msg, 'error');
+        return;
+      }
+
+      const duration = calcLeaveDuration(startDate, endDate);
+      const currentType = leaveTypes.find(t => t.code === selectedLeaveType);
+      if (currentType?.deductsAnnualBalance && leaveBalance) {
+        if (duration > leaveBalance.remainingDays) {
+          const msg = `Bạn chỉ còn ${leaveBalance.remainingDays} ngày phép năm (cần ${duration} ngày). Hãy rút ngắn hoặc chọn loại nghỉ khác.`;
+          setLeaveError(msg);
+          showToast('Không đủ ngày phép', msg, 'warning');
+          return;
+        }
+      }
+
+      try {
+        setLoading(true);
+        await createStaffRequest({
+          type: 'LEAVE',
+          typeCategory: 'leave',
+          requestType: 'Yêu cầu xin nghỉ',
+          leaveType: selectedLeaveType,
+          startDate: startDate,
+          endDate: endDate,
+          reason: leaveReason.trim(),
+          content: `Đơn xin nghỉ phép (${selectedLeaveType}) từ ${startDate} đến ${endDate}.\nLý do: ${leaveReason.trim()}`,
+        }, activeStoreId);
+
+        setLeaveReason('');
+        setLeaveError(null);
+        showToast('Gửi thành công', 'Yêu cầu xin nghỉ phép đã được chuyển tới Quản lý');
+        // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+        await loadRequests();
+        return true;
+      } catch (err) {
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin nghỉ';
+        setLeaveError(errMsg);
+        showToast('Thất bại', errMsg, 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+    if (submitted) setLeaveModalVisible(false);
   };
 
   // ── Submit Đổi ca (Image 3) ──
@@ -422,14 +495,17 @@ export default function RequestScreen({ navigation, route }) {
       return;
     }
 
-    const targetColleague = typeof selectedSwapStaff === 'object'
-      ? selectedSwapStaff
-      : storeColleagues.find((c) => c.name === selectedSwapStaff || c.staffId === selectedSwapStaff);
+    const selectedStaffId = typeof selectedSwapStaff === 'object' ? selectedSwapStaff.staffId : selectedSwapStaff;
+    const targetColleague = storeColleagues.find((colleague) => String(colleague.staffId) === String(selectedStaffId));
 
     const colleagueName = targetColleague?.name || (typeof selectedSwapStaff === 'string' ? selectedSwapStaff : 'Đồng nghiệp');
     const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
     const toStaffId = targetColleague?.staffId || targetColleague?.id;
     const toShiftId = targetColleague?.shiftId;
+    if (!availableShifts.some((shift) => shift.id === fromShiftId && String(shift.staffId) === String(currentUserId)) || !toStaffId || !toShiftId) {
+      setSwapError('Chỉ được đổi ca sắp tới của bạn với ca được phân công cho đồng nghiệp trong cửa hàng.');
+      return;
+    }
 
     showAlert(
       'Xác nhận gửi yêu cầu đổi ca',
@@ -440,34 +516,29 @@ export default function RequestScreen({ navigation, route }) {
           text: 'Xác nhận gửi ngay',
           style: 'default',
           onPress: async () => {
-            try {
-              setLoading(true);
-              await createStaffRequest({
-                type: 'SWAP',
-                typeCategory: 'swap',
-                requestType: 'Yêu cầu đổi ca',
-                requesterName: currentUserName || 'Nhân viên',
-                targetStaffName: colleagueName,
-                fromShiftId: fromShiftId,
-                toStaffId: toStaffId,
-                toShiftId: toShiftId,
-                shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
-                reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
-                content: `Đề xuất đổi ca làm việc: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
-              }, activeStoreId);
-              setSwapModalVisible(false);
-              setSwapError(null);
-              showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName}`);
-              // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
-              triggerLaunchPlane();
-              loadRequests();
-            } catch (err) {
-              const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
-              setSwapError(errMsg);
-              showToast('Thất bại', errMsg, 'error');
-            } finally {
-              setLoading(false);
-            }
+            const submitted = await runAction('submit', async () => {
+              try {
+                setLoading(true);
+                const checked = await submitCheckedSwap({ userId: currentUserId, storeId: activeStoreId, fromShiftId, toStaffId, toShiftId });
+                if (checked.conflicts.length) {
+                  setScheduleConflict(checked);
+                  return false;
+                }
+
+                setSwapError(null);
+                showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName}`);
+                // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+                await loadRequests();
+                return true;
+              } catch (err) {
+                const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu đổi ca';
+                setSwapError(errMsg);
+                showToast('Thất bại', errMsg, 'error');
+              } finally {
+                setLoading(false);
+              }
+            });
+            if (submitted) setSwapModalVisible(false);
           },
         },
       ]
@@ -476,45 +547,54 @@ export default function RequestScreen({ navigation, route }) {
 
   // ── Submit Xin vắng (Image 4) ──
   const handleSubmitAbsent = async () => {
-    setAbsentError(null);
-    if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
-      const msg = 'Vui lòng chọn ca làm việc cần xin vắng';
-      setAbsentError(msg);
-      showToast('Lưu ý', msg, 'warning');
-      return;
-    }
-    if (!absentReason.trim()) {
-      const msg = 'Vui lòng nhập lý do xin vắng ca làm việc';
-      setAbsentError(msg);
-      showToast('Lưu ý', msg, 'warning');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await createStaffRequest({
-        type: 'ABSENT',
-        typeCategory: 'absence',
-        requestType: 'Yêu cầu xin vắng',
-        requesterName: currentUserName || 'Nhân viên',
-        shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
-        reason: absentReason.trim(),
-        content: `Xin vắng ca làm: ${selectedAbsentShift.dayLabel} (${selectedAbsentShift.timeRange}).\nLý do: ${absentReason.trim()}`,
-      });
-      setAbsentModalVisible(false);
-      setAbsentReason('');
+    const submitted = await runAction('submit', async () => {
       setAbsentError(null);
-      showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
-      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
-      triggerLaunchPlane();
-      loadRequests();
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin vắng';
-      setAbsentError(errMsg);
-      showToast('Thất bại', errMsg, 'error');
-    } finally {
-      setLoading(false);
-    }
+      if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
+        const msg = 'Vui lòng chọn ca làm việc cần xin vắng';
+        setAbsentError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
+      if (!absentReason.trim()) {
+        const msg = 'Vui lòng nhập lý do xin vắng ca làm việc';
+        setAbsentError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
+      if (!availableShifts.some((shift) => shift.id === (selectedAbsentShift.shiftId || selectedAbsentShift.id) && String(shift.staffId) === String(currentUserId))) {
+        setAbsentError('Vui lòng chọn ca sắp tới được phân công cho bạn.');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await createStaffRequest({
+          type: 'ABSENT',
+          typeCategory: 'absence',
+          requestType: 'Yêu cầu xin vắng',
+          startDate: selectedAbsentShift.shiftDate,
+          endDate: selectedAbsentShift.shiftDate,
+          requesterName: currentUserName || 'Nhân viên',
+          shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
+          reason: absentReason.trim(),
+          content: `Xin vắng ca làm: ${selectedAbsentShift.dayLabel} (${selectedAbsentShift.timeRange}).\nLý do: ${absentReason.trim()}`,
+        }, selectedAbsentShift.storeId || activeStoreId);
+
+        setAbsentReason('');
+        setAbsentError(null);
+        showToast('Gửi thành công', `Đã gửi yêu cầu xin vắng ca ${selectedAbsentShift.dayLabel} tới Quản lý`);
+        // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+        await loadRequests();
+        return true;
+      } catch (err) {
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu xin vắng';
+        setAbsentError(errMsg);
+        showToast('Thất bại', errMsg, 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+    if (submitted) setAbsentModalVisible(false);
   };
 
   const filteredRequests = filterStatus
@@ -523,13 +603,12 @@ export default function RequestScreen({ navigation, route }) {
 
   const incomingSwaps = requests.filter((r) => {
     if (!r.isRealSwap || r.status !== 'PENDING' || r.employeeAccepted) return false;
-    const isTargetUser =
-      (currentUserId && String(r.toStaffId) === String(currentUserId)) ||
-      (currentUserName && r.toStaffName && r.toStaffName.trim().toLowerCase() === currentUserName.trim().toLowerCase());
+    const isTargetUser = currentUserId && String(r.toStaffId) === String(currentUserId);
     return isTargetUser;
   });
 
   const handleRespondSwap = async (swapItem, accept) => {
+    if (!currentUserId || String(swapItem.toStaffId) !== String(currentUserId) || swapItem.status !== 'PENDING' || swapItem.employeeAccepted) return;
     showAlert(
       accept ? 'Xác nhận đồng ý nhận ca đổi' : 'Từ chối yêu cầu đổi ca',
       accept
@@ -541,27 +620,48 @@ export default function RequestScreen({ navigation, route }) {
           text: accept ? 'Đồng ý nhận ca' : 'Từ chối',
           style: accept ? 'default' : 'destructive',
           onPress: async () => {
-            try {
-              setRespondingSwapId(swapItem.id);
-              await respondToSwapRequest(swapItem.id, { accept });
-              if (accept) {
-                showToast('Thành công', `Bạn đã đồng ý đổi ca với ${swapItem.fromStaffName}. Đang chờ Quản lý phê duyệt.`);
-                triggerLaunchPlane();
-              } else {
-                showToast('Đã từ chối', `Bạn đã từ chối yêu cầu đổi ca của ${swapItem.fromStaffName}.`);
+            const responded = await runAction(`swap:${swapItem.id}`, async () => {
+              try {
+                setRespondingSwapId(swapItem.id);
+                await respondToSwapRequest(swapItem.id, { accept });
+                if (accept) {
+                  showToast('Thành công', `Bạn đã đồng ý đổi ca với ${swapItem.fromStaffName}. Đang chờ Quản lý phê duyệt.`);
+                } else {
+                  showToast('Đã từ chối', `Bạn đã từ chối yêu cầu đổi ca của ${swapItem.fromStaffName}.`);
+                }
+
+                await loadRequests();
+                return true;
+              } catch (err) {
+                const msg = err.response?.data?.message || err.message || 'Không thể phản hồi yêu cầu đổi ca';
+                showToast('Lỗi', msg, 'error');
+              } finally {
+                setRespondingSwapId(null);
               }
-              setDetailModalVisible(false);
-              loadRequests();
-            } catch (err) {
-              const msg = err.response?.data?.message || err.message || 'Không thể phản hồi yêu cầu đổi ca';
-              showToast('Lỗi', msg, 'error');
-            } finally {
-              setRespondingSwapId(null);
-            }
+            });
+            if (responded) setDetailModalVisible(false);
           },
         },
       ]
     );
+  };
+
+  const handleCancelSwap = (request) => {
+    if (!currentUserId || String(request.fromStaffId) !== String(currentUserId) || request.status !== 'PENDING') return;
+    showAlert('Hủy yêu cầu đổi ca', 'Lịch làm hiện tại sẽ được giữ nguyên. Bạn muốn hủy yêu cầu này?', [
+      { text: 'Quay lại', style: 'cancel' },
+      {
+        text: 'Hủy yêu cầu', style: 'destructive', onPress: () => runAction(`swap:${request.id}`, async () => {
+          try {
+            await cancelSwapRequest(request.id);
+            await loadRequests({ background: true });
+            showToast('Đã hủy', 'Yêu cầu đổi ca đã được hủy.');
+          } catch (err) {
+            showToast('Không thể hủy', err.response?.data?.message || err.message, 'error');
+          }
+        }),
+      },
+    ]);
   };
 
   const renderToast = () => {
@@ -593,56 +693,36 @@ export default function RequestScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor={uiColors.surface} />
 
       {/* ── CUSTOM TOAST NOTIFICATION ─────────────────────────── */}
       {renderToast()}
 
+      <View style={styles.timeOffHeader}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" onPress={() => navigation.goBack()} style={ensureTouchTarget(styles.timeOffHeaderButton)}><BackIcon /></TouchableOpacity>
+        <Text accessibilityRole="header" style={styles.timeOffHeaderTitle}>Nghỉ phép & yêu cầu</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tạo yêu cầu mới" onPress={() => setRequestMenuVisible(true)} style={ensureTouchTarget(styles.timeOffHeaderButton)}><Ionicons accessible={false} name="add" size={27} color="#404B57" /></TouchableOpacity>
+      </View>
       <ScrollView
         style={styles.page}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: bottomNavbarPadding }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 1. Header (Quản lý yêu cầu) ── */}
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => navigation?.goBack?.()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Quản lý yêu cầu</Text>
+        <View style={styles.requestCompanion}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.companionTitle}>Theo dõi yêu cầu</Text>
+            <Text style={styles.companionBody}>Gửi yêu cầu và xem phản hồi từ quản lý.</Text>
           </View>
+          <ThreeIllustration kind="rabbit" size={128} animated interactive />
         </View>
-
-        {/* ── 🌟 Hero 3D Card: Máy bay giấy 3D tương tác ── */}
-        <TouchableOpacity
-          style={styles.hero3DCard}
-          activeOpacity={0.92}
-          onPress={triggerLaunchPlane}
-        >
-          <View style={styles.hero3DInfo}>
-            <Text style={styles.hero3DTitle}>Trạm tiếp nhận yêu cầu</Text>
-            <Text style={styles.hero3DSubtitle}>
-              Gửi yêu cầu đổi ca, xin vắng mặt hoặc đăng ký nghỉ phép trực tiếp tới quản lý ca.
-            </Text>
-          </View>
-          <View style={styles.heroPlaneContainer}>
-            <PaperPlane3D
-              launched={planeLaunched}
-              color="#f8fafc"
-              accentColor="#428531"
-              width={145}
-              height={120}
-              interactive={true}
-              onPress={triggerLaunchPlane}
-            />
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.headerDivider} />
+        {leaveBalance && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timeOffBalances}>
+          {[
+            ['Phép năm còn lại', leaveBalance.remainingDays, 'Có thể sử dụng', uiColors.mint],
+            ['Đã sử dụng', leaveBalance.usedDays, leaveBalance.year ? `Năm ${leaveBalance.year}` : 'Trong năm', '#FFFFFF'],
+            ['Đang chờ duyệt', leaveBalance.pendingDays, 'Yêu cầu đang chờ', uiColors.butter],
+          ].map(([label, value, caption, backgroundColor]) => <View key={label} style={[styles.timeOffBalanceCard, { backgroundColor }]}><Text style={styles.timeOffBalanceLabel}>{label}</Text><Text style={styles.timeOffBalanceValue}>{value ?? '—'} <Text style={{ fontSize: 12, fontWeight: '400' }}>ngày</Text></Text><Text style={styles.timeOffBalanceCaption}>{caption}</Text></View>)}
+        </ScrollView>}
+        <View style={styles.timeOffFilters}>{[[null, 'Tất cả'], ['PENDING', 'Chờ duyệt'], ['APPROVED', 'Đã duyệt'], ['REJECTED', 'Từ chối']].map(([value, label]) => <TouchableOpacity key={label} onPress={() => setFilterStatus(value)} accessibilityRole="button" accessibilityState={{ selected: filterStatus === value }} aria-selected={filterStatus === value} style={ensureTouchTarget([styles.timeOffFilter, filterStatus === value && styles.timeOffFilterActive])}><Text style={[styles.timeOffFilterText, filterStatus === value && { color: uiColors.ink }]}>{label}</Text></TouchableOpacity>)}</View>
 
         {/* ── ⚡ YÊU CẦU ĐỔI CA GỬI ĐẾN BẠN (GIAO DIỆN NHẬN CA ĐỔI) ── */}
         {incomingSwaps.length > 0 && (
@@ -660,7 +740,7 @@ export default function RequestScreen({ navigation, route }) {
             {incomingSwaps.map((swap) => {
               const fromTime = `${String(swap.fromShiftStartTime || '').slice(0, 5)} - ${String(swap.fromShiftEndTime || '').slice(0, 5)}`;
               const toTime = `${String(swap.toShiftStartTime || '').slice(0, 5)} - ${String(swap.toShiftEndTime || '').slice(0, 5)}`;
-              const isResponding = respondingSwapId === swap.id;
+              const isResponding = respondingSwapId === swap.id || !!busy[`swap:${swap.id}`];
 
               return (
                 <View key={swap.id} style={styles.incomingSwapCard}>
@@ -682,7 +762,7 @@ export default function RequestScreen({ navigation, route }) {
                   {/* Chi tiết ca hoán đổi */}
                   <View style={styles.swapComparisonBox}>
                     <View style={styles.swapShiftRow}>
-                      <View style={[styles.swapShiftDot, { backgroundColor: '#F59E0B' }]} />
+                      <View style={[styles.swapShiftDot, { backgroundColor: "#B38D49" }]} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.swapShiftLabel}>Ca của bạn (sẽ nhượng lại):</Text>
                         <Text style={styles.swapShiftValue}>
@@ -696,10 +776,10 @@ export default function RequestScreen({ navigation, route }) {
                     </View>
 
                     <View style={styles.swapShiftRow}>
-                      <View style={[styles.swapShiftDot, { backgroundColor: '#10B981' }]} />
+                      <View style={[styles.swapShiftDot, { backgroundColor: uiColors.success }]} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.swapShiftLabel}>Ca bạn sẽ nhận thay:</Text>
-                        <Text style={[styles.swapShiftValue, { color: '#065F46', fontWeight: '700' }]}>
+                        <Text style={[styles.swapShiftValue, { color: uiColors.successStrong, fontWeight: '700' }]}>
                           {swap.fromShiftDate} • {fromTime}
                         </Text>
                       </View>
@@ -708,8 +788,8 @@ export default function RequestScreen({ navigation, route }) {
 
                   {/* Nút hành động Đồng ý / Từ chối */}
                   <View style={styles.incomingActionsRow}>
-                    <TouchableOpacity
-                      style={styles.declineBtn}
+                    <TouchableOpacity accessibilityRole="button"
+                      style={ensureTouchTarget(styles.declineBtn)}
                       onPress={() => handleRespondSwap(swap, false)}
                       disabled={isResponding}
                       activeOpacity={0.8}
@@ -717,8 +797,8 @@ export default function RequestScreen({ navigation, route }) {
                       <Text style={styles.declineBtnText}>Từ chối</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.acceptBtn}
+                    <TouchableOpacity accessibilityRole="button"
+                      style={ensureTouchTarget(styles.acceptBtn)}
                       onPress={() => handleRespondSwap(swap, true)}
                       disabled={isResponding}
                       activeOpacity={0.85}
@@ -739,130 +819,12 @@ export default function RequestScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* ── 2. Top 3 Filter Cards: Đã duyệt / Chờ duyệt / Từ chối ── */}
-        <View style={styles.filterCardsRow}>
-          {/* Card 1: Đã duyệt */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'APPROVED' && styles.filterCardActive,
-            ]}
-            onPress={() => handleFilterToggle('APPROVED')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Đã duyệt</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Card 2: Chờ duyệt */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'PENDING' && styles.filterCardActive,
-            ]}
-            onPress={() => handleFilterToggle('PENDING')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Chờ duyệt</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Card 3: Từ chối */}
-          <TouchableOpacity
-            style={[
-              styles.filterCard,
-              filterStatus === 'REJECTED' && styles.filterCardActive,
-            ]}
-            onPress={() => handleFilterToggle('REJECTED')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterCardContent}>
-              <Text style={styles.filterCardText}>Từ chối</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 🌟 Quỹ phép năm (Leave Balance Card) ── */}
-        {leaveBalance && (
-          <View style={styles.balanceCard}>
-            <View style={styles.balanceHeaderRow}>
-              <View style={styles.balanceTitleWrap}>
-                <Text style={styles.balanceCardTitle}>Quỹ phép năm ({leaveBalance.year})</Text>
-                <Text style={styles.balanceCardSub}>Hợp đồng: {leaveBalance.annualEntitlement} ngày/năm</Text>
-              </View>
-              <View style={styles.balanceRemainingPill}>
-                <Text style={styles.balanceRemainingNumber}>{leaveBalance.remainingDays}</Text>
-                <Text style={styles.balanceRemainingLabel}>còn lại</Text>
-              </View>
-            </View>
-
-            <View style={styles.balanceMetricsRow}>
-              <View style={styles.balanceMetricItem}>
-                <Text style={styles.balanceMetricValue}>{leaveBalance.totalEntitlement}</Text>
-                <Text style={styles.balanceMetricLabel}>Tổng cấp</Text>
-              </View>
-              <View style={styles.balanceMetricDivider} />
-              <View style={styles.balanceMetricItem}>
-                <Text style={[styles.balanceMetricValue, { color: '#2563EB' }]}>{leaveBalance.usedDays}</Text>
-                <Text style={styles.balanceMetricLabel}>Đã dùng</Text>
-              </View>
-              <View style={styles.balanceMetricDivider} />
-              <View style={styles.balanceMetricItem}>
-                <Text style={[styles.balanceMetricValue, { color: '#D97706' }]}>{leaveBalance.pendingDays}</Text>
-                <Text style={styles.balanceMetricLabel}>Đang chờ</Text>
-              </View>
-              <View style={styles.balanceMetricDivider} />
-              <View style={styles.balanceMetricItem}>
-                <Text style={[styles.balanceMetricValue, { color: '#16A34A' }]}>{leaveBalance.remainingDays}</Text>
-                <Text style={styles.balanceMetricLabel}>Khả dụng</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ── 3. 3 Action Buttons: Hỗ trợ đổi ca / Vắng mặt / Xin nghỉ phép ── */}
-        <View style={styles.actionSectionContainer}>
-          <View style={styles.actionButtonsRow}>
-            {/* 1. Hỗ trợ đổi ca */}
-            <TouchableOpacity
-              style={styles.actionCardPill}
-              onPress={() => setSwapModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.actionCardPillText}>Hỗ trợ{'\n'}đổi ca</Text>
-              <Image source={iconKinh} style={styles.actionCardPillIcon} resizeMode="contain" />
-            </TouchableOpacity>
-
-            {/* 2. Vắng mặt */}
-            <TouchableOpacity
-              style={styles.actionCardPill}
-              onPress={() => setAbsentModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.actionCardPillText}>Vắng{'\n'}mặt</Text>
-              <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
-            </TouchableOpacity>
-
-            {/* 3. Xin nghỉ phép */}
-            <TouchableOpacity
-              style={styles.actionCardPill}
-              onPress={() => setLeaveModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
-              <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* ── 4. Danh sách Yêu cầu ── */}
-        <Text style={styles.requestListHeading}>Danh sách yêu cầu</Text>
+        <Text style={styles.timeOffListCaption}>YÊU CẦU CỦA BẠN</Text>
 
         {loading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#51A33D" />
+            <ActivityIndicator size="small" color={uiColors.primaryStrong} />
             <Text style={styles.loadingText}>Đang tải...</Text>
           </View>
         ) : (
@@ -880,10 +842,9 @@ export default function RequestScreen({ navigation, route }) {
                 const isApproved = item.status === 'APPROVED';
                 const isRejected = item.status === 'REJECTED';
                 const isPending = item.status === 'PENDING' || !item.status;
+                const isCancelled = item.status === 'CANCELLED';
 
-                let statusLabel = 'Chờ duyệt';
-                if (isApproved) statusLabel = 'Đã duyệt';
-                else if (isRejected) statusLabel = 'Từ chối';
+                const statusLabel = item.statusLabel || (isApproved ? 'Đã duyệt' : isRejected ? 'Từ chối' : item.status === 'CANCELLED' ? 'Đã hủy' : 'Chờ duyệt');
 
                 let typeTitle = 'Xin nghỉ phép';
                 if (item.type === 'SWAP') typeTitle = 'Đổi ca';
@@ -893,62 +854,21 @@ export default function RequestScreen({ navigation, route }) {
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[
-                      styles.requestItemCard,
-                      isRejected && styles.requestItemCardRejected,
-                    ]}
+                    style={ensureTouchTarget(styles.timeOffRow)}
                     onPress={() => {
                       setSelectedRequest(item);
                       setDetailModalVisible(true);
                     }}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Xem chi tiết ${typeTitle} ${item.date || item.startDate || ''}`}
                   >
-                    <View style={styles.requestItemTopRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.requestItemTitle}>{typeTitle}</Text>
-                        {item.requestedDays ? (
-                          <View style={styles.durationBadge}>
-                            <Text style={styles.durationBadgeText}>{item.requestedDays} ngày</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.requestItemDate}>{item.date || item.startDate || ''}</Text>
+                    <View style={styles.timeOffRowCopy}>
+                      <Text style={styles.timeOffRowDate}>{item.startDate ? `${item.startDate.slice(8, 10)}/${item.startDate.slice(5, 7)}${item.endDate && item.endDate !== item.startDate ? ` – ${item.endDate.slice(8, 10)}/${item.endDate.slice(5, 7)}` : ''}` : item.fromShiftDate ? `${item.fromShiftDate.slice(8, 10)}/${item.fromShiftDate.slice(5, 7)}` : item.date || 'Yêu cầu mới'}</Text>
+                      <Text numberOfLines={2} style={styles.timeOffRowType}>{item.type === 'SWAP' ? 'Đổi ca làm việc' : item.type === 'ABSENT' ? 'Xin vắng mặt' : item.typeLabel || typeTitle}{item.requestedDays ? ` (${item.requestedDays} ngày)` : ''}</Text>
                     </View>
-
-                    <View style={styles.requestItemBottomRow}>
-                      <Text style={styles.requestItemDesc} numberOfLines={2}>
-                        {item.description || item.reason || 'Không có ghi chú'}
-                      </Text>
-
-                      {/* Status Badge */}
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          isApproved && styles.statusBadgeApproved,
-                          isRejected && styles.statusBadgeRejected,
-                          isPending && styles.statusBadgePending,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusBadgeText,
-                            isApproved && styles.statusBadgeTextApproved,
-                            isRejected && styles.statusBadgeTextRejected,
-                            isPending && styles.statusBadgeTextPending,
-                          ]}
-                        >
-                          {statusLabel}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {isRejected && item.rejectionReason ? (
-                      <View style={styles.rejectedReasonBox}>
-                        <Text style={styles.rejectedReasonText}>
-                          ⚠️ Lý do từ chối: {item.rejectionReason}
-                        </Text>
-                      </View>
-                    ) : null}
+                    <View style={[styles.timeOffStatus, { backgroundColor: isApproved ? uiColors.mint : isRejected ? uiColors.dangerSoft : isCancelled ? uiColors.subtle : uiColors.line }]}><Text style={[styles.timeOffStatusText, { color: isApproved ? uiColors.successText : isRejected ? uiColors.dangerText : uiColors.muted }]}>{statusLabel}</Text></View>
+                    <Ionicons accessible={false} name="chevron-forward" size={17} color="#9BA3A7" />
                   </TouchableOpacity>
                 );
               })
@@ -956,6 +876,17 @@ export default function RequestScreen({ navigation, route }) {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={requestMenuVisible} transparent animationType="fade" onRequestClose={() => setRequestMenuVisible(false)}>
+        <View style={styles.timeOffMenuBackdrop}><View style={styles.timeOffMenu}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}><Text style={{ fontSize: 18, color: uiColors.ink, fontWeight: '500' }}>Tạo yêu cầu</Text><TouchableOpacity style={ensureTouchTarget()} accessibilityRole="button" accessibilityLabel="Đóng tạo yêu cầu" onPress={() => setRequestMenuVisible(false)}><Ionicons accessible={false} name="close" size={25} color={uiColors.muted} /></TouchableOpacity></View>
+          {[
+            ['Xin nghỉ phép', 'calendar-outline', () => setLeaveModalVisible(true)],
+            ['Vắng mặt', 'person-remove-outline', () => setAbsentModalVisible(true)],
+            ['Hỗ trợ đổi ca', 'swap-horizontal-outline', () => setSwapModalVisible(true)],
+          ].map(([label, icon, action]) => <TouchableOpacity key={label} accessibilityRole="button" accessibilityLabel={label} onPress={() => { setRequestMenuVisible(false); action(); }} style={ensureTouchTarget(styles.timeOffMenuItem)}><View style={styles.timeOffMenuIcon}><Ionicons accessible={false} name={icon} size={21} color="#8B809D" /></View><Text style={{ color: "#404B57", fontSize: 15, flex: 1 }}>{label}</Text><Ionicons accessible={false} name="chevron-forward" size={17} color={uiColors.muted} /></TouchableOpacity>)}
+        </View></View>
+      </Modal>
 
       {/* ── MODAL 1: Yêu cầu xin nghỉ (Ảnh 1 trong docx) ─────────────── */}
       <Modal
@@ -967,8 +898,8 @@ export default function RequestScreen({ navigation, route }) {
         <SafeAreaView style={styles.modalSafeArea}>
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={styles.modalHeaderRow}>
-              <TouchableOpacity
-                style={styles.closeBtn}
+              <TouchableOpacity accessibilityLabel="Đóng yêu cầu nghỉ phép" accessibilityRole="button"
+                style={ensureTouchTarget(styles.closeBtn)}
                 onPress={() => setLeaveModalVisible(false)}
               >
                 <Text style={styles.closeBtnText}>✕</Text>
@@ -982,21 +913,21 @@ export default function RequestScreen({ navigation, route }) {
             <Text style={styles.sectionHeader}>Loại nghỉ phép</Text>
             {loadingLeaveTypes ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
-                <ActivityIndicator size="small" color="#51A33D" style={{ marginRight: 8 }} />
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Đang tải danh sách loại nghỉ...</Text>
+                <ActivityIndicator size="small" color={uiColors.primaryStrong} style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 13, color: uiColors.muted }}>Đang tải danh sách loại nghỉ...</Text>
               </View>
             ) : leaveTypesError ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
-                <Text style={{ fontSize: 12.5, color: '#DC2626', flex: 1 }}>{leaveTypesError}</Text>
-                <TouchableOpacity
+                <Text style={{ fontSize: 12.5, color: uiColors.dangerText, flex: 1 }}>{leaveTypesError}</Text>
+                <TouchableOpacity accessibilityRole="button"
                   onPress={() => fetchLeaveTypesData(activeStoreId)}
-                  style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+                  style={ensureTouchTarget({ backgroundColor: "#F1DDDC", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 })}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#DC2626' }}>Thử lại</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: uiColors.dangerText }}>Thử lại</Text>
                 </TouchableOpacity>
               </View>
             ) : leaveTypes.length === 0 ? (
-              <Text style={{ fontSize: 13, color: '#9CA3AF', paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
+              <Text style={{ fontSize: 13, color: uiColors.muted, paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
             ) : (
               <View style={styles.leaveTypeRow}>
                 {leaveTypes.map((t) => {
@@ -1004,9 +935,9 @@ export default function RequestScreen({ navigation, route }) {
                   const typeName = t.name || t.code;
                   const isSel = selectedLeaveType === typeCode;
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       key={typeCode}
-                      style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                      style={ensureTouchTarget([styles.leaveTypePill, isSel && styles.leaveTypePillActive])}
                       onPress={() => setSelectedLeaveType(typeCode)}
                       activeOpacity={0.7}
                     >
@@ -1026,7 +957,7 @@ export default function RequestScreen({ navigation, route }) {
               <Switch
                 value={isAllDay}
                 onValueChange={setIsAllDay}
-                trackColor={{ false: '#E0E0E0', true: '#51A33D' }}
+                trackColor={{ false: uiColors.lineStrong, true: uiColors.orange }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -1054,15 +985,15 @@ export default function RequestScreen({ navigation, route }) {
             {/* Duration and balance feedback */}
             <View style={styles.leaveDurationNotice}>
               <Text style={styles.leaveDurationNoticeText}>
-                ⏱ Số ngày xin nghỉ: <Text style={{ fontWeight: '800', color: '#15803D' }}>{calcLeaveDuration(startDate, endDate)} ngày</Text>
+                ⏱ Số ngày xin nghỉ: <Text style={{ fontWeight: '800', color: uiColors.successText }}>{calcLeaveDuration(startDate, endDate)} ngày</Text>
               </Text>
               {selectedLeaveType === 'ANNUAL' && leaveBalance && (
                 <Text style={styles.leaveBalanceNoticeSub}>
                   Quỹ phép năm còn: <Text style={{ fontWeight: '700' }}>{leaveBalance.remainingDays} ngày</Text>
                   {calcLeaveDuration(startDate, endDate) <= leaveBalance.remainingDays ? (
-                    <Text style={{ color: '#16A34A' }}> (Hợp lệ)</Text>
+                    <Text style={{ color: uiColors.successText }}> (Hợp lệ)</Text>
                   ) : (
-                    <Text style={{ color: '#DC2626' }}> (Vượt quá số ngày còn lại!)</Text>
+                    <Text style={{ color: uiColors.dangerText }}> (Vượt quá số ngày còn lại!)</Text>
                   )}
                 </Text>
               )}
@@ -1088,13 +1019,13 @@ export default function RequestScreen({ navigation, route }) {
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+            <TouchableOpacity accessibilityRole="button"
+              style={ensureTouchTarget([styles.submitBtn, (loading || busy.submit) && styles.submitBtnDisabled])}
               onPress={handleSubmitLeave}
-              disabled={loading}
+              disabled={loading || busy.submit}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {(loading || busy.submit) ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
@@ -1110,13 +1041,13 @@ export default function RequestScreen({ navigation, route }) {
         visible={swapModalVisible}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => setSwapModalVisible(false)}
+        onRequestClose={() => scheduleConflict ? setScheduleConflict(null) : setSwapModalVisible(false)}
       >
         <SafeAreaView style={styles.modalSafeArea}>
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={styles.modalHeaderRow}>
-              <TouchableOpacity
-                style={styles.closeBtn}
+              <TouchableOpacity accessibilityLabel="Đóng yêu cầu đổi ca" accessibilityRole="button"
+                style={ensureTouchTarget(styles.closeBtn)}
                 onPress={() => setSwapModalVisible(false)}
               >
                 <Text style={styles.closeBtnText}>✕</Text>
@@ -1129,8 +1060,8 @@ export default function RequestScreen({ navigation, route }) {
             {/* Ca làm việc của tôi đang chọn */}
             <View style={styles.shiftSelectorHeaderRow}>
               <Text style={styles.shiftSelectorHeaderTitle}>Ca làm của bạn:</Text>
-              <TouchableOpacity
-                style={styles.changeShiftBtn}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget(styles.changeShiftBtn)}
                 onPress={() => setShowShiftPicker(!showShiftPicker)}
                 activeOpacity={0.7}
               >
@@ -1144,16 +1075,16 @@ export default function RequestScreen({ navigation, route }) {
             {showShiftPicker && (
               <View style={styles.shiftPickerDropdown}>
                 {availableShifts.length === 0 ? (
-                  <Text style={{ padding: 12, color: '#7B8490', fontSize: 13, textAlign: 'center' }}>
+                  <Text style={{ padding: 12, color: uiColors.muted, fontSize: 13, textAlign: 'center' }}>
                     Chưa có ca làm việc được phân công.
                   </Text>
                 ) : (
                   availableShifts.map((shift) => {
                     const isSelected = selectedSwapShift.id === shift.id;
                     return (
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityLabel={`Chọn ca ${shift.dayLabel}, ${shift.timeRange}, ${shift.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                         key={shift.id}
-                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        style={ensureTouchTarget([styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected])}
                         onPress={() => {
                           setSelectedSwapShift(shift);
                           setShowShiftPicker(false);
@@ -1199,16 +1130,16 @@ export default function RequestScreen({ navigation, route }) {
             <View style={styles.suggestList}>
               {storeColleagues.length === 0 ? (
                 <View style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: '#7B8490', fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
+                  <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
                 </View>
               ) : (
                 storeColleagues.map((staff, idx) => {
                   const isSelected = (selectedSwapStaff && typeof selectedSwapStaff === 'object' && selectedSwapStaff.staffId === staff.staffId) || selectedSwapStaff === staff.name;
 
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityLabel={`Chọn đồng nghiệp ${staff.name}, ${staff.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                       key={idx}
-                      style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
+                      style={ensureTouchTarget([styles.suggestItem, isSelected && styles.suggestItemSelected])}
                       onPress={() => {
                         setSelectedSwapStaff(staff);
                         showToast('Đã chọn đồng nghiệp', `${staff.name} • ${staff.role}`, 'info');
@@ -1255,7 +1186,7 @@ export default function RequestScreen({ navigation, route }) {
                     <Text style={styles.sccBoxTime}>
                       {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff}
                     </Text>
-                    <Text style={[styles.sccBoxSub, { color: '#065F46', fontWeight: '600' }]}>
+                    <Text style={[styles.sccBoxSub, { color: uiColors.successStrong, fontWeight: '600' }]}>
                       {typeof selectedSwapStaff === 'object' && selectedSwapStaff.timeRange
                         ? `${selectedSwapStaff.shiftDate ? selectedSwapStaff.shiftDate + ' • ' : ''}${selectedSwapStaff.timeRange}`
                         : 'Cần đồng nghiệp duyệt'}
@@ -1275,13 +1206,13 @@ export default function RequestScreen({ navigation, route }) {
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+            <TouchableOpacity accessibilityRole="button"
+              style={ensureTouchTarget([styles.submitBtn, (loading || busy.submit) && styles.submitBtnDisabled])}
               onPress={handleSubmitSwap}
-              disabled={loading}
+              disabled={loading || busy.submit}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {(loading || busy.submit) ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
@@ -1289,6 +1220,7 @@ export default function RequestScreen({ navigation, route }) {
             </TouchableOpacity>
           </ScrollView>
           {renderToast()}
+          <ScheduleConflictAlert embedded conflict={scheduleConflict} onClose={() => setScheduleConflict(null)} />
         </SafeAreaView>
       </Modal>
 
@@ -1302,8 +1234,8 @@ export default function RequestScreen({ navigation, route }) {
         <SafeAreaView style={styles.modalSafeArea}>
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={styles.modalHeaderRow}>
-              <TouchableOpacity
-                style={styles.closeBtn}
+              <TouchableOpacity accessibilityLabel="Đóng yêu cầu xin vắng" accessibilityRole="button"
+                style={ensureTouchTarget(styles.closeBtn)}
                 onPress={() => setAbsentModalVisible(false)}
               >
                 <Text style={styles.closeBtnText}>✕</Text>
@@ -1316,8 +1248,8 @@ export default function RequestScreen({ navigation, route }) {
             {/* Ca làm việc cần xin vắng */}
             <View style={styles.shiftSelectorHeaderRow}>
               <Text style={styles.shiftSelectorHeaderTitle}>Ca xin vắng:</Text>
-              <TouchableOpacity
-                style={styles.changeShiftBtn}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget(styles.changeShiftBtn)}
                 onPress={() => setShowAbsentShiftPicker(!showAbsentShiftPicker)}
                 activeOpacity={0.7}
               >
@@ -1331,16 +1263,16 @@ export default function RequestScreen({ navigation, route }) {
             {showAbsentShiftPicker && (
               <View style={styles.shiftPickerDropdown}>
                 {availableShifts.length === 0 ? (
-                  <Text style={{ padding: 12, color: '#7B8490', fontSize: 13, textAlign: 'center' }}>
+                  <Text style={{ padding: 12, color: uiColors.muted, fontSize: 13, textAlign: 'center' }}>
                     Chưa có ca làm việc được phân công.
                   </Text>
                 ) : (
                   availableShifts.map((shift) => {
                     const isSelected = selectedAbsentShift.id === shift.id;
                     return (
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityLabel={`Chọn ca ${shift.dayLabel}, ${shift.timeRange}, ${shift.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                         key={shift.id}
-                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        style={ensureTouchTarget([styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected])}
                         onPress={() => {
                           setSelectedAbsentShift(shift);
                           setShowAbsentShiftPicker(false);
@@ -1408,13 +1340,13 @@ export default function RequestScreen({ navigation, route }) {
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+            <TouchableOpacity accessibilityRole="button"
+              style={ensureTouchTarget([styles.submitBtn, (loading || busy.submit) && styles.submitBtnDisabled])}
               onPress={handleSubmitAbsent}
-              disabled={loading}
+              disabled={loading || busy.submit}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {(loading || busy.submit) ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
@@ -1435,12 +1367,15 @@ export default function RequestScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <View style={styles.detailModalCard}>
             <TouchableOpacity
-              style={styles.detailCloseBtn}
+              style={ensureTouchTarget(styles.detailCloseBtn)}
               onPress={() => setDetailModalVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Đóng chi tiết yêu cầu"
             >
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
 
+            <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
             <View style={styles.detailHeaderCenter}>
               <Image
                 source={getStaffAvatarSource(selectedRequest?.requesterName, selectedRequest?.avatarId)}
@@ -1457,20 +1392,22 @@ export default function RequestScreen({ navigation, route }) {
             {selectedRequest?.requestedDays ? (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Số ngày nghỉ:</Text>
-                <Text style={[styles.detailValue, { color: '#15803D', fontWeight: '800' }]}>
+                <Text style={[styles.detailValue, { color: uiColors.successText, fontWeight: '800' }]}>
                   {selectedRequest.requestedDays} ngày
                 </Text>
               </View>
             ) : null}
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Ngày bắt đầu:</Text>
+              <Text style={styles.detailLabel}>{selectedRequest?.isRealSwap ? 'Ca đề xuất:' : 'Ngày bắt đầu:'}</Text>
               <Text style={styles.detailValue}>{selectedRequest?.startDate || selectedRequest?.date}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Ngày kết thúc:</Text>
-              <Text style={styles.detailValue}>{selectedRequest?.endDate || selectedRequest?.date}</Text>
+              <Text style={styles.detailLabel}>{selectedRequest?.isRealSwap ? 'Ca đổi lại:' : 'Ngày kết thúc:'}</Text>
+              <Text style={styles.detailValue}>{selectedRequest?.isRealSwap
+                ? `${selectedRequest.toShiftDate || ''} (${String(selectedRequest.toShiftStartTime || '').slice(0, 5)} - ${String(selectedRequest.toShiftEndTime || '').slice(0, 5)})`
+                : selectedRequest?.endDate || selectedRequest?.date}</Text>
             </View>
 
             <Text style={styles.detailSectionHeading}>Lý do:</Text>
@@ -1497,35 +1434,34 @@ export default function RequestScreen({ navigation, route }) {
                 selectedRequest?.status === 'REJECTED' && styles.detailStatusBadgeTextRejected,
                 (selectedRequest?.status === 'PENDING' || !selectedRequest?.status) && styles.detailStatusBadgeTextPending,
               ]}>
-                {selectedRequest?.status === 'APPROVED' ? 'Trạng thái: Đã duyệt' : selectedRequest?.status === 'REJECTED' ? 'Trạng thái: Từ chối' : 'Trạng thái: Đang chờ duyệt'}
+                Trạng thái: {selectedRequest?.statusLabel || 'Đang chờ duyệt'}
               </Text>
             </View>
+
+            <RequestTimeline request={selectedRequest} />
 
             {/* Nếu là yêu cầu đổi ca gửi đến bạn đang chờ phản hồi */}
             {selectedRequest?.isRealSwap &&
               selectedRequest?.status === 'PENDING' &&
               !selectedRequest?.employeeAccepted &&
-              ((currentUserId && String(selectedRequest.toStaffId) === String(currentUserId)) ||
-                (currentUserName &&
-                  selectedRequest.toStaffName &&
-                  selectedRequest.toStaffName.trim().toLowerCase() === currentUserName.trim().toLowerCase())) && (
+              (currentUserId && String(selectedRequest.toStaffId) === String(currentUserId)) && (
                 <View style={styles.detailModalActionsRow}>
-                  <TouchableOpacity
-                    style={styles.detailDeclineBtn}
+                  <TouchableOpacity accessibilityRole="button"
+                    style={ensureTouchTarget(styles.detailDeclineBtn)}
                     onPress={() => handleRespondSwap(selectedRequest, false)}
-                    disabled={respondingSwapId === selectedRequest.id}
+                    disabled={respondingSwapId === selectedRequest.id || !!busy[`swap:${selectedRequest.id}`]}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.detailDeclineBtnText}>Từ chối</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.detailAcceptBtn}
+                  <TouchableOpacity accessibilityRole="button"
+                    style={ensureTouchTarget(styles.detailAcceptBtn)}
                     onPress={() => handleRespondSwap(selectedRequest, true)}
-                    disabled={respondingSwapId === selectedRequest.id}
+                    disabled={respondingSwapId === selectedRequest.id || !!busy[`swap:${selectedRequest.id}`]}
                     activeOpacity={0.85}
                   >
-                    {respondingSwapId === selectedRequest.id ? (
+                    {(respondingSwapId === selectedRequest.id || busy[`swap:${selectedRequest.id}`]) ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <Text style={styles.detailAcceptBtnText}>✓ Đồng ý nhận ca</Text>
@@ -1533,7 +1469,14 @@ export default function RequestScreen({ navigation, route }) {
                   </TouchableOpacity>
                 </View>
               )}
+            {selectedRequest?.isRealSwap && selectedRequest.status === 'PENDING' && currentUserId && String(selectedRequest.fromStaffId) === String(currentUserId) ? (
+              <TouchableOpacity style={ensureTouchTarget(styles.cancelSwapButton)} disabled={!!busy[`swap:${selectedRequest.id}`]} onPress={() => handleCancelSwap(selectedRequest)} accessibilityRole="button">
+                {busy[`swap:${selectedRequest.id}`] ? <ActivityIndicator color={uiColors.dangerStrong} size="small" /> : <Text style={styles.cancelSwapText}>Hủy yêu cầu đổi ca</Text>}
+              </TouchableOpacity>
+            ) : null}
+            </ScrollView>
           </View>
+          {renderToast()}
         </View>
       </Modal>
       <BottomNavbar navigation={navigation} activeRoute="Request" />
@@ -1542,18 +1485,34 @@ export default function RequestScreen({ navigation, route }) {
 }
 
 // ── StyleSheet ──────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const styles = createAppStyles({
+  requestCompanion: { marginHorizontal: 16, marginTop: 14, marginBottom: 4, paddingLeft: 16, paddingRight: 6, borderRadius: 18, backgroundColor: uiColors.canvas, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  companionTitle: { color: uiColors.ink, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  companionBody: { color: uiColors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  timeOffHeader: { height: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: uiColors.line, backgroundColor: uiColors.surface },
+  timeOffHeaderButton: { width: 50, height: 52, alignItems: 'center', justifyContent: 'center' },
+  timeOffHeaderTitle: { flex: 1, color: uiColors.ink, fontSize: 17, fontWeight: '500', textAlign: 'center' },
+  timeOffBalances: { padding: 16, gap: 10 },
+  timeOffBalanceCard: { width: 145, padding: 14, borderWidth: 1, borderColor: uiColors.subtle, borderRadius: 10, shadowColor: uiColors.ink, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 },
+  timeOffBalanceLabel: { color: uiColors.muted, fontSize: 11 }, timeOffBalanceValue: { color: "#404B57", fontSize: 20, fontWeight: '500', marginTop: 12 }, timeOffBalanceCaption: { color: uiColors.muted, fontSize: 10, marginTop: 7 },
+  timeOffFilters: { flexDirection: 'row', gap: 5, paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: uiColors.line },
+  timeOffFilter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 7 }, timeOffFilterActive: { backgroundColor: uiColors.subtle }, timeOffFilterText: { color: uiColors.muted, fontSize: 11 },
+  timeOffListCaption: { fontSize: 10, letterSpacing: 0.7, color: uiColors.muted, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 6 },
+  timeOffRow: { minHeight: 83, paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: uiColors.line, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: uiColors.surface },
+  timeOffRowCopy: { flex: 1, minWidth: 0 }, timeOffRowDate: { color: uiColors.ink, fontSize: 14, fontWeight: '500' }, timeOffRowType: { color: uiColors.muted, fontSize: 11, marginTop: 6, lineHeight: 17 },
+  timeOffStatus: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 4, maxWidth: '39%' }, timeOffStatusText: { fontSize: 9, fontWeight: '500', textTransform: 'uppercase', textAlign: 'center' },
+  timeOffMenuBackdrop: { flex: 1, backgroundColor: "#28313B44", alignItems: 'center', justifyContent: 'center', padding: 24 }, timeOffMenu: { backgroundColor: uiColors.surface, width: '100%', maxWidth: 400, borderRadius: 18, padding: 20 }, timeOffMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: uiColors.line }, timeOffMenuIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: uiColors.lavender, alignItems: 'center', justifyContent: 'center' },
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
   },
   page: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
   },
   contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 0,
+    paddingTop: 0,
     paddingBottom: 95,
   },
 
@@ -1569,42 +1528,42 @@ const styles = StyleSheet.create({
   toastCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECF9E8',
-    borderColor: '#51A33D',
+    backgroundColor: uiColors.mint,
+    borderColor: uiColors.success,
     borderWidth: 1.5,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     width: '100%',
     maxWidth: 380,
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
   },
   toastCardWarning: {
-    backgroundColor: '#FFFDF5',
-    borderColor: '#F59E0B',
+    backgroundColor: uiColors.butter,
+    borderColor: "#B38D49",
   },
   toastCardError: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#EF4444',
+    backgroundColor: uiColors.dangerSoft,
+    borderColor: uiColors.danger,
   },
   toastIconCircle: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#51A33D',
+    backgroundColor: uiColors.success,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   toastIconCircleWarning: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: "#B38D49",
   },
   toastIconCircleError: {
-    backgroundColor: '#EF4444',
+    backgroundColor: uiColors.danger,
   },
   toastIconText: {
     color: '#ffffff',
@@ -1617,19 +1576,19 @@ const styles = StyleSheet.create({
   toastTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#222222',
+    color: uiColors.ink,
   },
   toastMessage: {
     fontSize: 12.5,
-    color: '#444444',
+    color: "#404B57",
     marginTop: 2,
   },
   modalErrorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: uiColors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: uiColors.salmon,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -1642,7 +1601,7 @@ const styles = StyleSheet.create({
   modalErrorText: {
     flex: 1,
     fontSize: 13,
-    color: '#B91C1C',
+    color: uiColors.dangerStrong,
     fontWeight: '500',
     lineHeight: 18,
   },
@@ -1651,111 +1610,78 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
     gap: 12,
+
+    minHeight: 48,
   },
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 0,
+    backgroundColor: uiColors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 0,
+    borderColor: uiColors.line,
   },
   closeBtnText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#334155',
+    color: "#404B57",
   },
   headerTitleWrap: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '600',
+    color: uiColors.ink,
   },
 
   // ── Hero 3D Card (Trạm tiếp nhận yêu cầu với máy bay 3D) ──
-  hero3DCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 18,
-    padding: 14,
-    paddingRight: 6,
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(66, 133, 49, 0.25)',
-    borderTopColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: '#22c55e',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  hero3DInfo: {
-    flex: 1,
-    paddingRight: 6,
-  },
-  hero3DTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#14532D',
-  },
-  hero3DSubtitle: {
-    fontSize: 11.5,
-    color: '#4B5563',
-    marginTop: 4,
-    lineHeight: 16,
-  },
-  heroPlaneContainer: {
-    width: 145,
-    height: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
   headerDivider: {
-    height: 1.5,
-    backgroundColor: 'rgba(240, 236, 236, 0.8)',
-    marginVertical: 14,
+    height: 1,
+    backgroundColor: uiColors.line,
+    marginVertical: 16,
   },
 
   // ── Top 3 Filter Cards ──
   filterCardsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 0,
     marginBottom: 12,
+
+    backgroundColor: uiColors.subtle,
+    borderRadius: 6,
+    padding: 3,
   },
   filterCard: {
     flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 8,
-    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+    borderRadius: 4,
+    borderWidth: 0,
     borderColor: 'transparent',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    height: 52,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterCardActive: {
-    borderColor: '#51A33D',
-    backgroundColor: '#DEF4D7',
+    borderColor: uiColors.orange,
+    backgroundColor: uiColors.orange,
   },
   filterCardContent: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterCardText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#273426',
+    fontSize: 12,
+    fontWeight: '500',
+    color: uiColors.secondary,
     textAlign: 'center',
   },
 
@@ -1771,21 +1697,21 @@ const styles = StyleSheet.create({
   },
   actionCardPill: {
     flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 10,
+    backgroundColor: uiColors.surface,
+    borderRadius: 4,
     paddingVertical: 10,
-    paddingHorizontal: 8,
-    height: 62,
+    paddingHorizontal: 10,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'rgba(81, 163, 61, 0.2)',
+    borderColor: uiColors.line,
   },
   actionCardPillText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
     lineHeight: 16,
   },
   actionCardPillIcon: {
@@ -1796,8 +1722,8 @@ const styles = StyleSheet.create({
   // ── Danh sách yêu cầu ──
   requestListHeading: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#666666',
+    fontWeight: '600',
+    color: uiColors.ink,
     marginBottom: 10,
   },
   requestList: {
@@ -1812,7 +1738,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13.5,
-    color: '#666666',
+    color: uiColors.secondary,
   },
   emptyBox: {
     paddingVertical: 30,
@@ -1820,17 +1746,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13.5,
-    color: '#888888',
+    color: uiColors.muted,
   },
   requestItemCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: uiColors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(240, 236, 236, 0.8)',
-    paddingVertical: 12,
+    borderBottomColor: uiColors.line,
+    paddingVertical: 16,
     paddingHorizontal: 4,
   },
   requestItemCardRejected: {
-    backgroundColor: 'rgba(242, 240, 240, 0.5)',
+    backgroundColor: "rgba(240, 239, 235, 0.5)",
     borderRadius: 6,
     paddingHorizontal: 8,
   },
@@ -1843,11 +1769,14 @@ const styles = StyleSheet.create({
   requestItemTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   requestItemDate: {
     fontSize: 12,
-    color: '#888888',
+    color: uiColors.muted,
+    maxWidth: '58%',
+    flexShrink: 1,
+    textAlign: 'right',
   },
   requestItemBottomRow: {
     flexDirection: 'row',
@@ -1858,7 +1787,7 @@ const styles = StyleSheet.create({
   requestItemDesc: {
     flex: 1,
     fontSize: 12.5,
-    color: '#666666',
+    color: uiColors.secondary,
     lineHeight: 16,
   },
   statusBadge: {
@@ -1866,17 +1795,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 14,
     alignSelf: 'flex-start',
-    backgroundColor: '#E0E0E0',
+    backgroundColor: uiColors.lineStrong,
+    maxWidth: '55%',
+    flexShrink: 1,
   },
   statusBadgeApproved: {
-    backgroundColor: '#51A33D',
+    backgroundColor: uiColors.success,
   },
   statusBadgeRejected: {
-    backgroundColor: '#E74C3C',
+    backgroundColor: uiColors.danger,
   },
   statusBadgePending: {
-    backgroundColor: '#F3A8C4',
+    backgroundColor: uiColors.butter,
   },
+  statusBadgeCancelled: { backgroundColor: uiColors.canvas },
+  statusBadgeTextCancelled: { color: uiColors.muted },
   statusBadgeText: {
     fontSize: 11.5,
     fontWeight: '700',
@@ -1889,13 +1822,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   statusBadgeTextPending: {
-    color: '#FFFFFF',
+    color: uiColors.warningText,
   },
 
   // ── Modals Common ──
   modalSafeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
   },
   modalContent: {
     paddingHorizontal: 20,
@@ -1918,62 +1851,64 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
   },
   formValue: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333333',
+    color: uiColors.ink,
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: uiColors.secondary,
     marginTop: 10,
     marginBottom: 6,
   },
   dateInput: {
     fontSize: 15,
-    color: '#333333',
+    color: uiColors.ink,
     fontWeight: '500',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: uiColors.lineStrong,
     paddingVertical: 4,
     minWidth: 100,
     textAlign: 'right',
+
+    backgroundColor: uiColors.surface,
   },
   reasonTextArea: {
-    backgroundColor: 'rgba(236, 249, 232, 0.4)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(81, 163, 61, 0.7)',
-    borderRadius: 8,
+    backgroundColor: uiColors.surface,
+    borderWidth: 1,
+    borderColor: uiColors.lineStrong,
+    borderRadius: 4,
     padding: 14,
     fontSize: 15,
-    color: '#222222',
+    color: uiColors.ink,
     textAlignVertical: 'top',
     minHeight: 120,
     marginBottom: 20,
   },
   submitBtn: {
-    backgroundColor: '#ECF9E8',
-    borderRadius: 10,
+    backgroundColor: uiColors.orange,
+    borderRadius: 4,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 14,
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 0,
   },
   submitBtnDisabled: {
     opacity: 0.6,
   },
   submitBtnText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E1E1E',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 
   // ── Shift Selector (Chọn ca của mình) ──
@@ -1986,24 +1921,24 @@ const styles = StyleSheet.create({
   shiftSelectorHeaderTitle: {
     fontSize: 14.5,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
   },
   changeShiftBtn: {
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#ECF9E8',
+    borderRadius: 4,
+    backgroundColor: uiColors.canvas,
   },
   changeShiftBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: uiColors.primaryStrong,
   },
   shiftPickerDropdown: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: uiColors.surface,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: uiColors.line,
+    borderRadius: 4,
     padding: 6,
     marginBottom: 12,
   },
@@ -2012,10 +1947,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 6,
+    borderRadius: 3,
   },
   shiftPickerItemSelected: {
-    backgroundColor: '#ECF9E8',
+    backgroundColor: uiColors.peach,
   },
   shiftPickerDot: {
     width: 8,
@@ -2026,16 +1961,16 @@ const styles = StyleSheet.create({
   shiftPickerItemText: {
     flex: 1,
     fontSize: 13,
-    color: '#444444',
+    color: "#404B57",
   },
   shiftPickerItemTextSelected: {
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   shiftPickerCheck: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#51A33D',
+    color: uiColors.primaryStrong,
   },
 
   // ── Shift Preview Box ──
@@ -2054,13 +1989,13 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: uiColors.ink,
     marginBottom: 3,
   },
   avatarName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
     textAlign: 'center',
   },
   shiftCardMini: {
@@ -2072,7 +2007,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 34,
     borderRadius: 3,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: "#C4DDD3",
     marginRight: 12,
   },
   miniInfo: {
@@ -2081,11 +2016,11 @@ const styles = StyleSheet.create({
   miniTime: {
     fontSize: 14.5,
     fontWeight: '700',
-    color: '#222222',
+    color: uiColors.ink,
   },
   miniLocation: {
     fontSize: 12,
-    color: 'rgba(51, 51, 51, 0.7)',
+    color: "rgba(40, 49, 59, 0.7)",
     marginVertical: 2,
   },
   miniRoleRow: {
@@ -2097,19 +2032,19 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: "#C4DDD3",
   },
   miniRoleText: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: 'rgba(51, 51, 51, 0.6)',
+    color: "rgba(40, 49, 59, 0.6)",
   },
 
   // ── Suggestion list ──
   suggestTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#666666',
+    color: uiColors.secondary,
     marginBottom: 10,
     marginTop: 12,
   },
@@ -2124,23 +2059,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    borderRadius: 4,
+    backgroundColor: uiColors.surface,
+    borderWidth: 1,
+    borderColor: uiColors.line,
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 0,
   },
   suggestItemSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.15,
+    backgroundColor: uiColors.peach,
+    borderColor: uiColors.orange,
+    shadowColor: uiColors.info,
+    shadowOpacity: 0,
     shadowRadius: 6,
-    elevation: 2,
+    elevation: 0,
   },
   suggestAvatar: {
     width: 44,
@@ -2154,18 +2089,18 @@ const styles = StyleSheet.create({
   suggestName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: uiColors.ink,
   },
   suggestRole: {
     fontSize: 12.5,
-    color: '#64748B',
+    color: uiColors.muted,
     marginTop: 2,
   },
   suggestCheckBadge: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#3B82F6',
+    backgroundColor: uiColors.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2177,17 +2112,19 @@ const styles = StyleSheet.create({
 
   // ── Selected Colleague Preview Card ──
   selectedColleagueCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    backgroundColor: uiColors.canvas,
+    borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: '#93C5FD',
+    borderColor: uiColors.line,
     padding: 14,
     marginBottom: 16,
-    shadowColor: '#3B82F6',
+    shadowColor: uiColors.info,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0,
     shadowRadius: 6,
-    elevation: 2,
+    elevation: 0,
+
+    borderStyle: 'solid',
   },
   sccHeader: {
     flexDirection: 'row',
@@ -2195,11 +2132,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: uiColors.line,
     paddingBottom: 8,
   },
   sccBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: uiColors.line,
     paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: 6,
@@ -2207,23 +2144,23 @@ const styles = StyleSheet.create({
   sccBadgeText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: '#1D4ED8',
+    color: uiColors.ink,
     letterSpacing: 0.3,
   },
   sccName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E293B',
+    color: uiColors.ink,
   },
   sccExchangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: uiColors.surface,
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: uiColors.line,
   },
   sccBox: {
     flex: 1,
@@ -2232,19 +2169,19 @@ const styles = StyleSheet.create({
   sccBoxLabel: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: '#64748B',
+    color: uiColors.muted,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   sccBoxTime: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: uiColors.ink,
     textAlign: 'center',
   },
   sccBoxSub: {
     fontSize: 11,
-    color: '#64748B',
+    color: uiColors.muted,
     marginTop: 2,
     textAlign: 'center',
   },
@@ -2252,19 +2189,19 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: uiColors.sky,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 6,
   },
   sccArrowText: {
     fontSize: 18,
-    color: '#2563EB',
+    color: uiColors.muted,
     fontWeight: '800',
   },
   sccNoticeText: {
     fontSize: 11.5,
-    color: '#475569',
+    color: uiColors.secondary,
     lineHeight: 16,
     marginTop: 10,
     fontStyle: 'italic',
@@ -2272,9 +2209,9 @@ const styles = StyleSheet.create({
 
   // ── Warning Note ──
   warningNoteBox: {
-    backgroundColor: '#FFFDF5',
+    backgroundColor: uiColors.butter,
     borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: "#B38D49",
     padding: 12,
     borderRadius: 6,
     marginBottom: 20,
@@ -2282,38 +2219,58 @@ const styles = StyleSheet.create({
   warningNoteTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#D97706',
+    color: uiColors.warningText,
     marginBottom: 4,
   },
   warningNoteText: {
     fontSize: 13,
-    color: '#555555',
+    color: uiColors.secondary,
     lineHeight: 18,
   },
 
   // ── Detail Modal Overlay (Image 5) ──
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: "rgba(40, 49, 59, 0.4)",
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   detailModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: uiColors.surface,
+    borderRadius: 8,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
     width: '100%',
     maxWidth: 380,
+    maxHeight: '88%',
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 0,
   },
+  detailScroll: { flexShrink: 1, marginTop: 18 },
+  timeline: { paddingTop: 16, marginTop: 12, borderTopWidth: 1, borderTopColor: uiColors.line },
+  timelineCreated: { color: uiColors.muted, fontSize: 12, marginBottom: 14, lineHeight: 18 },
+  timelineRow: { flexDirection: 'row', minHeight: 76 },
+  timelineTrack: { width: 34, alignItems: 'center' },
+  timelineDot: { width: 25, height: 25, borderRadius: 13, backgroundColor: uiColors.canvas, borderWidth: 1, borderColor: uiColors.lineStrong, alignItems: 'center', justifyContent: 'center' },
+  timelineDotDone: { backgroundColor: uiColors.success, borderColor: uiColors.success },
+  timelineDotActive: { backgroundColor: uiColors.orange, borderColor: uiColors.orange },
+  timelineDotError: { backgroundColor: uiColors.dangerStrong, borderColor: uiColors.dangerStrong },
+  timelineDotText: { fontSize: 12, fontWeight: '700', color: uiColors.muted },
+  timelineDotTextFilled: { color: '#FFFFFF' },
+  timelineLine: { flex: 1, width: 1, backgroundColor: uiColors.line, marginVertical: 4 },
+  timelineBody: { flex: 1, paddingLeft: 8, paddingBottom: 18 },
+  timelineTitle: { fontSize: 13, lineHeight: 19, fontWeight: '700', color: uiColors.ink },
+  timelineActor: { fontSize: 12, lineHeight: 18, color: uiColors.secondary, marginTop: 3 },
+  timelineTime: { fontSize: 11, lineHeight: 17, color: uiColors.muted, marginTop: 2 },
+  timelineNote: { fontSize: 12, lineHeight: 18, color: uiColors.secondary, marginTop: 5 },
+  cancelSwapButton: { minHeight: 44, borderWidth: 1, borderColor: "#EDD3D1", borderRadius: 8, padding: 12, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  cancelSwapText: { fontSize: 13, fontWeight: '600', color: uiColors.dangerStrong },
   detailCloseBtn: {
     position: 'absolute',
     right: 14,
@@ -2333,13 +2290,13 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     borderWidth: 1.5,
-    borderColor: '#000000',
+    borderColor: uiColors.ink,
     marginBottom: 8,
   },
   detailTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   detailRow: {
     flexDirection: 'row',
@@ -2349,24 +2306,29 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#555555',
+    color: uiColors.secondary,
+    maxWidth: '46%',
+    flexShrink: 1,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222222',
+    color: uiColors.ink,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 12,
   },
   detailSectionHeading: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#555555',
+    color: uiColors.secondary,
     marginTop: 10,
     marginBottom: 6,
   },
   detailReasonBox: {
-    backgroundColor: '#F9FBF8',
+    backgroundColor: uiColors.mint,
     borderWidth: 1,
-    borderColor: 'rgba(81, 163, 61, 0.4)',
+    borderColor: "rgba(81, 125, 105, 0.4)",
     borderRadius: 8,
     padding: 12,
     marginBottom: 18,
@@ -2374,7 +2336,7 @@ const styles = StyleSheet.create({
   },
   detailReasonText: {
     fontSize: 13.5,
-    color: '#333333',
+    color: uiColors.ink,
     lineHeight: 18,
   },
   detailStatusBadge: {
@@ -2383,36 +2345,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E0E0E0',
+    backgroundColor: uiColors.lineStrong,
   },
   detailStatusBadgeApproved: {
-    backgroundColor: '#ECF9E8',
+    backgroundColor: uiColors.mint,
     borderWidth: 1,
-    borderColor: '#51A33D',
+    borderColor: uiColors.success,
   },
   detailStatusBadgeRejected: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#F1DDDC",
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: uiColors.danger,
   },
   detailStatusBadgePending: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: uiColors.butter,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: "#B38D49",
   },
   detailStatusBadgeText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#333333',
+    color: uiColors.ink,
   },
   detailStatusBadgeTextApproved: {
-    color: '#2E7D32',
+    color: uiColors.successText,
   },
   detailStatusBadgeTextRejected: {
-    color: '#991B1B',
+    color: uiColors.dangerStrong,
   },
   detailStatusBadgeTextPending: {
-    color: '#92400E',
+    color: uiColors.warningText,
   },
 
   // ── Loading ──
@@ -2422,22 +2384,22 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13.5,
-    color: '#888888',
+    color: uiColors.muted,
   },
 
   // ── Leave Balance Card ──
   balanceCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    borderWidth: 1.5,
-    borderRadius: 14,
+    backgroundColor: uiColors.surface,
+    borderColor: uiColors.line,
+    borderWidth: 1,
+    borderRadius: 4,
     padding: 14,
     marginBottom: 14,
-    shadowColor: '#22c55e',
-    shadowOpacity: 0.1,
+    shadowColor: uiColors.success,
+    shadowOpacity: 0,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    elevation: 0,
   },
   balanceHeaderRow: {
     flexDirection: 'row',
@@ -2450,40 +2412,40 @@ const styles = StyleSheet.create({
   },
   balanceCardTitle: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#14532D',
+    fontWeight: '600',
+    color: uiColors.ink,
   },
   balanceCardSub: {
     fontSize: 12,
-    color: '#4B5563',
+    color: uiColors.secondary,
     marginTop: 2,
   },
   balanceRemainingPill: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
+    backgroundColor: uiColors.canvas,
+    borderColor: uiColors.line,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 4,
     paddingVertical: 4,
     paddingHorizontal: 10,
     alignItems: 'center',
   },
   balanceRemainingNumber: {
     fontSize: 18,
-    fontWeight: '900',
-    color: '#15803D',
+    fontWeight: '700',
+    color: uiColors.ink,
   },
   balanceRemainingLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#166534',
+    color: uiColors.muted,
     marginTop: -2,
   },
   balanceMetricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: uiColors.surface,
+    borderRadius: 0,
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
@@ -2494,18 +2456,18 @@ const styles = StyleSheet.create({
   balanceMetricValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1E293B',
+    color: uiColors.ink,
   },
   balanceMetricLabel: {
     fontSize: 11,
-    color: '#64748B',
+    color: uiColors.muted,
     marginTop: 2,
     fontWeight: '500',
   },
   balanceMetricDivider: {
     width: 1,
     height: 22,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: uiColors.line,
   },
 
   // ── Leave Type Selector Pills ──
@@ -2518,29 +2480,29 @@ const styles = StyleSheet.create({
   leaveTypePill: {
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    backgroundColor: uiColors.canvas,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: uiColors.line,
   },
   leaveTypePillActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#22C55E',
+    backgroundColor: uiColors.orange,
+    borderColor: uiColors.orange,
   },
   leaveTypePillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
+    color: uiColors.secondary,
   },
   leaveTypePillTextActive: {
-    color: '#15803D',
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 
   // ── Duration Notice ──
   leaveDurationNotice: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
+    backgroundColor: uiColors.canvas,
+    borderColor: uiColors.line,
     borderWidth: 1,
     borderRadius: 8,
     padding: 10,
@@ -2548,17 +2510,17 @@ const styles = StyleSheet.create({
   },
   leaveDurationNoticeText: {
     fontSize: 13.5,
-    color: '#334155',
+    color: "#404B57",
   },
   leaveBalanceNoticeSub: {
     fontSize: 12,
-    color: '#64748B',
+    color: uiColors.muted,
     marginTop: 4,
   },
 
   // ── Duration badge in list ──
   durationBadge: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: uiColors.sky,
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 6,
@@ -2566,13 +2528,13 @@ const styles = StyleSheet.create({
   durationBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0369A1',
+    color: uiColors.info,
   },
 
   // ── Rejected reason boxes ──
   rejectedReasonBox: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: uiColors.dangerSoft,
+    borderColor: "#EDD3D1",
     borderWidth: 1,
     borderRadius: 6,
     padding: 6,
@@ -2580,12 +2542,12 @@ const styles = StyleSheet.create({
   },
   rejectedReasonText: {
     fontSize: 12,
-    color: '#B91C1C',
+    color: uiColors.dangerStrong,
     fontWeight: '500',
   },
   detailRejectionBox: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#F87171',
+    backgroundColor: uiColors.dangerSoft,
+    borderColor: uiColors.salmon,
     borderWidth: 1,
     borderRadius: 8,
     padding: 10,
@@ -2594,16 +2556,17 @@ const styles = StyleSheet.create({
   detailRejectionTitle: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#991B1B',
+    color: uiColors.dangerStrong,
     marginBottom: 2,
   },
   detailRejectionText: {
     fontSize: 13,
-    color: '#B91C1C',
+    color: uiColors.dangerStrong,
   },
 
   // ── ⚡ INCOMING SWAP REQUEST SECTION ──
   incomingSwapSection: {
+    marginHorizontal: 16,
     marginBottom: 20,
   },
   incomingSectionHeader: {
@@ -2611,43 +2574,43 @@ const styles = StyleSheet.create({
   },
   incomingBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: uiColors.butter,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: "#EBDDAD",
   },
   incomingBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#D97706',
+    color: uiColors.warningText,
     letterSpacing: 0.5,
   },
   incomingSectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1E293B',
+    color: uiColors.ink,
     marginBottom: 4,
   },
   incomingSectionSub: {
     fontSize: 13,
-    color: '#64748B',
+    color: uiColors.muted,
     lineHeight: 18,
   },
   incomingSwapCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    backgroundColor: uiColors.surface,
+    borderRadius: 4,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#FCD34D',
+    borderColor: uiColors.line,
     marginBottom: 12,
-    shadowColor: '#D97706',
+    shadowColor: uiColors.warning,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0,
     shadowRadius: 10,
-    elevation: 4,
+    elevation: 0,
   },
   incomingCardTop: {
     flexDirection: 'row',
@@ -2659,20 +2622,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: uiColors.canvas,
   },
   incomingSenderName: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: uiColors.ink,
   },
   incomingSenderRole: {
     fontSize: 12,
-    color: '#64748B',
+    color: uiColors.muted,
     marginTop: 2,
   },
   pendingActionPill: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: uiColors.butter,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -2680,14 +2643,14 @@ const styles = StyleSheet.create({
   pendingActionText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#B45309',
+    color: uiColors.warningText,
   },
   swapComparisonBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
+    backgroundColor: uiColors.canvas,
+    borderRadius: 4,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: uiColors.line,
     marginBottom: 14,
     gap: 8,
   },
@@ -2705,13 +2668,13 @@ const styles = StyleSheet.create({
   swapShiftLabel: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#64748B',
+    color: uiColors.muted,
     marginBottom: 2,
   },
   swapShiftValue: {
     fontSize: 13.5,
     fontWeight: '700',
-    color: '#1E293B',
+    color: uiColors.ink,
   },
   swapArrowWrap: {
     alignItems: 'center',
@@ -2719,7 +2682,7 @@ const styles = StyleSheet.create({
   },
   swapArrowText: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: uiColors.muted,
     fontWeight: 'bold',
   },
   incomingActionsRow: {
@@ -2731,30 +2694,30 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
+    borderColor: "#E5BAB7",
+    backgroundColor: uiColors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   declineBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#DC2626',
+    color: uiColors.dangerText,
   },
   acceptBtn: {
     flex: 1.5,
     height: 44,
-    borderRadius: 12,
-    backgroundColor: '#51A33D',
+    borderRadius: 4,
+    backgroundColor: uiColors.orange,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    shadowColor: '#51A33D',
+    shadowColor: uiColors.success,
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 0,
   },
   acceptBtnIcon: {
     fontSize: 16,
@@ -2774,39 +2737,42 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: uiColors.canvas,
   },
   detailDeclineBtn: {
     flex: 1,
     height: 46,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
+    borderColor: "#E5BAB7",
+    backgroundColor: uiColors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailDeclineBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#DC2626',
+    color: uiColors.dangerText,
   },
   detailAcceptBtn: {
     flex: 1.6,
     height: 46,
-    borderRadius: 12,
-    backgroundColor: '#51A33D',
+    borderRadius: 4,
+    backgroundColor: uiColors.orange,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#51A33D',
+    shadowColor: uiColors.success,
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 0,
   },
   detailAcceptBtnText: {
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
   },
+
+  requestIntro: {'fontSize':13,'lineHeight':19,'color':uiColors.muted,'paddingLeft':48,'paddingRight':8},
+  filterCardTextActive: {'color':'#FFFFFF','fontWeight':'600'},
 });

@@ -47,3 +47,11 @@ backups/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local full-stack QA runs contain database snapshots, runtime settings, and builds
+/qa-full-*/
+/qa-rerun-*/
+
+# Local full-stack QA runs contain database snapshots, runtime settings, and builds
+/qa-full-*/
+/qa-rerun-*/

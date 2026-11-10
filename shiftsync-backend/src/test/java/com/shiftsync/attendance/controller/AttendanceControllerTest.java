@@ -37,6 +37,16 @@ public class AttendanceControllerTest {
     private AttendanceController controller;
 
     @Test
+    public void testCapabilitiesExplicitlyProtectOfflineReplayFromLegacyToggleServers() {
+        var response = controller.getCapabilities();
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().get("selfieProtocolVersion"));
+        assertEquals(true, response.getBody().get("explicitActions"));
+        assertEquals(true, response.getBody().get("originalCaptureTime"));
+        verifyNoInteractions(attendanceService);
+    }
+
+    @Test
     public void testGenerateQr() {
         UUID storeId = UUID.randomUUID();
         UUID shiftId = UUID.randomUUID();
@@ -99,6 +109,29 @@ public class AttendanceControllerTest {
         assertEquals(shiftId, response.getBody().getShiftId());
         verify(attendanceService).submitSelfie(
                 eq(staffId), eq(shiftId), eq(latitude), eq(longitude), argThat(bytes -> bytes.length == 2 * 1024 * 1024));
+    }
+
+    @Test
+    public void testOfflineSelfiePassesExplicitActionAndCaptureTime() throws Exception {
+        UUID staffId = UUID.randomUUID();
+        UUID shiftId = UUID.randomUUID();
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
+        when(userDetails.getId()).thenReturn(staffId);
+        OffsetDateTime capturedAt = OffsetDateTime.parse("2026-10-20T08:00:00+07:00");
+        MockMultipartFile photo = new MockMultipartFile("photo", "selfie.jpg", "image/jpeg", new byte[]{1});
+        Shift shift = Shift.builder().id(shiftId).store(Store.builder().id(UUID.randomUUID()).name("Store").build()).build();
+        ShiftAssignment assignment = ShiftAssignment.builder().id(UUID.randomUUID()).shift(shift)
+                .staff(User.builder().id(staffId).fullName("Staff").build()).build();
+        Attendance attendance = Attendance.builder().shiftAssignment(assignment)
+                .checkInTime(capturedAt).status(AttendanceStatus.PRESENT).build();
+        when(attendanceService.submitSelfie(eq(staffId), eq(shiftId), eq(10.0), eq(106.0), any(byte[].class), eq("CHECK_IN"), eq(capturedAt)))
+                .thenReturn(attendance);
+
+        ResponseEntity<AttendanceDTO> response = controller.submitSelfie(userDetails, shiftId, 10, 106, photo, "CHECK_IN", capturedAt);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(capturedAt, response.getBody().getCheckInTime());
+        verify(attendanceService).submitSelfie(eq(staffId), eq(shiftId), eq(10.0), eq(106.0), any(byte[].class), eq("CHECK_IN"), eq(capturedAt));
     }
 }
 

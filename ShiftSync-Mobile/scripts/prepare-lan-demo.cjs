@@ -1,0 +1,16 @@
+const fs=require('fs'),path=require('path'),os=require('os');
+const {inspectEndpoint,privateIPv4}=require('./demo-endpoint.cjs');
+const root=path.resolve(__dirname,'..');
+const override=process.argv[2];
+const candidates=Object.entries(os.networkInterfaces()).flatMap(([name,items])=>(items||[]).filter(x=>x.family==='IPv4'&&!x.internal&&privateIPv4(x.address)&&!/virtual|vethernet|wsl|docker|vpn|loopback/i.test(name)).map(x=>({name,address:x.address,score:/wi-?fi|wireless|wlan/i.test(name)?0:1}))).sort((a,b)=>a.score-b.score);
+const host=override||candidates[0]?.address;
+if(!host)throw new Error('Chưa tìm thấy IPv4 Wi-Fi. Kết nối Wi-Fi rồi chạy lại, hoặc truyền IP máy tính.');
+const endpoint=inspectEndpoint('http://'+host+':8080/api','lan');
+const env={EXPO_PUBLIC_API_URL:endpoint.apiUrl,EXPO_PUBLIC_DEMO_MODE:'lan'};
+const file=path.join(root,'eas.json'),config=JSON.parse(fs.readFileSync(file,'utf8'));
+config.build['preview-lan']={extends:'preview',env};
+fs.writeFileSync(file,JSON.stringify(config,null,2)+'\n');
+fs.mkdirSync(path.join(root,'.expo'),{recursive:true});
+fs.writeFileSync(path.join(root,'.expo','lan-demo-env.json'),JSON.stringify(env,null,2)+'\n');
+console.log('Đã cấu hình demo cùng Wi-Fi: '+endpoint.apiUrl);
+console.log('Điện thoại và máy tính phải cùng mạng; máy tính cần chạy backend.');

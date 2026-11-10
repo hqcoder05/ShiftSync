@@ -19,6 +19,9 @@ import java.util.List;
 import java.time.LocalDate;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +34,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
+
+    @GetMapping("/attendance/capabilities")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<java.util.Map<String, Object>> getCapabilities() {
+        return ResponseEntity.ok(java.util.Map.of(
+                "selfieProtocolVersion", 2,
+                "explicitActions", true,
+                "originalCaptureTime", true));
+    }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId)")
     @GetMapping("/stores/{storeId}/shifts/{shiftId}/attendance/qr")
@@ -55,11 +67,19 @@ public class AttendanceController {
             @RequestParam UUID shiftId,
             @RequestParam double latitude,
             @RequestParam double longitude,
-            @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
+            @RequestPart(value = "photo", required = false) MultipartFile photo,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime capturedAt) throws java.io.IOException {
         byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
-        Attendance attendance = attendanceService.submitSelfie(
-                userDetails.getId(), shiftId, latitude, longitude, photoBytes);
+        Attendance attendance = action == null && capturedAt == null
+                ? attendanceService.submitSelfie(userDetails.getId(), shiftId, latitude, longitude, photoBytes)
+                : attendanceService.submitSelfie(userDetails.getId(), shiftId, latitude, longitude, photoBytes, action, capturedAt);
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
+    }
+
+    public ResponseEntity<AttendanceDTO> submitSelfie(CustomUserDetails userDetails, UUID shiftId,
+                                                     double latitude, double longitude, MultipartFile photo) throws java.io.IOException {
+        return submitSelfie(userDetails, shiftId, latitude, longitude, photo, null, null);
     }
 
     @GetMapping("/attendance/me")
@@ -107,7 +127,8 @@ public class AttendanceController {
             LocalDateTime shiftStart = LocalDateTime.of(
                     attendance.getShiftAssignment().getShift().getShiftDate(),
                     attendance.getShiftAssignment().getShift().getStartTime());
-            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime()
+                    .atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime()).toMinutes());
         }
         return AttendanceDTO.builder()
                 .id(attendance.getId())

@@ -43,4 +43,8 @@ public class ShiftCreateRequest {
 
     @Schema(description = "Skill / Role ID (Optional)")
     private UUID skillId;
+
+    @Size(max = 1000, message = "Change reason must not exceed 1000 characters")
+    @Schema(description = "Reason for changing an existing shift (optional)")
+    private String changeReason;
 }

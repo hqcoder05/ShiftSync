@@ -33,6 +33,11 @@ public class StaffRequestControllerTest {
     @Mock
     private StaffRequestService staffRequestService;
 
+    @Mock
+    private com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
+
+    private final UUID storeId = UUID.randomUUID();
+
     @InjectMocks
     private StaffRequestController controller;
 
@@ -56,6 +61,8 @@ public class StaffRequestControllerTest {
                 .systemRole(SystemRole.MANAGER)
                 .build();
         managerUser = new CustomUserDetails(manager);
+        lenient().when(employmentRepository.existsByUserIdAndStoreIdAndStatus(any(), eq(storeId),
+                eq(com.shiftsync.employment.enums.EmploymentStatus.ACTIVE))).thenReturn(true);
     }
 
     @Test
@@ -65,6 +72,7 @@ public class StaffRequestControllerTest {
         createDTO.setContent("Xin nghỉ phép");
         createDTO.setStartDate(LocalDate.now());
         createDTO.setEndDate(LocalDate.now());
+        createDTO.setStoreId(storeId);
 
         StaffRequestDTO responseDTO = StaffRequestDTO.builder()
                 .id(UUID.randomUUID())
@@ -80,13 +88,16 @@ public class StaffRequestControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("Nguyen Van A", createDTO.getRequesterName());
+        assertEquals(staffUser.getId(), createDTO.getRequesterId());
         verify(staffRequestService, times(1)).createRequest(createDTO);
     }
 
     @Test
-    public void testStaffCanGetOwnRequests_FiltersByStaffName() {
-        when(staffRequestService.getAllRequests(isNull(), isNull(), isNull(), eq("Nguyen Van A")))
-                .thenReturn(List.of(StaffRequestDTO.builder().requesterName("Nguyen Van A").build()));
+    public void testStaffCanGetOwnRequests_FiltersByImmutableId() {
+        when(staffRequestService.getAllRequests(isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(List.of(
+                        StaffRequestDTO.builder().requesterName("Nguyen Van A").requesterId(staffUser.getId()).build(),
+                        StaffRequestDTO.builder().requesterName("Nguyen Van A").requesterId(UUID.randomUUID()).build()));
 
         ResponseEntity<List<StaffRequestDTO>> response = controller.getAllRequests(staffUser, null, null, null);
 
@@ -96,11 +107,12 @@ public class StaffRequestControllerTest {
     }
 
     @Test
-    public void testManagerCanGetAllRequests_WithoutFilter() {
+    public void testManagerCanGetRequestsInActiveStore() {
         when(staffRequestService.getAllRequests(isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(List.of(
-                        StaffRequestDTO.builder().requesterName("Nguyen Van A").build(),
-                        StaffRequestDTO.builder().requesterName("Le Van C").build()
+                        StaffRequestDTO.builder().requesterName("Nguyen Van A").storeId(storeId).build(),
+                        StaffRequestDTO.builder().requesterName("Le Van C").storeId(storeId).build(),
+                        StaffRequestDTO.builder().requesterName("Other store").storeId(UUID.randomUUID()).build()
                 ));
 
         ResponseEntity<List<StaffRequestDTO>> response = controller.getAllRequests(managerUser, null, null, null);
@@ -115,6 +127,7 @@ public class StaffRequestControllerTest {
         StaffRequestDTO dto = StaffRequestDTO.builder()
                 .id(requestId)
                 .requesterName("Nguyen Van A")
+                .requesterId(staffUser.getId())
                 .requestType("Yêu cầu đổi ca")
                 .build();
 
@@ -142,7 +155,7 @@ public class StaffRequestControllerTest {
             controller.getRequestById(staffUser, requestId);
         });
 
-        assertEquals("You can only view your own requests", ex.getMessage());
+        assertEquals("You can only view your own requests or requests in your store", ex.getMessage());
     }
 
     @Test
@@ -151,6 +164,7 @@ public class StaffRequestControllerTest {
         StaffRequestDTO dto = StaffRequestDTO.builder()
                 .id(requestId)
                 .requesterName("Other Staff")
+                .storeId(storeId)
                 .requestType("Yêu cầu đổi ca")
                 .build();
 
@@ -173,11 +187,39 @@ public class StaffRequestControllerTest {
                 .status(RequestStatus.APPROVED)
                 .build();
 
-        when(staffRequestService.updateRequestStatus(requestId, RequestStatus.APPROVED)).thenReturn(updatedDTO);
+        when(staffRequestService.getRequestById(requestId)).thenReturn(StaffRequestDTO.builder().id(requestId).storeId(storeId).build());
+        when(staffRequestService.updateRequestStatus(requestId, RequestStatus.APPROVED,
+                managerUser.getId(), managerUser.getUser().getFullName(), null)).thenReturn(updatedDTO);
 
-        ResponseEntity<StaffRequestDTO> response = controller.updateStatus(requestId, updateDTO);
+        ResponseEntity<StaffRequestDTO> response = controller.updateStatus(managerUser, requestId, updateDTO);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(RequestStatus.APPROVED, response.getBody().getStatus());
+    }
+
+    @Test
+    public void sameDisplayNameDoesNotGrantDetailAccess() {
+        UUID id = UUID.randomUUID();
+        when(staffRequestService.getRequestById(id)).thenReturn(StaffRequestDTO.builder()
+                .id(id).requesterName(staffUser.getUser().getFullName()).requesterId(UUID.randomUUID()).build());
+        assertThrows(AccessDeniedException.class, () -> controller.getRequestById(staffUser, id));
+    }
+
+    @Test
+    public void managerCannotReviewRequestsInAnotherStore() {
+        UUID id = UUID.randomUUID();
+        when(staffRequestService.getRequestById(id)).thenReturn(StaffRequestDTO.builder()
+                .id(id).storeId(UUID.randomUUID()).build());
+        var update = StaffRequestStatusUpdateDTO.builder().status(RequestStatus.APPROVED).build();
+        assertThrows(AccessDeniedException.class, () -> controller.updateStatus(managerUser, id, update));
+        verify(staffRequestService, never()).updateRequestStatus(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    public void staffCannotCreateRequestForAnotherStore() {
+        var input = StaffRequestCreateDTO.builder().requesterId(UUID.randomUUID())
+                .storeId(UUID.randomUUID()).requestType("Support").content("Message").build();
+        assertThrows(AccessDeniedException.class, () -> controller.createRequest(staffUser, input));
+        verify(staffRequestService, never()).createRequest(any());
     }
 }

@@ -41,6 +41,8 @@ public class LeaveRequestService {
     private final com.shiftsync.notification.service.NotificationService notificationService;
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     private final LeaveBalanceService leaveBalanceService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.activity.ActivityArchiveRecorder activityArchiveRecorder;
 
     @Transactional
     public LeaveRequestDTO createLeaveRequest(UUID storeId, UUID staffId, LeaveCreateRequest request) {
@@ -134,6 +136,9 @@ public class LeaveRequestService {
             throw new BusinessException("Only pending or approved leave requests can be cancelled", HttpStatus.BAD_REQUEST);
         }
 
+        // The JDBC archive joins this transaction. If either archive or deletion
+        // fails, neither the source events nor their preserved copies are lost.
+        if (activityArchiveRecorder != null) activityArchiveRecorder.preserveCancelledLeave(leaveRequest, staffId, OffsetDateTime.now());
         leaveRequestRepository.delete(leaveRequest);
         try {
             realtimeEventPublisher.publishStoreEvent(storeId, "requests", java.util.Map.of("action", "LEAVE_CANCELLED", "leaveId", leaveId));
@@ -367,6 +372,7 @@ public class LeaveRequestService {
                 .reason(request.getReason())
                 .rejectionReason(request.getRejectionReason())
                 .approvedBy(request.getApprovedBy() != null ? request.getApprovedBy().getId() : null)
+                .approvedByName(request.getApprovedBy() != null ? request.getApprovedBy().getFullName() : null)
                 .approvedAt(request.getApprovedAt())
                 .createdAt(request.getCreatedAt())
                 .build();

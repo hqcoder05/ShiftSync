@@ -69,8 +69,9 @@ public class ShiftController {
     public ResponseEntity<ShiftDTO> setShiftRequirements(
             @PathVariable UUID storeId,
             @PathVariable UUID shiftId,
-            @Valid @RequestBody List<ShiftRequirementRequest> requirements) {
-        return ResponseEntity.ok(shiftService.setShiftRequirements(storeId, shiftId, requirements));
+            @Valid @RequestBody List<ShiftRequirementRequest> requirements,
+            @RequestParam(required = false) String changeReason) {
+        return ResponseEntity.ok(shiftService.setShiftRequirements(storeId, shiftId, requirements, changeReason));
     }
 
     @Operation(summary = "Bulk configure demand planning for shifts across a date range or specific date")
@@ -90,7 +91,7 @@ public class ShiftController {
             @PathVariable UUID storeId,
             @Valid @RequestBody ShiftPublishRequest request, 
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
-        shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null);
+        shiftService.publishShifts(storeId, request.getStartDate(), request.getEndDate(), userDetails != null ? userDetails.getId() : null, request.getChangeReason());
         return ResponseEntity.noContent().build();
     }
 
@@ -119,8 +120,9 @@ public class ShiftController {
     @DeleteMapping("/{shiftId}")
     public ResponseEntity<Void> deleteShift(
             @PathVariable UUID storeId,
-            @PathVariable UUID shiftId) {
-        shiftService.deleteShift(storeId, shiftId);
+            @PathVariable UUID shiftId,
+            @RequestParam(required = false) String changeReason) {
+        shiftService.deleteShift(storeId, shiftId, changeReason);
         return ResponseEntity.noContent().build();
     }
 

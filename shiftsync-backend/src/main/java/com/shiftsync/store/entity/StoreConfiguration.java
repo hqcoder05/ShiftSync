@@ -21,6 +21,12 @@ public class StoreConfiguration {
     @Column(name = "store_id", nullable = false, unique = true)
     private UUID storeId;
 
+    @Column(name = "support_phone", length = 20)
+    private String supportPhone;
+
+    @Column(name = "support_label", length = 80)
+    private String supportLabel;
+
     @Column(name = "max_hour_per_week", nullable = false)
     @Builder.Default
     private Integer maxHourPerWeek = 48;

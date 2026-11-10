@@ -111,6 +111,7 @@ public class ShiftSwapService {
                 .toStaff(toStaff)
                 .toShift(toAssignment.getShift())
                 .status(SwapStatus.PENDING)
+                .createdAt(java.time.OffsetDateTime.now())
                 .build();
 
         ShiftSwapRequest saved = shiftSwapRequestRepository.save(request);
@@ -144,6 +145,10 @@ public class ShiftSwapService {
             throw new BusinessException("This request has already been processed", HttpStatus.BAD_REQUEST);
         }
 
+        if (request.isEmployeeAccepted()) {
+            throw new BusinessException("You have already accepted this request", HttpStatus.CONFLICT);
+        }
+        request.setEmployeeRespondedAt(java.time.OffsetDateTime.now());
         if (!accept) {
             request.setStatus(SwapStatus.REJECTED);
             shiftSwapRequestRepository.save(request);
@@ -180,6 +185,11 @@ public class ShiftSwapService {
 
     @Transactional(rollbackFor = Exception.class)
     public void managerApproveSwapRequest(UUID requestId, UUID managerId) {
+        managerApproveSwapRequest(requestId, managerId, null);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void managerApproveSwapRequest(UUID requestId, UUID managerId, String managerNote) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
 
@@ -262,6 +272,8 @@ public class ShiftSwapService {
 
         request.setStatus(SwapStatus.APPROVED);
         request.setApprovedBy(manager);
+        request.setReviewedAt(java.time.OffsetDateTime.now());
+        request.setManagerNote(managerNote);
         shiftSwapRequestRepository.save(request);
         auditLogService.log(managerId, "APPROVE_SWAP", "ShiftSwapRequest", requestId, 
                 java.util.Map.of("status", "PENDING"), 
@@ -292,6 +304,11 @@ public class ShiftSwapService {
 
     @Transactional(rollbackFor = Exception.class)
     public void managerRejectSwapRequest(UUID requestId, UUID managerId) {
+        managerRejectSwapRequest(requestId, managerId, null);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void managerRejectSwapRequest(UUID requestId, UUID managerId, String managerNote) {
         ShiftSwapRequest request = shiftSwapRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException("Swap request not found", HttpStatus.NOT_FOUND));
 
@@ -311,6 +328,8 @@ public class ShiftSwapService {
 
         request.setStatus(SwapStatus.REJECTED);
         request.setApprovedBy(manager); // Track who rejected it
+        request.setReviewedAt(java.time.OffsetDateTime.now());
+        request.setManagerNote(managerNote);
         shiftSwapRequestRepository.save(request);
 
         auditLogService.log(managerId, "REJECT_SWAP", "ShiftSwapRequest", requestId, 
@@ -365,6 +384,9 @@ public class ShiftSwapService {
         }
 
         request.setStatus(SwapStatus.CANCELLED);
+        request.setCancelledAt(java.time.OffsetDateTime.now());
+        request.setCancelledById(userId);
+        request.setCancelledByName(user.getFullName());
         shiftSwapRequestRepository.save(request);
 
         auditLogService.log(userId, "CANCEL_SWAP", "ShiftSwapRequest", requestId, 
@@ -423,6 +445,14 @@ public class ShiftSwapService {
                 .status(swap.getStatus())
                 .approvedById(swap.getApprovedBy() != null ? swap.getApprovedBy().getId() : null)
                 .employeeAccepted(swap.isEmployeeAccepted())
+                .approvedByName(swap.getApprovedBy() != null ? swap.getApprovedBy().getFullName() : null)
+                .createdAt(swap.getCreatedAt())
+                .employeeRespondedAt(swap.getEmployeeRespondedAt())
+                .reviewedAt(swap.getReviewedAt())
+                .cancelledAt(swap.getCancelledAt())
+                .cancelledById(swap.getCancelledById())
+                .cancelledByName(swap.getCancelledByName())
+                .managerNote(swap.getManagerNote())
                 .build();
     }
 }

@@ -11,6 +11,8 @@ import java.util.UUID;
 
 @Data
 public class BulkDemandPlanningRequest {
+    @jakarta.validation.constraints.Size(max = 1000)
+    private String changeReason;
 
     @Schema(description = "Scope of demand planning: WEEK or DAY", example = "WEEK")
     private String scope = "WEEK";

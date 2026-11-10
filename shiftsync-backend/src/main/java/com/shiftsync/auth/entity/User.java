@@ -37,6 +37,15 @@ public class User {
     @Column(name = "phone")
     private String phone;
 
+    @Column(name = "birth_date")
+    private java.time.LocalDate birthDate;
+
+    @Column(name = "birth_place", length = 160)
+    private String birthPlace;
+
+    @Column(name = "gender", length = 20)
+    private String gender;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 

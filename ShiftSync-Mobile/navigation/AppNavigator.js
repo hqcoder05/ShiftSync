@@ -1,13 +1,12 @@
+import { colors as uiColors } from '../theme/koreanPalette';
 import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import axios from 'axios';
 
 import { navigationRef } from './navigationRef';
-import { getBaseUrl } from '../services/api';
 
 import LazyScreen from './LazyScreen';
 import IOSDiagnosticScreen from '../screens/IOSDiagnosticScreen';
@@ -27,6 +26,13 @@ const loadProfile = () => import('../screens/ProfileScreenApi');
 const loadApiTestHub = () => import('../screens/ApiTestHubScreen');
 const loadMarketplace = () => import('../screens/MarketplaceScreen');
 const loadNotification = () => import('../screens/NotificationScreen');
+const loadMessaging = () => import('../screens/MessagingScreen');
+const loadMore = () => import('../screens/MoreScreen');
+const loadDeviceDiagnostics = () => import('../screens/DeviceDiagnosticScreen');
+const loadIncidentReport = () => import('../screens/IncidentReportScreen');
+const loadActivityTimeline = () => import('../screens/ActivityTimelineScreen');
+const loadScheduleHistory = () => import('../screens/ScheduleHistoryScreen');
+const loadHelpCenter = () => import('../screens/HelpCenterScreen');
 
 const lazy = (loader) => (props) => <LazyScreen loader={loader} {...props} />;
 const LoginRoute = lazy(loadLogin);
@@ -40,6 +46,13 @@ const ProfileRoute = lazy(loadProfile);
 const ApiTestHubRoute = lazy(loadApiTestHub);
 const MarketplaceRoute = lazy(loadMarketplace);
 const NotificationRoute = lazy(loadNotification);
+const MessagingRoute = lazy(loadMessaging);
+const MoreRoute = lazy(loadMore);
+const DeviceDiagnosticRoute = lazy(loadDeviceDiagnostics);
+const IncidentReportRoute = lazy(loadIncidentReport);
+const ActivityTimelineRoute = lazy(loadActivityTimeline);
+const ScheduleHistoryRoute = lazy(loadScheduleHistory);
+const HelpCenterRoute = lazy(loadHelpCenter);
 
 // 5-tab stack (chỉ hiển thị sau khi Login)
 function MainTabs() {
@@ -74,39 +87,8 @@ export default function AppNavigator() {
     const checkAuthStatus = async () => {
       try {
         const token = await AsyncStorage.getItem('accessToken');
-        const refreshToken = await AsyncStorage.getItem('refreshToken');
-
         if (token) {
-          // Thử refresh token ngầm khi khởi động để phiên luôn tươi mới
-          if (refreshToken) {
-            try {
-              const refreshUrl = `${getBaseUrl()}/auth/refresh`;
-              const res = await axios.post(refreshUrl, { refreshToken }, { timeout: 4000 });
-              if (res.data?.accessToken) {
-                const newAccessToken = res.data.accessToken;
-                const newRefreshToken = res.data.refreshToken || refreshToken;
-                await AsyncStorage.multiSet([
-                  ['accessToken', newAccessToken],
-                  ['refreshToken', newRefreshToken],
-                ]);
-                console.log('[Auth Startup] Tự động làm mới phiên và đăng nhập thành công!');
-                setInitialRoute('MainTabs');
-                setIsLoading(false);
-                return;
-              }
-            } catch (refreshErr) {
-              console.log('[Auth Startup] Refresh token thất bại:', refreshErr.message);
-              // Nếu token đã hết hạn hoặc bị từ chối 401 trên server
-              if (refreshErr.response?.status === 401) {
-                await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userRole', 'userEmail']);
-                setInitialRoute('Login');
-                setIsLoading(false);
-                return;
-              }
-            }
-          }
-
-          // Nếu có token nhưng mất mạng hoặc server chậm, vẫn giữ đăng nhập
+          // Authenticated API calls share one refresh flow; cached data remains usable offline.
           setInitialRoute('MainTabs');
           registerForPushNotificationsAsync().catch((e) => console.log('[Push Auto-login Error]:', e));
         } else {
@@ -125,8 +107,8 @@ export default function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#EAF6EA', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#51A33D" />
+      <View style={{ flex: 1, backgroundColor: uiColors.surface, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={uiColors.primaryStrong} />
       </View>
     );
   }
@@ -140,6 +122,13 @@ export default function AppNavigator() {
         <Stack.Screen name="Profile" component={ProfileRoute} />
         <Stack.Screen name="Marketplace" component={MarketplaceRoute} />
         <Stack.Screen name="Notification" component={NotificationRoute} />
+        <Stack.Screen name="Messaging" component={MessagingRoute} />
+        <Stack.Screen name="More" component={MoreRoute} />
+        <Stack.Screen name="DeviceDiagnostics" component={DeviceDiagnosticRoute} />
+        <Stack.Screen name="IncidentReport" component={IncidentReportRoute} />
+        <Stack.Screen name="ActivityTimeline" component={ActivityTimelineRoute} />
+        <Stack.Screen name="ScheduleHistory" component={ScheduleHistoryRoute} />
+        <Stack.Screen name="HelpCenter" component={HelpCenterRoute} />
         <Stack.Screen name="ApiTestHub" component={ApiTestHubRoute} />
         <Stack.Screen name="Diagnostics" component={IOSDiagnosticScreen} />
       </Stack.Navigator>

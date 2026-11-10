@@ -179,8 +179,11 @@ public class LeaveRequestControllerTest {
     public void testGetMyLeaveBalance() {
         LeaveBalanceDTO balance = LeaveBalanceDTO.builder()
                 .staffId(staffUser.getId())
+                .storeId(storeId)
+                .year(2026)
                 .annualEntitlement(12)
                 .usedDays(2)
+                .pendingDays(3)
                 .remainingDays(10)
                 .build();
         when(leaveBalanceService.getMyBalance(storeId, staffUser.getId(), 2026)).thenReturn(balance);
@@ -188,16 +191,100 @@ public class LeaveRequestControllerTest {
         ResponseEntity<LeaveBalanceDTO> response = leaveRequestController.getMyLeaveBalance(storeId, 2026, staffUser);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
+        assertEquals(staffUser.getId(), response.getBody().getStaffId());
+        assertEquals(storeId, response.getBody().getStoreId());
+        assertEquals(2026, response.getBody().getYear());
+        assertEquals(3, response.getBody().getPendingDays());
         assertEquals(10, response.getBody().getRemainingDays());
+        verify(leaveBalanceService).getMyBalance(storeId, staffUser.getId(), 2026);
+        verifyNoMoreInteractions(leaveBalanceService);
+    }
+
+    @Test
+    public void testGetMyLeaveBalanceUsesAuthenticatedStaffAndRequestedStoreAndYear() {
+        UUID requestedStoreId = UUID.randomUUID();
+        CustomUserDetails otherStaff = new CustomUserDetails(User.builder()
+                .id(UUID.randomUUID()).systemRole(SystemRole.STAFF).build());
+        LeaveBalanceDTO balance = LeaveBalanceDTO.builder()
+                .staffId(otherStaff.getId()).storeId(requestedStoreId).year(2027)
+                .annualEntitlement(12).usedDays(5).pendingDays(4).remainingDays(7).build();
+        when(leaveBalanceService.getMyBalance(requestedStoreId, otherStaff.getId(), 2027))
+                .thenReturn(balance);
+
+        ResponseEntity<LeaveBalanceDTO> response =
+                leaveRequestController.getMyLeaveBalance(requestedStoreId, 2027, otherStaff);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(otherStaff.getId(), response.getBody().getStaffId());
+        assertEquals(requestedStoreId, response.getBody().getStoreId());
+        assertEquals(2027, response.getBody().getYear());
+        assertEquals(4, response.getBody().getPendingDays());
+        assertEquals(7, response.getBody().getRemainingDays());
+        verify(leaveBalanceService).getMyBalance(requestedStoreId, otherStaff.getId(), 2027);
+        verifyNoMoreInteractions(leaveBalanceService);
+    }
+
+    @Test
+    public void testGetMyLeaveBalanceDelegatesMissingYear() {
+        LeaveBalanceDTO balance = LeaveBalanceDTO.builder()
+                .staffId(staffUser.getId()).storeId(storeId).year(2026)
+                .annualEntitlement(12).usedDays(2).pendingDays(3).remainingDays(10).build();
+        when(leaveBalanceService.getMyBalance(storeId, staffUser.getId(), null)).thenReturn(balance);
+
+        ResponseEntity<LeaveBalanceDTO> response =
+                leaveRequestController.getMyLeaveBalance(storeId, null, staffUser);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(2026, response.getBody().getYear());
+        assertEquals(3, response.getBody().getPendingDays());
+        assertEquals(10, response.getBody().getRemainingDays());
+        verify(leaveBalanceService).getMyBalance(storeId, staffUser.getId(), null);
+        verifyNoMoreInteractions(leaveBalanceService);
     }
 
     @Test
     public void testGetStoreLeaveBalances() {
-        LeaveBalanceDTO balance = LeaveBalanceDTO.builder().storeId(storeId).annualEntitlement(12).build();
-        when(leaveBalanceService.getStoreBalances(storeId, 2026)).thenReturn(List.of(balance));
+        UUID otherStaffId = UUID.randomUUID();
+        LeaveBalanceDTO first = LeaveBalanceDTO.builder()
+                .staffId(staffUser.getId()).storeId(storeId).year(2026)
+                .annualEntitlement(12).usedDays(2).pendingDays(3).remainingDays(10).build();
+        LeaveBalanceDTO second = LeaveBalanceDTO.builder()
+                .staffId(otherStaffId).storeId(storeId).year(2026)
+                .annualEntitlement(12).carryOverDays(1).usedDays(8).pendingDays(0).remainingDays(5).build();
+        when(leaveBalanceService.getStoreBalances(storeId, 2026)).thenReturn(List.of(first, second));
 
         ResponseEntity<List<LeaveBalanceDTO>> response = leaveRequestController.getStoreLeaveBalances(storeId, 2026);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().size());
+        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().size());
+        LeaveBalanceDTO firstResult = response.getBody().get(0);
+        LeaveBalanceDTO secondResult = response.getBody().get(1);
+        assertEquals(staffUser.getId(), firstResult.getStaffId());
+        assertEquals(storeId, firstResult.getStoreId());
+        assertEquals(2026, firstResult.getYear());
+        assertEquals(3, firstResult.getPendingDays());
+        assertEquals(10, firstResult.getRemainingDays());
+        assertEquals(otherStaffId, secondResult.getStaffId());
+        assertEquals(storeId, secondResult.getStoreId());
+        assertEquals(2026, secondResult.getYear());
+        assertEquals(0, secondResult.getPendingDays());
+        assertEquals(5, secondResult.getRemainingDays());
+        verify(leaveBalanceService).getStoreBalances(storeId, 2026);
+        verifyNoMoreInteractions(leaveBalanceService);
+    }
+
+    @Test
+    public void testGetStoreLeaveBalancesDelegatesMissingYear() {
+        when(leaveBalanceService.getStoreBalances(storeId, null)).thenReturn(List.of());
+
+        ResponseEntity<List<LeaveBalanceDTO>> response = leaveRequestController.getStoreLeaveBalances(storeId, null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().isEmpty());
+        verify(leaveBalanceService).getStoreBalances(storeId, null);
+        verifyNoMoreInteractions(leaveBalanceService);
     }
 }

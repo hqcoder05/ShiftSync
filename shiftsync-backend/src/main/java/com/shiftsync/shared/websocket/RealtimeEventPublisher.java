@@ -25,14 +25,6 @@ public class RealtimeEventPublisher {
             // Push to personal topic
             String userDest = "/topic/notifications/" + userId;
             messagingTemplate.convertAndSend(userDest, (Object) notification);
-            // Also push to generic notifications topic with recipientId
-            Map<String, Object> genericPayload = Map.of(
-                    "type", "NEW_NOTIFICATION",
-                    "userId", userId.toString(),
-                    "notification", notification,
-                    "timestamp", Instant.now().toString()
-            );
-            messagingTemplate.convertAndSend("/topic/notifications", (Object) genericPayload);
             log.info("Published realtime notification via WebSocket to /topic/notifications/{}", userId);
         } catch (Exception e) {
             log.warn("Failed to publish notification via WebSocket to user {}: {}", userId, e.getMessage());

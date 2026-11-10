@@ -13,6 +13,9 @@ import java.time.LocalDate;
 public class StaffRequestCreateDTO {
 
     private String requesterName;
+    // The controller replaces requesterId with the authenticated user ID.
+    private java.util.UUID requesterId;
+    private java.util.UUID storeId;
     private String avatarKey;
 
     @NotBlank(message = "Request type is required")

@@ -1,3 +1,6 @@
+import { colors as uiColors } from '../theme/koreanPalette';
+import { createAppStyles } from '../theme/appTheme';
+import { ensureTouchTarget } from '../utils/touchTarget';
 import React, { useState, useMemo } from 'react';
 import {
   SafeAreaView,
@@ -103,12 +106,12 @@ export default function ApiTestHubScreen({ navigation }) {
 
   const getMethodColor = (m) => {
     switch (m) {
-      case 'GET': return '#16a34a';
-      case 'POST': return '#2563eb';
-      case 'PUT': return '#d97706';
-      case 'PATCH': return '#9333ea';
-      case 'DELETE': return '#dc2626';
-      default: return '#475569';
+      case 'GET': return uiColors.success;
+      case 'POST': return uiColors.info;
+      case 'PUT': return uiColors.warning;
+      case 'PATCH': return "#8A759E";
+      case 'DELETE': return uiColors.danger;
+      default: return uiColors.secondary;
     }
   };
 
@@ -118,7 +121,7 @@ export default function ApiTestHubScreen({ navigation }) {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.backBtn)} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>‹ Quay lại</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
@@ -136,8 +139,8 @@ export default function ApiTestHubScreen({ navigation }) {
           onChangeText={setSearch}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.groupScroll}>
-          <TouchableOpacity
-            style={[styles.groupChip, selectedGroup === 'ALL' && styles.groupChipActive]}
+          <TouchableOpacity accessibilityRole="button"
+            style={ensureTouchTarget([styles.groupChip, selectedGroup === 'ALL' && styles.groupChipActive])}
             onPress={() => setSelectedGroup('ALL')}
           >
             <Text style={[styles.groupChipText, selectedGroup === 'ALL' && styles.groupChipTextActive]}>
@@ -145,9 +148,9 @@ export default function ApiTestHubScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
           {API_GROUPS.map((g) => (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               key={g}
-              style={[styles.groupChip, selectedGroup === g && styles.groupChipActive]}
+              style={ensureTouchTarget([styles.groupChip, selectedGroup === g && styles.groupChipActive])}
               onPress={() => setSelectedGroup(g)}
             >
               <Text style={[styles.groupChipText, selectedGroup === g && styles.groupChipTextActive]}>
@@ -161,9 +164,9 @@ export default function ApiTestHubScreen({ navigation }) {
       {/* List APIs */}
       <ScrollView style={styles.apiList} contentContainerStyle={{ paddingBottom: 24 }}>
         {filteredApis.map((item) => (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             key={item.id}
-            style={styles.apiCard}
+            style={ensureTouchTarget(styles.apiCard)}
             onPress={() => openApiModal(item)}
           >
             <View style={styles.apiCardHeader}>
@@ -182,7 +185,7 @@ export default function ApiTestHubScreen({ navigation }) {
       <Modal visible={modalVisible} animationType="slide" transparent={false}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setModalVisible(false)} style={ensureTouchTarget(styles.closeBtn)}>
               <Text style={styles.closeBtnText}>✕ Đóng</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle} numberOfLines={1}>Chi tiết & Kiểm thử</Text>
@@ -248,8 +251,8 @@ export default function ApiTestHubScreen({ navigation }) {
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[styles.executeBtn, loading && { backgroundColor: '#94a3b8' }]}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget([styles.executeBtn, loading && { backgroundColor: uiColors.muted }])}
                 onPress={handleExecute}
                 disabled={loading}
               >
@@ -286,48 +289,48 @@ export default function ApiTestHubScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createAppStyles({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: uiColors.canvas,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: uiColors.line,
   },
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: uiColors.canvas,
     borderRadius: 8,
   },
   backBtnText: {
     fontSize: 14,
-    color: '#0284c7',
+    color: uiColors.info,
     fontWeight: '600',
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: uiColors.ink,
   },
   subtitle: {
     fontSize: 11,
-    color: '#64748b',
+    color: uiColors.muted,
   },
   filterSection: {
     padding: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: uiColors.line,
   },
   searchInput: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: uiColors.canvas,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -341,15 +344,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: uiColors.canvas,
     marginRight: 8,
   },
   groupChipActive: {
-    backgroundColor: '#0284c7',
+    backgroundColor: uiColors.info,
   },
   groupChipText: {
     fontSize: 12,
-    color: '#475569',
+    color: uiColors.secondary,
     fontWeight: '500',
   },
   groupChipTextActive: {
@@ -361,12 +364,12 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   apiCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: uiColors.line,
   },
   apiCardHeader: {
     flexDirection: 'row',
@@ -387,46 +390,46 @@ const styles = StyleSheet.create({
   apiPath: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0f172a',
+    color: uiColors.ink,
     flex: 1,
     fontFamily: 'monospace',
   },
   apiDesc: {
     fontSize: 12,
-    color: '#475569',
+    color: uiColors.secondary,
     marginBottom: 4,
   },
   apiGroup: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: uiColors.muted,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: uiColors.line,
   },
   closeBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: uiColors.canvas,
     borderRadius: 8,
     marginRight: 12,
   },
   closeBtnText: {
     fontSize: 13,
-    color: '#475569',
+    color: uiColors.secondary,
     fontWeight: '600',
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
+    color: uiColors.ink,
     flex: 1,
   },
   modalBody: {
@@ -439,7 +442,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1e293b',
+    color: uiColors.ink,
     marginBottom: 8,
   },
   inputGroup: {
@@ -447,23 +450,23 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 11,
-    color: '#64748b',
+    color: uiColors.muted,
     marginBottom: 2,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: uiColors.canvas,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: uiColors.lineStrong,
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 13,
   },
   payloadInput: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: uiColors.canvas,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: uiColors.lineStrong,
     borderRadius: 6,
     padding: 10,
     fontFamily: 'monospace',
@@ -472,7 +475,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   executeBtn: {
-    backgroundColor: '#0284c7',
+    backgroundColor: uiColors.info,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -484,7 +487,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   responseBox: {
-    backgroundColor: '#0f172a',
+    backgroundColor: uiColors.ink,
     borderRadius: 8,
     padding: 12,
     marginBottom: 40,
@@ -503,22 +506,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusSuccess: {
-    backgroundColor: '#15803d',
+    backgroundColor: uiColors.success,
     color: '#ffffff',
   },
   statusFail: {
-    backgroundColor: '#b91c1c',
+    backgroundColor: uiColors.dangerStrong,
     color: '#ffffff',
   },
   responseTime: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: uiColors.muted,
   },
   resultScroll: {
     maxHeight: 250,
   },
   resultText: {
-    color: '#f8fafc',
+    color: uiColors.canvas,
     fontFamily: 'monospace',
     fontSize: 11,
   },

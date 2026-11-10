@@ -197,6 +197,20 @@ public class UserService {
     }
 
     @Transactional
+    public UserDTO updatePersonalInfo(UUID id, com.shiftsync.auth.dto.UserPersonalInfoRequest request) {
+        if (request.getBirthDate() != null && request.getBirthDate().isAfter(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")))) {
+            throw new BusinessException("Ngày sinh không được ở tương lai.", HttpStatus.BAD_REQUEST);
+        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
+        user.setPhone(request.getPhone() == null ? "" : request.getPhone());
+        user.setBirthDate(request.getBirthDate());
+        user.setBirthPlace(request.getBirthPlace() == null ? "" : request.getBirthPlace().trim());
+        user.setGender(request.getGender() == null ? "" : request.getGender());
+        return UserMapper.toDTO(userRepository.save(user));
+    }
+
+    @Transactional
     public void deleteUser(UUID id, UUID actorId) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));

@@ -1,3 +1,5 @@
+import { colors as uiColors } from '../theme/koreanPalette';
+import { ensureTouchTarget } from '../utils/touchTarget';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -249,10 +251,10 @@ export default function EmployeeCard3D({
             </View>
 
             {/* Nút lật thẻ 3D */}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               onPress={handleFlip}
               activeOpacity={0.8}
-              style={styles.flipBadgeTop}
+              style={ensureTouchTarget(styles.flipBadgeTop)}
               accessibilityLabel="Lật thẻ mặt sau"
             >
               <Text style={styles.flipBadgeText}>✨ 3D Flip • Chạm để lật 🪪</Text>
@@ -261,11 +263,11 @@ export default function EmployeeCard3D({
 
           {/* Avatar + Tên + Chức danh */}
           <View style={styles.nameLine}>
-            <Pressable
+            <Pressable accessibilityRole="button"
               onPress={() => {
                 if (onOpenAvatarPicker) onOpenAvatarPicker();
               }}
-              style={styles.avatarWrapper}
+              style={ensureTouchTarget(styles.avatarWrapper)}
               accessibilityLabel="Chọn ảnh đại diện"
             >
               <View style={styles.avatar}>
@@ -335,10 +337,10 @@ export default function EmployeeCard3D({
               <Text style={styles.backBrandSub}>DỮ LIỆU NHÂN VIÊN NỘI BỘ</Text>
             </View>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               onPress={handleFlip}
               activeOpacity={0.8}
-              style={styles.flipBadgeTop}
+              style={ensureTouchTarget(styles.flipBadgeTop)}
               accessibilityLabel="Quay lại mặt trước"
             >
               <Text style={styles.flipBadgeText}>Lật mặt trước ↺</Text>
@@ -387,8 +389,8 @@ export default function EmployeeCard3D({
 
           {/* HÀNG HÀNH ĐỘNG DƯỚI CÙNG: CHỈNH SỬA THÔNG TIN */}
           <View style={styles.backActionFooter}>
-            <TouchableOpacity
-              style={styles.editInfoBtn}
+            <TouchableOpacity accessibilityRole="button"
+              style={ensureTouchTarget(styles.editInfoBtn)}
               onPress={() => {
                 if (onEditPersonalInfo) onEditPersonalInfo();
               }}
@@ -425,7 +427,7 @@ const styles = StyleSheet.create({
   claspStrap: {
     width: 28,
     height: 14,
-    backgroundColor: '#387328',
+    backgroundColor: uiColors.success,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
     borderWidth: 1,
@@ -434,13 +436,13 @@ const styles = StyleSheet.create({
   claspMetalClip: {
     width: 44,
     height: 16,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: uiColors.lineStrong,
     borderRadius: 5,
     borderWidth: 1.2,
-    borderColor: '#94A3B8',
+    borderColor: uiColors.muted,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOpacity: 0.15,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 2 },
@@ -450,7 +452,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#475569',
+    backgroundColor: uiColors.secondary,
   },
 
   /* ═══ KHỐI ĐỔ BÓNG TẦNG SÂU 3D ═══ */
@@ -461,7 +463,7 @@ const styles = StyleSheet.create({
     right: 4,
     height: 252,
     borderRadius: 20,
-    backgroundColor: 'rgba(66, 133, 49, 0.18)',
+    backgroundColor: "rgba(81, 125, 105, 0.18)",
     shadowColor: '#2d5a22',
     shadowOpacity: 0.35,
     shadowRadius: 18,
@@ -485,15 +487,15 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 20,
-    backgroundColor: '#FFF8E1',
+    backgroundColor: uiColors.butter,
     padding: 16,
     paddingTop: 12,
     backfaceVisibility: 'hidden',
     // Hiệu ứng viền vát 3D (3D Bevel highlight & shadow border)
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.85)',
-    borderBottomColor: 'rgba(66, 133, 49, 0.35)',
-    borderRightColor: 'rgba(66, 133, 49, 0.25)',
+    borderBottomColor: "rgba(81, 125, 105, 0.35)",
+    borderRightColor: "rgba(81, 125, 105, 0.25)",
     shadowColor: '#2e5e21',
     shadowOpacity: 0.18,
     shadowRadius: 12,
@@ -522,17 +524,17 @@ const styles = StyleSheet.create({
     width: 34,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: "rgba(40, 49, 59, 0.08)",
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.8,
-    borderColor: 'rgba(0, 0, 0, 0.12)',
+    borderColor: "rgba(40, 49, 59, 0.12)",
   },
   cardPunchHoleInner: {
     width: 24,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#EFE6CA',
+    backgroundColor: "#E8DFC5",
   },
 
   cardFront: {
@@ -541,9 +543,9 @@ const styles = StyleSheet.create({
 
   cardBack: {
     zIndex: 1,
-    backgroundColor: '#FFFDF5',
+    backgroundColor: uiColors.butter,
     borderColor: 'rgba(255, 255, 255, 0.9)',
-    borderBottomColor: 'rgba(66, 133, 49, 0.4)',
+    borderBottomColor: "rgba(81, 125, 105, 0.4)",
     justifyContent: 'space-between',
   },
 
@@ -566,7 +568,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#EAB308',
     borderWidth: 1,
-    borderColor: '#CA8A04',
+    borderColor: uiColors.warning,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -575,39 +577,39 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '100%',
     height: 1,
-    backgroundColor: '#A16207',
+    backgroundColor: uiColors.warning,
   },
   chipCircuitV: {
     position: 'absolute',
     height: '100%',
     width: 1,
-    backgroundColor: '#A16207',
+    backgroundColor: uiColors.warning,
   },
   chipCore: {
     width: 8,
     height: 8,
     borderRadius: 2,
-    backgroundColor: '#CA8A04',
+    backgroundColor: uiColors.warning,
     borderWidth: 0.5,
     borderColor: '#FEF08A',
   },
   smartChipText: {
     fontSize: 9.5,
     fontWeight: '800',
-    color: '#854D0E',
+    color: uiColors.warningText,
     letterSpacing: 0.5,
   },
   flipBadgeTop: {
-    backgroundColor: 'rgba(66, 133, 49, 0.12)',
+    backgroundColor: "rgba(81, 125, 105, 0.12)",
     paddingHorizontal: 9,
     paddingVertical: 3.5,
     borderRadius: 12,
     borderWidth: 0.8,
-    borderColor: 'rgba(66, 133, 49, 0.25)',
+    borderColor: "rgba(81, 125, 105, 0.25)",
   },
   flipBadgeText: {
     fontSize: 10.5,
-    color: '#387328',
+    color: uiColors.successText,
     fontWeight: '700',
   },
 
@@ -633,12 +635,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#428531',
+    backgroundColor: uiColors.success,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#FFF8E1',
-    shadowColor: '#000',
+    borderColor: uiColors.butter,
+    shadowColor: uiColors.ink,
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
@@ -652,17 +654,17 @@ const styles = StyleSheet.create({
   nameDisplay: {
     fontSize: 17.5,
     fontWeight: '700',
-    color: '#1F2937',
+    color: uiColors.ink,
   },
   positionSubtitle: {
     fontSize: 12.5,
-    color: '#428531',
+    color: uiColors.successText,
     fontWeight: '600',
     marginTop: 2,
   },
   cardLine: {
     height: 1,
-    backgroundColor: '#EDE3C2',
+    backgroundColor: "#E8DFC5",
     marginVertical: 8,
   },
   workDetails: {
@@ -675,13 +677,13 @@ const styles = StyleSheet.create({
   workLabel: {
     width: 105,
     fontSize: 11.5,
-    color: '#555555',
+    color: uiColors.secondary,
   },
   inlineWorkValue: {
     flex: 1,
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#222222',
+    color: uiColors.ink,
   },
 
   /* ═══ MẶT SAU STYLES (THÔNG TIN CÁ NHÂN) ═══ */
@@ -700,11 +702,11 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 7,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: uiColors.mint,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#C8E6C9',
+    borderColor: "#DCE9E0",
   },
   shieldIconText: {
     fontSize: 14,
@@ -718,12 +720,12 @@ const styles = StyleSheet.create({
   backBrandSub: {
     fontSize: 8.5,
     fontWeight: '700',
-    color: '#428531',
+    color: uiColors.successText,
     letterSpacing: 0.5,
   },
   backDivider: {
     height: 1,
-    backgroundColor: '#E7DCB9',
+    backgroundColor: "#E8DFC5",
     marginVertical: 7,
   },
 
@@ -738,19 +740,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 0.8,
-    borderColor: 'rgba(226, 232, 240, 0.95)',
+    borderColor: "rgba(230, 231, 227, 0.95)",
   },
   infoRowLabel: {
     width: 95,
     fontSize: 12,
-    color: '#64748B',
+    color: uiColors.muted,
     fontWeight: '600',
   },
   infoRowValue: {
     flex: 1,
     fontSize: 12,
     fontWeight: '700',
-    color: '#1E293B',
+    color: uiColors.ink,
   },
 
   backActionFooter: {
@@ -763,12 +765,12 @@ const styles = StyleSheet.create({
   editInfoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#428531',
+    backgroundColor: uiColors.success,
     paddingHorizontal: 12,
     paddingVertical: 5.5,
     borderRadius: 10,
     gap: 6,
-    shadowColor: '#428531',
+    shadowColor: uiColors.success,
     shadowOpacity: 0.3,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -784,16 +786,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   securitySealWrap: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: uiColors.canvas,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 5,
     borderWidth: 0.8,
-    borderColor: '#CBD5E1',
+    borderColor: uiColors.lineStrong,
   },
   securitySealText: {
     fontSize: 8.5,
-    color: '#64748B',
+    color: uiColors.muted,
     fontWeight: '800',
     letterSpacing: 0.8,
   },

@@ -16,4 +16,7 @@ public class ShiftPublishRequest {
     @NotNull(message = "End date is required")
     @Schema(description = "End date of the schedule week", example = "2023-11-19")
     private LocalDate endDate;
+
+    @jakarta.validation.constraints.Size(max = 1000)
+    private String changeReason;
 }

@@ -70,11 +70,14 @@ public class PayrollController {
             @PathVariable UUID storeId,
             @PathVariable UUID periodId) {
         List<PayrollDTO> payslips = payrollRepository.findByPayrollPeriodId(periodId).stream()
+                .filter(p -> p.getPayrollPeriod().getStore().getId().equals(storeId))
                 .map(p -> PayrollDTO.builder()
                         .id(p.getId())
                         .periodId(p.getPayrollPeriod().getId())
                         .staffId(p.getStaff().getId())
                         .staffName(p.getStaff().getFullName())
+                        .storeId(p.getPayrollPeriod().getStore().getId())
+                        .storeName(p.getPayrollPeriod().getStore().getName())
                         .periodStartDate(p.getPayrollPeriod().getStartDate())
                         .periodEndDate(p.getPayrollPeriod().getEndDate())
                         .periodStatus(p.getPayrollPeriod().getStatus().name())
@@ -102,6 +105,8 @@ public class PayrollController {
                         .periodId(p.getPayrollPeriod().getId())
                         .staffId(p.getStaff().getId())
                         .staffName(p.getStaff().getFullName())
+                        .storeId(p.getPayrollPeriod().getStore().getId())
+                        .storeName(p.getPayrollPeriod().getStore().getName())
                         .periodStartDate(p.getPayrollPeriod().getStartDate())
                         .periodEndDate(p.getPayrollPeriod().getEndDate())
                         .periodStatus(p.getPayrollPeriod().getStatus().name())

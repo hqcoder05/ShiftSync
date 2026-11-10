@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
 @Service
 public class ShiftService {
     private final AuditLogService auditLogService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.schedulehistory.service.ScheduleHistoryService scheduleHistoryService;
 
     private final ShiftRepository shiftRepository;
     private final StoreRepository storeRepository;
@@ -221,8 +223,14 @@ public class ShiftService {
 
     @Transactional
     public ShiftDTO setShiftRequirements(UUID storeId, UUID shiftId, List<ShiftRequirementRequest> requirements) {
+        return setShiftRequirements(storeId, shiftId, requirements, null);
+    }
+
+    @Transactional
+    public ShiftDTO setShiftRequirements(UUID storeId, UUID shiftId, List<ShiftRequirementRequest> requirements, String changeReason) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        var before = historySnapshot(shift);
 
         if (shift.getStatus() != ShiftStatus.DRAFT) {
             throw new BusinessException("Cannot modify requirements of a shift that is already published", HttpStatus.BAD_REQUEST);
@@ -274,8 +282,9 @@ public class ShiftService {
         }).collect(Collectors.toList());
 
         shift.setRequirements(newRequirements);
-
-        return mapToDTO(shiftRepository.save(shift));
+        Shift saved = shiftRepository.save(shift);
+        recordHistory(saved, before, historySnapshot(saved), changeReason);
+        return mapToDTO(saved);
     }
 
     @Transactional
@@ -326,6 +335,8 @@ public class ShiftService {
 
                 Shift shift = shiftRepository.findByStoreIdAndShiftDateAndStartTimeAndEndTime(storeId, date, dConfig.getStartTime(), dConfig.getEndTime())
                         .orElse(null);
+                var before = historySnapshot(shift);
+                boolean existingShift = shift != null;
 
                 if (shift == null) {
                     java.time.ZonedDateTime deadline = java.time.ZonedDateTime.of(date, dConfig.getStartTime(), java.time.ZoneId.of("UTC")).minusHours(24);
@@ -381,6 +392,7 @@ public class ShiftService {
 
                 shift.setRequirements(reqEntities);
                 shiftRepository.save(shift);
+                if (existingShift) recordHistory(shift, before, historySnapshot(shift), request.getChangeReason());
             }
         }
 
@@ -426,6 +438,11 @@ public class ShiftService {
 
     @Transactional
     public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
+        publishShifts(storeId, startDate, endDate, managerId, null);
+    }
+
+    @Transactional
+    public void publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId, String changeReason) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
         List<Shift> shifts = shiftRepository.findByStoreIdAndShiftDateBetween(storeId, startDate, endDate);
@@ -442,7 +459,9 @@ public class ShiftService {
                 if (store.getCloseTime() != null && shift.getEndTime().isAfter(store.getCloseTime())) {
                     throw new BusinessException("Shift " + shift.getId() + " end time is after store close time", HttpStatus.BAD_REQUEST);
                 }
+                var before = historySnapshot(shift);
                 shift.setStatus(ShiftStatus.PUBLISHED);
+                recordHistory(shift, before, historySnapshot(shift), changeReason);
                 publishedCount++;
 
                 List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shift.getId());
@@ -487,6 +506,7 @@ public class ShiftService {
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        var before = historySnapshot(shift);
 
         if (shift.getStatus() == ShiftStatus.COMPLETED || shift.getStatus() == ShiftStatus.CANCELLED) {
             throw new BusinessException("Cannot modify a " + shift.getStatus() + " shift", HttpStatus.BAD_REQUEST);
@@ -563,6 +583,7 @@ public class ShiftService {
             }
         }
 
+        recordHistory(saved, before, historySnapshot(saved), request.getChangeReason());
         return mapToDTO(saved);
     }
 
@@ -575,8 +596,14 @@ public class ShiftService {
 
     @Transactional
     public void deleteShift(UUID storeId, UUID shiftId) {
+        deleteShift(storeId, shiftId, null);
+    }
+
+    @Transactional
+    public void deleteShift(UUID storeId, UUID shiftId, String changeReason) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
+        var before = historySnapshot(shift);
 
         if (shift.getStatus() == ShiftStatus.COMPLETED) {
             throw new BusinessException("Cannot delete a completed shift", HttpStatus.BAD_REQUEST);
@@ -592,6 +619,7 @@ public class ShiftService {
         if (!assignments.isEmpty() && shift.getStatus() == ShiftStatus.PUBLISHED) {
             shift.setStatus(ShiftStatus.CANCELLED);
             shiftRepository.save(shift);
+            recordHistory(shift, before, historySnapshot(shift), changeReason);
             for (ShiftAssignment sa : assignments) {
                 try {
                     notificationService.sendNotification(
@@ -609,7 +637,17 @@ public class ShiftService {
         if (!assignments.isEmpty()) {
             shiftAssignmentRepository.deleteAll(assignments);
         }
+        recordHistory(shift, before, null, changeReason);
         shiftRepository.delete(shift);
+    }
+
+    private com.shiftsync.schedulehistory.dto.ScheduleHistoryDTOs.ShiftSnapshot historySnapshot(Shift shift) {
+        return scheduleHistoryService == null ? null : scheduleHistoryService.snapshot(shift);
+    }
+
+    private void recordHistory(Shift shift, com.shiftsync.schedulehistory.dto.ScheduleHistoryDTOs.ShiftSnapshot before,
+            com.shiftsync.schedulehistory.dto.ScheduleHistoryDTOs.ShiftSnapshot after, String reason) {
+        if (scheduleHistoryService != null) scheduleHistoryService.record(shift.getStore().getId(), shift.getId(), before, after, reason);
     }
 
     @Transactional(readOnly = true)

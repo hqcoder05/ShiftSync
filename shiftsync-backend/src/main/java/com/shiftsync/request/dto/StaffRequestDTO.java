@@ -14,6 +14,8 @@ import java.util.UUID;
 public class StaffRequestDTO {
     private UUID id;
     private String requesterName;
+    private UUID requesterId;
+    private UUID storeId;
     private String avatarKey;
     private String requestType;
     private String typeCategory;
@@ -27,4 +29,8 @@ public class StaffRequestDTO {
     private String content;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private UUID reviewedById;
+    private String reviewedByName;
+    private OffsetDateTime reviewedAt;
+    private String managerNote;
 }

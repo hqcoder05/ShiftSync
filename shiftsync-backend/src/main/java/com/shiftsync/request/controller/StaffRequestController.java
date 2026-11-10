@@ -22,6 +22,7 @@ import java.util.UUID;
 public class StaffRequestController {
 
     private final StaffRequestService staffRequestService;
+    private final com.shiftsync.employment.repository.EmploymentRepository employmentRepository;
 
     @Operation(summary = "Get all staff requests with optional filters")
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
@@ -31,11 +32,8 @@ public class StaffRequestController {
             @RequestParam(required = false) com.shiftsync.request.enums.RequestStatus status,
             @RequestParam(required = false) String typeCategory,
             @RequestParam(required = false) String search) {
-        String requesterFilter = null;
-        if (userDetails != null && isStaffOnly(userDetails)) {
-            requesterFilter = userDetails.getUser().getFullName();
-        }
-        List<StaffRequestDTO> list = staffRequestService.getAllRequests(status, typeCategory, search, requesterFilter);
+        List<StaffRequestDTO> list = staffRequestService.getAllRequests(status, typeCategory, search, null)
+                .stream().filter(dto -> canView(userDetails, dto)).toList();
         return ResponseEntity.ok(list);
     }
 
@@ -46,10 +44,8 @@ public class StaffRequestController {
             @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails,
             @PathVariable UUID id) {
         StaffRequestDTO dto = staffRequestService.getRequestById(id);
-        if (userDetails != null && isStaffOnly(userDetails)) {
-            if (dto.getRequesterName() == null || !dto.getRequesterName().equalsIgnoreCase(userDetails.getUser().getFullName())) {
-                throw new org.springframework.security.access.AccessDeniedException("You can only view your own requests");
-            }
+        if (!canView(userDetails, dto)) {
+            throw new org.springframework.security.access.AccessDeniedException("You can only view your own requests or requests in your store");
         }
         return ResponseEntity.ok(dto);
     }
@@ -62,6 +58,21 @@ public class StaffRequestController {
             @Valid @RequestBody StaffRequestCreateDTO createDTO) {
         // Ignored requesterName from FE, use the real name from token
         createDTO.setRequesterName(userDetails.getUser().getFullName());
+        createDTO.setRequesterId(userDetails.getId());
+        if (createDTO.getStoreId() == null) {
+            var employments = employmentRepository.findByUserIdAndStatus(userDetails.getId(),
+                    com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
+            var storeIds = employments.stream().map(e -> e.getStore().getId()).distinct().toList();
+            if (storeIds.size() != 1) {
+                throw new com.shiftsync.shared.exception.BusinessException("Choose an active store for this request", HttpStatus.BAD_REQUEST);
+            }
+            createDTO.setStoreId(storeIds.getFirst());
+        }
+        if (userDetails.getUser().getSystemRole() != com.shiftsync.shared.security.SystemRole.ADMIN &&
+                !employmentRepository.existsByUserIdAndStoreIdAndStatus(userDetails.getId(), createDTO.getStoreId(),
+                        com.shiftsync.employment.enums.EmploymentStatus.ACTIVE)) {
+            throw new org.springframework.security.access.AccessDeniedException("You do not belong to this store");
+        }
         StaffRequestDTO created = staffRequestService.createRequest(createDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -70,17 +81,29 @@ public class StaffRequestController {
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @PutMapping("/{id}/status")
     public ResponseEntity<StaffRequestDTO> updateStatus(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails,
             @PathVariable UUID id,
             @Valid @RequestBody StaffRequestStatusUpdateDTO updateDTO) {
-        StaffRequestDTO updated = staffRequestService.updateRequestStatus(id, updateDTO.getStatus());
+        StaffRequestDTO request = staffRequestService.getRequestById(id);
+        if (!canReview(userDetails, request)) {
+            throw new org.springframework.security.access.AccessDeniedException("You cannot review requests in another store");
+        }
+        StaffRequestDTO updated = staffRequestService.updateRequestStatus(id, updateDTO.getStatus(),
+                userDetails.getId(), userDetails.getUser().getFullName(), updateDTO.getNote());
         return ResponseEntity.ok(updated);
     }
 
-    private boolean isStaffOnly(com.shiftsync.shared.security.CustomUserDetails userDetails) {
-        boolean hasStaff = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_STAFF"));
-        boolean hasManagerOrAdmin = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
-        return hasStaff && !hasManagerOrAdmin;
+    private boolean canView(com.shiftsync.shared.security.CustomUserDetails user, StaffRequestDTO request) {
+        if (user == null) return false;
+        return user.getId().equals(request.getRequesterId()) || canReview(user, request);
+    }
+
+    private boolean canReview(com.shiftsync.shared.security.CustomUserDetails user, StaffRequestDTO request) {
+        if (user == null) return false;
+        var role = user.getUser().getSystemRole();
+        if (role == com.shiftsync.shared.security.SystemRole.ADMIN) return true;
+        return role == com.shiftsync.shared.security.SystemRole.MANAGER && request.getStoreId() != null &&
+                employmentRepository.existsByUserIdAndStoreIdAndStatus(user.getId(), request.getStoreId(),
+                        com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
     }
 }

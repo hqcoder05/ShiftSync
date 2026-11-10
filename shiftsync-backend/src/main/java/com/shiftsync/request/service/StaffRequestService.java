@@ -75,7 +75,9 @@ public class StaffRequestService {
         }
 
         StaffRequest req = StaffRequest.builder()
-            .requesterName(dto.getRequesterName() != null ? dto.getRequesterName() : "Paul. Lee")
+            .requesterName(dto.getRequesterName())
+            .requesterId(dto.getRequesterId())
+            .storeId(dto.getStoreId())
             .avatarKey(dto.getAvatarKey() != null ? dto.getAvatarKey() : "paul")
             .requestType(dto.getRequestType())
             .typeCategory(category)
@@ -93,19 +95,36 @@ public class StaffRequestService {
 
     @Transactional
     public StaffRequestDTO updateRequestStatus(UUID id, com.shiftsync.request.enums.RequestStatus newStatus) {
+        return updateRequestStatus(id, newStatus, null, null, null);
+    }
+
+    @Transactional
+    public StaffRequestDTO updateRequestStatus(UUID id, com.shiftsync.request.enums.RequestStatus newStatus,
+            UUID reviewerId, String reviewerName, String note) {
         StaffRequest req = staffRequestRepository.findById(id)
             .orElseThrow(() -> new BusinessException("StaffRequest not found with ID: " + id, HttpStatus.NOT_FOUND));
 
+        if (newStatus == com.shiftsync.request.enums.RequestStatus.PENDING) {
+            throw new BusinessException("A review must approve or reject the request", HttpStatus.BAD_REQUEST);
+        }
+        if (req.getStatus() != com.shiftsync.request.enums.RequestStatus.PENDING) {
+            if (req.getStatus() == newStatus) return mapToDTO(req);
+            throw new BusinessException("This request has already been reviewed", HttpStatus.CONFLICT);
+        }
         req.setStatus(newStatus);
+        req.setReviewedById(reviewerId);
+        req.setReviewedByName(reviewerName);
+        req.setReviewedAt(OffsetDateTime.now());
+        req.setManagerNote(note);
         StaffRequest updated = staffRequestRepository.save(req);
         return mapToDTO(updated);
     }
 
     private StaffRequestDTO mapToDTO(StaffRequest entity) {
-        OffsetDateTime created = entity.getCreatedAt() != null ? entity.getCreatedAt() : OffsetDateTime.now();
+        OffsetDateTime created = entity.getCreatedAt();
         
-        String requestDate = created.format(DATE_FORMATTER);
-        String requestTime = String.format("Ngày %02d tháng %02d năm %d vào %02dh:%02dp",
+        String requestDate = created != null ? created.format(DATE_FORMATTER) : null;
+        String requestTime = created == null ? null : String.format("Ngày %02d tháng %02d năm %d vào %02dh:%02dp",
             created.getDayOfMonth(),
             created.getMonthValue(),
             created.getYear(),
@@ -116,6 +135,8 @@ public class StaffRequestService {
         return StaffRequestDTO.builder()
             .id(entity.getId())
             .requesterName(entity.getRequesterName())
+            .requesterId(entity.getRequesterId())
+            .storeId(entity.getStoreId())
             .avatarKey(entity.getAvatarKey())
             .requestType(entity.getRequestType())
             .typeCategory(entity.getTypeCategory())
@@ -129,6 +150,10 @@ public class StaffRequestService {
             .content(entity.getContent())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())
+            .reviewedById(entity.getReviewedById())
+            .reviewedByName(entity.getReviewedByName())
+            .reviewedAt(entity.getReviewedAt())
+            .managerNote(entity.getManagerNote())
             .build();
     }
 }

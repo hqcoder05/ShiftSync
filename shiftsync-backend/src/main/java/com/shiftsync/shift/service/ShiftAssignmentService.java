@@ -49,6 +49,8 @@ public class ShiftAssignmentService {
     private final StoreZoneRepository storeZoneRepository;
     private final SkillRepository skillRepository;
     private final com.shiftsync.attendance.repository.AttendanceRepository attendanceRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.schedulehistory.service.ScheduleHistoryService scheduleHistoryService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ShiftAssignmentService(
@@ -112,6 +114,10 @@ public class ShiftAssignmentService {
     }
 
     public ShiftAssignmentResponseDTO assignStaffToShift(UUID storeId, UUID shiftId, UUID staffId, UUID requestedZoneId, boolean force) {
+        return assignStaffToShift(storeId, shiftId, staffId, requestedZoneId, force, null);
+    }
+
+    public ShiftAssignmentResponseDTO assignStaffToShift(UUID storeId, UUID shiftId, UUID staffId, UUID requestedZoneId, boolean force, String changeReason) {
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found", HttpStatus.NOT_FOUND));
         checkDateNotLocked(storeId, shift.getShiftDate());
@@ -141,8 +147,11 @@ public class ShiftAssignmentService {
                 StoreZone targetZone = storeZoneRepository.findById(requestedZoneId)
                         .filter(zone -> zone.getStore() != null && storeId.equals(zone.getStore().getId()))
                         .orElseThrow(() -> new BusinessException("Zone not found", HttpStatus.NOT_FOUND));
+                var before = scheduleHistoryService == null ? null : scheduleHistoryService.assignmentZoneSnapshot(shift, existing.getZone());
                 existing.setZone(targetZone);
                 existing = shiftAssignmentRepository.save(existing);
+                if (scheduleHistoryService != null) scheduleHistoryService.record(storeId, shiftId, before,
+                        scheduleHistoryService.assignmentZoneSnapshot(shift, targetZone), changeReason);
                 return mapToResponseDTO(existing);
             } else {
                 throw new BusinessException("Staff is already assigned to this shift", HttpStatus.CONFLICT);

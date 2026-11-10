@@ -13,6 +13,8 @@ public class PayrollDTO {
     private UUID id;
     private UUID periodId;
     private UUID staffId;
+    private UUID storeId;
+    private String storeName;
     private String staffName;
     private LocalDate periodStartDate;
     private LocalDate periodEndDate;

@@ -10,7 +10,9 @@ import com.shiftsync.leave.dto.LeaveTypeDTO;
 import com.shiftsync.leave.entity.LeaveBalance;
 import com.shiftsync.leave.enums.LeaveType;
 import com.shiftsync.leave.repository.LeaveBalanceRepository;
+import com.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shared.exception.BusinessException;
+import com.shiftsync.shared.security.SystemRole;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,6 +37,7 @@ import java.util.stream.Collectors;
 public class LeaveBalanceService {
 
     private final LeaveBalanceRepository leaveBalanceRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
     private final EmploymentRepository employmentRepository;
@@ -86,6 +92,12 @@ public class LeaveBalanceService {
 
     @Transactional
     public LeaveBalanceDTO getMyBalance(UUID storeId, UUID staffId, Integer year) {
+        User staff = userRepository.findById(staffId)
+                .orElseThrow(() -> new BusinessException("Staff not found", HttpStatus.NOT_FOUND));
+        if (staff.getSystemRole() != SystemRole.ADMIN
+                && !employmentRepository.existsByUserIdAndStoreIdAndStatus(staffId, storeId, EmploymentStatus.ACTIVE)) {
+            throw new BusinessException("Active employment at this store is required", HttpStatus.FORBIDDEN);
+        }
         int targetYear = (year != null && year > 2000) ? year : LocalDate.now().getYear();
         LeaveBalance balance = getOrCreateBalance(storeId, staffId, targetYear);
         return mapToDTO(balance);
@@ -95,7 +107,9 @@ public class LeaveBalanceService {
     public List<LeaveBalanceDTO> getStoreBalances(UUID storeId, Integer year) {
         int targetYear = (year != null && year > 2000) ? year : LocalDate.now().getYear();
         List<LeaveBalance> balances = leaveBalanceRepository.findByStoreIdAndYear(storeId, targetYear);
-        return balances.stream().map(this::mapToDTO).collect(Collectors.toList());
+        Map<UUID, Integer> pendingDays = pendingAnnualDays(storeId, null, targetYear);
+        return balances.stream().map(balance -> mapToDTO(balance,
+                pendingDays.getOrDefault(balance.getStaff().getId(), 0))).collect(Collectors.toList());
     }
 
     @Transactional
@@ -127,6 +141,25 @@ public class LeaveBalanceService {
     }
 
     public LeaveBalanceDTO mapToDTO(LeaveBalance b) {
+        int pendingDays = pendingAnnualDays(b.getStore().getId(), b.getStaff().getId(), b.getYear())
+                .getOrDefault(b.getStaff().getId(), 0);
+        return mapToDTO(b, pendingDays);
+    }
+
+    private Map<UUID, Integer> pendingAnnualDays(UUID storeId, UUID staffId, int year) {
+        LocalDate yearStart = LocalDate.of(year, 1, 1);
+        LocalDate yearEnd = LocalDate.of(year, 12, 31);
+        Map<UUID, Integer> daysByStaff = new HashMap<>();
+        for (var request : leaveRequestRepository.findPendingAnnualLeaveInPeriod(storeId, staffId, yearStart, yearEnd)) {
+            LocalDate start = request.getStartDate().isBefore(yearStart) ? yearStart : request.getStartDate();
+            LocalDate end = request.getEndDate().isAfter(yearEnd) ? yearEnd : request.getEndDate();
+            int days = Math.toIntExact(ChronoUnit.DAYS.between(start, end) + 1);
+            daysByStaff.merge(request.getStaff().getId(), days, Integer::sum);
+        }
+        return daysByStaff;
+    }
+
+    private LeaveBalanceDTO mapToDTO(LeaveBalance b, int pendingDays) {
         return LeaveBalanceDTO.builder()
                 .id(b.getId())
                 .staffId(b.getStaff().getId())
@@ -137,7 +170,8 @@ public class LeaveBalanceService {
                 .annualEntitlement(b.getAnnualEntitlement())
                 .carryOverDays(b.getCarryOverDays())
                 .usedDays(b.getUsedDays())
-                .pendingDays(b.getPendingDays())
+                // Pending requests are live data; the legacy counter can be stale.
+                .pendingDays(pendingDays)
                 .remainingDays(b.getRemainingDays())
                 .updatedAt(b.getUpdatedAt())
                 .build();

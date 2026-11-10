@@ -102,7 +102,11 @@ export default function StaffAvailabilityPage() {
   /* -- Store & Navigation state -- */
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
-  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    const date = new Date();
+    if ((localStorage.getItem('userRole') || 'STAFF').toUpperCase() === 'STAFF') date.setDate(date.getDate() + 7);
+    return date;
+  });
   const [viewTab, setViewTab] = useState('MATRIX'); // 'MATRIX' | 'TIMESLOT'
   const [activeTimeslotDow, setActiveTimeslotDow] = useState(1); // 1 = Thứ 2
 
@@ -112,6 +116,7 @@ export default function StaffAvailabilityPage() {
   const [availabilityMap, setAvailabilityMap] = useState({}); // { staffId: [slots] }
   const [assignedShifts, setAssignedShifts] = useState([]); // ShiftDTO list
   const [loading, setLoading] = useState(false);
+  const [weekEditable, setWeekEditable] = useState(false);
 
   /* -- Filters -- */
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -145,8 +150,13 @@ export default function StaffAvailabilityPage() {
 
   const handleCreateAvailability = async (e) => {
     e.preventDefault();
+    if (!weekEditable) {
+      showToast('Tuần này chỉ xem', 'Chỉ đăng ký tuần kế tiếp trước 23:59 Thứ Sáu (giờ Việt Nam).');
+      return;
+    }
     try {
       await createAvailability({
+        weekStart: toISODate(weekDatesFull[0]),
         dayOfWeek: Number(createForm.dayOfWeek),
         startTime: createForm.startTime.length === 5 ? `${createForm.startTime}:00` : createForm.startTime,
         endTime: createForm.endTime.length === 5 ? `${createForm.endTime}:00` : createForm.endTime,
@@ -161,9 +171,13 @@ export default function StaffAvailabilityPage() {
 
   const handleDeleteAvailability = async (slotId) => {
     if (!slotId) return;
+    if (!weekEditable) {
+      showToast('Tuần này chỉ xem', 'Bản đăng ký của tuần đã chốt không thể chỉnh sửa.');
+      return;
+    }
     if (!window.confirm('Bạn có chắc chắn muốn xoá khung giờ rảnh này?')) return;
     try {
-      await deleteAvailability(slotId);
+      await deleteAvailability(slotId, toISODate(weekDatesFull[0]));
       showToast('Đã xoá thành công! ', 'Khung giờ rảnh đã được gỡ bỏ.');
       loadData();
     } catch (err) {
@@ -203,6 +217,7 @@ export default function StaffAvailabilityPage() {
   /* ── Main Data Loader ── */
   const loadData = async () => {
     setLoading(true);
+    setWeekEditable(false);
     try {
       if (isStaff) {
         // 1. Load my profile
@@ -239,7 +254,8 @@ export default function StaffAvailabilityPage() {
 
         // 3. Load my availability
         try {
-          const availRes = await getMyAvailability();
+          const availRes = await getMyAvailability(toISODate(weekDatesFull[0]));
+          setWeekEditable(availRes.week?.editable === true);
           const list = Array.isArray(availRes.data) ? availRes.data : [];
           setAvailabilityMap({ [profile.id]: list });
         } catch {
@@ -284,12 +300,12 @@ export default function StaffAvailabilityPage() {
       // 3. Load Availability
       let bulkAvail = [];
       try {
-        const availRes = await getStoreStaffAvailability(storeId);
+        const availRes = await getStoreStaffAvailability(storeId, toISODate(weekDatesFull[0]));
         bulkAvail = Array.isArray(availRes.data) ? availRes.data : [];
       } catch {
         // Fallback: per-employee fetch
         const results = await Promise.allSettled(
-          staff.map((emp) => getStaffAvailability(emp.id).then((r) => r.data || []))
+          staff.map((emp) => getStaffAvailability(emp.id, toISODate(weekDatesFull[0])).then((r) => r.data || []))
         );
         results.forEach((r) => {
           if (r.status === 'fulfilled' && Array.isArray(r.value)) {
@@ -567,8 +583,9 @@ export default function StaffAvailabilityPage() {
             <button
               type="button"
               className="avail-btn avail-btn-primary"
+              disabled={!weekEditable || loading}
+              title={weekEditable ? 'Đăng ký cho tuần đang xem' : 'Chỉ đăng ký tuần kế tiếp trước 23:59 Thứ Sáu (giờ Việt Nam)'}
               onClick={() => setShowCreateModal(true)}
-              title="Đăng ký thêm khung giờ bạn có thể đi làm"
             >
               <Plus size={16} />
               <span>+ Đăng Ký Lịch Rảnh</span>
@@ -915,9 +932,9 @@ export default function StaffAvailabilityPage() {
                               {daySlots.length === 0 ? (
                                 <div
                                   className="avail-slot-empty"
-                                  style={isStaff ? { cursor: 'pointer' } : {}}
+                                  style={isStaff && weekEditable ? { cursor: 'pointer' } : {}}
                                   onClick={() => {
-                                    if (isStaff) {
+                                    if (isStaff && weekEditable && !loading) {
                                       setCreateForm({
                                         dayOfWeek: dow,
                                         startTime: '08:00',
@@ -926,9 +943,9 @@ export default function StaffAvailabilityPage() {
                                       setShowCreateModal(true);
                                     }
                                   }}
-                                  title={isStaff ? "Bấm để đăng ký khung giờ rảnh ngày này" : "Không có lịch đăng ký rảnh ngày này"}
+                                  title={isStaff && weekEditable ? "Bấm để đăng ký khung giờ rảnh ngày này" : "Tuần này chỉ xem"}
                                 >
-                                  <span className="avail-dash">{isStaff ? "+ Thêm" : "—"}</span>
+                                  <span className="avail-dash">{isStaff && weekEditable ? "+ Thêm" : "—"}</span>
                                 </div>
                               ) : (
                                 <div className="avail-slots-container">
@@ -1151,7 +1168,7 @@ export default function StaffAvailabilityPage() {
                                 >
                                   Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
                                 </button>
-                              ) : (
+                              ) : isStaff ? null : (
                                 <button
                                   type="button"
                                   className="avail-ts-assign-btn"
@@ -1216,7 +1233,7 @@ export default function StaffAvailabilityPage() {
                                 >
                                   Đã có ca ({fmtTime(assigned.startTime)} - {fmtTime(assigned.endTime)})
                                 </button>
-                              ) : (
+                              ) : isStaff ? null : (
                                 <button
                                   type="button"
                                   className="avail-ts-assign-btn"

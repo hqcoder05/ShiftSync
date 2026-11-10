@@ -17,10 +17,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.shiftsync.shared.exception.BusinessException;
 import org.springframework.http.HttpStatus;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
@@ -39,7 +43,13 @@ public class AttendanceService {
     private final com.shiftsync.shared.websocket.RealtimeEventPublisher realtimeEventPublisher;
     private final com.shiftsync.payroll.service.PayrollCalculationService payrollCalculationService;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private static final long QR_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private enum SelfieAction { CHECK_IN, CHECK_OUT }
 
     public QrResponseDTO generateQrForShift(UUID storeId, UUID shiftId) {
         Shift shift = shiftRepository.findById(shiftId)
@@ -61,6 +71,7 @@ public class AttendanceService {
 
         ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)
                 .orElseThrow(() -> new IllegalArgumentException("You are not assigned to this shift"));
+        if (entityManager != null) entityManager.lock(assignment, LockModeType.PESSIMISTIC_WRITE);
 
         Shift shift = assignment.getShift();
         if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.CANCELLED) {
@@ -76,7 +87,7 @@ public class AttendanceService {
 
         validateGeofence(shift, config, request.getLatitude(), request.getLongitude());
 
-        LocalDateTime now = LocalDateTime.now();
+        OffsetDateTime recordedAt = OffsetDateTime.now(BUSINESS_ZONE);
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
         LocalDateTime shiftEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
 
@@ -88,20 +99,39 @@ public class AttendanceService {
         Optional<Attendance> existingAttendanceOpt = attendanceRepository.findByShiftAssignmentId(assignment.getId());
 
         if (existingAttendanceOpt.isEmpty()) {
-            return processCheckIn(assignment, shiftStart, now, config, request.getLatitude(), request.getLongitude(), null);
+            return processCheckIn(assignment, shiftStart, recordedAt, config, request.getLatitude(), request.getLongitude(), null);
         } else {
             Attendance attendance = existingAttendanceOpt.get();
             if (attendance.getCheckOutTime() != null) {
                 throw new BusinessException("You have already checked out for this shift.", HttpStatus.BAD_REQUEST);
             }
-            return processCheckOut(attendance, shiftEnd, now, config, request.getLatitude(), request.getLongitude(), null);
+            return processCheckOut(attendance, shiftEnd, recordedAt, config, request.getLatitude(), request.getLongitude(), null);
         }
     }
 
     @Transactional
     public Attendance submitSelfie(UUID staffId, UUID shiftId, double latitude, double longitude, byte[] photo) {
+        return submitSelfie(staffId, shiftId, latitude, longitude, photo, null, null);
+    }
+
+    @Transactional
+    public Attendance submitSelfie(UUID staffId, UUID shiftId, double latitude, double longitude, byte[] photo,
+                                   String action, OffsetDateTime capturedAt) {
+        SelfieAction requestedAction = parseSelfieAction(action);
+        if (capturedAt != null && requestedAction == null) {
+            throw new BusinessException("An explicit CHECK_IN or CHECK_OUT action is required with capturedAt.", HttpStatus.BAD_REQUEST);
+        }
+        OffsetDateTime serverNow = OffsetDateTime.now(BUSINESS_ZONE);
+        OffsetDateTime recordedAt = capturedAt == null ? serverNow : capturedAt.atZoneSameInstant(BUSINESS_ZONE).toOffsetDateTime();
+        if (recordedAt.isAfter(serverNow.plusMinutes(2))) {
+            throw new BusinessException("The photo capture time cannot be in the future.", HttpStatus.BAD_REQUEST);
+        }
+
         ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndStaffId(shiftId, staffId)
                 .orElseThrow(() -> new BusinessException("You are not assigned to this shift", HttpStatus.FORBIDDEN));
+        // Serialize both first submissions and retries before looking for an attendance row.
+        // The assignment exists even when no attendance row has been created yet.
+        if (entityManager != null) entityManager.lock(assignment, LockModeType.PESSIMISTIC_WRITE);
         Shift shift = assignment.getShift();
         if (payrollCalculationService != null && payrollCalculationService.isDateLocked(shift.getStore().getId(), shift.getShiftDate())) {
             throw new BusinessException("Payroll for this date is already confirmed or paid.", HttpStatus.FORBIDDEN);
@@ -116,18 +146,38 @@ public class AttendanceService {
                 .orElseGet(StoreConfiguration::new);
         validateGeofence(shift, config, latitude, longitude);
 
-        LocalDateTime now = LocalDateTime.now();
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
         LocalDateTime shiftEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
         if (shiftEnd.isBefore(shiftStart)) shiftEnd = shiftEnd.plusDays(1);
 
         Optional<Attendance> existing = attendanceRepository.findByShiftAssignmentId(assignment.getId());
-        if (existing.isEmpty()) return processCheckIn(assignment, shiftStart, now, config, latitude, longitude, photo);
+        if (requestedAction == SelfieAction.CHECK_IN) {
+            if (existing.isPresent() && existing.get().getCheckInTime() != null) return existing.get();
+            return processCheckIn(assignment, shiftStart, recordedAt, config, latitude, longitude, photo);
+        }
+        if (requestedAction == SelfieAction.CHECK_OUT) {
+            if (existing.isEmpty() || existing.get().getCheckInTime() == null) {
+                throw new BusinessException("Check in must be synchronized before check out.", HttpStatus.CONFLICT);
+            }
+            if (existing.get().getCheckOutTime() != null) return existing.get();
+            return processCheckOut(existing.get(), shiftEnd, recordedAt, config, latitude, longitude, photo);
+        }
+        if (existing.isEmpty()) return processCheckIn(assignment, shiftStart, recordedAt, config, latitude, longitude, photo);
         if (existing.get().getCheckOutTime() != null) throw new BusinessException("You have already checked out for this shift.", HttpStatus.BAD_REQUEST);
-        return processCheckOut(existing.get(), shiftEnd, now, config, latitude, longitude, photo);
+        return processCheckOut(existing.get(), shiftEnd, recordedAt, config, latitude, longitude, photo);
     }
 
-    private Attendance processCheckIn(ShiftAssignment assignment, LocalDateTime shiftStart, LocalDateTime now, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
+    private SelfieAction parseSelfieAction(String action) {
+        if (action == null) return null;
+        try {
+            return SelfieAction.valueOf(action);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Action must be CHECK_IN or CHECK_OUT.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private Attendance processCheckIn(ShiftAssignment assignment, LocalDateTime shiftStart, OffsetDateTime recordedAt, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
+        LocalDateTime now = recordedAt.toLocalDateTime();
         // Validate Check-in window
         LocalDateTime windowStart = shiftStart.minusMinutes(config.getAllowedCheckInMinutes());
         LocalDateTime windowEnd = shiftStart.plusMinutes(config.getAllowedCheckInMinutes());
@@ -146,7 +196,7 @@ public class AttendanceService {
 
         Attendance attendance = Attendance.builder()
                 .shiftAssignment(assignment)
-                .checkInTime(OffsetDateTime.now())
+                .checkInTime(recordedAt)
                 .checkInLat(latitude)
                 .checkInLng(longitude)
                 .checkInPhoto(photo)
@@ -161,7 +211,11 @@ public class AttendanceService {
         return saved;
     }
 
-    private Attendance processCheckOut(Attendance attendance, LocalDateTime shiftEnd, LocalDateTime now, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
+    private Attendance processCheckOut(Attendance attendance, LocalDateTime shiftEnd, OffsetDateTime recordedAt, StoreConfiguration config, Double latitude, Double longitude, byte[] photo) {
+        LocalDateTime now = recordedAt.toLocalDateTime();
+        if (attendance.getCheckInTime() != null && recordedAt.isBefore(attendance.getCheckInTime())) {
+            throw new BusinessException("Check-out time cannot be before check-in time.", HttpStatus.BAD_REQUEST);
+        }
         // Validate Check-out window
         LocalDateTime windowStart = shiftEnd.minusMinutes(config.getAllowedCheckOutMinutes());
         LocalDateTime windowEnd = shiftEnd.plusMinutes(config.getAllowedCheckOutMinutes());
@@ -181,7 +235,7 @@ public class AttendanceService {
             }
         }
 
-        attendance.setCheckOutTime(OffsetDateTime.now());
+        attendance.setCheckOutTime(recordedAt);
         attendance.setCheckOutLat(latitude);
         attendance.setCheckOutLng(longitude);
         attendance.setCheckOutPhoto(photo);
@@ -226,7 +280,7 @@ public class AttendanceService {
         
         AttendanceStatus calculatedStatus = attendance.getStatus() == AttendanceStatus.EARLY_LEAVE ? AttendanceStatus.EARLY_LEAVE : AttendanceStatus.PRESENT;
         if (attendance.getCheckInTime() != null && calculatedStatus != AttendanceStatus.EARLY_LEAVE) {
-            if (attendance.getCheckInTime().toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
+            if (attendance.getCheckInTime().atZoneSameInstant(BUSINESS_ZONE).toLocalDateTime().isAfter(shiftStart.plusMinutes(config.getLateGraceMinutes()))) {
                 calculatedStatus = AttendanceStatus.LATE;
             }
         }
@@ -272,7 +326,7 @@ public class AttendanceService {
         if (attendance.getStatus() == AttendanceStatus.LATE && attendance.getCheckInTime() != null
                 && shift.getShiftDate() != null && shift.getStartTime() != null) {
             LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
-            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().toLocalDateTime()).toMinutes());
+            lateMinutes = Math.max(0L, Duration.between(shiftStart, attendance.getCheckInTime().atZoneSameInstant(BUSINESS_ZONE).toLocalDateTime()).toMinutes());
         }
         return com.shiftsync.attendance.dto.AttendanceDTO.builder()
                 .id(attendance.getId()).shiftAssignmentId(assignment.getId()).shiftId(shift.getId())
@@ -293,6 +347,10 @@ public class AttendanceService {
     private String toBase64(byte[] photo) { return photo == null ? null : Base64.getEncoder().encodeToString(photo); }
 
     private void validateGeofence(Shift shift, StoreConfiguration config, double latitude, double longitude) {
+        if (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            throw new BusinessException("Invalid GPS coordinates.", HttpStatus.BAD_REQUEST);
+        }
         if (shift.getStore().getLatitude() == null || shift.getStore().getLongitude() == null) {
             throw new BusinessException("Store GPS coordinates are not configured. Cannot perform geofence validation.", HttpStatus.BAD_REQUEST);
         }
@@ -309,6 +367,7 @@ public class AttendanceService {
         double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        a = Math.min(1, Math.max(0, a));
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c; // convert to meters
     }

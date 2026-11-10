@@ -1,4 +1,8 @@
-import { useState, useEffect } from 'react';
+import { colors as uiColors, resolveUiColor } from '../theme/koreanPalette';
+import ThreeIllustration from '../components/ThreeIllustration';
+import { createAppStyles } from '../theme/appTheme';
+import { ensureTouchTarget } from '../utils/touchTarget';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,20 +11,30 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  PanResponder,
   StatusBar,
   Image,
   Modal,
   TextInput,
   Switch,
+  useWindowDimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
+import { submitCheckedSwap } from '../services/scheduleConflictService';
+import ScheduleConflictAlert from '../components/ScheduleConflictAlert';
 import { getLeaveTypes } from '../services/leaveService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getSkillsByStore } from '../services/skillService';
 import BottomNavbar from '../components/BottomNavbar';
+import useActionGuard from '../utils/useActionGuard';
 import PaperPlane3D from '../components/PaperPlane3D';
+import { vietnamCalendarDate, calendarDayDifference, calendarDate, vietnamDateKey, shiftCalendarMonth } from '../utils/vietnamTime';
+import useResumeRefresh from '../utils/useResumeRefresh';
 
 import { getAvatarThumbnail } from '../components/avatarThumbnails';
 import { getAvatarForEmployee, AVATAR_OPTIONS } from '../components/avatarConfigs';
@@ -55,129 +69,157 @@ export const getStaffAvatarSource = (staffName, avatarId) => {
   return avatarDilan;
 };
 
+export const resolveOwnedRequestShift = (clickedShift, myShifts = [], currentStaffId) => {
+  if (!clickedShift || clickedShift.id === 'no-shift') return null;
+  const asId = (value) => value == null || value === '' ? null : String(value);
+  const authenticatedId = asId(currentStaffId);
+  const clickedStaffId = asId(clickedShift.staffId);
+  if (authenticatedId && clickedStaffId && clickedStaffId !== authenticatedId) return null;
+
+  return myShifts.find((ownShift) => {
+    if (clickedShift.shiftDate && ownShift.shiftDate && clickedShift.shiftDate !== ownShift.shiftDate) return false;
+    const ownStaffId = asId(ownShift.staffId);
+    if (clickedStaffId && ownStaffId && clickedStaffId !== ownStaffId) return false;
+    const exactRowId = asId(clickedShift.id) && asId(clickedShift.id) === asId(ownShift.id);
+    const exactAssignment = asId(clickedShift.assignmentId) && asId(clickedShift.assignmentId) === asId(ownShift.assignmentId);
+    const authenticatedAssignment = authenticatedId && clickedStaffId === authenticatedId;
+    const fromMySchedule = clickedShift.isOwnAssignment === true || myShifts.includes(clickedShift);
+    if (exactRowId && (fromMySchedule || exactAssignment || authenticatedAssignment)) return true;
+
+    return Boolean(
+      authenticatedAssignment
+      && asId(clickedShift.shiftId)
+      && asId(clickedShift.shiftId) === asId(ownShift.shiftId)
+      && clickedShift.shiftDate
+      && clickedShift.shiftDate === ownShift.shiftDate
+      && (!ownStaffId || ownStaffId === authenticatedId)
+    );
+  }) || null;
+};
+
 // ── Color palette matching Web Schedule & SkillsPage (Figma Tokens) ─────────────
 export const SHIFT_COLORS = [
-  '#8DD9CC', // Barista / Pha chế
+  "#C4DDD3", // Barista / Pha chế
   '#F4A8C4', // Cashier / Thu ngân
   '#FDBA74', // Kitchen / Bếp
-  '#A5B4FC', // Service / Phục vụ
-  '#93C5FD', // Supervisor / Giám sát / Quản lý
+  "#C9C5DD", // Service / Phục vụ
+  "#C4D3E1", // Supervisor / Giám sát / Quản lý
 ];
 
 export const PRESET_ROLE_COLORS = [
-  '#5BC8B8', // teal
-  '#D97FB2', // pink
-  '#D98080', // salmon/red
-  '#C8C84A', // yellow-green
-  '#7AA8D9', // blue
-  '#FFA726', // orange
+  uiColors.turquoise, // teal
+  uiColors.pink, // pink
+  uiColors.salmon, // salmon/red
+  uiColors.mustard, // yellow-green
+  uiColors.blue, // blue
+  "#BE9161", // orange
   '#AB47BC', // purple
-  '#26A69A', // green
+  uiColors.success, // green
 ];
 
 export const resolveRoleColor = (roleName = '') => {
   if (!roleName) return SHIFT_COLORS[0];
   const r = roleName.toLowerCase().trim();
-  if (r.includes('barista') || r.includes('pha chế') || r.includes('pha che')) return '#8DD9CC';
+  if (r.includes('barista') || r.includes('pha chế') || r.includes('pha che')) return "#C4DDD3";
   if (r.includes('cashier') || r.includes('thu ngân') || r.includes('thu ngan')) return '#F4A8C4';
   if (r.includes('kitchen') || r.includes('bếp') || r.includes('bep')) return '#FDBA74';
-  if (r.includes('service') || r.includes('phục vụ') || r.includes('phuc vu') || r.includes('waiter') || r.includes('server')) return '#A5B4FC';
-  if (r.includes('supervisor') || r.includes('giám sát') || r.includes('quản lý') || r.includes('quan ly') || r.includes('manager')) return '#93C5FD';
+  if (r.includes('service') || r.includes('phục vụ') || r.includes('phuc vu') || r.includes('waiter') || r.includes('server')) return "#C9C5DD";
+  if (r.includes('supervisor') || r.includes('giám sát') || r.includes('quản lý') || r.includes('quan ly') || r.includes('manager')) return "#C4D3E1";
   const code = [...r].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return SHIFT_COLORS[code % SHIFT_COLORS.length];
 };
 
 const ROLE_THEMES = {
   Barista: {
-    color: '#5BC8B8',      // Teal / Mint
-    cardBg: 'rgba(91, 200, 184, 0.15)',
-    activeBorder: '#5BC8B8',
-    activeBg: 'rgba(91, 200, 184, 0.25)',
-    dotColor: '#5BC8B8',
+    color: uiColors.turquoise,      // Teal / Mint
+    cardBg: "rgba(115, 169, 154, 0.15)",
+    activeBorder: uiColors.turquoise,
+    activeBg: "rgba(115, 169, 154, 0.25)",
+    dotColor: uiColors.turquoise,
   },
   'Pha chế': {
-    color: '#5BC8B8',
-    cardBg: 'rgba(91, 200, 184, 0.15)',
-    activeBorder: '#5BC8B8',
-    activeBg: 'rgba(91, 200, 184, 0.25)',
-    dotColor: '#5BC8B8',
+    color: uiColors.turquoise,
+    cardBg: "rgba(115, 169, 154, 0.15)",
+    activeBorder: uiColors.turquoise,
+    activeBg: "rgba(115, 169, 154, 0.25)",
+    dotColor: uiColors.turquoise,
   },
   Cashier: {
-    color: '#D97FB2',      // Pink / Mauve
-    cardBg: 'rgba(217, 127, 178, 0.15)',
-    activeBorder: '#D97FB2',
-    activeBg: 'rgba(217, 127, 178, 0.25)',
-    dotColor: '#D97FB2',
+    color: uiColors.pink,      // Pink / Mauve
+    cardBg: "rgba(183, 143, 168, 0.15)",
+    activeBorder: uiColors.pink,
+    activeBg: "rgba(183, 143, 168, 0.25)",
+    dotColor: uiColors.pink,
   },
   'Thu ngân': {
-    color: '#D97FB2',
-    cardBg: 'rgba(217, 127, 178, 0.15)',
-    activeBorder: '#D97FB2',
-    activeBg: 'rgba(217, 127, 178, 0.25)',
-    dotColor: '#D97FB2',
+    color: uiColors.pink,
+    cardBg: "rgba(183, 143, 168, 0.15)",
+    activeBorder: uiColors.pink,
+    activeBg: "rgba(183, 143, 168, 0.25)",
+    dotColor: uiColors.pink,
   },
   Kitchen: {
-    color: '#D98080',      // Salmon / Coral
-    cardBg: 'rgba(217, 128, 128, 0.15)',
-    activeBorder: '#D98080',
-    activeBg: 'rgba(217, 128, 128, 0.25)',
-    dotColor: '#D98080',
+    color: uiColors.salmon,      // Salmon / Coral
+    cardBg: "rgba(197, 140, 132, 0.15)",
+    activeBorder: uiColors.salmon,
+    activeBg: "rgba(197, 140, 132, 0.25)",
+    dotColor: uiColors.salmon,
   },
   'Bếp': {
-    color: '#D98080',
-    cardBg: 'rgba(217, 128, 128, 0.15)',
-    activeBorder: '#D98080',
-    activeBg: 'rgba(217, 128, 128, 0.25)',
-    dotColor: '#D98080',
+    color: uiColors.salmon,
+    cardBg: "rgba(197, 140, 132, 0.15)",
+    activeBorder: uiColors.salmon,
+    activeBg: "rgba(197, 140, 132, 0.25)",
+    dotColor: uiColors.salmon,
   },
   Service: {
-    color: '#C8C84A',      // Yellow-green / Olive
-    cardBg: 'rgba(200, 200, 74, 0.15)',
-    activeBorder: '#C8C84A',
-    activeBg: 'rgba(200, 200, 74, 0.25)',
-    dotColor: '#C8C84A',
+    color: uiColors.mustard,      // Yellow-green / Olive
+    cardBg: "rgba(185, 170, 114, 0.15)",
+    activeBorder: uiColors.mustard,
+    activeBg: "rgba(185, 170, 114, 0.25)",
+    dotColor: uiColors.mustard,
   },
   'Phục vụ': {
-    color: '#C8C84A',
-    cardBg: 'rgba(200, 200, 74, 0.15)',
-    activeBorder: '#C8C84A',
-    activeBg: 'rgba(200, 200, 74, 0.25)',
-    dotColor: '#C8C84A',
+    color: uiColors.mustard,
+    cardBg: "rgba(185, 170, 114, 0.15)",
+    activeBorder: uiColors.mustard,
+    activeBg: "rgba(185, 170, 114, 0.25)",
+    dotColor: uiColors.mustard,
   },
   Waiter: {
-    color: '#C8C84A',
-    cardBg: 'rgba(200, 200, 74, 0.15)',
-    activeBorder: '#C8C84A',
-    activeBg: 'rgba(200, 200, 74, 0.25)',
-    dotColor: '#C8C84A',
+    color: uiColors.mustard,
+    cardBg: "rgba(185, 170, 114, 0.15)",
+    activeBorder: uiColors.mustard,
+    activeBg: "rgba(185, 170, 114, 0.25)",
+    dotColor: uiColors.mustard,
   },
   Supervisor: {
-    color: '#7AA8D9',      // Blue
-    cardBg: 'rgba(122, 168, 217, 0.15)',
-    activeBorder: '#7AA8D9',
-    activeBg: 'rgba(122, 168, 217, 0.25)',
-    dotColor: '#7AA8D9',
+    color: uiColors.blue,      // Blue
+    cardBg: "rgba(129, 154, 183, 0.15)",
+    activeBorder: uiColors.blue,
+    activeBg: "rgba(129, 154, 183, 0.25)",
+    dotColor: uiColors.blue,
   },
   'Giám sát': {
-    color: '#7AA8D9',
-    cardBg: 'rgba(122, 168, 217, 0.15)',
-    activeBorder: '#7AA8D9',
-    activeBg: 'rgba(122, 168, 217, 0.25)',
-    dotColor: '#7AA8D9',
+    color: uiColors.blue,
+    cardBg: "rgba(129, 154, 183, 0.15)",
+    activeBorder: uiColors.blue,
+    activeBg: "rgba(129, 154, 183, 0.25)",
+    dotColor: uiColors.blue,
   },
   'Quản lý': {
-    color: '#7AA8D9',
-    cardBg: 'rgba(122, 168, 217, 0.15)',
-    activeBorder: '#7AA8D9',
-    activeBg: 'rgba(122, 168, 217, 0.25)',
-    dotColor: '#7AA8D9',
+    color: uiColors.blue,
+    cardBg: "rgba(129, 154, 183, 0.15)",
+    activeBorder: uiColors.blue,
+    activeBg: "rgba(129, 154, 183, 0.25)",
+    dotColor: uiColors.blue,
   },
   Default: {
-    color: '#5BC8B8',
-    cardBg: 'rgba(91, 200, 184, 0.15)',
-    activeBorder: '#5BC8B8',
-    activeBg: 'rgba(91, 200, 184, 0.25)',
-    dotColor: '#5BC8B8',
+    color: uiColors.turquoise,
+    cardBg: "rgba(115, 169, 154, 0.15)",
+    activeBorder: uiColors.turquoise,
+    activeBg: "rgba(115, 169, 154, 0.25)",
+    dotColor: uiColors.turquoise,
   }
 };
 
@@ -194,8 +236,9 @@ const getRoleTheme = (roleOrShift = '') => {
   if (!color || !color.startsWith('#')) {
     color = resolveRoleColor(roleName);
   }
+  color = resolveUiColor(color);
 
-  let r = 91, g = 200, b = 184;
+  let r = 115, g = 169, b = 154;
   if (color && color.startsWith('#') && color.length >= 7) {
     r = parseInt(color.slice(1, 3), 16) || 91;
     g = parseInt(color.slice(3, 5), 16) || 200;
@@ -227,7 +270,7 @@ const MONTH_NAMES = [
 ];
 
 function getWeekDates(weekOffset = 0) {
-  const base = new Date();
+  const base = vietnamCalendarDate();
   const dow = base.getDay();
   const diffToMon = dow === 0 ? -6 : 1 - dow;
   const monday = new Date(base);
@@ -260,15 +303,30 @@ const EMPTY_SHIFT = {
   timeRange: '—',
   location: 'Cửa hàng được phân công',
   role: 'Nhân viên',
-  color: '#8DD9CC',
+  color: "#C4DDD3",
 };
 
 export default function ScheduleScreen({ navigation }) {
+  const { width: viewportWidth } = useWindowDimensions();
+  useResumeRefresh(navigation, () => fetchScheduleData(false));
+  const insets = useSafeAreaInsets();
+  const { runAction, busy } = useActionGuard();
+  const submitting = !!busy.submit;
+  const toastTimeout = useRef(null);
+  const planeTimeout = useRef(null);
+  const planeStartTimeout = useRef(null);
+  useEffect(() => () => { clearTimeout(toastTimeout.current); clearTimeout(planeTimeout.current); clearTimeout(planeStartTimeout.current); }, []);
   const [activeTab, setActiveTab] = useState('my_shifts');
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (vietnamCalendarDate().getDay() + 6) % 7);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [calendarMonthKey, setCalendarMonthKey] = useState(() => `${vietnamDateKey().slice(0, 7)}-01`);
+  const calendarMonth = calendarDate(calendarMonthKey);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [roleFilter, setRoleFilter] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [scheduleErrors, setScheduleErrors] = useState({ my_shifts: false, schedule: false });
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [storeColleagues, setStoreColleagues] = useState([]);
 
@@ -295,7 +353,7 @@ export default function ScheduleScreen({ navigation }) {
   const [absentReason, setAbsentReason] = useState('');
 
   // ── Form inputs for Leave ──
-  const today = new Date();
+  const today = vietnamCalendarDate();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   const dayAfter = new Date(today);
@@ -313,6 +371,7 @@ export default function ScheduleScreen({ navigation }) {
   const [selectedLeaveType, setSelectedLeaveType] = useState('');
   const [leaveError, setLeaveError] = useState(null);
   const [swapError, setSwapError] = useState(null);
+  const [scheduleConflict, setScheduleConflict] = useState(null);
   const [absentError, setAbsentError] = useState(null);
 
   // ── ✈️ 3D Paper Plane launch trigger ──
@@ -320,9 +379,11 @@ export default function ScheduleScreen({ navigation }) {
 
   const triggerLaunchPlane = () => {
     setPlaneLaunched(false);
-    setTimeout(() => {
+    clearTimeout(planeStartTimeout.current);
+    planeStartTimeout.current = setTimeout(() => {
       setPlaneLaunched(true);
-      setTimeout(() => setPlaneLaunched(false), 2600);
+      clearTimeout(planeTimeout.current);
+      planeTimeout.current = setTimeout(() => setPlaneLaunched(false), 2600);
     }, 40);
   };
 
@@ -330,7 +391,11 @@ export default function ScheduleScreen({ navigation }) {
   const [liveMyShifts, setLiveMyShifts] = useState([]);
   const [liveStoreShifts, setLiveStoreShifts] = useState([]);
 
-  const weekDays = getWeekDates(weekOffset);
+  const vietnamToday = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  // Recreate UI-only Date carriers after a device-zone change; business date
+  // keys still come exclusively from the Vietnam calendar.
+  const calendarDeviceOffset = new Date().getTimezoneOffset();
+  const weekDays = useMemo(() => getWeekDates(weekOffset), [weekOffset, vietnamToday, calendarDeviceOffset]);
   const startDay = weekDays[0];
   const endDay = weekDays[weekDays.length - 1];
   const monthTitle = startDay.dateObj.getMonth() === endDay.dateObj.getMonth()
@@ -346,11 +411,12 @@ export default function ScheduleScreen({ navigation }) {
       fetchScheduleData(false);
     });
     return unsubscribe;
-  }, [navigation, weekOffset]);
+  }, [navigation]);
 
   const showToast = (title, message, type = 'success') => {
     setToastMessage({ title, message, type });
-    setTimeout(() => {
+    clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => {
       setToastMessage(null);
     }, 3500);
   };
@@ -385,6 +451,7 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   const fetchScheduleData = async (isInitial = false) => {
+    const nextErrors = { my_shifts: false, schedule: false };
     try {
       if (isInitial) setLoading(true);
       // 1. Fetch current user & stores
@@ -409,7 +476,7 @@ export default function ScheduleScreen({ navigation }) {
           }
         }
       } catch (e) {
-        // backend offline
+        nextErrors.schedule = true;
       }
 
       const getShiftColor = (s, roleName) => {
@@ -465,11 +532,14 @@ export default function ScheduleScreen({ navigation }) {
       };
 
       // 2. Fetch real my shifts from API
-      const res = await getMyShifts().catch(() => null);
+      const res = await getMyShifts().catch(() => {
+        nextErrors.my_shifts = true;
+        return null;
+      });
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
         const mapped = res.data.map((s, idx) => {
           const [y, m, d] = (s.shiftDate || '').split('-').map(Number);
-          const shiftDateObj = y ? new Date(y, m - 1, d) : new Date();
+          const shiftDateObj = y ? new Date(y, m - 1, d) : vietnamCalendarDate();
           const dow = shiftDateObj.getDay();
           const actualIdx = dow === 0 ? 6 : dow - 1;
           const fmtT = (t) => {
@@ -483,6 +553,9 @@ export default function ScheduleScreen({ navigation }) {
           const assignmentDetails = resolveAssignmentDetails(s, myAssignment);
           return {
             id: myAssignment?.id ? `${s.id}-${myAssignment.id}` : (s.id || `live-my-${idx}`),
+            assignmentId: myAssignment?.id || null,
+            staffId: myAssignment?.staffId || currentUser?.id || s.staffId || s.assignedStaffId,
+            isOwnAssignment: true,
             shiftId: s.id,
             shiftDate: s.shiftDate,
             dayIndex: actualIdx,
@@ -491,6 +564,7 @@ export default function ScheduleScreen({ navigation }) {
             avatarId: currentUser?.avatarId || s.avatarId,
             timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
             location: assignmentDetails.location,
+            storeName: s.storeName,
             zoneId: assignmentDetails.zoneId,
             position: assignmentDetails.position,
             role: assignmentDetails.position,
@@ -500,22 +574,21 @@ export default function ScheduleScreen({ navigation }) {
           };
         });
         setLiveMyShifts(mapped);
-        if (mapped.length > 0) {
-          setSelectedSwapShift((prev) => (prev && prev.id !== 'no-shift' ? prev : mapped[0]));
-          setSelectedAbsentShift((prev) => (prev && prev.id !== 'no-shift' ? prev : mapped[0]));
-        }
-      } else {
+      } else if (res) {
         setLiveMyShifts([]);
       }
 
       // 3. Fetch real store shifts if storeId exists
       if (activeStoreId) {
-        const storeRes = await getShiftsForStore(activeStoreId).catch(() => null);
+        const storeRes = await getShiftsForStore(activeStoreId).catch(() => {
+          nextErrors.schedule = true;
+          return null;
+        });
         if (storeRes && storeRes.data && Array.isArray(storeRes.data) && storeRes.data.length > 0) {
           const colleaguesMap = new Map();
           const mappedStore = storeRes.data.flatMap((s, idx) => {
             const [y, m, d] = (s.shiftDate || '').split('-').map(Number);
-            const shiftDateObj = y ? new Date(y, m - 1, d) : new Date();
+            const shiftDateObj = y ? new Date(y, m - 1, d) : vietnamCalendarDate();
             const dow = shiftDateObj.getDay();
             const actualIdx = dow === 0 ? 6 : dow - 1;
             const fmtT = (t) => {
@@ -545,6 +618,8 @@ export default function ScheduleScreen({ navigation }) {
 
               return {
               id: assignment?.id ? `${s.id}-${assignment.id}` : (s.id || `live-store-${idx}-${assignmentIndex}`),
+              assignmentId: assignment?.id || null,
+              staffId,
               shiftId: s.id,
               shiftDate: s.shiftDate,
               dayIndex: actualIdx,
@@ -553,6 +628,7 @@ export default function ScheduleScreen({ navigation }) {
               avatarId: assignment?.avatarId || s.avatarId,
               timeRange: `${fmtT(s.startTime)} - ${fmtT(s.endTime)}`,
               location: assignmentDetails.location,
+              storeName: s.storeName,
               zoneId: assignmentDetails.zoneId,
               position: assignmentDetails.position,
               role: assignmentDetails.position,
@@ -568,16 +644,20 @@ export default function ScheduleScreen({ navigation }) {
           if (colleaguesList.length > 0) {
             setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
           }
-        } else {
+        } else if (storeRes) {
           setLiveStoreShifts([]);
           setStoreColleagues([]);
         }
+      } else if (!nextErrors.schedule) {
+        setLiveStoreShifts([]);
+        setStoreColleagues([]);
       }
     } catch (e) {
       console.log('Using live schedule data:', e.message);
-      setLiveMyShifts([]);
-      setLiveStoreShifts([]);
+      nextErrors.my_shifts = true;
+      nextErrors.schedule = true;
     } finally {
+      setScheduleErrors(nextErrors);
       setLoading(false);
     }
   };
@@ -593,23 +673,30 @@ export default function ScheduleScreen({ navigation }) {
   // ── Khi bấm vào bất kỳ ca làm nào trên lịch -> Mở popup box chuẩn Đổi ca (2).png ──
   const handleShiftPress = (shift, dayItem) => {
     setActiveSelectedShift({ ...shift, dayItem });
-    // Tự động gán ca được click thành ca swap / absent mặc định
-    const foundMyShift = liveMyShifts.find(s => s.id === shift.id || s.dayIndex === shift.dayIndex) || shift;
-    if (foundMyShift) {
-      setSelectedSwapShift(foundMyShift);
-      setSelectedAbsentShift(foundMyShift);
-    }
+    const ownedShift = resolveOwnedRequestShift(shift, liveMyShifts, currentUserProfile?.id);
+    setSelectedSwapShift(ownedShift || EMPTY_SHIFT);
+    setSelectedAbsentShift(ownedShift || EMPTY_SHIFT);
     setActionBoxVisible(true);
   };
 
   // ── Xử lý chuyển tiếp khi bấm 3 nút trong popup ──
   const handleOpenSwapModal = () => {
+    if (!resolveOwnedRequestShift(selectedSwapShift, liveMyShifts, currentUserProfile?.id)) {
+      setSelectedSwapShift(EMPTY_SHIFT);
+      showToast('Chọn ca của bạn', 'Bạn chỉ có thể yêu cầu đổi ca được phân công cho mình.', 'warning');
+      return;
+    }
     setActionBoxVisible(false);
     setShowShiftPicker(false);
     setSwapModalVisible(true);
   };
 
   const handleOpenAbsentModal = () => {
+    if (!resolveOwnedRequestShift(selectedAbsentShift, liveMyShifts, currentUserProfile?.id)) {
+      setSelectedAbsentShift(EMPTY_SHIFT);
+      showToast('Chọn ca của bạn', 'Bạn chỉ có thể xin vắng ca được phân công cho mình.', 'warning');
+      return;
+    }
     setActionBoxVisible(false);
     setShowAbsentShiftPicker(false);
     setAbsentModalVisible(true);
@@ -625,10 +712,10 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   // ── Submit Đổi ca ──
-  const handleSubmitSwap = async () => {
+  const handleSubmitSwap = () => runAction('submit', async () => {
     setSwapError(null);
-    if (!selectedSwapShift || selectedSwapShift.id === 'no-shift') {
-      const msg = 'Vui lòng chọn ca làm việc để đổi';
+    if (!resolveOwnedRequestShift(selectedSwapShift, liveMyShifts, currentUserProfile?.id)) {
+      const msg = 'Vui lòng chọn ca được phân công cho bạn để đổi';
       setSwapError(msg);
       showToast('Lưu ý', msg, 'warning');
       return;
@@ -650,20 +737,11 @@ export default function ScheduleScreen({ navigation }) {
     const toShiftId = targetColleague?.shiftId;
 
     try {
-      setLoading(true);
-      await createStaffRequest({
-        type: 'SWAP',
-        typeCategory: 'swap',
-        requestType: 'Yêu cầu đổi ca',
-        requesterName: currentUserProfile?.fullName || 'Nhân viên',
-        targetStaffName: colleagueName,
-        fromShiftId: fromShiftId,
-        toStaffId: toStaffId,
-        toShiftId: toShiftId,
-        shiftInfo: `${selectedSwapShift.dayLabel} ${selectedSwapShift.timeRange} (${selectedSwapShift.role})`,
-        reason: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
-        content: `Đề xuất đổi ca: ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) với bạn ${colleagueName}.`,
-      }, activeStoreId);
+      const checked = await submitCheckedSwap({ userId: currentUserProfile?.id, storeId: activeStoreId, fromShiftId, toStaffId, toShiftId });
+      if (checked.conflicts.length) {
+        setScheduleConflict(checked);
+        return;
+      }
       setSwapModalVisible(false);
       setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName} tới Quản lý`);
@@ -674,15 +752,14 @@ export default function ScheduleScreen({ navigation }) {
       setSwapError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
-      setLoading(false);
     }
-  };
+  });
 
   // ── Submit Xin vắng ──
-  const handleSubmitAbsent = async () => {
+  const handleSubmitAbsent = () => runAction('submit', async () => {
     setAbsentError(null);
-    if (!selectedAbsentShift || selectedAbsentShift.id === 'no-shift') {
-      const msg = 'Vui lòng chọn ca làm việc xin vắng';
+    if (!resolveOwnedRequestShift(selectedAbsentShift, liveMyShifts, currentUserProfile?.id)) {
+      const msg = 'Vui lòng chọn ca được phân công cho bạn để xin vắng';
       setAbsentError(msg);
       showToast('Lưu ý', msg, 'warning');
       return;
@@ -694,16 +771,17 @@ export default function ScheduleScreen({ navigation }) {
       return;
     }
     try {
-      setLoading(true);
       await createStaffRequest({
         type: 'ABSENT',
+        startDate: selectedAbsentShift.shiftDate,
+        endDate: selectedAbsentShift.shiftDate,
         typeCategory: 'absence',
         requestType: 'Yêu cầu xin vắng',
         requesterName: currentUserProfile?.fullName || 'Nhân viên',
         shiftInfo: `${selectedAbsentShift.dayLabel} ${selectedAbsentShift.timeRange} (${selectedAbsentShift.role})`,
         reason: absentReason.trim(),
         content: `Xin vắng ca: ${selectedAbsentShift.dayLabel} (${selectedAbsentShift.timeRange}).\nLý do: ${absentReason.trim()}`,
-      });
+      }, activeStoreId);
       setAbsentModalVisible(false);
       setAbsentReason('');
       setAbsentError(null);
@@ -715,12 +793,11 @@ export default function ScheduleScreen({ navigation }) {
       setAbsentError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
-      setLoading(false);
     }
-  };
+  });
 
   // ── Submit Xin nghỉ ──
-  const handleSubmitLeave = async () => {
+  const handleSubmitLeave = () => runAction('submit', async () => {
     setLeaveError(null);
     if (!selectedLeaveType || leaveTypes.length === 0) {
       const msg = 'Vui lòng chọn loại nghỉ phép hợp lệ';
@@ -743,7 +820,6 @@ export default function ScheduleScreen({ navigation }) {
     }
 
     try {
-      setLoading(true);
       await createStaffRequest({
         type: 'LEAVE',
         typeCategory: 'leave',
@@ -765,13 +841,54 @@ export default function ScheduleScreen({ navigation }) {
       setLeaveError(errMsg);
       showToast('Thất bại', errMsg, 'error');
     } finally {
-      setLoading(false);
     }
-  };
+  });
 
   const displayDays = selectedDayIndex !== null
     ? [weekDays[selectedDayIndex]]
     : weekDays;
+  const availableShifts = activeTab === 'my_shifts'
+    ? liveMyShifts
+    : (liveStoreShifts.length > 0 ? liveStoreShifts : liveMyShifts);
+  const weekHasShifts = availableShifts.some((shift) => weekDays.some((day) => shift.shiftDate === day.fullDateStr));
+  const displayedShifts = availableShifts.filter((shift) => activeTab !== 'schedule' || !roleFilter || shift.position === roleFilter);
+  const hasScheduleError = scheduleErrors[activeTab]
+    || (activeTab === 'schedule' && liveStoreShifts.length === 0 && scheduleErrors.my_shifts);
+  const visibleShiftCount = displayDays.reduce((count, dayItem) => {
+    const dayIndex = weekDays.findIndex((day) => day.dowIndex === dayItem.dowIndex);
+    return count + displayedShifts.filter((shift) => shift.shiftDate
+      ? shift.shiftDate === dayItem.fullDateStr
+      : shift.dayIndex === dayIndex).length;
+  }, 0);
+  const headerMonth = MONTH_NAMES[weekDays[selectedDayIndex ?? 0].dateObj.getMonth()];
+  const storeTitle = availableShifts.find((shift) => shift.storeName)?.storeName || 'Chi nhánh làm việc';
+  const roleOptions = [...new Set(availableShifts.map((shift) => shift.position).filter(Boolean))];
+  const calendarStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const calendarOffset = (calendarStart.getDay() + 6) % 7;
+  const calendarDays = Array.from({ length: 42 }, (_, index) => new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), index - calendarOffset + 1));
+  const selectedDate = selectedDayIndex !== null ? weekDays[selectedDayIndex].fullDateStr : null;
+  const canManageSelectedShift = Boolean(resolveOwnedRequestShift(activeSelectedShift, liveMyShifts, currentUserProfile?.id));
+  const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const openCalendar = () => {
+    setCalendarMonthKey(`${weekDays[selectedDayIndex ?? 0].fullDateStr.slice(0, 7)}-01`);
+    setCalendarVisible(true);
+  };
+  const selectCalendarDate = (date) => {
+    const currentMonday = new Date(getWeekDates(0)[0].dateObj);
+    const targetMonday = new Date(date);
+    currentMonday.setHours(0, 0, 0, 0);
+    targetMonday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    targetMonday.setHours(0, 0, 0, 0);
+    setWeekOffset(Math.round(calendarDayDifference(targetMonday, currentMonday) / 7));
+    setSelectedDayIndex((date.getDay() + 6) % 7);
+    setCalendarVisible(false);
+  };
+  const weekPanResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+    onPanResponderRelease: (_, gesture) => {
+      if (Math.abs(gesture.dx) > 40) setWeekOffset((offset) => offset + (gesture.dx < 0 ? 1 : -1));
+    },
+  });
 
   const renderToast = () => {
     if (!toastMessage) return null;
@@ -801,265 +918,235 @@ export default function ScheduleScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-
-      {/* ── CUSTOM TOAST NOTIFICATION ─────────────────────────── */}
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={uiColors.surface} />
       {renderToast()}
+
+      <View style={styles.monthHeaderRow}>
+        <TouchableOpacity
+          style={ensureTouchTarget(styles.todayIconButton)}
+          accessibilityRole="button"
+          accessibilityLabel="Mở lịch chọn ngày"
+          onPress={openCalendar}
+        >
+          <Ionicons name="calendar-clear-outline" size={28} color={uiColors.ink} accessible={false} />
+          <Text style={styles.todayIconDay}>{today.getDate()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={ensureTouchTarget(styles.monthTitleContainer)} accessibilityRole="button" accessibilityLabel={`Chọn ngày trong ${headerMonth}`} onPress={openCalendar}>
+          <Text accessibilityRole="header" style={styles.monthTitleText}>{headerMonth}</Text>
+          <Ionicons name="chevron-down" size={19} color={uiColors.ink} accessible={false} />
+        </TouchableOpacity>
+        <TouchableOpacity style={ensureTouchTarget(styles.todayIconButton)} accessibilityRole="button" accessibilityLabel="Lịch sử điều chỉnh" accessibilityState={{ disabled: !activeStoreId }} aria-disabled={!activeStoreId} disabled={!activeStoreId} onPress={() => navigation.navigate('ScheduleHistory', { storeId: activeStoreId, weekStart: weekDays[0].fullDateStr })}>
+          <Ionicons name="time-outline" size={26} color={activeStoreId ? uiColors.orange : "#B8BFC1"} accessible={false} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.tabContainer}>
+        {[
+          { key: 'my_shifts', label: 'Ca của tôi' },
+          { key: 'schedule', label: 'Lịch chi nhánh' },
+        ].map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={ensureTouchTarget([styles.tabBtn, activeTab === tab.key && styles.tabBtnActive])}
+            onPress={() => setActiveTab(tab.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === tab.key }} aria-selected={activeTab === tab.key}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {activeTab === 'schedule' && <View style={styles.storeFilterRow}>
+        <Ionicons name="location-outline" size={24} color="#8B809D" accessible={false} />
+        <Text style={styles.storeFilterTitle} numberOfLines={1}>{storeTitle}</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={roleFilter ? `Lọc lịch theo vị trí, đang chọn ${roleFilter}` : 'Lọc lịch theo vị trí'}
+          onPress={() => setFilterModalVisible(true)}
+          style={ensureTouchTarget(styles.filterButton)}
+        >
+          <Ionicons name="options-outline" size={26} color={roleFilter ? uiColors.orange : "#404B57"} accessible={false} />
+        </TouchableOpacity>
+      </View>}
+
+      <ScrollView horizontal style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }} showsHorizontalScrollIndicator={viewportWidth < 358}>
+      <View style={[styles.weekStripCard, { minWidth: 358, flex: 1 }]} {...(viewportWidth >= 358 ? weekPanResponder.panHandlers : {})}>
+        {weekDays.map((item, index) => {
+          const isSelected = selectedDayIndex === index;
+          const isToday = item.fullDateStr === todayStr;
+          const hasShift = liveMyShifts.some((shift) => shift.shiftDate ? shift.shiftDate === item.fullDateStr : shift.dayIndex === index);
+          return (
+            <TouchableOpacity
+              key={item.fullDateStr}
+              style={ensureTouchTarget([styles.dayColumn, isToday && !isSelected && styles.dayColumnToday, isSelected && styles.dayColumnSelected])}
+              onPress={() => handleSelectDay(index)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.fullHeaderDate}${isToday ? ', hôm nay' : ''}${hasShift ? ', có ca làm' : ''}`}
+              accessibilityHint="Nhấn để xem ca trong ngày. Nhấn lần nữa để xem cả tuần. Vuốt ngang để chuyển tuần."
+              accessibilityState={{ selected: isSelected }} aria-selected={isSelected}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.dayLabelText, isSelected && styles.dayLabelTextSelected]}>{index === 6 ? 'CN' : `T${index + 2}`}</Text>
+              <Text style={[styles.dayDateText, isSelected && styles.dayDateTextSelected]}>{Number(item.dateStr)}</Text>
+              <View style={[styles.workDot, hasShift && styles.workDotVisible, hasShift && isSelected && styles.workDotSelected]} />
+            </TouchableOpacity>
+          );
+        })}
+      </View></ScrollView>
 
       <ScrollView
         style={styles.page}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: 88 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleManualRefresh}
-            colors={['#27272a']}
-            tintColor="#27272a"
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleManualRefresh} colors={[uiColors.orange]} tintColor={uiColors.orange} />}
       >
-        {/* ── 1. Tiêu đề Tháng với Điều hướng Tuần/Tháng ─────────── */}
-        <View style={styles.monthHeaderRow}>
-          <TouchableOpacity
-            style={styles.navArrowBtn}
-            onPress={() => {
-              setWeekOffset(w => w - 1);
-              setSelectedDayIndex(null);
-            }}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navArrowText}>‹</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.monthTitleContainer}
-            onPress={() => {
-              setWeekOffset(0);
-              setSelectedDayIndex(null);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.monthTitleText}>{monthTitle}</Text>
-            <Text style={styles.weekRangeSubtitle}>{weekSubtitle}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navArrowBtn}
-            onPress={() => {
-              setWeekOffset(w => w + 1);
-              setSelectedDayIndex(null);
-            }}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navArrowText}>›</Text>
-          </TouchableOpacity>
+        <View style={styles.companionBanner}>
+          <Text style={styles.companionEyebrow}>CÙNG ĐỘI NGŨ CỦA BẠN</Text>
+          <Text style={styles.companionTitle}>Sẵn sàng cho ca làm mới</Text>
+          <ThreeIllustration kind="shift-buddies" width={Math.min(320, viewportWidth - 48)} height={Math.min(180, (viewportWidth - 48) / 1.6)} animated interactive style={styles.companionScene} />
+          <Text style={styles.companionCaption}>Xem lịch và chủ động sắp xếp thời gian.</Text>
         </View>
-
-        {/* ── 2. Bộ chuyển Tab: Ca của tôi | Lịch chi nhánh | Chợ ca ── */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabBtn,
-              activeTab === 'my_shifts' ? styles.tabBtnActive : styles.tabBtnInactive
-            ]}
-            onPress={() => setActiveTab('my_shifts')}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === 'my_shifts' ? styles.tabTextActive : styles.tabTextInactive
-              ]}
-            >
-              Ca của tôi
-            </Text>
+        {!loading && hasScheduleError && <View style={styles.scheduleErrorCard} accessibilityRole="alert">
+          <Ionicons name="cloud-offline-outline" size={24} color={uiColors.primaryStrong} accessible={false} />
+          <View style={styles.scheduleErrorCopy}>
+            <Text style={styles.scheduleErrorTitle}>Chưa cập nhật được lịch làm</Text>
+            <Text style={styles.scheduleErrorMessage}>{visibleShiftCount > 0
+              ? 'Đang hiển thị lịch đã tải trước đó. Hãy thử tải lại.'
+              : 'Kiểm tra kết nối rồi thử tải lại để xem ca được phân công.'}</Text>
+          </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Thử tải lại lịch làm việc" accessibilityState={{ disabled: refreshing, busy: refreshing }} aria-disabled={refreshing} aria-busy={refreshing} disabled={refreshing} onPress={handleManualRefresh} style={ensureTouchTarget(styles.scheduleRetryButton)}>
+            {refreshing ? <ActivityIndicator size="small" color={uiColors.primaryStrong} /> : <Text style={styles.retryText}>Thử lại</Text>}
           </TouchableOpacity>
+        </View>}
 
-          <TouchableOpacity
-            style={[
-              styles.tabBtn,
-              activeTab === 'schedule' ? styles.tabBtnActive : styles.tabBtnInactive
-            ]}
-            onPress={() => setActiveTab('schedule')}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === 'schedule' ? styles.tabTextActive : styles.tabTextInactive
-              ]}
-            >
-              Lịch chi nhánh
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.tabBtn,
-              styles.tabBtnMarketplace,
-            ]}
-            onPress={() => {
-              const parent = navigation.getParent?.();
-              if (parent) {
-                parent.navigate('Marketplace');
-              } else {
-                navigation.navigate('Marketplace');
-              }
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.tabTextMarketplace}>
-              Chợ ca
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 3. Thanh 7 Ngày trong tuần (Rectangle 578 - Ảnh Đổi ca (2).png) ── */}
-        <View style={styles.weekStripCard}>
-          {weekDays.map((item, idx) => {
-            const isSelected = selectedDayIndex === idx;
-            const isToday = item.fullDateStr === todayStr;
-
-            return (
-              <TouchableOpacity
-                key={idx}
-                style={[
-                  styles.dayColumn,
-                  isSelected && styles.dayColumnSelected,
-                  isToday && !isSelected && styles.dayColumnToday,
-                ]}
-                onPress={() => handleSelectDay(idx)}
-                activeOpacity={0.7}
-              >
-                <Text style={[
-                  styles.dayLabelText,
-                  isSelected && styles.dayLabelTextSelected,
-                  isToday && !isSelected && styles.dayLabelTextToday,
-                ]}>
-                  {item.shortLabel}
-                </Text>
-                <Text style={[
-                  styles.dayDateText,
-                  isSelected && styles.dayDateTextSelected,
-                  isToday && !isSelected && styles.dayDateTextToday,
-                ]}>
-                  {item.dateStr}
-                </Text>
-                {isToday && (
-                  <View style={[styles.todayDot, isSelected && { backgroundColor: '#FFFFFF' }]} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* ── 4. Danh sách Ca làm việc nhóm theo Ngày (Chuẩn Đổi ca (2).png) ── */}
         {loading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#27272a" />
+            <ActivityIndicator size="small" color={uiColors.primaryStrong} />
             <Text style={styles.loadingText}>Đang tải lịch làm việc...</Text>
+          </View>
+        ) : hasScheduleError && visibleShiftCount === 0 ? null : !weekHasShifts ? (
+          <View style={{ paddingTop: 8 }}>
+            <View style={[styles.emptyScheduleNotice, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}><View style={{ flex: 1 }}><Text style={styles.emptyScheduleNoticeTitle}>Tuần này chưa có lịch làm</Text><Text style={styles.emptyScheduleNoticeText}>Cho quản lý biết khi nào bạn có thể làm việc.</Text></View><ThreeIllustration kind="calendar" size={68} /></View>
+            {weekDays.map((day, index) => <View key={day.fullDateStr} style={styles.emptyScheduleDay}>
+              <View style={styles.emptyScheduleDayHeader}><Text style={styles.emptyScheduleDate}>{day.fullHeaderDate}</Text><View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}><Ionicons name="people-outline" size={14} color={uiColors.muted} /><Text style={{ color: uiColors.muted, fontSize: 12 }}>0</Text></View></View>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Đăng ký lịch rảnh ${day.fullHeaderDate}`} onPress={() => navigation.navigate('Availability', undefined, { pop: true })} style={ensureTouchTarget(styles.availabilityDashedButton)}><Ionicons accessible={false} name="add" size={17} color={uiColors.muted} /><Text style={styles.availabilityDashedText}>Đăng ký lịch rảnh</Text></TouchableOpacity>
+            </View>)}
+          </View>
+        ) : visibleShiftCount === 0 ? (
+          <View style={styles.emptyWeekCard}>
+            <ThreeIllustration kind="calendar" size={96} />
+            <Text style={styles.emptyWeekTitle}>{roleFilter && activeTab === 'schedule' ? 'Không có ca phù hợp' : selectedDayIndex !== null ? (activeTab === 'my_shifts' ? 'Bạn không có ca trong ngày này' : 'Không có ca trong ngày này') : 'Chưa có ca trong tuần này'}</Text>
+            <Text style={styles.emptyWeekMessage}>{roleFilter && activeTab === 'schedule' ? 'Thử chọn vị trí khác trong bộ lọc.' : 'Chọn ngày khác hoặc kéo xuống để cập nhật lịch.'}</Text>
+            <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.emptyCalendarButton)} onPress={openCalendar}>
+              <Text style={styles.retryText}>Xem ngày khác</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.shiftsListContainer}>
             {displayDays.map((dayItem) => {
-              const actualIdx = weekDays.findIndex(w => w.dowIndex === dayItem.dowIndex);
-
-              const dayShifts = (activeTab === 'my_shifts'
-                ? liveMyShifts
-                : (liveStoreShifts.length > 0 ? liveStoreShifts : liveMyShifts)
-              ).filter(s => {
-                if (s.shiftDate) {
-                  return s.shiftDate === dayItem.fullDateStr;
-                }
-                return s.dayIndex === actualIdx;
-              });
-
-              if (dayShifts.length === 0) {
-                return (
-                  <View key={actualIdx} style={styles.emptyDaySection}>
-                    <Text style={styles.daySectionHeaderTitle}>{dayItem.fullHeaderDate}</Text>
-                    <View style={styles.emptyDayRow}>
-                      <Text style={styles.emptyMessageText}>
-                        {activeTab === 'my_shifts'
-                          ? 'Bạn không có lịch làm việc trong ngày này.'
-                          : 'Không có ca trực nào trong ngày.'}
-                      </Text>
-                    </View>
-                    <View style={styles.daySectionDivider} />
-                  </View>
-                );
-              }
-
+              const actualIndex = weekDays.findIndex((day) => day.dowIndex === dayItem.dowIndex);
+              const dayShifts = displayedShifts.filter((shift) => shift.shiftDate ? shift.shiftDate === dayItem.fullDateStr : shift.dayIndex === actualIndex);
+              if (dayShifts.length === 0 && activeTab === 'my_shifts') return null;
               return (
-                <View key={actualIdx} style={styles.dayGroupSection}>
-                  {/* Tiêu đề ngày (Thứ 2, 03 tháng 08) */}
-                  <Text style={styles.daySectionHeaderTitle}>{dayItem.fullHeaderDate}</Text>
-
-                  {/* Danh sách ca trực trong ngày */}
-                  {dayShifts.map((shift) => {
-                    const theme = getRoleTheme(shift);
-                    const isSelected = activeSelectedShift?.id === shift.id && actionBoxVisible;
-
-                    return (
-                      <TouchableOpacity
-                        key={shift.id}
-                        style={[
-                          styles.shiftItemRow,
-                          isSelected && styles.shiftItemRowSelected,
-                          { backgroundColor: isSelected ? theme.activeBg : theme.cardBg },
-                          isSelected && { borderColor: '#27272a', borderWidth: 2 },
-                        ]}
-                        onPress={() => handleShiftPress(shift, dayItem)}
-                        activeOpacity={0.85}
-                      >
-                        {/* Cột trái: Avatar + Tên nhân viên */}
-                        <View style={styles.staffAvatarCol}>
-                          <Image
-                            source={getStaffAvatarSource(shift.staffName, shift.avatarId)}
-                            style={styles.staffAvatarImg}
-                          />
-                          <Text style={styles.staffNameText} numberOfLines={1}>
-                            {shift.staffName}
-                          </Text>
-                        </View>
-
-                        {/* Vạch màu dọc */}
-                        <View style={[styles.shiftVerticalBar, { backgroundColor: theme.color }]} />
-
-                        {/* Cột phải: Thông tin ca */}
-                        <View style={styles.shiftDetailCol}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={styles.shiftTimeRangeText}>{shift.timeRange}</Text>
-                            {shift.hasFlag && (
-                              <View style={styles.shiftFlagBadge}>
-                                <Text style={styles.shiftFlagText} numberOfLines={1}>Cảnh báo</Text>
-                              </View>
-                            )}
+                <View key={dayItem.fullDateStr} style={styles.dayGroupSection}>
+                  <View style={styles.dateGutter}>
+                    <Text style={styles.dateGutterWeekday}>{actualIndex === 6 ? 'CN' : `Thứ ${actualIndex + 2}`}</Text>
+                    <Text style={styles.dateGutterDay}>{Number(dayItem.dateStr)}</Text>
+                  </View>
+                  <View style={styles.dayShiftRows}>
+                    {dayShifts.length === 0 ? <Text style={styles.emptyDayText}>Không có ca làm</Text> : dayShifts.map((shift) => {
+                      const theme = getRoleTheme(shift);
+                      const isTeam = activeTab === 'schedule';
+                      return (
+                        <TouchableOpacity
+                          key={shift.id}
+                          style={ensureTouchTarget([styles.shiftItemRow, isTeam && styles.teamShiftRow])}
+                          onPress={() => handleShiftPress(shift, dayItem)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${shift.staffName}, ${shift.timeRange}, ${shift.storeName || shift.location}, ${shift.position || 'Chưa xác định vị trí'}`}
+                          accessibilityHint="Xem chi tiết và yêu cầu cho ca làm"
+                          activeOpacity={0.75}
+                        >
+                          {isTeam && <Image source={getStaffAvatarSource(shift.staffName, shift.avatarId)} style={styles.teamAvatar} />}
+                          <View style={styles.shiftDetailCol}>
+                            {isTeam && <Text style={styles.teamStaffName}>{shift.staffName}</Text>}
+                            <Text style={[styles.shiftTimeRangeText, isTeam && styles.teamShiftTime]}>{shift.timeRange}</Text>
+                            {!isTeam && <Text style={styles.shiftLocationText}>{shift.storeName || shift.location}</Text>}
+                            <View style={styles.shiftRoleRow}>
+                              <View style={[styles.roleDot, { backgroundColor: theme.dotColor }]} />
+                              <Text style={styles.roleLabelText}>{shift.position || 'Chưa xác định vị trí'}</Text>
+                            </View>
+                            {shift.hasFlag && <Text style={styles.shiftNoteHint}>Có ghi chú từ quản lý</Text>}
                           </View>
-                          <Text style={styles.shiftLocationText} numberOfLines={1}>
-                            {shift.location}
-                          </Text>
-                          <View style={styles.shiftRoleRow}>
-                            <View style={[styles.roleDot, { backgroundColor: theme.dotColor }]} />
-                            <Text style={styles.roleLabelText}>{shift.position || 'Chưa xác định vị trí'}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-
-                  {/* Vạch phân cách ngày (Line 123 / 125 / 126) */}
-                  <View style={styles.daySectionDivider} />
+                          {!isTeam && <Ionicons name="chevron-forward" size={19} color={uiColors.muted} accessible={false} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               );
             })}
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={calendarVisible} transparent animationType="fade" onRequestClose={() => setCalendarVisible(false)}>
+        <View style={styles.calendarBackdrop}>
+          <View style={styles.calendarSheet}>
+            <View style={styles.calendarHeader}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tháng trước" style={ensureTouchTarget(styles.calendarArrow)} onPress={() => setCalendarMonthKey((key) => shiftCalendarMonth(key, -1))}>
+                <Ionicons name="chevron-back" size={23} color="#404B57" accessible={false} />
+              </TouchableOpacity>
+              <Text accessibilityRole="header" style={styles.calendarTitle}>{MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tháng sau" style={ensureTouchTarget(styles.calendarArrow)} onPress={() => setCalendarMonthKey((key) => shiftCalendarMonth(key, 1))}>
+                <Ionicons name="chevron-forward" size={23} color="#404B57" accessible={false} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}>
+            <View style={[styles.calendarGrid, { minWidth: 336, flex: 1 }]}>
+              {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => <Text key={day} style={styles.calendarWeekday}>{day}</Text>)}
+              {calendarDays.map((date) => {
+                const key = dateKey(date);
+                const selected = selectedDate === key;
+                const outsideMonth = date.getMonth() !== calendarMonth.getMonth();
+                const hasShift = liveMyShifts.some((shift) => shift.shiftDate === key);
+                return (
+                  <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={`Ngày ${date.getDate()} tháng ${date.getMonth() + 1} năm ${date.getFullYear()}`} accessibilityState={{ selected }} aria-selected={selected} style={ensureTouchTarget(styles.calendarCell)} onPress={() => selectCalendarDate(date)}>
+                    <View style={[styles.calendarDateCircle, selected && styles.calendarDateSelected]}>
+                      <Text style={[styles.calendarDateText, outsideMonth && styles.calendarDateOutside, selected && styles.calendarDateTextSelected]}>{date.getDate()}</Text>
+                      {hasShift && <View style={[styles.calendarWorkDot, selected && styles.workDotSelected]} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            </ScrollView>
+            <View style={styles.calendarFooter}>
+              <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.calendarFooterButton)} onPress={() => { setWeekOffset(0); setSelectedDayIndex((today.getDay() + 6) % 7); setCalendarVisible(false); }}><Text style={styles.retryText}>Hôm nay</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.calendarFooterButton)} onPress={() => { setSelectedDayIndex(null); setCalendarVisible(false); }}><Text style={styles.retryText}>Xem cả tuần</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget(styles.calendarFooterButton)} onPress={() => setCalendarVisible(false)}><Text style={styles.calendarDoneText}>Đóng</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
+        <View style={styles.calendarBackdrop}>
+          <View style={styles.calendarSheet}>
+            <Text accessibilityRole="header" style={styles.filterTitle}>Lọc theo vị trí</Text>
+            <ScrollView style={styles.filterOptions}>
+              {[null, ...roleOptions].map((role) => <TouchableOpacity key={role || 'all'} accessibilityRole="radio" accessibilityState={{ checked: roleFilter === role }} aria-checked={roleFilter === role} onPress={() => setRoleFilter(role)} style={ensureTouchTarget(styles.filterOption)}>
+                <Text style={styles.filterOptionText}>{role || 'Tất cả vị trí'}</Text>
+                <Ionicons name={roleFilter === role ? 'radio-button-on' : 'radio-button-off'} size={23} color={roleFilter === role ? uiColors.orange : uiColors.muted} accessible={false} />
+              </TouchableOpacity>)}
+            </ScrollView>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setFilterModalVisible(false)} style={ensureTouchTarget(styles.calendarApplyButton)}><Text style={styles.calendarApplyText}>Xong</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── 5. POPUP BOX "LỰA CHỌN YÊU CẦU" ── */}
       <Modal
@@ -1069,10 +1156,12 @@ export default function ScheduleScreen({ navigation }) {
         onRequestClose={() => setActionBoxVisible(false)}
       >
         <View style={styles.popupBackdrop}>
-          <View style={styles.popupCard}>
+          <ScrollView style={styles.popupScroll} contentContainerStyle={styles.popupCard} showsVerticalScrollIndicator={false}>
             {/* Nút đóng X */}
             <TouchableOpacity
-              style={styles.popupCloseBtn}
+              style={ensureTouchTarget(styles.popupCloseBtn)}
+              accessibilityRole="button"
+              accessibilityLabel="Đóng chi tiết ca làm"
               onPress={() => setActionBoxVisible(false)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
@@ -1129,13 +1218,17 @@ export default function ScheduleScreen({ navigation }) {
             <View style={styles.popupDivider} />
 
             {/* Tiêu đề: Lựa chọn yêu cầu */}
-            <Text style={styles.popupActionHeading}>Lựa chọn yêu cầu</Text>
+            <Text style={styles.popupActionHeading}>{canManageSelectedShift ? 'Yêu cầu cho ca của bạn' : 'Ca làm của đồng nghiệp'}</Text>
+            {!canManageSelectedShift && <Text style={styles.popupOwnershipNote}>Bạn có thể xem thông tin ca này. Đổi ca và xin vắng chỉ áp dụng cho ca được phân công cho bạn; nghỉ phép là yêu cầu cá nhân.</Text>}
 
             {/* 3 Nút Hành Động Ngang */}
             <View style={styles.actionButtonsRow}>
+              {canManageSelectedShift && <>
               {/* 1. Hỗ trợ đổi ca */}
               <TouchableOpacity
-                style={styles.actionCardPill}
+                style={ensureTouchTarget(styles.actionCardPill)}
+                accessibilityRole="button"
+                accessibilityLabel="Yêu cầu hỗ trợ đổi ca"
                 onPress={handleOpenSwapModal}
                 activeOpacity={0.8}
               >
@@ -1145,7 +1238,9 @@ export default function ScheduleScreen({ navigation }) {
 
               {/* 2. Vắng mặt */}
               <TouchableOpacity
-                style={styles.actionCardPill}
+                style={ensureTouchTarget(styles.actionCardPill)}
+                accessibilityRole="button"
+                accessibilityLabel="Yêu cầu vắng mặt"
                 onPress={handleOpenAbsentModal}
                 activeOpacity={0.8}
               >
@@ -1153,17 +1248,20 @@ export default function ScheduleScreen({ navigation }) {
                 <Image source={iconLoa} style={styles.actionCardPillIcon} resizeMode="contain" />
               </TouchableOpacity>
 
+              </>}
               {/* 3. Xin nghỉ phép */}
               <TouchableOpacity
-                style={styles.actionCardPill}
+                style={ensureTouchTarget(styles.actionCardPill)}
+                accessibilityRole="button"
+                accessibilityLabel="Gửi yêu cầu nghỉ phép cho bản thân"
                 onPress={handleOpenLeaveModal}
                 activeOpacity={0.8}
               >
-                <Text style={styles.actionCardPillText}>Xin nghỉ{'\n'}phép</Text>
+                <Text style={styles.actionCardPillText}>Xin nghỉ phép của tôi</Text>
                 <Image source={iconDua} style={styles.actionCardPillIcon} resizeMode="contain" />
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -1172,13 +1270,16 @@ export default function ScheduleScreen({ navigation }) {
         visible={swapModalVisible}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => setSwapModalVisible(false)}
+        onRequestClose={() => scheduleConflict ? setScheduleConflict(null) : setSwapModalVisible(false)}
       >
-        <SafeAreaView style={styles.formModalSafeArea}>
-          <ScrollView contentContainerStyle={styles.formModalContent}>
+        <SafeAreaView style={styles.formModalSafeArea} edges={['top', 'left', 'right']}>
+          <KeyboardAvoidingView style={styles.formKeyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.formModalContent, { paddingBottom: 40 + insets.bottom }]}>
             <View style={styles.formHeaderRow}>
               <TouchableOpacity
-                style={styles.formCloseBtn}
+                style={ensureTouchTarget(styles.formCloseBtn)}
+                accessibilityRole="button"
+                accessibilityLabel="Đóng yêu cầu đổi ca"
                 onPress={() => setSwapModalVisible(false)}
               >
                 <Text style={styles.formCloseBtnText}>✕</Text>
@@ -1191,8 +1292,8 @@ export default function ScheduleScreen({ navigation }) {
             {/* Shift Selector: Cho phép chọn ca của mình */}
             <View style={styles.shiftSelectorHeaderRow}>
               <Text style={styles.shiftSelectorHeaderTitle}>Ca làm của bạn:</Text>
-              <TouchableOpacity
-                style={styles.changeShiftBtn}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget(styles.changeShiftBtn)}
                 onPress={() => setShowShiftPicker(!showShiftPicker)}
                 activeOpacity={0.7}
               >
@@ -1207,15 +1308,15 @@ export default function ScheduleScreen({ navigation }) {
               <View style={styles.shiftPickerDropdown}>
                 {liveMyShifts.length === 0 ? (
                   <View style={{ padding: 12 }}>
-                    <Text style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Chưa có ca làm việc nào</Text>
+                    <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có ca làm việc nào</Text>
                   </View>
                 ) : (
                   liveMyShifts.map((shift) => {
                     const isSelected = selectedSwapShift?.id === shift.id;
                     return (
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityLabel={`Chọn ca ${shift.dayLabel}, ${shift.timeRange}, ${shift.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                         key={shift.id}
-                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        style={ensureTouchTarget([styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected])}
                         onPress={() => {
                           setSelectedSwapShift(shift);
                           setShowShiftPicker(false);
@@ -1240,7 +1341,7 @@ export default function ScheduleScreen({ navigation }) {
                 <Text style={styles.popupAvatarName}>{currentUserProfile?.fullName || 'Nhân viên'}</Text>
               </View>
 
-              <View style={[styles.popupVerticalBar, { backgroundColor: selectedSwapShift?.color || '#5BC8B8' }]} />
+              <View style={[styles.popupVerticalBar, { backgroundColor: selectedSwapShift?.color || uiColors.turquoise }]} />
 
               <View style={styles.popupShiftInfo}>
                 <Text style={styles.popupTimeRange}>
@@ -1250,7 +1351,7 @@ export default function ScheduleScreen({ navigation }) {
                 </Text>
                 <Text style={styles.popupLocation}>{selectedSwapShift?.location || 'Cửa hàng được phân công'}</Text>
                 <View style={styles.popupRoleRow}>
-                  <View style={[styles.popupRoleDot, { backgroundColor: selectedSwapShift?.color || '#5BC8B8' }]} />
+                  <View style={[styles.popupRoleDot, { backgroundColor: selectedSwapShift?.color || uiColors.turquoise }]} />
                   <Text style={styles.popupRoleText}>{selectedSwapShift?.role || 'Nhân viên'}</Text>
                 </View>
               </View>
@@ -1261,16 +1362,16 @@ export default function ScheduleScreen({ navigation }) {
             <View style={styles.suggestList}>
               {storeColleagues.length === 0 ? (
                 <View style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: '#71717A', fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
+                  <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
                 </View>
               ) : (
                 storeColleagues.map((staff, idx) => {
                   const isSelected = selectedSwapStaff === staff.name;
 
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityLabel={`Chọn đồng nghiệp ${staff.name}, ${staff.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                       key={idx}
-                      style={[styles.suggestItem, isSelected && styles.suggestItemSelected]}
+                      style={ensureTouchTarget([styles.suggestItem, isSelected && styles.suggestItemSelected])}
                       onPress={() => setSelectedSwapStaff(staff.name)}
                       activeOpacity={0.7}
                     >
@@ -1294,19 +1395,23 @@ export default function ScheduleScreen({ navigation }) {
             ) : null}
 
             <TouchableOpacity
-              style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
+              style={ensureTouchTarget([styles.submitBtnLarge, submitting && styles.submitBtnDisabled])}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting}
               onPress={handleSubmitSwap}
-              disabled={loading}
+              disabled={submitting}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {submitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnLargeText}>Gửi yêu cầu</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
           {renderToast()}
+          <ScheduleConflictAlert embedded conflict={scheduleConflict} onClose={() => setScheduleConflict(null)} />
         </SafeAreaView>
       </Modal>
 
@@ -1317,11 +1422,14 @@ export default function ScheduleScreen({ navigation }) {
         transparent={false}
         onRequestClose={() => setAbsentModalVisible(false)}
       >
-        <SafeAreaView style={styles.formModalSafeArea}>
-          <ScrollView contentContainerStyle={styles.formModalContent}>
+        <SafeAreaView style={styles.formModalSafeArea} edges={['top', 'left', 'right']}>
+          <KeyboardAvoidingView style={styles.formKeyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.formModalContent, { paddingBottom: 40 + insets.bottom }]}>
             <View style={styles.formHeaderRow}>
               <TouchableOpacity
-                style={styles.formCloseBtn}
+                style={ensureTouchTarget(styles.formCloseBtn)}
+                accessibilityRole="button"
+                accessibilityLabel="Đóng yêu cầu vắng mặt"
                 onPress={() => setAbsentModalVisible(false)}
               >
                 <Text style={styles.formCloseBtnText}>✕</Text>
@@ -1334,8 +1442,8 @@ export default function ScheduleScreen({ navigation }) {
             {/* Shift Selector: Cho phép chọn ca của mình */}
             <View style={styles.shiftSelectorHeaderRow}>
               <Text style={styles.shiftSelectorHeaderTitle}>Ca xin vắng:</Text>
-              <TouchableOpacity
-                style={styles.changeShiftBtn}
+              <TouchableOpacity accessibilityRole="button"
+                style={ensureTouchTarget(styles.changeShiftBtn)}
                 onPress={() => setShowAbsentShiftPicker(!showAbsentShiftPicker)}
                 activeOpacity={0.7}
               >
@@ -1350,15 +1458,15 @@ export default function ScheduleScreen({ navigation }) {
               <View style={styles.shiftPickerDropdown}>
                 {liveMyShifts.length === 0 ? (
                   <View style={{ padding: 12 }}>
-                    <Text style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Chưa có ca làm việc nào</Text>
+                    <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có ca làm việc nào</Text>
                   </View>
                 ) : (
                   liveMyShifts.map((shift) => {
                     const isSelected = selectedAbsentShift?.id === shift.id;
                     return (
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityLabel={`Chọn ca ${shift.dayLabel}, ${shift.timeRange}, ${shift.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
                         key={shift.id}
-                        style={[styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected]}
+                        style={ensureTouchTarget([styles.shiftPickerItem, isSelected && styles.shiftPickerItemSelected])}
                         onPress={() => {
                           setSelectedAbsentShift(shift);
                           setShowAbsentShiftPicker(false);
@@ -1383,7 +1491,7 @@ export default function ScheduleScreen({ navigation }) {
                 <Text style={styles.popupAvatarName}>{currentUserProfile?.fullName || 'Nhân viên'}</Text>
               </View>
 
-              <View style={[styles.popupVerticalBar, { backgroundColor: selectedAbsentShift?.color || '#5BC8B8' }]} />
+              <View style={[styles.popupVerticalBar, { backgroundColor: selectedAbsentShift?.color || uiColors.turquoise }]} />
 
               <View style={styles.popupShiftInfo}>
                 <Text style={styles.popupTimeRange}>
@@ -1393,7 +1501,7 @@ export default function ScheduleScreen({ navigation }) {
                 </Text>
                 <Text style={styles.popupLocation}>{selectedAbsentShift?.location || 'Cửa hàng được phân công'}</Text>
                 <View style={styles.popupRoleRow}>
-                  <View style={[styles.popupRoleDot, { backgroundColor: selectedAbsentShift?.color || '#5BC8B8' }]} />
+                  <View style={[styles.popupRoleDot, { backgroundColor: selectedAbsentShift?.color || uiColors.turquoise }]} />
                   <Text style={styles.popupRoleText}>{selectedAbsentShift?.role || 'Nhân viên'}</Text>
                 </View>
               </View>
@@ -1404,6 +1512,7 @@ export default function ScheduleScreen({ navigation }) {
             <Text style={styles.formInputLabel}>Lý do:</Text>
             <TextInput
               style={styles.formTextArea}
+              accessibilityLabel="Lý do xin vắng mặt"
               value={absentReason}
               onChangeText={setAbsentReason}
               placeholder="Nhập lý do xin vắng ca này..."
@@ -1426,18 +1535,21 @@ export default function ScheduleScreen({ navigation }) {
             ) : null}
 
             <TouchableOpacity
-              style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
+              style={ensureTouchTarget([styles.submitBtnLarge, submitting && styles.submitBtnDisabled])}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting}
               onPress={handleSubmitAbsent}
-              disabled={loading}
+              disabled={submitting}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {submitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnLargeText}>Gửi yêu cầu</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
           {renderToast()}
         </SafeAreaView>
       </Modal>
@@ -1449,11 +1561,14 @@ export default function ScheduleScreen({ navigation }) {
         transparent={false}
         onRequestClose={() => setLeaveModalVisible(false)}
       >
-        <SafeAreaView style={styles.formModalSafeArea}>
-          <ScrollView contentContainerStyle={styles.formModalContent}>
+        <SafeAreaView style={styles.formModalSafeArea} edges={['top', 'left', 'right']}>
+          <KeyboardAvoidingView style={styles.formKeyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.formModalContent, { paddingBottom: 40 + insets.bottom }]}>
             <View style={styles.formHeaderRow}>
               <TouchableOpacity
-                style={styles.formCloseBtn}
+                style={ensureTouchTarget(styles.formCloseBtn)}
+                accessibilityRole="button"
+                accessibilityLabel="Đóng yêu cầu nghỉ phép"
                 onPress={() => setLeaveModalVisible(false)}
               >
                 <Text style={styles.formCloseBtnText}>✕</Text>
@@ -1471,21 +1586,21 @@ export default function ScheduleScreen({ navigation }) {
             <Text style={styles.formSectionHeading}>Loại nghỉ phép</Text>
             {loadingLeaveTypes ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
-                <ActivityIndicator size="small" color="#51A33D" style={{ marginRight: 8 }} />
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Đang tải danh sách loại nghỉ...</Text>
+                <ActivityIndicator size="small" color={uiColors.successText} style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 13, color: uiColors.muted }}>Đang tải danh sách loại nghỉ...</Text>
               </View>
             ) : leaveTypesError ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
-                <Text style={{ fontSize: 12.5, color: '#DC2626', flex: 1 }}>{leaveTypesError}</Text>
-                <TouchableOpacity
+                <Text style={{ fontSize: 12.5, color: uiColors.dangerText, flex: 1 }}>{leaveTypesError}</Text>
+                <TouchableOpacity accessibilityRole="button"
                   onPress={() => fetchLeaveTypesData(activeStoreId)}
-                  style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+                  style={ensureTouchTarget({ backgroundColor: "#F1DDDC", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 })}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#DC2626' }}>Thử lại</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: uiColors.dangerText }}>Thử lại</Text>
                 </TouchableOpacity>
               </View>
             ) : leaveTypes.length === 0 ? (
-              <Text style={{ fontSize: 13, color: '#9CA3AF', paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
+              <Text style={{ fontSize: 13, color: uiColors.muted, paddingVertical: 8 }}>Chưa có loại nghỉ khả dụng.</Text>
             ) : (
               <View style={styles.leaveTypeRow}>
                 {leaveTypes.map((t) => {
@@ -1493,9 +1608,9 @@ export default function ScheduleScreen({ navigation }) {
                   const typeName = t.name || t.code;
                   const isSel = selectedLeaveType === typeCode;
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button"
                       key={typeCode}
-                      style={[styles.leaveTypePill, isSel && styles.leaveTypePillActive]}
+                      style={ensureTouchTarget([styles.leaveTypePill, isSel && styles.leaveTypePillActive])}
                       onPress={() => setSelectedLeaveType(typeCode)}
                       activeOpacity={0.7}
                     >
@@ -1513,9 +1628,10 @@ export default function ScheduleScreen({ navigation }) {
             <View style={styles.formRowInline}>
               <Text style={styles.formRowLabel}>Cả ngày</Text>
               <Switch
+                accessibilityLabel="Nghỉ cả ngày"
                 value={isAllDay}
                 onValueChange={setIsAllDay}
-                trackColor={{ false: '#E0E0E0', true: '#51A33D' }}
+                trackColor={{ false: uiColors.lineStrong, true: uiColors.success }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -1524,6 +1640,7 @@ export default function ScheduleScreen({ navigation }) {
               <Text style={styles.formRowLabel}>Ngày bắt đầu</Text>
               <TextInput
                 style={styles.formDateInput}
+                accessibilityLabel="Ngày bắt đầu nghỉ phép, định dạng ngày tháng năm"
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="DD-MM-YYYY"
@@ -1534,6 +1651,7 @@ export default function ScheduleScreen({ navigation }) {
               <Text style={styles.formRowLabel}>Ngày kết thúc</Text>
               <TextInput
                 style={styles.formDateInput}
+                accessibilityLabel="Ngày kết thúc nghỉ phép, định dạng ngày tháng năm"
                 value={endDate}
                 onChangeText={setEndDate}
                 placeholder="DD-MM-YYYY"
@@ -1543,6 +1661,7 @@ export default function ScheduleScreen({ navigation }) {
             <Text style={styles.formInputLabel}>Lý do:</Text>
             <TextInput
               style={styles.formTextArea}
+              accessibilityLabel="Lý do xin nghỉ phép"
               value={leaveReason}
               onChangeText={(txt) => {
                 setLeaveReason(txt);
@@ -1561,42 +1680,126 @@ export default function ScheduleScreen({ navigation }) {
             ) : null}
 
             <TouchableOpacity
-              style={[styles.submitBtnLarge, loading && styles.submitBtnDisabled]}
+              style={ensureTouchTarget([styles.submitBtnLarge, submitting && styles.submitBtnDisabled])}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting}
               onPress={handleSubmitLeave}
-              disabled={loading}
+              disabled={submitting}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {submitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.submitBtnLargeText}>Gửi yêu cầu</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
           {renderToast()}
         </SafeAreaView>
       </Modal>
-      {PaperPlane3D && <PaperPlane3D launched={planeLaunched} />}
+      {planeLaunched && PaperPlane3D && <PaperPlane3D launched /> }
       <BottomNavbar navigation={navigation} activeRoute="Schedule" />
     </SafeAreaView>
   );
 }
 
 // ── StyleSheet chuẩn Pixel-Perfect Figma (Đổi ca (2).png) ────────────────
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  page: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 115,
-  },
+const styles = createAppStyles({
+  companionBanner: { marginHorizontal: 16, marginTop: 16, marginBottom: 8, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, borderRadius: 20, borderWidth: 1, borderColor: uiColors.line, backgroundColor: uiColors.subtle },
+  companionEyebrow: { fontSize: 9, letterSpacing: 1.1, fontWeight: '700', color: uiColors.warningText, marginBottom: 6 },
+  companionTitle: { fontSize: 17, lineHeight: 23, fontWeight: '600', color: "#404B57", letterSpacing: -0.25 },
+  companionScene: { alignSelf: 'center', marginTop: -2 },
+  companionCaption: { fontSize: 11, lineHeight: 17, color: uiColors.muted, textAlign: 'center' },
+  emptyScheduleNotice: { padding: 20, backgroundColor: uiColors.lavender, borderRadius: 18, marginHorizontal: 16, marginVertical: 12 },
+  emptyScheduleNoticeTitle: { fontSize: 15, color: uiColors.ink, fontWeight: '600' },
+  emptyScheduleNoticeText: { fontSize: 12, color: uiColors.muted, marginTop: 5 },
+  emptyScheduleDay: { paddingBottom: 14, backgroundColor: uiColors.surface },
+  emptyScheduleDayHeader: { backgroundColor: uiColors.canvas, paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  emptyScheduleDate: { fontSize: 12, color: uiColors.secondary, fontWeight: '500' },
+  availabilityDashedButton: { marginHorizontal: 20, marginTop: 13, minHeight: 43, borderWidth: 1, borderColor: uiColors.lineStrong, borderStyle: 'dashed', borderRadius: 13, flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center' },
+  availabilityDashedText: { color: uiColors.muted, fontSize: 12 },
+  safeArea: { flex: 1, backgroundColor: uiColors.surface },
+  page: { flex: 1, backgroundColor: uiColors.surface },
+  contentContainer: { width: '100%', maxWidth: 720, alignSelf: 'center' },
+  monthHeaderRow: { height: 64, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: uiColors.surface },
+  todayIconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  todayIconDay: { position: 'absolute', top: 19, fontSize: 11, fontWeight: '600', color: uiColors.ink },
+  headerSpacer: { width: 44 },
+  monthTitleContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, minHeight: 44 },
+  monthTitleText: { color: uiColors.ink, fontSize: 22, fontWeight: '500' },
+  tabContainer: { flexDirection: 'row', marginHorizontal: 20, padding: 3, backgroundColor: uiColors.subtle, borderRadius: 14 },
+  tabBtn: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 8, borderRadius: 11 },
+  tabBtnActive: { backgroundColor: uiColors.orange },
+  tabText: { color: uiColors.primaryStrong, fontSize: 15, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
+  tabTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  storeFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 56, paddingHorizontal: 16, marginTop: 12 },
+  storeFilterTitle: { flex: 1, minWidth: 0, fontSize: 16, color: uiColors.ink },
+  filterButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  weekStripCard: { flexDirection: 'row', paddingHorizontal: 4, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 7, borderBottomColor: uiColors.canvas },
+  dayColumn: { flex: 1, minWidth: 0, minHeight: 82, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 15, marginHorizontal: 2 },
+  dayColumnToday: { backgroundColor: uiColors.canvas },
+  dayColumnSelected: { backgroundColor: uiColors.peach },
+  dayLabelText: { fontSize: 13, fontWeight: '500', color: uiColors.muted, marginBottom: 3 },
+  dayLabelTextSelected: { color: uiColors.primaryStrong },
+  dayDateText: { fontSize: 25, lineHeight: 30, fontWeight: '500', color: uiColors.muted },
+  dayDateTextSelected: { color: uiColors.primaryStrong },
+  workDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 4 },
+  workDotVisible: { backgroundColor: uiColors.muted },
+  workDotSelected: { backgroundColor: uiColors.primaryStrong },
+  shiftsListContainer: { width: '100%' },
+  dayGroupSection: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 18, paddingBottom: 16, borderBottomWidth: 7, borderBottomColor: uiColors.canvas },
+  dateGutter: { width: 52, paddingTop: 1, paddingRight: 6 },
+  dateGutterWeekday: { color: "#8B809D", fontSize: 13, lineHeight: 19 },
+  dateGutterDay: { color: uiColors.ink, fontSize: 27, lineHeight: 34, fontWeight: '500' },
+  dayShiftRows: { flex: 1, minWidth: 0 },
+  shiftItemRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
+  shiftDetailCol: { flex: 1, minWidth: 0 },
+  shiftTimeRangeText: { fontSize: 21, lineHeight: 29, fontWeight: '400', color: uiColors.ink },
+  shiftLocationText: { color: uiColors.muted, fontSize: 15, lineHeight: 22, marginTop: 2 },
+  shiftRoleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0, marginTop: 3 },
+  roleDot: { width: 8, height: 8, borderRadius: 4 },
+  roleLabelText: { flexShrink: 1, fontSize: 14, lineHeight: 21, color: uiColors.muted },
+  shiftNoteHint: { color: '#B06747', fontSize: 11, lineHeight: 17, marginTop: 2 },
+  teamShiftRow: { alignItems: 'flex-start', minHeight: 104, gap: 11, paddingVertical: 8 },
+  teamAvatar: { width: 39, height: 39, borderRadius: 20, marginTop: 2 },
+  teamStaffName: { fontSize: 18, fontWeight: '400', lineHeight: 25, color: uiColors.ink },
+  teamShiftTime: { fontSize: 14, lineHeight: 21, color: uiColors.muted },
+  emptyDayText: { color: uiColors.muted, fontSize: 14, paddingVertical: 15 },
+  emptyWeekCard: { paddingHorizontal: 30, paddingVertical: 44, alignItems: 'center' },
+  emptyWeekTitle: { color: "#404B57", textAlign: 'center', fontSize: 16, fontWeight: '500', lineHeight: 23, marginTop: 15 },
+  emptyWeekMessage: { marginTop: 7, color: uiColors.muted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  emptyCalendarButton: { minHeight: 44, paddingHorizontal: 16, marginTop: 8, justifyContent: 'center' },
+  retryText: { color: uiColors.primaryStrong, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  scheduleErrorCard: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: 14, backgroundColor: uiColors.peach, borderBottomWidth: 1, borderBottomColor: '#F4E4D9' },
+  scheduleErrorCopy: { flex: 1, minWidth: 140 },
+  scheduleErrorTitle: { color: uiColors.primaryStrong, fontSize: 13, fontWeight: '600', lineHeight: 19 },
+  scheduleErrorMessage: { color: uiColors.primaryStrong, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  scheduleRetryButton: { minHeight: 44, paddingHorizontal: 6, justifyContent: 'center' },
+  calendarBackdrop: { flex: 1, backgroundColor: "rgba(40, 49, 59, 0.38)", justifyContent: 'center', alignItems: 'center', padding: 16 },
+  calendarSheet: { width: '100%', maxWidth: 400, maxHeight: '90%', backgroundColor: uiColors.surface, borderRadius: 24, padding: 16 },
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  calendarArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  calendarTitle: { flex: 1, fontSize: 18, fontWeight: '500', color: uiColors.ink, textAlign: 'center' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarWeekday: { width: '14.285714%', textAlign: 'center', paddingVertical: 8, color: uiColors.muted, fontSize: 12 },
+  calendarCell: { width: '14.285714%', minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  calendarDateCircle: { width: 36, height: 40, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  calendarDateSelected: { backgroundColor: uiColors.mint },
+  calendarDateText: { fontSize: 16, color: uiColors.ink },
+  calendarDateOutside: { color: "#C9CFCC" },
+  calendarDateTextSelected: { color: uiColors.successText },
+  calendarWorkDot: { position: 'absolute', bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: uiColors.muted },
+  calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: uiColors.subtle, marginTop: 10 },
+  calendarFooterButton: { minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' },
+  calendarDoneText: { color: uiColors.ink, fontSize: 14, fontWeight: '500' },
+  filterTitle: { color: uiColors.ink, fontSize: 20, fontWeight: '500', marginBottom: 14 },
+  filterOptions: { maxHeight: 320 },
+  filterOption: { flexDirection: 'row', minHeight: 52, justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: uiColors.subtle },
+  filterOptionText: { flex: 1, color: uiColors.ink, fontSize: 15 },
+  calendarApplyButton: { minHeight: 48, borderRadius: 5, backgroundColor: uiColors.orange, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  calendarApplyText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  formKeyboardArea: { flex: 1 },
 
   // ── Custom Toast ──
   toastOverlay: {
@@ -1610,42 +1813,42 @@ const styles = StyleSheet.create({
   toastCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECF9E8',
-    borderColor: '#51A33D',
+    backgroundColor: uiColors.mint,
+    borderColor: uiColors.success,
     borderWidth: 1.5,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     width: '100%',
     maxWidth: 380,
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
   },
   toastCardWarning: {
-    backgroundColor: '#FFFDF5',
-    borderColor: '#F59E0B',
+    backgroundColor: uiColors.butter,
+    borderColor: "#B38D49",
   },
   toastCardError: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#EF4444',
+    backgroundColor: uiColors.dangerSoft,
+    borderColor: uiColors.danger,
   },
   toastIconCircle: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#51A33D',
+    backgroundColor: uiColors.success,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   toastIconCircleWarning: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: "#B38D49",
   },
   toastIconCircleError: {
-    backgroundColor: '#EF4444',
+    backgroundColor: uiColors.danger,
   },
   toastIconText: {
     color: '#ffffff',
@@ -1658,19 +1861,19 @@ const styles = StyleSheet.create({
   toastTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#222222',
+    color: uiColors.ink,
   },
   toastMessage: {
     fontSize: 12.5,
-    color: '#444444',
+    color: "#404B57",
     marginTop: 2,
   },
   modalErrorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: uiColors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: uiColors.salmon,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -1683,306 +1886,41 @@ const styles = StyleSheet.create({
   modalErrorText: {
     flex: 1,
     fontSize: 13,
-    color: '#B91C1C',
+    color: uiColors.dangerStrong,
     fontWeight: '500',
     lineHeight: 18,
-  },
-
-  // ── Month Header & Week Navigation ──
-  monthHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    minHeight: 46,
-  },
-  monthTitleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: 8,
-  },
-  monthTitleText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  weekRangeSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-    marginTop: 2,
-  },
-  navArrowBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  navArrowText: {
-    fontSize: 22,
-    color: '#334155',
-    fontWeight: '700',
-    lineHeight: 24,
-  },
-
-  // ── Top Segmented Switcher (Rectangle 576/577) ──
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 3,
-    height: 46,
-    marginBottom: 16,
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 360,
-  },
-  tabBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#27272a',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  tabBtnInactive: {
-    backgroundColor: 'transparent',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  tabTextInactive: {
-    color: '#64748B',
-  },
-  tabBtnMarketplace: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  tabTextMarketplace: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-
-  // ── Week Strip Card (Rectangle 578) ──
-  weekStripCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: 'rgba(240, 236, 236, 0.8)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  dayColumn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  dayColumnSelected: {
-    backgroundColor: '#27272a',
-  },
-  dayLabelText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 3,
-  },
-  dayLabelTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  dayDateText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  dayDateTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  dayColumnToday: {
-    borderWidth: 1.5,
-    borderColor: '#428531',
-  },
-  dayLabelTextToday: {
-    color: '#428531',
-    fontWeight: '700',
-  },
-  dayDateTextToday: {
-    color: '#428531',
-    fontWeight: '800',
-  },
-  todayDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#428531',
-    marginTop: 2,
-  },
-
-  // ── Day Group Sections ──
-  shiftsListContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  dayGroupSection: {
-    marginBottom: 12,
-  },
-  daySectionHeaderTitle: {
-    fontSize: 14.5,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  daySectionDivider: {
-    height: 1,
-    backgroundColor: 'rgba(240, 236, 236, 0.8)',
-    marginTop: 14,
-    marginBottom: 6,
-  },
-
-  // ── Shift Item Row ──
-  shiftItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginVertical: 4,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  shiftItemRowSelected: {},
-  staffAvatarCol: {
-    width: 60,
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  staffAvatarImg: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: '#333333',
-    marginBottom: 3,
-  },
-  staffNameText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#333333',
-    textAlign: 'center',
-  },
-  shiftVerticalBar: {
-    width: 3,
-    height: 28,
-    borderRadius: 3,
-    marginRight: 10,
-  },
-  shiftDetailCol: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  shiftTimeRangeText: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: '#222222',
-  },
-  shiftLocationText: {
-    fontSize: 11.5,
-    color: '#555555',
-    marginVertical: 2,
-  },
-  shiftRoleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  roleDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  roleLabelText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(51, 51, 51, 0.6)',
-  },
-
-  // ── Empty state ──
-  emptyDaySection: {
-    marginBottom: 10,
-  },
-  emptyDayRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  emptyMessageText: {
-    fontSize: 13.5,
-    color: '#888888',
   },
 
   // ── POPUP BOX "LỰA CHỌN YÊU CẦU" ──
   popupBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: "rgba(40, 49, 59, 0.3)",
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
   },
   popupCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: uiColors.surface,
+    borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 20,
     width: '100%',
     maxWidth: 390,
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 6,
   },
+  popupScroll: { width: '100%', maxWidth: 390, maxHeight: '90%', flexGrow: 0, borderRadius: 22, backgroundColor: uiColors.surface },
   popupCloseBtn: {
     position: 'absolute',
     right: 14,
     top: 14,
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -1990,12 +1928,12 @@ const styles = StyleSheet.create({
   popupCloseBtnText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   popupShiftHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 36,
+    paddingRight: 48,
     marginBottom: 12,
   },
   popupAvatarCol: {
@@ -2008,33 +1946,34 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: uiColors.ink,
     marginBottom: 3,
   },
   popupAvatarName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
     textAlign: 'center',
   },
   popupVerticalBar: {
     width: 3,
     height: 34,
     borderRadius: 3,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: "#C4DDD3",
     marginRight: 12,
   },
   popupShiftInfo: {
     flex: 1,
+    minWidth: 0,
   },
   popupTimeRange: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#222222',
+    color: uiColors.ink,
   },
   popupLocation: {
     fontSize: 12,
-    color: 'rgba(51, 51, 51, 0.7)',
+    color: "rgba(40, 49, 59, 0.7)",
     marginVertical: 2,
   },
   popupRoleRow: {
@@ -2046,37 +1985,38 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 4.5,
-    backgroundColor: '#8DD9CC',
+    backgroundColor: "#C4DDD3",
   },
   popupRoleText: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: 'rgba(51, 51, 51, 0.6)',
+    color: '#526959',
+    flexShrink: 1,
   },
   popupDivider: {
     height: 1.5,
-    backgroundColor: 'rgba(240, 236, 236, 0.8)',
+    backgroundColor: "rgba(240, 239, 235, 0.8)",
     marginVertical: 12,
   },
   popupActionHeading: {
     fontSize: 15.5,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
     marginBottom: 14,
   },
+  popupOwnershipNote: { fontSize: 13, lineHeight: 20, color: uiColors.muted, marginBottom: 8 },
   actionButtonsRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     justifyContent: 'space-between',
     gap: 8,
     marginTop: 12,
   },
   actionCardPill: {
-    flex: 1,
-    backgroundColor: '#ECF9E8',
-    borderRadius: 8,
+    backgroundColor: uiColors.canvas,
+    borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    height: 62,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -2084,7 +2024,7 @@ const styles = StyleSheet.create({
   actionCardPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
     lineHeight: 16,
   },
   actionCardPillIcon: {
@@ -2102,23 +2042,23 @@ const styles = StyleSheet.create({
   shiftSelectorHeaderTitle: {
     fontSize: 14.5,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
   },
   changeShiftBtn: {
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
-    backgroundColor: '#ECF9E8',
+    backgroundColor: uiColors.mint,
   },
   changeShiftBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: uiColors.successText,
   },
   shiftPickerDropdown: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: uiColors.canvas,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: uiColors.lineStrong,
     borderRadius: 8,
     padding: 6,
     marginBottom: 12,
@@ -2131,7 +2071,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   shiftPickerItemSelected: {
-    backgroundColor: '#ECF9E8',
+    backgroundColor: uiColors.mint,
   },
   shiftPickerDot: {
     width: 8,
@@ -2142,22 +2082,22 @@ const styles = StyleSheet.create({
   shiftPickerItemText: {
     flex: 1,
     fontSize: 13,
-    color: '#444444',
+    color: "#404B57",
   },
   shiftPickerItemTextSelected: {
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   shiftPickerCheck: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#51A33D',
+    color: uiColors.successText,
   },
 
   // ── Form Modals Common Styles ──
   formModalSafeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
   },
   formModalContent: {
     paddingHorizontal: 20,
@@ -2169,25 +2109,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    height: 44,
+    minHeight: 56,
+    paddingVertical: 6,
   },
   formCloseBtn: {
     position: 'absolute',
     left: 0,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   formCloseBtnText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: uiColors.ink,
   },
   formHeaderTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#000000',
+    color: uiColors.ink,
+    textAlign: 'center',
+    paddingHorizontal: 44,
   },
   formShiftSummaryBox: {
     flexDirection: 'row',
@@ -2197,7 +2140,7 @@ const styles = StyleSheet.create({
   suggestSectionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#666666',
+    color: uiColors.secondary,
     marginBottom: 10,
     marginTop: 8,
   },
@@ -2214,10 +2157,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(240, 236, 236, 0.7)',
+    borderBottomColor: "rgba(240, 239, 235, 0.7)",
   },
   suggestItemSelected: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: uiColors.canvas,
   },
   suggestAvatar: {
     width: 44,
@@ -2231,26 +2174,28 @@ const styles = StyleSheet.create({
   suggestName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#222222',
+    color: uiColors.ink,
   },
   suggestRole: {
     fontSize: 13,
-    color: '#666666',
+    color: uiColors.secondary,
     marginTop: 2,
   },
   suggestCheckmark: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#51A33D',
+    color: uiColors.successText,
   },
   submitBtnLarge: {
-    backgroundColor: '#ECF9E8',
-    borderRadius: 10,
-    height: 52,
+    backgroundColor: uiColors.orange,
+    borderRadius: 7,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 14,
-    shadowColor: '#000',
+    shadowColor: uiColors.ink,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -2262,31 +2207,31 @@ const styles = StyleSheet.create({
   submitBtnLargeText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1E1E1E',
+    color: '#FFFFFF',
   },
   formInputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: uiColors.secondary,
     marginTop: 10,
     marginBottom: 6,
   },
   formTextArea: {
-    backgroundColor: 'rgba(236, 249, 232, 0.4)',
+    backgroundColor: uiColors.surface,
     borderWidth: 1.5,
-    borderColor: 'rgba(81, 163, 61, 0.7)',
+    borderColor: uiColors.lineStrong,
     borderRadius: 8,
     padding: 14,
     fontSize: 15,
-    color: '#222222',
+    color: uiColors.ink,
     textAlignVertical: 'top',
     minHeight: 120,
     marginBottom: 16,
   },
   warningNoteBox: {
-    backgroundColor: '#FFFDF5',
+    backgroundColor: uiColors.butter,
     borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: "#B38D49",
     padding: 12,
     borderRadius: 6,
     marginBottom: 20,
@@ -2294,16 +2239,18 @@ const styles = StyleSheet.create({
   warningNoteTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#D97706',
+    color: uiColors.warningText,
     marginBottom: 4,
   },
   warningNoteText: {
     fontSize: 13,
-    color: '#555555',
+    color: uiColors.secondary,
     lineHeight: 18,
   },
   formRowInline: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
@@ -2311,27 +2258,28 @@ const styles = StyleSheet.create({
   formRowLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: uiColors.ink,
   },
   formRowValue: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333333',
+    color: uiColors.ink,
   },
   formSectionHeading: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666666',
+    color: uiColors.secondary,
     marginTop: 8,
     marginBottom: 4,
   },
   formDateInput: {
     fontSize: 15,
-    color: '#333333',
+    color: uiColors.ink,
     fontWeight: '500',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    paddingVertical: 4,
+    borderBottomColor: uiColors.lineStrong,
+    paddingVertical: 10,
+    minHeight: 44,
     minWidth: 100,
     textAlign: 'right',
   },
@@ -2345,21 +2293,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: uiColors.canvas,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: uiColors.line,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   leaveTypePillActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#22C55E',
+    backgroundColor: uiColors.mint,
+    borderColor: uiColors.success,
   },
   leaveTypePillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
+    color: uiColors.secondary,
   },
   leaveTypePillTextActive: {
-    color: '#15803D',
+    color: uiColors.successText,
     fontWeight: '700',
   },
 
@@ -2372,16 +2322,16 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#888888',
+    color: uiColors.muted,
   },
 
   // ── Shift Note Flag Badge ──
   shiftFlagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: uiColors.butter,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: "#EBDDAD",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -2393,12 +2343,12 @@ const styles = StyleSheet.create({
   shiftFlagText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#B45309',
+    color: uiColors.warningText,
   },
   popupManagerNoteBox: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: uiColors.butter,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: "#EBDDAD",
     borderRadius: 10,
     padding: 10,
     marginTop: 10,
@@ -2406,12 +2356,12 @@ const styles = StyleSheet.create({
   popupManagerNoteTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#B45309',
+    color: uiColors.warningText,
     marginBottom: 3,
   },
   popupManagerNoteText: {
     fontSize: 13,
-    color: '#78350F',
+    color: uiColors.warningText,
     lineHeight: 18,
   },
 });

@@ -26,5 +26,13 @@ public class ShiftSwapRequestDTO {
     private SwapStatus status;
     private UUID approvedById;
     private boolean employeeAccepted;
+    private String approvedByName;
+    private java.time.OffsetDateTime createdAt;
+    private java.time.OffsetDateTime employeeRespondedAt;
+    private java.time.OffsetDateTime reviewedAt;
+    private java.time.OffsetDateTime cancelledAt;
+    private UUID cancelledById;
+    private String cancelledByName;
+    private String managerNote;
 }
 

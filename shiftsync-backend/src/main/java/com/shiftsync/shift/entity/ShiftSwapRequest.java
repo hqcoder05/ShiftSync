@@ -48,6 +48,19 @@ public class ShiftSwapRequest {
     @JoinColumn(name = "approved_by")
     private User approvedBy;
 
+    // Nullable for legacy rows; do not invent historical transition times.
+    @org.hibernate.annotations.CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private java.time.OffsetDateTime createdAt;
+
+    private java.time.OffsetDateTime employeeRespondedAt;
+    private java.time.OffsetDateTime reviewedAt;
+    private java.time.OffsetDateTime cancelledAt;
+    private UUID cancelledById;
+    private String cancelledByName;
+    @Column(columnDefinition = "TEXT")
+    private String managerNote;
+
     @Column(name = "employee_accepted", nullable = false)
     @Builder.Default
     private boolean employeeAccepted = false;

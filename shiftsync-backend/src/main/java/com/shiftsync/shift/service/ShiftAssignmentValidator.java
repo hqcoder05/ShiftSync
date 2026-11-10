@@ -21,6 +21,8 @@ import java.util.UUID;
 public class ShiftAssignmentValidator {
 
     private final AvailabilityRepository availabilityRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shiftsync.availability.service.AvailabilityWeekService weeklyAvailabilityService;
     private final BlackoutDateRepository blackoutDateRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final StaffSkillRepository staffSkillRepository;
@@ -78,7 +80,9 @@ public class ShiftAssignmentValidator {
         }
 
         short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
-        boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
+        boolean covers = weeklyAvailabilityService == null
+                ? availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime())
+                : weeklyAvailabilityService.coversShift(staffId, shift.getShiftDate(), shift.getStartTime(), shift.getEndTime());
         if (!covers) {
             return false;
         }
@@ -162,7 +166,9 @@ public class ShiftAssignmentValidator {
         // Availability Check
         if (!overrideAvailability) {
             short dayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
-            boolean covers = availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime());
+            boolean covers = weeklyAvailabilityService == null
+                    ? availabilityRepository.coversShiftTime(staffId, dayOfWeek, shift.getStartTime(), shift.getEndTime())
+                    : weeklyAvailabilityService.coversShift(staffId, shift.getShiftDate(), shift.getStartTime(), shift.getEndTime());
             if (!covers) {
                 throw new BusinessException("Staff not available: Shift time is outside registered availability", HttpStatus.BAD_REQUEST);
             }

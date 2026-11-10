@@ -1,0 +1,23 @@
+// Stable avatar IDs keep existing account choices while the collection changes.
+export const COSTUME_AVATARS = [
+  { id: 'dilan', label: 'Nàng Nơ Đỏ', kind: 'bow-princess', description: 'Nơ đỏ, tóc đen và chiếc váy vàng rực rỡ', skin: '#F5C9A8', hair: '#293443', body: '#EAB447', accent: '#C8434D' },
+  { id: 'mew', label: 'Zombie', kind: 'zombie', description: 'Bạn zombie vui vẻ với áo khoác cam', skin: '#A5CBD0', hair: '#534B76', body: '#415773', accent: '#EBAD59' },
+  { id: 'paul', label: 'Chiến Binh', kind: 'warrior', description: 'Tóc vàng, râu vàng và áo choàng tím', skin: '#F0C9A2', hair: '#D7A351', body: '#ECE7D4', accent: '#7E73A4' },
+  { id: 'thia', label: 'Tự Do', kind: 'liberty', description: 'Vương miện tia nắng và áo choàng xanh ngọc', skin: '#82B7A5', hair: '#397B71', body: '#55978A', accent: '#3F776C' },
+  { id: 'alex', label: 'Cá Mập', kind: 'shark', description: 'Bộ cá mập xanh với chiếc vây nhỏ đáng yêu', skin: '#F2C29F', hair: '#2E738D', body: '#367E9D', accent: '#B8A9CE' },
+  { id: 'kai', label: 'Bộ Xương', kind: 'skeleton', description: 'Chiếc áo bộ xương và mũ xương trắng', skin: '#E7E5CC', hair: '#293B44', body: '#293B44', accent: '#DADAC7' },
+  { id: 'maya', label: 'Rasta', kind: 'rasta', description: 'Mũ ba màu, tóc tết và áo khoác nhiều sắc', skin: '#7D5C53', hair: '#2D3337', body: '#DAD9CB', accent: '#E6AC45' },
+  { id: 'leo', label: 'Bù Nhìn', kind: 'scarecrow', description: 'Mũ rơm, áo yếm và một người bạn chim nhỏ', skin: '#E5BB79', hair: '#7F4B35', body: '#387282', accent: '#BD7A43' },
+  { id: 'zack', label: 'Khăn Đỏ', kind: 'redhood', description: 'Áo choàng đỏ và chiếc tạp dề hoa', skin: '#F4C5A4', hair: '#D9954B', body: '#B84549', accent: '#5D8F76' },
+  { id: 'felix', label: 'Cú Nhỏ', kind: 'owl', description: 'Mũ cú và những lớp lông vũ nhiều màu', skin: '#EFCEAA', hair: '#773F51', body: '#98535F', accent: '#D9A34E' },
+  { id: 'kenji', label: 'Xác Ướp', kind: 'mummy', description: 'Băng vải trắng và bông hoa nhỏ trên đầu', skin: '#DCD9BF', hair: '#DCD9BF', body: '#DAD8C5', accent: '#78A882' },
+  { id: 'chloe', label: 'Sombrero', kind: 'sombrero', description: 'Chiếc mũ rộng và áo poncho rực rỡ', skin: '#F0BD99', hair: '#343743', body: '#DC9852', accent: '#B94345' },
+  { id: 'aria', label: 'Rapper', kind: 'rapper', description: 'Mũ đỏ, kính râm và dây chuyền vàng', skin: '#DFB38F', hair: '#3D3837', body: '#747D86', accent: '#CC494C' },
+  { id: 'malik', label: 'Giáo Sư', kind: 'professor', description: 'Tóc bạc, kính xoắn ốc và áo blouse trắng', skin: '#EDBEA0', hair: '#E5E7DB', body: '#E7E7DA', accent: '#BD6064' },
+  { id: 'rin', label: 'Ma Cà Rồng', kind: 'vampire', description: 'Áo choàng tối, nơ đen và răng nanh nhỏ', skin: '#D9B69F', hair: '#323E4B', body: '#37414F', accent: '#E0DCCC' },
+  { id: 'victor', label: 'Hải Tặc', kind: 'pirate', description: 'Mũ tam giác, lông vũ và chiếc móc tay', skin: '#E4B894', hair: '#373D48', body: '#654D64', accent: '#D4AB59' },
+  { id: 'marcus', label: 'Quý Ông', kind: 'gentleman', description: 'Mũ quả dưa, áo vest và cà vạt đỏ', skin: '#E1B58F', hair: '#754630', body: '#343A43', accent: '#A94C50' },
+  { id: 'aurora', label: 'Công Chúa', kind: 'tiara', description: 'Vương miện nhỏ và búi tóc cao thanh lịch', skin: '#EBC1A0', hair: '#A67B40', body: '#333E52', accent: '#BED1D5' },
+  { id: 'odin', label: 'Vua Phương Bắc', kind: 'emperor', description: 'Râu bạc, vương miện và áo choàng viền vàng', skin: '#E6BEA3', hair: '#758897', body: '#3D4C62', accent: '#D6B16C' },
+  { id: 'luna', label: 'Phù Thủy', kind: 'witch', description: 'Mũ tím, tóc cam và chiếc nơ bướm', skin: '#D4DCCF', hair: '#CB7741', body: '#5D7F9A', accent: '#7B5799' },
+];

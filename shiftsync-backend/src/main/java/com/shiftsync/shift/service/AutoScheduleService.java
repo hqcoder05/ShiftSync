@@ -64,6 +64,8 @@ public class AutoScheduleService {
     private final EmploymentRepository employmentRepository;
     private final StaffSkillRepository staffSkillRepository;
     private final AvailabilityRepository availabilityRepository;
+    @Autowired
+    private com.shiftsync.availability.service.AvailabilityWeekService weeklyAvailabilityService;
     private final BlackoutDateRepository blackoutDateRepository;
     private final StoreConfigurationRepository storeConfigRepo;
     private final SchedulerConfigurationRepository schedulerConfigRepo;
@@ -183,6 +185,7 @@ public class AutoScheduleService {
         Employment employment;
         List<StaffSkill> skills;
         List<Availability> availabilities;
+        Map<LocalDate, List<Availability>> weeklyAvailabilities = Collections.emptyMap();
         List<BlackoutDate> blackoutDates;
         Set<LocalDate> approvedLeaveDates;
         List<Shift> currentSchedule; // both existing assignments and newly assigned
@@ -319,6 +322,9 @@ public class AutoScheduleService {
                 
         Map<UUID, List<Availability>> availabilityMap = availabilityRepository.findByUser_IdIn(staffIds).stream()
                 .collect(Collectors.groupingBy(a -> a.getUser().getId()));
+        Map<UUID, Map<LocalDate, List<Availability>>> weeklyAvailabilityMap = weeklyAvailabilityService == null
+                ? Collections.emptyMap()
+                : weeklyAvailabilityService.getSchedulingWeeks(staffIds, request.getStartDate(), request.getEndDate());
                 
         Map<UUID, List<BlackoutDate>> blackoutMap = blackoutDateRepository.findByStaffIdInAndDateBetween(staffIds, request.getStartDate(), request.getEndDate()).stream()
                 .collect(Collectors.groupingBy(BlackoutDate::getStaffId));
@@ -377,6 +383,7 @@ public class AutoScheduleService {
             data.setEmployment(emp);
             data.setSkills(skillsMap.getOrDefault(sid, Collections.emptyList()));
             data.setAvailabilities(availabilityMap.getOrDefault(sid, Collections.emptyList()));
+            data.setWeeklyAvailabilities(weeklyAvailabilityMap.getOrDefault(sid, Collections.emptyMap()));
             data.setBlackoutDates(blackoutMap.getOrDefault(sid, Collections.emptyList()));
             data.setApprovedLeaveDates(leaveMap.getOrDefault(sid, Collections.emptySet()));
             
@@ -1096,7 +1103,9 @@ public class AutoScheduleService {
         // Availability Check: Staff MUST have an availability slot covering the shift
         short shiftDayOfWeek = (short) (shift.getShiftDate().getDayOfWeek().getValue() % 7);
         
-        boolean isCovered = empData.getAvailabilities().stream()
+        LocalDate weekStart = shift.getShiftDate().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        List<Availability> effectiveAvailability = empData.getWeeklyAvailabilities().getOrDefault(weekStart, empData.getAvailabilities());
+        boolean isCovered = effectiveAvailability.stream()
                 .anyMatch(a -> {
                     if (a.getDayOfWeek() == null || a.getDayOfWeek() != shiftDayOfWeek) return false;
                     return availabilityCoversShift(a, shift);

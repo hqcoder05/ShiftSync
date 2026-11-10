@@ -68,9 +68,9 @@ public class ShiftSwapController {
     @PostMapping("/swaps/{requestId}/approve")
     public ResponseEntity<Void> approveSwap(
             @PathVariable UUID requestId,
-            @AuthenticationPrincipal CustomUserDetails manager) {
-        
-        shiftSwapService.managerApproveSwapRequest(requestId, manager.getId());
+            @AuthenticationPrincipal CustomUserDetails manager,
+            @Valid @RequestBody(required = false) com.shiftsync.shift.dto.SwapReviewRequest review) {
+        shiftSwapService.managerApproveSwapRequest(requestId, manager.getId(), review != null ? review.getNote() : null);
         return ResponseEntity.noContent().build();
     }
 
@@ -79,9 +79,9 @@ public class ShiftSwapController {
     @PostMapping("/swaps/{requestId}/reject")
     public ResponseEntity<Void> rejectSwap(
             @PathVariable UUID requestId,
-            @AuthenticationPrincipal CustomUserDetails manager) {
-        
-        shiftSwapService.managerRejectSwapRequest(requestId, manager.getId());
+            @AuthenticationPrincipal CustomUserDetails manager,
+            @Valid @RequestBody(required = false) com.shiftsync.shift.dto.SwapReviewRequest review) {
+        shiftSwapService.managerRejectSwapRequest(requestId, manager.getId(), review != null ? review.getNote() : null);
         return ResponseEntity.noContent().build();
     }
 

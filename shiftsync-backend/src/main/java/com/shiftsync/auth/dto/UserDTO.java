@@ -27,6 +27,11 @@ public class UserDTO {
     @Schema(description = "User contact phone number", example = "0987654321")
     private String phone;
 
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private java.time.LocalDate birthDate;
+    private String birthPlace;
+    private String gender;
+
     @Schema(description = "Assigned system role", example = "STAFF")
     private SystemRole systemRole;
 

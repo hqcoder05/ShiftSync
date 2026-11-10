@@ -69,6 +69,7 @@ public class AvailabilityService {
     public AvailabilityResponse createAvailability(String email, AvailabilityRequest request) {
         validateTimeRange(request);
         User user = getUserByEmail(email);
+        AvailabilityDeadline.requireOpen();
         
         if (availabilityRepository.hasOverlappingSlot(user.getId(), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), null)) {
             throw new BusinessException("Time slot overlaps with existing availability on this day", HttpStatus.CONFLICT);
@@ -95,6 +96,7 @@ public class AvailabilityService {
         if (!availability.getUser().getId().equals(user.getId())) {
             throw new BusinessException("You don't have permission to modify this record", HttpStatus.FORBIDDEN);
         }
+        AvailabilityDeadline.requireOpen();
 
         if (availabilityRepository.hasOverlappingSlot(user.getId(), request.getDayOfWeek(), request.getStartTime(), request.getEndTime(), id)) {
             throw new BusinessException("Time slot overlaps with existing availability on this day", HttpStatus.CONFLICT);
@@ -117,6 +119,7 @@ public class AvailabilityService {
         if (!availability.getUser().getId().equals(user.getId())) {
             throw new BusinessException("You don't have permission to delete this record", HttpStatus.FORBIDDEN);
         }
+        AvailabilityDeadline.requireOpen();
 
         availabilityRepository.delete(availability);
     }

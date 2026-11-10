@@ -6,6 +6,8 @@ import java.util.UUID;
 
 @Data
 public class ShiftAssignmentCreateRequest {
+    @jakarta.validation.constraints.Size(max = 1000)
+    private String changeReason;
     @NotNull(message = "Staff ID is required")
     private UUID staffId;
 
