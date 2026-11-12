@@ -108,7 +108,7 @@ export default function LoginScreen({ navigation, route }) {
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting} disabled={submitting} onPress={handleLogin} style={ensureTouchTarget(({ pressed }) => [styles.button, pressed && styles.buttonPressed, submitting && styles.buttonDisabled])}>
               {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Đăng nhập</Text>}
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Tạo tài khoản Staff" disabled={submitting} onPress={() => navigation.navigate('Register')} style={ensureTouchTarget(styles.registerLink)}><Text style={styles.registerText}>Chưa có tài khoản? Tạo tài khoản Staff</Text></Pressable>
+            <Text style={styles.accountProvisioningHint}>Tài khoản được cấp bởi Admin hoặc quản lý cửa hàng.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -137,6 +137,6 @@ const styles = createAppStyles({
   buttonPressed: { backgroundColor: uiColors.orange },
   buttonDisabled: { opacity: 0.65 },
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  registerLink: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 10 }, registerText: { color: uiColors.primaryStrong, fontSize: 13, fontWeight: '500' },
+  accountProvisioningHint: { color: uiColors.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 16 },
   error: { color: uiColors.dangerText, fontSize: 13, lineHeight: 19, marginBottom: 14 },
 });

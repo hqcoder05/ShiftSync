@@ -1171,22 +1171,6 @@ export const ALL_APIS = [
     defaultPayload: {}
   },
   {
-    id: 104,
-    group: "Authentication",
-    method: "POST",
-    path: "/api/auth/register",
-    description: "Register a new user profile",
-    pathParams: [],
-    queryParams: [],
-    defaultPayload: {
-  "fullName": "Nguyễn Văn A",
-  "email": "test@shiftsync.com",
-  "password": "password123",
-  "phone": "0901234567",
-  "systemRole": "STAFF"
-}
-  },
-  {
     id: 105,
     group: "Authentication",
     method: "POST",

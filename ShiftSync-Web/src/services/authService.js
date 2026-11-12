@@ -26,8 +26,6 @@ export const login = async (email, password) => {
   return response.data;
 };
 
-export const register = (data) => api.post('/auth/register', data);
-
 export const refreshToken = (token) => {
   const rt = token || localStorage.getItem('refreshToken');
   return api.post('/auth/refresh', { refreshToken: rt });

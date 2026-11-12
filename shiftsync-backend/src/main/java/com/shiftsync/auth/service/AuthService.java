@@ -3,7 +3,6 @@ package com.shiftsync.auth.service;
 import com.shiftsync.auth.dto.AuthResponse;
 import com.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.auth.dto.RefreshRequest;
-import com.shiftsync.auth.dto.RegisterRequest;
 import com.shiftsync.auth.entity.User;
 import com.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shared.exception.BusinessException;
@@ -40,22 +39,6 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
         this.authenticationManager = authenticationManager;
-    }
-
-    public User register(RegisterRequest request) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new BusinessException("Email already exists", HttpStatus.CONFLICT);
-        }
-
-        User user = User.builder()
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .phone(request.getPhone())
-                .systemRole(com.shiftsync.shared.security.SystemRole.STAFF)
-                .build();
-
-        return userRepository.save(user);
     }
 
     public AuthResponse login(LoginRequest request) {

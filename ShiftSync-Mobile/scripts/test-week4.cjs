@@ -5,6 +5,20 @@ const report={timezone:process.env.TZ||'system',checks:[]};
 async function check(name,fn){await fn();report.checks.push(name);}
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 (async()=>{
+ await check('Staff accounts are issued by management, not self-registered',()=>{
+  const login=fs.readFileSync('screens/LoginScreen.js','utf8');
+  const navigator=fs.readFileSync('navigation/AppNavigator.js','utf8');
+  const auth=fs.readFileSync('../shiftsync-backend/src/main/java/com/shiftsync/auth/controller/AuthController.java','utf8');
+  const security=fs.readFileSync('../shiftsync-backend/src/main/java/com/shiftsync/shared/config/SecurityConfig.java','utf8');
+  const webAuth=fs.readFileSync('../ShiftSync-Web/src/services/authService.js','utf8');
+  const webRegistry=fs.readFileSync('../ShiftSync-Web/src/services/allApisRegistry.js','utf8');
+  assert.doesNotMatch(login,/Tạo tài khoản Staff|navigate\(['"]Register['"]\)/);
+  assert.doesNotMatch(navigator,/RegisterScreen|name="Register"/);
+  assert.doesNotMatch(auth,/PostMapping\("\/register"\)/);
+  assert.doesNotMatch(webAuth,/auth\/register/);
+  assert.doesNotMatch(webRegistry,/api\/auth\/register/);
+  assert.match(security,/requestMatchers\("\/api\/auth\/login",\s*"\/api\/auth\/refresh",\s*"\/api\/auth\/logout"\)\.permitAll\(\)/);
+ });
  const time=load('utils/vietnamTime.js');
  const activity=load('services/activityService.js', {
   '../theme/koreanPalette':{colors:{}}, './api':{}, '@react-native-async-storage/async-storage':{}, './offlineCache':{},
