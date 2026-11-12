@@ -16,6 +16,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const loadLogin = () => import('../screens/LoginScreen');
+const loadRegister = () => import('../screens/RegisterScreen');
 const loadDashboard = () => import('../screens/DashboardScreen');
 const loadSchedule = () => import('../screens/ScheduleScreen');
 const loadAttendance = () => import('../screens/AttendanceScreenLive');
@@ -36,6 +37,7 @@ const loadHelpCenter = () => import('../screens/HelpCenterScreen');
 
 const lazy = (loader) => (props) => <LazyScreen loader={loader} {...props} />;
 const LoginRoute = lazy(loadLogin);
+const RegisterRoute = lazy(loadRegister);
 const DashboardRoute = lazy(loadDashboard);
 const ScheduleRoute = lazy(loadSchedule);
 const AttendanceRoute = lazy(loadAttendance);
@@ -117,6 +119,7 @@ export default function AppNavigator() {
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginRoute} />
+        <Stack.Screen name="Register" component={RegisterRoute} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="Availability" component={AvailabilityRoute} />
         <Stack.Screen name="Profile" component={ProfileRoute} />

@@ -288,7 +288,7 @@ export default function AvailabilityScreen({ navigation }) {
             ? 'Gợi ý từ lịch mẫu trước đây · Chưa đăng ký cho tuần này. Lưu để xác nhận các khung giờ riêng của tuần đang xem.'
             : snapshot?.source === 'REGISTERED'
             ? 'Đã lưu riêng cho tuần này. Thay đổi ở tuần khác sẽ không sửa bản đăng ký này.'
-            : 'Tuần này chưa có bản đăng ký riêng được lưu. Lịch mẫu hiện tại không được dùng làm lịch sử của tuần cũ.'}</Text>
+            : 'Tuần này chưa có bản đăng ký riêng. Khi xếp ca, hệ thống sẽ dùng lịch mẫu nếu có; lịch mẫu không phản ánh lịch sử đã đăng ký của tuần cũ.'}</Text>
           {snapshot?.source === 'TEMPLATE' && !isReadOnly && availabilities.length > 0 && (
             <TouchableOpacity accessibilityRole="button" onPress={registerTemplate} disabled={actionBusy} style={ensureTouchTarget(styles.templateButton)}>
               <Text style={styles.myShiftsText}>Đăng ký các khung giờ gợi ý</Text>

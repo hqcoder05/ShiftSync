@@ -23,6 +23,11 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
     List<Attendance> findByShiftAssignment_Staff_IdOrderByCheckInTimeDesc(UUID staffId);
 
+    @org.springframework.data.jpa.repository.Query("SELECT a FROM Attendance a JOIN FETCH a.shiftAssignment sa JOIN FETCH sa.shift s JOIN FETCH s.store WHERE sa.staff.id = :staffId AND s.store.id = :storeId AND (a.checkInTime IS NOT NULL OR a.checkOutTime IS NOT NULL) ORDER BY a.checkInTime DESC")
+    List<Attendance> findActivityForStore(@org.springframework.data.repository.query.Param("staffId") UUID staffId,
+            @org.springframework.data.repository.query.Param("storeId") UUID storeId,
+            org.springframework.data.domain.Pageable pageable);
+
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(a) FROM Attendance a WHERE a.shiftAssignment.shift.store.id = :storeId " +
            "AND a.shiftAssignment.shift.shiftDate >= :startDate " +

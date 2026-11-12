@@ -26,7 +26,7 @@ import UserAvatar from '../components/UserAvatar';
 import { validatePersonalInfo } from '../utils/profileValidation';
 import { savePersonalDraft } from '../services/profileDrafts';
 import { clearShiftReminders } from '../services/localReminders';
-import { publishUnreadCount } from '../services/notificationService';
+import { publishUnreadCount, unregisterCurrentDeviceToken } from '../services/notificationService';
 import { resetMessagingUnread } from '../services/messagingService';
 import { AVATAR_OPTIONS } from '../components/avatarConfigs';
 import { getMyProfile, getMyStores } from '../services/profileService';
@@ -265,6 +265,7 @@ export default function ProfileScreen({ navigation }) {
         'refreshToken',
         'userRole',
         'userEmail',
+        '@device_fcm_token',
         '@user_profile_custom_data',
         '@user_profile_avatar',
       ];
@@ -272,6 +273,7 @@ export default function ProfileScreen({ navigation }) {
 
       try {
         const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+        await unregisterCurrentDeviceToken().catch(() => {});
         if (storedRefreshToken) {
           await logoutApi(storedRefreshToken).catch(() => {});
         }

@@ -97,6 +97,10 @@ public class SseEmitterService {
      * Đẩy sự kiện thông báo tới tất cả các emitter đang mở của một người dùng.
      */
     public void pushToUser(UUID userId, Object payload) {
+        pushEvent(userId, "notification", payload);
+    }
+
+    public void pushEvent(UUID userId, String eventName, Object payload) {
         List<SseEmitter> list = userEmitters.get(userId);
         if (list == null || list.isEmpty()) {
             log.debug("Người dùng {} không có kết nối SSE đang hoạt động; bỏ qua gửi SSE.", userId);
@@ -108,7 +112,7 @@ public class SseEmitterService {
             if (!checkSession(userId, emitter)) continue;
             try {
                 emitter.send(SseEmitter.event()
-                        .name("notification")
+                        .name(eventName)
                         .data(payload));
             } catch (IOException | IllegalStateException e) {
                 log.debug("Phía người dùng {} đã đóng kết nối SSE: {}", userId, e.getMessage());

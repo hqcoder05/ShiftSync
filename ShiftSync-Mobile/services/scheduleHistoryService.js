@@ -17,6 +17,8 @@ export function historyWeekRange(weekStart) {
 export const moveHistoryWeek = (weekStart, offset) => shiftAvailabilityWeek(historyWeekStart(weekStart), offset);
 const sameValues = (a, b) => JSON.stringify((Array.isArray(a) ? [...a] : []).map(String).sort()) === JSON.stringify((Array.isArray(b) ? [...b] : []).map(String).sort());
 export function historyChanges(entry) {
+  if (entry.beforeHidden) return ['Công bố ca'];
+  if (entry.afterHidden) return ['Gỡ công bố ca'];
   if (!entry.before) return ['Thêm ca'];
   if (!entry.after) return ['Xóa ca'];
   const changes = [];

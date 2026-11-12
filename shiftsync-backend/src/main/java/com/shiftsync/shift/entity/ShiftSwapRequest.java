@@ -51,4 +51,8 @@ public class ShiftSwapRequest {
     @Column(name = "employee_accepted", nullable = false)
     @Builder.Default
     private boolean employeeAccepted = false;
+
+    // Older rows intentionally remain null: their creation time was not recorded.
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private java.time.OffsetDateTime createdAt;
 }

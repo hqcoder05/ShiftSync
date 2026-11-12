@@ -11,8 +11,8 @@ export const ACTIVITY_FILTERS = [
 ];
 export function activityKind(type = '') {
   if (type.startsWith('ATTENDANCE_')) return 'attendance';
-  if (type.startsWith('SHIFT_CLAIM')) return 'shift';
-  if (/^(REQUEST_|SWAP_|LEAVE_|ADJUSTMENT_)/.test(type)) return 'request';
+  if (type.startsWith('SHIFT_CLAIM') || type === 'SHIFT_ASSIGNED') return 'shift';
+  if (/^(REQUEST_|SWAP_|LEAVE_|ADJUSTMENT_|INCIDENT_)/.test(type)) return 'request';
   return 'all';
 }
 export function mergeActivities(current, incoming) {

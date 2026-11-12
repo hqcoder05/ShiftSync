@@ -184,6 +184,7 @@ public AutoScheduleService(
         Employment employment;
         List<StaffSkill> skills;
         List<Availability> availabilities;
+        Map<LocalDate, List<Availability>> availabilityByDate = new HashMap<>();
         int availabilityToleranceMinutes = 0;
         Integer combinedWeeklyHourLimit;
         Map<LocalDate, Integer> weeklyHourLimitsByDate;
@@ -1254,7 +1255,9 @@ public AutoScheduleService(
         }
         
         return !com.shiftsync.availability.service.AvailabilityCoverage.covers(
-                empData.getAvailabilities(), shift.getShiftDate(), shift.getStartTime(), shift.getEndTime(),
+                empData.getAvailabilityByDate().computeIfAbsent(shift.getShiftDate(), date ->
+                        AvailabilityRepository.forDate(availabilityRepository, empData.getEmployment().getUser() == null ? null : empData.getEmployment().getUser().getId(), date, empData.getAvailabilities())),
+                shift.getShiftDate(), shift.getStartTime(), shift.getEndTime(),
                 empData.getAvailabilityToleranceMinutes());
     }
 

@@ -176,6 +176,8 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
+        user.setBirthDate(request.getBirthDate());
+        user.setBirthPlace(request.getBirthPlace());
         if (request.getGender() != null) user.setGender(request.getGender());
         if (request.getAvatarId() != null) {
             user.setAvatarId(request.getAvatarId());

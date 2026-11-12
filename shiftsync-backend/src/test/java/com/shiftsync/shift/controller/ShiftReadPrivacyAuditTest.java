@@ -43,6 +43,7 @@ class ShiftReadPrivacyAuditTest {
     @MockitoBean ShiftAssignmentRepository assignments;
     @MockitoBean EmploymentRepository employment;
     @MockitoBean ShiftAssignmentValidator validator;
+    @MockitoBean jakarta.persistence.EntityManagerFactory entityManagerFactory;
     @MockitoBean AutoScheduleService solver;
     @MockitoBean SchedulingPlanService plans;
     @MockitoBean UserService users;

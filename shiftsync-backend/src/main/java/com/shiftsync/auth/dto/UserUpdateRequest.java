@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
+import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -28,6 +30,13 @@ public class UserUpdateRequest {
 
     @Schema(description = "User contact phone number", example = "0987654321")
     private String phone;
+
+    @Schema(description = "User birth date", example = "2000-01-31")
+    private LocalDate birthDate;
+
+    @Size(max = 160, message = "Birth place must not exceed 160 characters")
+    @Schema(description = "User birth place", example = "Ho Chi Minh City")
+    private String birthPlace;
 
     @Pattern(regexp = "^$|^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d@$!%*?&]{8,}$", message = "Password must contain at least 8 characters, one letter and one number")
     @Schema(description = "Optional new password. Leave empty if password is unchanged.", example = "newPassword123")

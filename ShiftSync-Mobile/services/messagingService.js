@@ -6,6 +6,7 @@ const sessionConfig = (ownerEmail) => ownerEmail ? { expectedSessionEmail: owner
 let unreadCount = 0;
 let unreadGeneration = 0;
 let unreadRequest = 0;
+let unreadRetryAfter = 0;
 const unreadListeners = new Set();
 export const getMessagingUnreadSnapshot = () => unreadCount;
 export const subscribeMessagingUnread = (listener) => { unreadListeners.add(listener); return () => unreadListeners.delete(listener); };
@@ -15,11 +16,21 @@ const publishUnread = (count) => {
   unreadCount = next;
   unreadListeners.forEach((listener) => { try { listener(); } catch {} });
 };
-export function resetMessagingUnread() { unreadGeneration += 1; publishUnread(0); }
+export function resetMessagingUnread() { unreadGeneration += 1; unreadRetryAfter = 0; publishUnread(0); }
 export async function refreshMessagingUnreadCount() {
+  if (Date.now() < unreadRetryAfter) return;
   const generation = unreadGeneration;
   const request = ++unreadRequest;
-  const response = await api.get('/users/me/messaging/unread-count');
+  let response;
+  try {
+    response = await api.get('/users/me/messaging/unread-count');
+    unreadRetryAfter = 0;
+  } catch (error) {
+    // Avoid repeatedly hitting an endpoint that this server does not expose.
+    // Retry later so a backend update can be detected without restarting.
+    if (generation === unreadGeneration && error?.response?.status === 404) unreadRetryAfter = Date.now() + 5 * 60 * 1000;
+    throw error;
+  }
   if (generation === unreadGeneration && request === unreadRequest) publishUnread(response.data?.unreadCount);
   return response;
 }
@@ -57,4 +68,12 @@ export function mergeThreadMessages(current, incoming) {
   incoming.forEach((message) => byId.set(String(message.id), message));
   return [...byId.values()].sort((a, b) => Number.isFinite(a.sequence) && Number.isFinite(b.sequence)
     ? a.sequence - b.sequence : Date.parse(a.createdAt) - Date.parse(b.createdAt));
+}
+
+// If the newest page no longer overlaps what is on screen, there can be
+// unseen messages between the two pages. Offer pagination from the new page.
+export function latestMessageGapCursor(current, incoming, page) {
+  if (!current.length || !incoming.length || !page?.hasMore || !page?.nextBefore) return null;
+  const ids = new Set(current.map((message) => String(message.id)));
+  return incoming.some((message) => ids.has(String(message.id))) ? null : page.nextBefore;
 }

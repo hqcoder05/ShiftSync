@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -27,6 +28,8 @@ public class UserDTO {
 
     @Schema(description = "User contact phone number", example = "0987654321")
     private String phone;
+    private LocalDate birthDate;
+    private String birthPlace;
 
     @Schema(description = "Assigned system role", example = "STAFF")
     private SystemRole systemRole;

@@ -121,6 +121,48 @@ public class AttendanceService {
         return processCheckOut(existing.get(), shiftEnd, now, config, latitude, longitude, photo);
     }
 
+    @Transactional
+    public Attendance submitSelfieExplicit(UUID staffId, UUID shiftId, double latitude, double longitude, byte[] photo, String action, OffsetDateTime capturedAt) {
+        if (!"CHECK_IN".equals(action) && !"CHECK_OUT".equals(action)) throw new BusinessException("Thao tác chấm công không hợp lệ.", HttpStatus.BAD_REQUEST);
+        if (capturedAt == null || capturedAt.isAfter(OffsetDateTime.now().plusMinutes(5))) throw new BusinessException("Thời gian chụp không hợp lệ.", HttpStatus.BAD_REQUEST);
+        ShiftAssignment assignment = shiftAssignmentRepository.findWithLockByShiftIdAndStaffId(shiftId, staffId)
+                .orElseThrow(() -> new BusinessException("Bạn chưa được phân công ca này.", HttpStatus.FORBIDDEN));
+        Optional<Attendance> existing = attendanceRepository.findByShiftAssignmentId(assignment.getId());
+        // A retry after an acknowledged write must remain read-only, even if payroll
+        // was locked between the original request and its retry.
+        if (existing.isPresent()) {
+            Attendance saved = existing.get();
+            OffsetDateTime recorded = "CHECK_IN".equals(action) ? saved.getCheckInTime() : saved.getCheckOutTime();
+            byte[] recordedPhoto = "CHECK_IN".equals(action) ? saved.getCheckInPhoto() : saved.getCheckOutPhoto();
+            Double recordedLat = "CHECK_IN".equals(action) ? saved.getCheckInLat() : saved.getCheckOutLat();
+            Double recordedLng = "CHECK_IN".equals(action) ? saved.getCheckInLng() : saved.getCheckOutLng();
+            if (recorded != null && recorded.toInstant().equals(capturedAt.toInstant())
+                    && java.util.Arrays.equals(recordedPhoto, photo)
+                    && java.util.Objects.equals(recordedLat, latitude) && java.util.Objects.equals(recordedLng, longitude)) return saved;
+        }
+        validateAttendanceShift(assignment);
+        if (photo == null || photo.length == 0) throw new BusinessException("Cần ảnh chụp để chấm công.", HttpStatus.BAD_REQUEST);
+        Shift shift = assignment.getShift();
+        StoreConfiguration config = storeConfigurationRepository.findByStoreId(shift.getStore().getId()).orElseGet(StoreConfiguration::new);
+        validateGeofence(shift, config, latitude, longitude);
+        LocalDateTime at = capturedAt.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime();
+        LocalDateTime start = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        LocalDateTime end = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
+        if (end.isBefore(start)) end = end.plusDays(1);
+        if ("CHECK_IN".equals(action)) {
+            if (existing.isPresent()) {
+                throw new BusinessException("Ca này đã được chấm công vào.", HttpStatus.CONFLICT);
+            }
+            return processCheckIn(assignment, start, at, config, latitude, longitude, photo);
+        }
+        Attendance attendance = existing.orElseThrow(() -> new BusinessException("Cần chấm công vào trước khi ra ca.", HttpStatus.CONFLICT));
+        if (attendance.getCheckOutTime() != null) {
+            throw new BusinessException("Ca này đã được chấm công ra.", HttpStatus.CONFLICT);
+        }
+        if (attendance.getCheckInTime() != null && capturedAt.toInstant().isBefore(attendance.getCheckInTime().toInstant())) throw new BusinessException("Giờ ra ca phải sau giờ vào ca.", HttpStatus.CONFLICT);
+        return processCheckOut(attendance, end, at, config, latitude, longitude, photo);
+    }
+
     private void validateAttendanceShift(ShiftAssignment assignment) {
         Shift shift = assignment.getShift();
         if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.DRAFT
@@ -177,7 +219,7 @@ public class AttendanceService {
 
         Attendance attendance = Attendance.builder()
                 .shiftAssignment(assignment)
-                .checkInTime(OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")))
+                .checkInTime(now.atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime())
                 .checkInLat(latitude)
                 .checkInLng(longitude)
                 .checkInPhoto(photo)
@@ -211,7 +253,7 @@ public class AttendanceService {
             }
         }
 
-        attendance.setCheckOutTime(OffsetDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+        attendance.setCheckOutTime(now.atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime());
         attendance.setCheckOutLat(latitude);
         attendance.setCheckOutLng(longitude);
         attendance.setCheckOutPhoto(photo);

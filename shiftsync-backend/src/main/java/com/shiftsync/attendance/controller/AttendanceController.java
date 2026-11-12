@@ -56,11 +56,19 @@ public class AttendanceController {
             @RequestParam UUID shiftId,
             @RequestParam double latitude,
             @RequestParam double longitude,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) java.time.OffsetDateTime capturedAt,
             @RequestPart(value = "photo", required = false) MultipartFile photo) throws java.io.IOException {
         byte[] photoBytes = (photo != null && !photo.isEmpty()) ? photo.getBytes() : null;
-        Attendance attendance = attendanceService.submitSelfie(
-                userDetails.getId(), shiftId, latitude, longitude, photoBytes);
+        Attendance attendance = action == null && capturedAt == null
+                ? attendanceService.submitSelfie(userDetails.getId(), shiftId, latitude, longitude, photoBytes)
+                : attendanceService.submitSelfieExplicit(userDetails.getId(), shiftId, latitude, longitude, photoBytes, action, capturedAt);
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(attendance));
+    }
+
+    @GetMapping("/attendance/capabilities")
+    public java.util.Map<String, Object> capabilities() {
+        return java.util.Map.of("selfieProtocolVersion", 2, "explicitActions", true, "originalCaptureTime", true);
     }
 
     @GetMapping("/attendance/me")

@@ -92,7 +92,7 @@ public class AttendanceControllerTest {
         when(attendanceService.submitSelfie(eq(staffId), eq(shiftId), eq(latitude), eq(longitude), any(byte[].class)))
                 .thenReturn(attendance);
 
-        ResponseEntity<AttendanceDTO> response = controller.submitSelfie(userDetails, shiftId, latitude, longitude, photo);
+        ResponseEntity<AttendanceDTO> response = controller.submitSelfie(userDetails, shiftId, latitude, longitude, null, null, photo);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());

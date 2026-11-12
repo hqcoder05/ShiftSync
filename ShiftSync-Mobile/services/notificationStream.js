@@ -3,6 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { getBaseUrl } from './api';
 import { getNetworkSnapshot, subscribeNetwork } from './networkState';
 
+const messagingListeners = new Set();
+export const subscribeMessagingEvents = (callback) => { messagingListeners.add(callback); return () => messagingListeners.delete(callback); };
+
 export function parseNotificationFrames(buffer) {
   const frames = buffer.split(/\r?\n\r?\n/);
   const remaining = frames.pop();
@@ -45,7 +48,12 @@ export function startNotificationStream(onNotification) {
         const text = request.responseText || '';
         buffer += text.slice(offset); offset = text.length;
         const parsed = parseNotificationFrames(buffer); buffer = parsed.remaining;
-        parsed.events.forEach((event) => { if (['notification', 'unread-count', 'connect'].includes(event.event)) notify(current).catch(() => {}); });
+        parsed.events.forEach((event) => {
+          if (['notification', 'unread-count', 'connect'].includes(event.event)) notify(current).catch(() => {});
+          if (event.event === 'messaging') session().then((latest) => {
+            if (active() && same(current, latest)) messagingListeners.forEach((listener) => { try { listener(); } catch {} });
+          }).catch(() => {});
+        });
         // XMLHttpRequest retains its response; rotate long-lived streams to keep memory bounded.
         if (offset > 1024 * 1024) { close(); schedule(100); }
       };

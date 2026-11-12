@@ -58,8 +58,8 @@ jobs:
       run: npm ci && npm run lint && npm run test && npm run build
       working-directory: ShiftSync-Web
 
-    - name: Bundle mobile web application
-      run: npm ci && npm run export:web
+    - name: Test and bundle mobile web application
+      run: npm ci && npm run test:week4 && npm run export:web
       working-directory: ShiftSync-Mobile
 
     - name: Run Maven Tests
@@ -82,6 +82,20 @@ jobs:
     - name: Preserve default suite reports
       run: cp -R target/surefire-reports target/default-suite-reports
       working-directory: shiftsync-backend
+
+    - name: Test mobile integration and realtime messaging
+      run: mvn -B --no-transfer-progress -Dshiftsync.integration.database=true -Dtest=MessagingDatabaseIntegrationTest,MessagingRealtimeHttpTest test
+      working-directory: shiftsync-backend
+      env:
+        TEST_DB_HOST: localhost
+        TEST_DB_PORT: 5432
+        TEST_DB_NAME: shiftsync_test
+        TEST_DB_USER: postgres
+        TEST_DB_PASSWORD: postgres
+        TEST_REDIS_HOST: localhost
+        TEST_REDIS_PORT: 6379
+        JWT_SECRET: dummy-secret-key-for-testing-in-ci-cd-pipeline-minimum-32-chars
+        JWT_EXPIRATION_MS: 86400000
 
     - name: Run PostgreSQL transaction regressions
       run: mvn -B --no-transfer-progress -Dshiftsync.scheduler.postgres-tests=true -Dtest=SchedulingPostgresIntegrationTest test

@@ -6,6 +6,15 @@ async function check(name,fn){await fn();report.checks.push(name);}
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 (async()=>{
  const time=load('utils/vietnamTime.js');
+ const activity=load('services/activityService.js', {
+  '../theme/koreanPalette':{colors:{}}, './api':{}, '@react-native-async-storage/async-storage':{}, './offlineCache':{},
+ });
+ await check('Assigned shifts and claimed shifts appear in the shift activity filter',()=>{
+  assert.equal(activity.activityKind('SHIFT_ASSIGNED'),'shift');
+  assert.equal(activity.activityKind('SHIFT_CLAIM'),'shift');
+  assert.equal(activity.activityKind('SWAP_CREATED'),'request');
+  assert.equal(activity.activityKind('INCIDENT_CREATED'),'request');
+ });
  await check('Vietnam day rolls forward before UTC midnight',()=>assert.equal(time.vietnamDateKey('2026-10-28T17:01:00Z'),'2026-10-29'));
  await check('Vietnam day remains previous day before midnight boundary',()=>assert.equal(time.vietnamDateKey('2026-10-28T16:59:59Z'),'2026-10-28'));
  await check('Work date stays a civil day',()=>assert.equal(time.vietnamDateKey('2026-10-29'),'2026-10-29'));
@@ -42,6 +51,27 @@ const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;
  await check('A refreshed token for the same person is accepted',async()=>{let f;f=fixture({validate:async()=>f.owner({email:'a@example.invalid',token:'new-token'})});await f.c.request();assert.deepEqual(f.calls,['shifts','publish']);});
  await check('Rapid resume requests run serially with a bounded trailing sync',async()=>{const d=defer();let runs=0;const f=fixture({validate:async()=>{runs++;if(runs===1)await d.promise;}});const p=f.c.request();for(let i=0;i<5;i++)f.c.request();d.resolve();await p;assert.equal(runs,2);assert.deepEqual(f.calls,['shifts','publish','shifts','publish']);});
  await check('Disposal prevents in-flight publication and future work',async()=>{const d=defer(),f=fixture({validate:()=>d.promise});const p=f.c.request();await Promise.resolve();f.c.stop();d.resolve();await p;await f.c.request();assert.deepEqual(f.calls,[]);});
+ const queueValues=new Map([['userEmail','staff@example.invalid'],['accessToken','token'],['@attendance-queue:staff@example.invalid',JSON.stringify([{id:'event-1',userId:'user-1',ownerEmail:'staff@example.invalid',shiftId:'shift-1',status:'blocked',action:'CHECK_IN',photoUri:'file:proof.jpg',capturedAt:'2026-11-12T01:00:00Z',error:'Chưa hợp lệ'}])]]);
+ const storage={multiGet:async keys=>keys.map(key=>[key,queueValues.get(key)||null]),getItem:async key=>queueValues.get(key)||null,setItem:async(key,value)=>queueValues.set(key,value)};
+ const queue=load('services/attendanceQueue.js',{'@react-native-async-storage/async-storage':storage,'react-native':{Platform:{OS:'web'}},'expo-image-manipulator':{},'./api':{},'./networkState':{getNetworkSnapshot:()=>({online:false})},'./attendanceService':{}});
+ await check('Retrying blocked attendance keeps its original evidence and queues it offline',async()=>{
+  await queue.retryBlockedAttendance('event-1','user-1');const event=JSON.parse(queueValues.get('@attendance-queue:staff@example.invalid'))[0];
+  assert.equal(event.status,'pending');assert.equal(event.photoUri,'file:proof.jpg');assert.equal(event.capturedAt,'2026-11-12T01:00:00Z');assert.equal(event.error,null);
+ });
+ await check('Another staff member cannot retry the saved attendance event',async()=>{
+  await assert.rejects(queue.retryBlockedAttendance('event-1','user-2'),/Không tìm thấy/);
+ });
+ const messaging=load('services/messagingService.js',{'./api':{},'./offlineCache':{}});
+ await check('A non-overlapping new message page exposes its cursor to fill the gap',()=>{
+  assert.equal(messaging.latestMessageGapCursor([{id:'old'}],[{id:'new'}],{hasMore:true,nextBefore:'cursor'}),'cursor');
+  assert.equal(messaging.latestMessageGapCursor([{id:'old'}],[{id:'old'},{id:'new'}],{hasMore:true,nextBefore:'cursor'}),null);
+  assert.equal(messaging.latestMessageGapCursor([{id:'old'}],[{id:'new'}],{hasMore:false,nextBefore:null}),null);
+ });
+ const scheduleHistory=load('services/scheduleHistoryService.js',{'./api':{},'../utils/availabilityDeadline':{}});
+ await check('Hidden draft snapshots are not described as deleted or newly created shifts',()=>{
+  assert.equal(scheduleHistory.historyChanges({beforeHidden:true,after:{}})[0],'Công bố ca');
+  assert.equal(scheduleHistory.historyChanges({before:{},afterHidden:true})[0],'Gỡ công bố ca');
+ });
  console.log(`${report.checks.length} Week 4 checks passed (${report.timezone})`);
  if(process.argv[2])fs.writeFileSync(process.argv[2],JSON.stringify({...report,result:'PASS'},null,2));
 })().catch(e=>{console.error(e);process.exitCode=1;});

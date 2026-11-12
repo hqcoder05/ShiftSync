@@ -41,6 +41,17 @@ import java.util.stream.Collectors;
 
 @Service
 public class ShiftService {
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager historyEntityManager;
+
+    private void setHistoryActor() {
+        if (historyEntityManager == null) return;
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof com.shiftsync.shared.security.CustomUserDetails user) {
+            historyEntityManager.createNativeQuery("SELECT set_config('shiftsync.actor_id', :actor, true)")
+                    .setParameter("actor", user.getId().toString()).getSingleResult();
+        }
+    }
     private final AuditLogService auditLogService;
 
     private final ShiftRepository shiftRepository;
@@ -202,6 +213,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO createShift(UUID storeId, ShiftCreateRequest request) {
+        setHistoryActor();
         lockShiftPayrollStores(storeId, null);
         checkShiftNotLocked(storeId, request.getShiftDate(), request.getStartTime(), request.getEndTime());
         Store store = storeRepository.findById(storeId)
@@ -248,6 +260,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO setShiftRequirements(UUID storeId, UUID shiftId, List<ShiftRequirementRequest> requirements) {
+        setHistoryActor();
         lockShiftPayrollStores(storeId, shiftId);
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
@@ -341,6 +354,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public BulkDemandPlanningResponse saveBulkDemandPlanning(UUID storeId, BulkDemandPlanningRequest request) {
+        setHistoryActor();
         Store store = storeRepository.findByIdForUpdate(storeId)
                 .orElseThrow(() -> new BusinessException("Store not found", HttpStatus.NOT_FOUND));
 
@@ -483,6 +497,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public com.shiftsync.shift.dto.ShiftPublishResultDTO publishShifts(UUID storeId, java.time.LocalDate startDate, java.time.LocalDate endDate, java.util.UUID managerId) {
+        setHistoryActor();
         if (startDate.isAfter(endDate)) {
             throw new BusinessException("Start date must be on or before end date", HttpStatus.BAD_REQUEST);
         }
@@ -551,6 +566,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public ShiftDTO updateShift(UUID storeId, UUID shiftId, ShiftCreateRequest request) {
+        setHistoryActor();
         lockShiftPayrollStores(storeId, shiftId);
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));
@@ -659,6 +675,7 @@ public class ShiftService {
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
     public void deleteShift(UUID storeId, UUID shiftId) {
+        setHistoryActor();
         lockShiftPayrollStores(storeId, shiftId);
         Shift shift = shiftRepository.findByIdAndStoreId(shiftId, storeId)
                 .orElseThrow(() -> new BusinessException("Shift not found in this store", HttpStatus.NOT_FOUND));

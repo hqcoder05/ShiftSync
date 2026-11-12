@@ -8,7 +8,7 @@ import { refreshMessagingUnreadCount } from '../services/messagingService';
 import { syncAvatar } from '../services/avatarSync';
 import { syncProfileDraft } from '../services/profileDrafts';
 import { syncAttendanceQueue } from '../services/attendanceQueue';
-import { startNotificationStream } from '../services/notificationStream';
+import { startNotificationStream, subscribeMessagingEvents } from '../services/notificationStream';
 import { getMyShifts } from '../services/shiftService';
 
 export default function NotificationRuntime() {
@@ -37,9 +37,12 @@ export default function NotificationRuntime() {
     const app = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(true); });
     const network = subscribeNetwork(() => refresh(true));
     const push = Platform.OS !== 'web' ? Notifications.addNotificationReceivedListener(() => refresh(true)) : null;
-    const stream = startNotificationStream(() => refresh(true));
+    // A push should refresh notifications and queued work, but loading the full
+    // schedule on every event creates redundant requests (including messages).
+    const stream = startNotificationStream(() => refresh());
+    const messaging = subscribeMessagingEvents(() => refresh());
     refresh(true);
-    return () => { disposed = true; clearInterval(timer); clearInterval(reminderTimer); app.remove(); network(); push?.remove(); stream(); };
+    return () => { disposed = true; clearInterval(timer); clearInterval(reminderTimer); app.remove(); network(); push?.remove(); stream(); messaging(); };
   }, []);
   return null;
 }

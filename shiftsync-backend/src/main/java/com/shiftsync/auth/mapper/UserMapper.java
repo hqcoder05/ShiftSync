@@ -15,6 +15,8 @@ public class UserMapper {
                 .gender(user.getGender() == null ? "MALE" : user.getGender())
                 .email(user.getEmail())
                 .phone(user.getPhone())
+                .birthDate(user.getBirthDate())
+                .birthPlace(user.getBirthPlace())
                 .systemRole(user.getSystemRole())
                 .avatarId(user.getAvatarId())
                 .createdAt(user.getCreatedAt())

@@ -31,7 +31,7 @@ import { createAttendanceAdjustment, getMyAttendanceAdjustments } from '../servi
 import { getMyShifts } from '../services/shiftService';
 import { getMyProfile } from '../services/profileService';
 import { Platform } from 'react-native';
-import { recordAttendance, getPendingAttendance, subscribeAttendanceQueue, syncAttendanceQueue } from '../services/attendanceQueue';
+import { recordAttendance, getPendingAttendance, subscribeAttendanceQueue, syncAttendanceQueue, retryBlockedAttendance } from '../services/attendanceQueue';
 import { getStoreDetails, getStoreConfiguration } from '../services/storeService';
 import { selectAttendanceShift, isAttendanceDateCurrent } from '../utils/attendanceSelection';
 import { attendanceLocationError, haversineMeters } from '../utils/location';
@@ -213,6 +213,7 @@ export default function AttendanceScreenLive({ navigation }) {
   const distance = haversineMeters(coordinates, store);
   const outsideGeofence = distance != null && distance > allowedRadius;
   const pendingForShift = pendingEvents.filter((event) => String(event.shiftId) === String(shift?.id));
+  const blockedForShift = pendingForShift.some((event) => event.status === 'blocked');
   const pendingIn = pendingForShift.find((event) => event.action === 'CHECK_IN' && event.status !== 'blocked');
   const pendingOut = pendingForShift.find((event) => event.action === 'CHECK_OUT' && event.status !== 'blocked');
 
@@ -586,9 +587,9 @@ export default function AttendanceScreenLive({ navigation }) {
                       <Text style={styles.completedText}>{pendingOut ? 'Đã lưu ra ca · Chờ đồng bộ' : 'Đã hoàn thành ca làm'}</Text>
                     </View> : <TouchableOpacity accessibilityRole="button"
                       accessibilityLabel={isCheckedIn ? 'Kết thúc ca, chụp ảnh ra ca' : 'Bắt đầu ca, chụp ảnh vào ca'}
-                      accessibilityState={{ disabled: submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id, busy: submitting || !!busy['open-camera'] }} aria-disabled={submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id} aria-busy={submitting || !!busy['open-camera']} disabled={submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id}
+                      accessibilityState={{ disabled: submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id || blockedForShift, busy: submitting || !!busy['open-camera'] }} aria-disabled={submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id || blockedForShift} aria-busy={submitting || !!busy['open-camera']} disabled={submitting || busy['open-camera'] || outsideGeofence || !geofenceReady || !profile?.id || blockedForShift}
                       onPress={() => openCamera(isCheckedIn ? 'CHECK_OUT' : 'CHECK_IN')}
-                      style={ensureTouchTarget([styles.actionBtn, isCheckedIn ? styles.checkOutBtn : styles.checkInBtn, (outsideGeofence || !geofenceReady || !profile?.id || busy['open-camera']) && { opacity: 0.5 }])}>
+                      style={ensureTouchTarget([styles.actionBtn, isCheckedIn ? styles.checkOutBtn : styles.checkInBtn, (outsideGeofence || !geofenceReady || !profile?.id || busy['open-camera'] || blockedForShift) && { opacity: 0.5 }])}>
                       {busy['open-camera'] && <ActivityIndicator color="#FFFFFF" />}<Text style={styles.actionBtnText}>{isCheckedIn ? 'Kết thúc ca' : 'Bắt đầu ca'}</Text>
                       <Ionicons name="log-out-outline" size={24} color="#FFFFFF" accessible={false} />
                     </TouchableOpacity>}
@@ -610,7 +611,8 @@ export default function AttendanceScreenLive({ navigation }) {
                   <Text style={{ color: '#68451F', fontSize: 13 }}>{event.action === 'CHECK_IN' ? 'Vào ca' : 'Ra ca'} · {formatTime(event.capturedAt)} · {event.status === 'blocked' ? 'Cần kiểm tra' : 'Chờ đồng bộ'}</Text>
                   {event.error && <Text style={{ color: uiColors.primaryStrong, fontSize: 12, marginTop: 5 }}>{event.error}</Text>}
                   <Text style={{ color: uiColors.muted, fontSize: 11, marginTop: 4 }}>Ảnh và vị trí vẫn được giữ trên thiết bị.</Text>
-                  {event.status !== 'blocked' && <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget()} onPress={() => runAction('sync', syncAttendanceQueue)} disabled={busy.sync}><Text style={{ color: uiColors.info, paddingTop: 8 }}>Đồng bộ ngay</Text></TouchableOpacity>}
+                  {event.status === 'blocked' && <Text style={{ color: uiColors.muted, fontSize: 11, marginTop: 4 }}>Liên hệ quản lý để xử lý nguyên nhân, sau đó thử gửi lại.</Text>}
+                  <TouchableOpacity accessibilityRole="button" style={ensureTouchTarget()} onPress={() => runAction('sync', () => event.status === 'blocked' ? retryBlockedAttendance(event.id, profile?.id) : syncAttendanceQueue())} disabled={busy.sync}><Text style={{ color: uiColors.info, paddingTop: 8 }}>{event.status === 'blocked' ? 'Thử gửi lại' : 'Đồng bộ ngay'}</Text></TouchableOpacity>
                 </View>)}
                 {shift && !isCheckedOut && <Text style={styles.verificationText}>Ảnh xác nhận và vị trí được ghi nhận khi chấm công.</Text>}
               </>}

@@ -23,6 +23,22 @@ export async function getPendingAttendance(userId) {
   if (!current || !userId) return [];
   return (await read(current.key)).filter((event) => String(event.userId) === String(userId));
 }
+// Keep the original evidence and timestamp; only retry after the cause was resolved.
+export async function retryBlockedAttendance(eventId, userId) {
+  const current = await session();
+  if (!current || !eventId || !userId) throw new Error('Phiên chấm công chưa sẵn sàng.');
+  await serial(async () => {
+    if ((await session())?.email !== current.email) throw new Error('Tài khoản đã thay đổi.');
+    const events = await read(current.key);
+    const event = events.find((item) => item.id === eventId && String(item.userId) === String(userId));
+    if (!event || (event.ownerEmail && event.ownerEmail !== current.email)) throw new Error('Không tìm thấy dữ liệu chấm công.');
+    if (event.status !== 'blocked') return;
+    await AsyncStorage.setItem(current.key, JSON.stringify(events.map((item) => item.id === eventId ? { ...item, status: 'pending', error: null } : item)));
+    revision += 1;
+  });
+  changed();
+  return syncAttendanceQueue();
+}
 async function persistPhoto(uri, id) {
   const context = ImageManipulator.manipulate(uri);
   let image, photo;

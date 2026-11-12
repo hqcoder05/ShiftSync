@@ -25,7 +25,16 @@ export async function syncProfileDraft() {
       if (Object.keys(validatePersonalInfo(form)).length) return;
       const { data: user } = await api.get('/users/me', { expectedSessionEmail: email });
       if (String(user.id) !== String(draft.userId)) return;
-      const { data: saved } = await api.put('/users/me/personal-info', normalizePersonalInfo(form), { expectedSessionEmail: email });
+      const personal = normalizePersonalInfo(form);
+      const gender = { Nam: 'MALE', 'Nữ': 'FEMALE', Khác: 'OTHER' }[personal.gender] || personal.gender || user.gender || 'MALE';
+      const { data: saved } = await api.put('/users/me', {
+        fullName: user.fullName,
+        email: user.email,
+        phone: personal.phone || null,
+        birthDate: personal.birthDate,
+        birthPlace: personal.birthPlace || null,
+        gender,
+      }, { expectedSessionEmail: email });
       if (!saved || String(saved.id) !== String(draft.userId) || !['phone', 'birthDate', 'birthPlace', 'gender'].every((field) => Object.prototype.hasOwnProperty.call(saved, field))) {
         throw new Error('Máy chủ chưa hỗ trợ đồng bộ đầy đủ hồ sơ. Thông tin đã lưu trên thiết bị.');
       }

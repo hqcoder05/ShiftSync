@@ -20,3 +20,15 @@ export function cleanNotificationText(value) {
     .join('\n')
     .trim();
 }
+
+const legacyTranslations = new Map([
+  ['attendance adjustment approved', 'Yêu cầu điều chỉnh chấm công đã được duyệt'],
+  ['your attendance adjustment request has been approved.', 'Yêu cầu điều chỉnh chấm công của bạn đã được duyệt.'],
+]);
+
+// Old notifications remain in the database after the server switches to Vietnamese.
+// Translate known legacy copy at display time without mutating cached/API data.
+export function displayNotificationText(value) {
+  const cleaned = cleanNotificationText(value);
+  return legacyTranslations.get(cleaned.toLowerCase()) || cleaned;
+}

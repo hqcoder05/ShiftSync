@@ -18,10 +18,11 @@ import { getMyProfile, getMyStores } from '../services/profileService';
 import { getNetworkSnapshot, subscribeNetwork } from '../services/networkState';
 import {
   createClientMessageId, createMessagingThread, getMessagingContacts, getMessagingThreads,
-  getStoreAnnouncements, getThreadMessages, markThreadRead, mergeThreadMessages,
+  getStoreAnnouncements, getThreadMessages, markThreadRead, mergeThreadMessages, latestMessageGapCursor,
   publishStoreAnnouncement, refreshMessagingUnreadCount, sendThreadMessage,
 } from '../services/messagingService';
 import useActionGuard from '../utils/useActionGuard';
+import { subscribeMessagingEvents } from '../services/notificationStream';
 
 const listData = (response) => Array.isArray(response?.data) ? response.data : [];
 const roleLabel = (role) => role === 'MANAGER' ? 'Quản lý' : role === 'ADMIN' ? 'Quản trị viên' : 'Nhân viên';
@@ -63,6 +64,8 @@ export default function MessagingScreen({ navigation }) {
   const [composeVisible, setComposeVisible] = useState(false), [contacts, setContacts] = useState([]), [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState(''), [query, setQuery] = useState('');
   const [thread, setThread] = useState(null), [messages, setMessages] = useState([]), [conversationLoading, setConversationLoading] = useState(false);
+  const messagesRef = useRef([]);
+  messagesRef.current = messages;
   const [conversationError, setConversationError] = useState(''), [accessDenied, setAccessDenied] = useState(false);
   const [before, setBefore] = useState(null), [hasMore, setHasMore] = useState(false), [olderLoading, setOlderLoading] = useState(false), [draft, setDraft] = useState('');
   const [expanded, setExpanded] = useState(new Set()), [announcementVisible, setAnnouncementVisible] = useState(false);
@@ -107,7 +110,6 @@ export default function MessagingScreen({ navigation }) {
       announcements: announcementResult.status === 'rejected' ? errorText(announcementResult.reason, 'Chưa tải được thông báo chung.') : '' });
     setFromCache(results.some((result) => result.status === 'fulfilled' && result.value.fromCache));
     setLoading(false); setRefreshing(false);
-    refreshMessagingUnreadCount().catch(() => {});
   }, [storeId, ownerEmail]);
   useEffect(() => {
     if (!storeId) return;
@@ -116,12 +118,18 @@ export default function MessagingScreen({ navigation }) {
     const key = `@messaging-onboarding:${profile?.id}:${storeId}`;
     let active = true;
     AsyncStorage.getItem(key).then((value) => { if (active) setOnboardingHidden(value === 'hidden'); }).catch(() => {});
-    const refresh = () => { if ((AppState.currentState == null || AppState.currentState === 'active') && navigation.isFocused?.() !== false) loadInbox(); };
+    const refresh = () => {
+      if ((AppState.currentState == null || AppState.currentState === 'active')
+        && navigation.isFocused?.() !== false && !activeThread.current?.id) loadInbox();
+    };
     const focus = navigation.addListener?.('focus', refresh);
-    const timer = setInterval(refresh, 15000);
+    // SSE delivers changes immediately. Keep a slower fallback for suspended or
+    // temporarily disconnected streams, and don't refresh the inbox over a chat.
+    const timer = setInterval(refresh, 30000);
     const app = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
     const network = subscribeNetwork(() => { if (getNetworkSnapshot().online) refresh(); });
-    return () => { active = false; clearInterval(timer); focus?.(); app.remove(); network(); };
+    const events = subscribeMessagingEvents(refresh);
+    return () => { active = false; clearInterval(timer); focus?.(); app.remove(); network(); events(); };
   }, [storeId, profile?.id, loadInbox, navigation]);
 
   const loadContacts = useCallback(async () => {
@@ -161,6 +169,9 @@ export default function MessagingScreen({ navigation }) {
       if (older || !paginationReady.current) {
         setBefore(response.data?.nextBefore || null); setHasMore(!!response.data?.hasMore);
         paginationReady.current = true;
+      } else if (!response.fromCache) {
+        const gap = latestMessageGapCursor(messagesRef.current, incoming, response.data);
+        if (gap) { setBefore(gap); setHasMore(true); }
       }
       const latestId = incoming[incoming.length - 1]?.id;
       if (!older && latestId && latestId !== readCursor.current && online && !response.fromCache) {
@@ -184,9 +195,11 @@ export default function MessagingScreen({ navigation }) {
     if (!thread?.id) return;
     loadConversation();
     const refresh = () => { if ((AppState.currentState == null || AppState.currentState === 'active') && navigation.isFocused?.() !== false) loadConversation(); };
-    const timer = setInterval(refresh, 8000);
+    // SSE handles normal delivery; this is only a recovery poll if an event was missed.
+    const timer = setInterval(refresh, 20000);
     const app = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
-    return () => { clearInterval(timer); app.remove(); };
+    const events = subscribeMessagingEvents(refresh);
+    return () => { clearInterval(timer); app.remove(); events(); };
   }, [thread?.id, loadConversation, navigation]);
   const send = () => runAction('send-message', async () => {
     const content = draft.trim(), selected = thread;

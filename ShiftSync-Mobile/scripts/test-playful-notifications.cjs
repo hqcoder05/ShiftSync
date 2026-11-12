@@ -59,8 +59,8 @@ async function fixture(context, options = {}) {
     if (pathname.endsWith('/notifications')) {
       if (state.listError) return fail('Không tải được danh sách thông báo thử nghiệm.');
       return fulfill(state.empty ? [] : [
-        { id: 'notification-unread', title: '✅ Ca làm mới của bạn', message: '📅 Quản lý đã cập nhật lịch làm 08:00–16:30 tại Cửa hàng Đồng Đội.', type: 'SCHEDULE_PUBLISHED', isRead: state.read, createdAt: new Date().toISOString() },
-        { id: 'notification-read', title: '💸 Phiếu lương đã sẵn sàng', message: 'Bạn có thể xem chi tiết kỳ lương 5.305.000 đ vừa phát hành.', type: 'PAYROLL_COMPLETED', isRead: true, createdAt: new Date(Date.now() - 86400000).toISOString() },
+        { id: 'notification-unread', title: '✅ Ca làm mới của bạn', message: '📅 Quản lý đã cập nhật lịch làm 08:00–16:30 tại Cửa hàng Đồng Đội.', type: 'SCHEDULE_PUBLISHED', read: state.read, createdAt: new Date().toISOString() },
+        { id: 'notification-read', title: '💸 Phiếu lương đã sẵn sàng', message: 'Bạn có thể xem chi tiết kỳ lương 5.305.000 đ vừa phát hành.', type: 'PAYROLL_COMPLETED', read: true, createdAt: new Date(Date.now() - 86400000).toISOString() },
       ]);
     }
     if (pathname.endsWith('/messaging/unread-count')) return fulfill({ unreadCount: 0 });

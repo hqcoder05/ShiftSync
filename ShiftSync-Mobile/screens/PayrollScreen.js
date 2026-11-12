@@ -10,7 +10,7 @@ import BackIcon from '../components/BackIcon';
 import IncomeIllustration from '../components/IncomeIllustration';
 import ThreeIllustration from '../components/ThreeIllustration';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
-import { getMyPayslips } from '../services/payrollService';
+import { downloadAndSharePayslipPdf, getMyPayslips } from '../services/payrollService';
 import { getMyAttendance } from '../services/attendanceService';
 import { formatVND, formatDateDMY, getPayrollStatusInfo } from '../utils/currency';
 
@@ -36,6 +36,8 @@ export default function PayrollScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attendanceError, setAttendanceError] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMessage, setPdfMessage] = useState('');
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -52,6 +54,16 @@ export default function PayrollScreen({ navigation }) {
   useEffect(() => { load(); const stop = navigation.addListener('focus', load); return stop; }, [navigation, load]);
   const entries = useMemo(() => attendanceForPayslip(attendance, selected), [attendance, selected]);
   const open = (item) => { setSelected(item); setExpanded(attendanceForPayslip(attendance, item)[0]?.id ?? null); setPeriodPicker(false); };
+  const downloadPdf = async () => {
+    if (!selected || pdfBusy) return;
+    setPdfBusy(true); setPdfMessage('');
+    try {
+      const result = await downloadAndSharePayslipPdf(selected.id);
+      setPdfMessage(result.mode === 'download' ? 'Đã tải phiếu lương PDF.' : 'Đã mở chia sẻ phiếu lương PDF.');
+    } catch (failure) {
+      setPdfMessage(failure.response?.data?.message || failure.message || 'Không thể tải phiếu lương PDF.');
+    } finally { setPdfBusy(false); }
+  };
   const status = selected && getPayrollStatusInfo(selected.periodStatus);
   const latest = useMemo(() => [...payslips].sort((a, b) => String(b.periodStartDate || '').localeCompare(String(a.periodStartDate || '')))[0], [payslips]);
   const amounts = selected ? [
@@ -81,6 +93,11 @@ export default function PayrollScreen({ navigation }) {
           </View><IncomeIllustration size={132} /></View>
           {!!selected.storeName && <Text style={s.store}>{selected.storeName}</Text>}
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tải hoặc chia sẻ phiếu lương PDF" accessibilityState={{ disabled: pdfBusy, busy: pdfBusy }} disabled={pdfBusy} onPress={downloadPdf} style={ensureTouchTarget(({ pressed }) => [s.pdfButton, pressed && s.pdfButtonPressed, pdfBusy && s.pdfButtonDisabled])}>
+          {pdfBusy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons accessible={false} name="download-outline" size={19} color="#FFFFFF" />}
+          <Text style={s.pdfButtonText}>{pdfBusy ? 'Đang chuẩn bị PDF...' : 'Tải / chia sẻ phiếu lương PDF'}</Text>
+        </Pressable>
+        {!!pdfMessage && <Text accessibilityRole="alert" style={s.pdfMessage}>{pdfMessage}</Text>}
         <View style={s.amounts}>{amounts.map(([label, amount, backgroundColor, color]) => <View key={label} style={[s.amountCard, { backgroundColor }]}><View style={[s.dot, { backgroundColor: color }]} /><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={s.amountValue}>{formatVND(amount)}</Text><Text style={s.amountLabel}>{label}</Text></View>)}</View>
         <View style={s.sectionHeader}><Text style={s.sectionTitle}>Ca đã làm trong kỳ</Text><Text style={s.count}>{entries.length} ca</Text></View>
         {attendanceError ? <Text style={s.empty}>Chưa tải được ca làm. Kéo xuống để thử lại.</Text> : entries.length === 0 ? <View style={s.emptyState}><Ionicons name="time-outline" size={31} color="#B8BFC1" /><Text style={s.empty}>Chưa có bản chấm công cho kỳ lương này.</Text></View> : entries.map((record) => {
@@ -135,6 +152,7 @@ export default function PayrollScreen({ navigation }) {
 const s = createAppStyles({
   safe: { flex: 1, backgroundColor: uiColors.canvas }, header: { height: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: uiColors.line }, headerButton: { width: 55, height: 52, alignItems: 'center', justifyContent: 'center' }, headerTitle: { flex: 1, textAlign: 'center', color: uiColors.ink, fontSize: 18, fontWeight: '500' }, content: { width: '100%', maxWidth: 620, alignSelf: 'center' },
   summary: { margin: 16, borderRadius: 24, padding: 22, backgroundColor: uiColors.peach, borderWidth: 1, borderColor: "#EFDDD1" }, period: { fontSize: 12, color: uiColors.muted, marginBottom: 15 }, caption: { color: uiColors.muted, fontSize: 14 }, summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, total: { color: uiColors.ink, fontSize: 29, fontWeight: '600', letterSpacing: -0.7, marginTop: 8 }, hours: { color: uiColors.muted, fontSize: 13, marginTop: 8 }, status: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 4, marginTop: 12 }, statusText: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' }, store: { fontSize: 12, color: uiColors.muted, marginTop: 12 },
+  pdfButton: { minHeight: 50, marginHorizontal: 16, marginBottom: 6, paddingHorizontal: 16, borderRadius: 14, backgroundColor: uiColors.primaryStrong, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9 }, pdfButtonPressed: { opacity: 0.88 }, pdfButtonDisabled: { opacity: 0.6 }, pdfButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' }, pdfMessage: { marginHorizontal: 18, color: uiColors.muted, fontSize: 12, textAlign: 'center' },
   amounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 18 }, amountCard: { flexGrow: 1, flexBasis: 90, minWidth: 80, padding: 12, borderRadius: 12 }, dot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 }, amountValue: { fontSize: 15, fontWeight: '600', color: "#404B57", marginTop: 12 }, amountLabel: { color: uiColors.muted, fontSize: 11, marginTop: 6 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 15, paddingBottom: 12 }, sectionTitle: { color: uiColors.muted, fontSize: 13, fontWeight: '500' }, count: { color: uiColors.muted, fontSize: 12 }, shift: { marginHorizontal: 22, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: uiColors.line }, shiftHeader: { minHeight: 80, flexDirection: 'row', alignItems: 'center', gap: 9 }, shiftDate: { color: "#404B57", fontWeight: '500', fontSize: 14 }, shiftHours: { color: uiColors.muted, fontSize: 12, marginTop: 5 }, shiftTime: { color: uiColors.secondary, fontSize: 12 },
   punchDetail: { flexDirection: 'row', gap: 14, padding: 14, paddingTop: 5, paddingBottom: 24, position: 'relative' }, punchLine: { position: 'absolute', top: 0, bottom: 18, left: 19, width: 1, backgroundColor: uiColors.lineStrong }, check: { width: 13, height: 13, marginLeft: -1, marginTop: 3, borderRadius: 8, backgroundColor: uiColors.success, alignItems: 'center', justifyContent: 'center' }, detailTime: { color: uiColors.secondary, fontSize: 16 }, detailLabel: { color: uiColors.muted, fontSize: 12, lineHeight: 18 }, roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, breakdown: { padding: 22, marginTop: 18, backgroundColor: uiColors.canvas }, detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingVertical: 12 }, detailValue: { color: uiColors.secondary, fontSize: 13, flexShrink: 1, textAlign: 'right' }, totalRow: { borderTopWidth: 1, borderTopColor: uiColors.line, marginTop: 8 }, finalAmount: { fontSize: 20, color: "#70678E", fontWeight: '600', flexShrink: 1, textAlign: 'right' },

@@ -119,6 +119,8 @@ class SchedulingPostgresIntegrationTest {
             jdbc.update("delete from attendance_adjustment_request where shift_id in (select id from shift where store_id=?)",id);
             jdbc.update("delete from shift_swap_request where from_shift_id in (select id from shift where store_id = ?)", id);
             jdbc.update("delete from shift where store_id = ?", id);
+            // Shift deletion itself writes history; remove only this fixture's rows afterwards.
+            jdbc.update("delete from schedule_history where store_id = ?", id);
             jdbc.update("delete from payroll_effective_revision where entity_type='employment' and entity_id in (select id from employment where store_id=?)",id);
             jdbc.update("delete from payroll_input_history where entity_type='employment' and entity_id in (select id from employment where store_id=?)",id);
             jdbc.update("delete from employment where store_id = ?", id);
@@ -2366,7 +2368,12 @@ class SchedulingPostgresIntegrationTest {
         UUID holidayId=null;
         try {
             var holiday=pool.submit(()->{Thread.currentThread().setName("holiday-create-race");return holidayService.createHoliday(com.shiftsync.payroll.dto.HolidayDTO.builder().holidayDate(date).name("Ngày kiểm thử "+UUID.randomUUID()).rateMultiplier(new java.math.BigDecimal("3")).build());});
-            assertTrue(saved.await(15,TimeUnit.SECONDS));
+            assertTrue(saved.await(15,TimeUnit.SECONDS), () -> {
+                if (!holiday.isDone()) return "Holiday creation did not reach HolidayRepository.save";
+                try { holiday.get(); return "Holiday creation completed without saving"; }
+                catch (ExecutionException error) { return "Holiday creation failed before save: " + error.getCause(); }
+                catch (InterruptedException error) { Thread.currentThread().interrupt(); return "Interrupted while inspecting holiday creation"; }
+            });
             var confirmation=pool.submit(()->{
                 var principal=new com.shiftsync.shared.security.CustomUserDetails(com.shiftsync.auth.entity.User.builder().id(admin).systemRole(com.shiftsync.shared.security.SystemRole.ADMIN).build());
                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));

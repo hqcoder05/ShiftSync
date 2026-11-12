@@ -2,7 +2,7 @@ import { colors as uiColors } from '../theme/koreanPalette';
 import { createAppStyles } from '../theme/appTheme';
 import { ensureTouchTarget } from '../utils/touchTarget';
 import { formatVietnamTime, parseVietnamInstant, vietnamDateKey } from '../utils/vietnamTime';
-import { cleanNotificationText } from '../utils/notificationText';
+import { displayNotificationText } from '../utils/notificationText';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -414,11 +414,11 @@ export default function NotificationScreen({ navigation }) {
                     </View>
 
                     <Text style={[styles.notifTitle, isUnread && styles.notifTitleUnread]}>
-                      {cleanNotificationText(item.title) || 'Thông báo mới'}
+                      {displayNotificationText(item.title) || 'Thông báo mới'}
                     </Text>
 
                     <Text style={styles.notifMessage} numberOfLines={3}>
-                      {cleanNotificationText(item.message)}
+                      {displayNotificationText(item.message)}
                     </Text>
                   </View>
 

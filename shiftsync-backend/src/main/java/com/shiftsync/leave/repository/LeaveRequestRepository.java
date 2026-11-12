@@ -34,6 +34,8 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
     List<LeaveRequest> findByStoreIdAndStatus(@org.springframework.data.repository.query.Param("storeId") UUID storeId, @org.springframework.data.repository.query.Param("status") LeaveStatus status);
     List<LeaveRequest> findByStaffId(UUID staffId);
 
+    List<LeaveRequest> findByStaffIdAndStoreIdOrderByCreatedAtDesc(UUID staffId, UUID storeId, org.springframework.data.domain.Pageable pageable);
+
     @org.springframework.data.jpa.repository.Query("SELECT l FROM LeaveRequest l WHERE l.staff.id IN :staffIds AND l.status = :status AND l.startDate <= :endDate AND l.endDate >= :startDate ORDER BY l.staff.id, l.startDate, l.id")
     List<LeaveRequest> findByStaffIdsAndStatusInPeriod(
             @org.springframework.data.repository.query.Param("staffIds") List<UUID> staffIds,

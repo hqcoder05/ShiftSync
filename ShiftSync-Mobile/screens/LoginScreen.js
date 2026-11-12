@@ -1,7 +1,7 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import { createAppStyles } from '../theme/appTheme';
 import { ensureTouchTarget } from '../utils/touchTarget';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +18,8 @@ import ThreeIllustration from '../components/ThreeIllustration';
 
 function LogoIcon() {
   return (
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
+    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none"
+      {...(Platform.OS === 'web' ? {} : { accessibilityElementsHidden: true })}>
       <Rect x="2" y="4" width="8" height="3" rx="1" fill={uiColors.orange} />
       <Rect x="12" y="4" width="10" height="3" rx="1" fill={uiColors.orange} />
       <Rect x="2" y="10" width="14" height="3" rx="1" fill={uiColors.orange} />
@@ -29,15 +30,19 @@ function LogoIcon() {
   );
 }
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen({ navigation, route }) {
   const passwordRef = useRef(null);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(route.params?.email || '');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (route.params?.email) setEmail(route.params.email);
+    if (route.params?.registered) setError('Đăng ký thành công. Hãy đăng nhập để bắt đầu.');
+  }, [route.params?.email, route.params?.registered]);
 
   const handleLogin = async () => {
     if (submitting) return;
@@ -103,6 +108,7 @@ export default function LoginScreen({ navigation }) {
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} aria-disabled={submitting} aria-busy={submitting} disabled={submitting} onPress={handleLogin} style={ensureTouchTarget(({ pressed }) => [styles.button, pressed && styles.buttonPressed, submitting && styles.buttonDisabled])}>
               {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Đăng nhập</Text>}
             </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Tạo tài khoản Staff" disabled={submitting} onPress={() => navigation.navigate('Register')} style={ensureTouchTarget(styles.registerLink)}><Text style={styles.registerText}>Chưa có tài khoản? Tạo tài khoản Staff</Text></Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -131,5 +137,6 @@ const styles = createAppStyles({
   buttonPressed: { backgroundColor: uiColors.orange },
   buttonDisabled: { opacity: 0.65 },
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  registerLink: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 10 }, registerText: { color: uiColors.primaryStrong, fontSize: 13, fontWeight: '500' },
   error: { color: uiColors.dangerText, fontSize: 13, lineHeight: 19, marginBottom: 14 },
 });

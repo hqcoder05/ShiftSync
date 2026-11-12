@@ -6,7 +6,7 @@ module.exports=({config})=>{
     ...config,
     name:lan?'ShiftSync Demo':config.name,
     extra:{...config.extra,demoMode:lan?'lan':null,demoLanHost:endpoint?.host||null},
-    plugins:[...(config.plugins||[]),'./plugins/withLanDemo.cjs'],
+    plugins:[...(config.plugins||[]),'expo-sharing','./plugins/withLanDemo.cjs'],
     ios:{...config.ios,infoPlist:{...config.ios?.infoPlist,...(lan?{
       NSLocalNetworkUsageDescription:'ShiftSync Demo kết nối với máy tính trong cùng Wi-Fi để tải lịch làm và chấm công.',
       NSAppTransportSecurity:{...config.ios?.infoPlist?.NSAppTransportSecurity,NSAllowsLocalNetworking:true},

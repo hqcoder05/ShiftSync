@@ -5,6 +5,8 @@ import { cachedRequest } from './offlineCache';
 import { getNetworkSnapshot, isNetworkFailure } from './networkState';
 import * as Notifications from 'expo-notifications';
 
+const DEVICE_FCM_TOKEN_KEY = '@device_fcm_token';
+
 let unread = 0;
 let version = 0;
 let unreadOwner = null;
@@ -30,16 +32,40 @@ export const getPreferences = () =>
 export const updatePreferences = (data) =>
   api.put('/users/me/notification-preferences', data);
 
-export const registerFcmToken = (token) =>
-  api.post('/users/me/fcm-token', {
+export const registerFcmToken = async (token) => {
+  const response = await api.post('/users/me/fcm-token', {
     fcmToken: token,
     deviceType: Platform.OS === 'ios' ? 'IOS' : 'ANDROID'
   });
+  await AsyncStorage.setItem(DEVICE_FCM_TOKEN_KEY, token);
+  return response;
+};
+
+export async function unregisterCurrentDeviceToken() {
+  const token = await AsyncStorage.getItem(DEVICE_FCM_TOKEN_KEY);
+  if (!token) return false;
+  try {
+    await api.delete('/users/me/fcm-token', {
+      data: { fcmToken: token, deviceType: Platform.OS === 'ios' ? 'IOS' : 'ANDROID' },
+    });
+    return true;
+  } finally {
+    await AsyncStorage.removeItem(DEVICE_FCM_TOKEN_KEY);
+  }
+}
 
 export const sendTestNotification = (data) =>
   api.post('/notifications/test', data || {});
 
-export const getMyNotifications = () => cachedRequest('notifications', () => api.get('/users/me/notifications'));
+// Jackson exposes a Java boolean named isRead as `read`; older cached data
+// and some clients use `isRead`. Normalize both at the service boundary.
+export const notificationIsRead = (item) => Boolean(item?.isRead ?? item?.read ?? false);
+export const getMyNotifications = async () => {
+  const response = await cachedRequest('notifications', () => api.get('/users/me/notifications'));
+  return { ...response, data: Array.isArray(response.data)
+    ? response.data.map((item) => ({ ...item, isRead: notificationIsRead(item) }))
+    : response.data };
+};
 
 const readSession = async () => { const generation = sessionGeneration; const values = new Map(await AsyncStorage.multiGet(['userEmail', 'accessToken'])); return { generation, email: values.get('userEmail')?.trim().toLowerCase(), token: values.get('accessToken') }; };
 const isSession = async (session) => { const next = await readSession(); return session.generation === sessionGeneration && session.generation === next.generation && !!session.email && !!next.token && session.email === next.email; };
@@ -55,7 +81,7 @@ async function cachedCount(session) {
     const raw = await AsyncStorage.getItem(countKey(session));
     if (raw) { const cache = JSON.parse(raw); return { data: cache.data, cachedAt: cache.at, fromCache: true }; }
     const rawList = await AsyncStorage.getItem(`@cache:${session.email}:notifications`);
-    if (rawList) { const cache = JSON.parse(rawList); if (Array.isArray(cache.data)) return { data: { unreadCount: cache.data.filter((item) => !item.isRead).length }, cachedAt: cache.at, fromCache: true }; }
+    if (rawList) { const cache = JSON.parse(rawList); if (Array.isArray(cache.data)) return { data: { unreadCount: cache.data.filter((item) => !notificationIsRead(item)).length }, cachedAt: cache.at, fromCache: true }; }
   } catch {}
   return null;
 }

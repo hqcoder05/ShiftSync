@@ -328,7 +328,7 @@ public class ShiftAssignmentValidator {
                     .map(com.shiftsync.store.entity.StoreConfiguration::getAvailabilityToleranceMinutes).orElse(0)
                 : 0;
         return com.shiftsync.availability.service.AvailabilityCoverage.covers(
-                availabilityRepository.findByUserId(staffId), shift.getShiftDate(),
+                AvailabilityRepository.forDate(availabilityRepository, staffId, shift.getShiftDate(), availabilityRepository.findByUserId(staffId)), shift.getShiftDate(),
                 shift.getStartTime(), shift.getEndTime(), tolerance);
     }
 

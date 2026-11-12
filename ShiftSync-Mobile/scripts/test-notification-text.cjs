@@ -15,7 +15,7 @@ function load(forceFallback = false) {
     }
   }
   vm.runInNewContext(source, { module: m, exports: m.exports, RegExp: forceFallback ? LegacyRegExp : RegExp });
-  return m.exports.cleanNotificationText;
+  return m.exports;
 }
 const cases = [
   ['✅ Bạn đã được phân công ca', 'Bạn đã được phân công ca'],
@@ -35,8 +35,10 @@ const cases = [
   ['', ''], [null, ''], [undefined, ''], [123, ''],
 ];
 for (const mode of [false, true]) {
-  const clean = load(mode);
+  const { cleanNotificationText: clean, displayNotificationText: display } = load(mode);
   for (const [input, expected] of cases) assert.equal(clean(input), expected, `${mode ? 'fallback' : 'Unicode'}: ${input}`);
+  assert.equal(display('Attendance Adjustment Approved'), 'Yêu cầu điều chỉnh chấm công đã được duyệt');
+  assert.equal(display('Your attendance adjustment request has been approved.'), 'Yêu cầu điều chỉnh chấm công của bạn đã được duyệt.');
   const raw = Object.freeze({ title: '✅ Lịch làm mới', message: '📅 Ca 08:00–16:30' });
   clean(raw.title); clean(raw.message);
   assert.deepEqual(raw, { title: '✅ Lịch làm mới', message: '📅 Ca 08:00–16:30' });

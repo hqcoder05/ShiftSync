@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -40,6 +41,12 @@ public class User {
 
     @Column(name = "phone")
     private String phone;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
+    @Column(name = "birth_place", length = 160)
+    private String birthPlace;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
