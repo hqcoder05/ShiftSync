@@ -3,29 +3,63 @@ import { Client } from '@stomp/stompjs';
 import { toast } from './toastApi.js';
 import { WebSocketContext } from './webSocketContextValue.js';
 import { getMyProfile } from '../services/employeeService';
+import { getAllStores } from '../services/storeService';
+import { getAccessToken } from '../services/authSession';
+import { useAuthSession } from './authSessionHooks';
 
 export function WebSocketProvider({ children }) {
+  const { authenticated } = useAuthSession();
   const [connected, setConnected] = useState(false);
   const clientRef = useRef(null);
-  const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('userId') || '');
-  const [currentStoreId, setCurrentStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [currentStoreId, setCurrentStoreId] = useState('');
+  const [identityReady, setIdentityReady] = useState(false);
 
-  // 1. Fetch current user profile to ensure we have currentUserId for personal notifications
+  // Never subscribe with IDs left by a previous account in browser storage.
+  // The server is the authority for both the current identity and accessible stores.
   useEffect(() => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-    if (!token) return;
-
-    if (!currentUserId) {
-      getMyProfile()
-        .then((res) => {
-          if (res.data?.id) {
-            setCurrentUserId(res.data.id);
-            localStorage.setItem('userId', res.data.id);
-          }
-        })
-        .catch(() => {});
+    const token = getAccessToken();
+    if (!authenticated || !token) {
+      // Defer local state cleanup so this synchronization effect does not
+      // trigger a cascading render during React's commit phase.
+      queueMicrotask(() => {
+        setCurrentUserId('');
+        setCurrentStoreId('');
+        setIdentityReady(false);
+      });
+      return undefined;
     }
-  }, [currentUserId]);
+
+    let active = true;
+    queueMicrotask(() => setIdentityReady(false));
+    Promise.all([getMyProfile(), getAllStores(0, 500)])
+      .then(([profileResponse, storesResponse]) => {
+        if (!active || !profileResponse.data?.id) return;
+        const userId = String(profileResponse.data.id);
+        const stores = storesResponse.data?.content || storesResponse.data?.data ||
+          (Array.isArray(storesResponse.data) ? storesResponse.data : []);
+        const savedStoreId = localStorage.getItem('selectedStoreId');
+        const selectedStore = stores.find((store) => String(store.id) === String(savedStoreId)) || stores[0];
+
+        setCurrentUserId(userId);
+        localStorage.setItem('userId', userId);
+        if (selectedStore?.id) {
+          const storeId = String(selectedStore.id);
+          setCurrentStoreId(storeId);
+          localStorage.setItem('selectedStoreId', storeId);
+          window.dispatchEvent(new CustomEvent('storeChanged', { detail: { storeId } }));
+        } else {
+          setCurrentStoreId('');
+          localStorage.removeItem('selectedStoreId');
+        }
+        setIdentityReady(true);
+      })
+      .catch((error) => {
+        if (active) console.warn('[WebSocket] Không thể xác thực ngữ cảnh đăng ký:', error?.message);
+      });
+
+    return () => { active = false; };
+  }, [authenticated]);
 
   // Listen to store switch events
   useEffect(() => {
@@ -41,8 +75,8 @@ export function WebSocketProvider({ children }) {
 
   // 2. Initialize STOMP client
   useEffect(() => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-    if (!token) {
+    const token = getAccessToken();
+    if (!authenticated || !identityReady || !token) {
       if (clientRef.current) {
         clientRef.current.deactivate();
         clientRef.current = null;
@@ -158,7 +192,7 @@ export function WebSocketProvider({ children }) {
       }
       setConnected(false);
     };
-  }, [currentUserId, currentStoreId]);
+  }, [currentUserId, currentStoreId, authenticated, identityReady]);
 
   const send = useCallback((destination, body, headers = {}) => {
     if (clientRef.current && clientRef.current.connected) {

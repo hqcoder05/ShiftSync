@@ -11,6 +11,7 @@ import lombok.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -20,28 +21,28 @@ import java.util.UUID;
 @Schema(description = "Request body for creating a new user profile")
 public class UserCreateRequest {
 
-    @NotBlank(message = "Full name is required")
+    @NotBlank(message = "Họ và tên là bắt buộc")
     @Schema(description = "Full name of the user", example = "Nguyen Van A")
     private String fullName;
 
-    @Pattern(regexp = "MALE|FEMALE|OTHER", message = "Gender must be MALE, FEMALE or OTHER")
+    @Pattern(regexp = "MALE|FEMALE|OTHER", message = "Giới tính phải là MALE, FEMALE hoặc OTHER")
     private String gender;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email là bắt buộc")
+    @Email(message = "Email không đúng định dạng")
     @Schema(description = "User unique email address", example = "staff_auth@shiftsync.com")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters long")
-    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d@$!%*?&]{8,}$", message = "Password must contain at least one letter and one number")
+    @NotBlank(message = "Mật khẩu là bắt buộc")
+    @Size(min = 8, message = "Mật khẩu phải có ít nhất 8 ký tự")
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d@$!%*?&]{8,}$", message = "Mật khẩu phải có ít nhất một chữ cái và một chữ số")
     @Schema(description = "User password", example = "password123")
     private String password;
 
     @Schema(description = "User contact phone number", example = "0987654321")
     private String phone;
 
-    @NotNull(message = "System role is required")
+    @NotNull(message = "Vai trò hệ thống là bắt buộc")
     @Schema(description = "User system authorization role", example = "STAFF")
     private SystemRole systemRole;
 
@@ -50,4 +51,10 @@ public class UserCreateRequest {
 
     @Schema(description = "Optional store ID to assign the staff member to upon creation")
     private UUID storeId;
+
+    @Schema(description = "Optional initial contract type for a staff member")
+    private UUID contractTypeId;
+
+    @Schema(description = "Optional employment start date; defaults to the current business date")
+    private LocalDate joinedDate;
 }

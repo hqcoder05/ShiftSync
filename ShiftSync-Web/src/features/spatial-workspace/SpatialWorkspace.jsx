@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps -- Three.js scene controllers intentionally keep stable resource lifecycles between React renders. */
 import StoreDesigner from '../store-designer/StoreDesigner.jsx';
 import {useStoreDesign} from '../store-designer/useStoreDesign.js';
+import { getSessionRole } from '../../services/authSession.js';
 /**
  * SpatialWorkspace.jsx
  * Master Feature Orchestrator for the Play Together-inspired 3D Workforce Digital Twin.
@@ -148,7 +149,7 @@ export default function SpatialWorkspace({
   // RBAC permissions: Only ADMIN or MANAGER can reposition workstations
   const userRole = useMemo(() => {
     try {
-      const stored = localStorage.getItem('userRole') || '';
+      const stored = getSessionRole();
       return stored.replace(/^ROLE_/, '').toUpperCase();
     } catch {
       return '';

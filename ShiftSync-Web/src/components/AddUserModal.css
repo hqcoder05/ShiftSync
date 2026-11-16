@@ -269,6 +269,14 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }
 
+.aum-select.error {
+  border-color: #ef4444;
+}
+
+.aum-select.error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
 .aum-select-arrow {
   position: absolute;
   right: 11px;
@@ -358,6 +366,59 @@
   font-size: 12px;
   color: #64748b;
   margin: 0;
+}
+
+/* Initial employment details */
+.aum-employment-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 78%);
+}
+
+.aum-employment-store {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #166534;
+  font-size: 12px;
+}
+
+.aum-employment-store strong {
+  margin-left: auto;
+  color: #14532d;
+  font-size: 12.5px;
+}
+
+.aum-compensation-note {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 3px solid #059669;
+  border-radius: 0 7px 7px 0;
+  background: rgba(236, 253, 245, 0.78);
+  color: #166534;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .aum-employment-store {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .aum-employment-store strong {
+    width: 100%;
+    margin-left: 23px;
+  }
 }
 
 /* Chips Container */

@@ -54,31 +54,31 @@ class MessagingDatabaseIntegrationTest {
         assertEquals(1,history.size());
         assertNull(history.getFirst().before());
         assertTrue(history.getFirst().beforeHidden());
-        assertEquals("PUBLISHED",history.getFirst().after().path("status").asText());
+        assertEquals("PUBLISHED",snapshotText(history.getFirst().after(), "status"));
         assertEquals("Kiểm thử",history.getFirst().actorName());
         db.createNativeQuery("UPDATE shift SET status='DRAFT' WHERE id=:id").setParameter("id",testShift).executeUpdate();
         var hidden = scheduleHistory.list(store,day,day,principal).stream().filter(e -> e.afterHidden()).findFirst().orElseThrow();
         assertNull(hidden.after());
-        assertEquals("PUBLISHED", hidden.before().path("status").asText());
+        assertEquals("PUBLISHED", snapshotText(hidden.before(), "status"));
         db.createNativeQuery("UPDATE shift SET status='PUBLISHED' WHERE id=:id").setParameter("id",testShift).executeUpdate();
         UUID zone = UUID.randomUUID(), skill = UUID.randomUUID(), requirement = UUID.randomUUID();
         db.createNativeQuery("INSERT INTO store_zones(id,store_id,name,x_coord,y_coord,z_coord,capacity) VALUES (:id,:store,'Quầy thử',0,0,0,1)").setParameter("id",zone).setParameter("store",store).executeUpdate();
         db.createNativeQuery("INSERT INTO skill(id,store_id,name) VALUES (:id,:store,'Vị trí thử')").setParameter("id",skill).setParameter("store",store).executeUpdate();
         db.createNativeQuery("INSERT INTO shift_skill_requirement(id,shift_id,skill_id,required_count,zone_id) VALUES (:id,:shift,:skill,1,:zone)")
                 .setParameter("id",requirement).setParameter("shift",testShift).setParameter("skill",skill).setParameter("zone",zone).executeUpdate();
-        var zoneChange = scheduleHistory.list(store,day,day,principal).stream().filter(e -> e.after()!=null && e.before()!=null && e.after().path("zones").size() == 1).findFirst().orElseThrow();
-        assertEquals(0,zoneChange.before().path("zones").size());
-        assertEquals("Quầy thử",zoneChange.after().path("zones").get(0).asText());
+        var zoneChange = scheduleHistory.list(store,day,day,principal).stream().filter(e -> e.after()!=null && e.before()!=null && snapshotList(e.after(), "zones").size() == 1).findFirst().orElseThrow();
+        assertEquals(0,snapshotList(zoneChange.before(), "zones").size());
+        assertEquals("Quầy thử",snapshotList(zoneChange.after(), "zones").get(0));
         db.createNativeQuery("UPDATE shift SET end_time='17:00' WHERE id=:id").setParameter("id",testShift).executeUpdate();
         var timeChange = scheduleHistory.list(store,day,day,principal).stream()
-                .filter(e -> e.after()!=null && e.after().path("endTime").asText().startsWith("17:00")).findFirst().orElseThrow();
-        assertEquals("Quầy thử",timeChange.before().path("zones").get(0).asText());
-        assertEquals("Quầy thử",timeChange.after().path("zones").get(0).asText());
+                .filter(e -> e.after()!=null && snapshotText(e.after(), "endTime").startsWith("17:00")).findFirst().orElseThrow();
+        assertEquals("Quầy thử",snapshotList(timeChange.before(), "zones").get(0));
+        assertEquals("Quầy thử",snapshotList(timeChange.after(), "zones").get(0));
         db.createNativeQuery("DELETE FROM shift WHERE id=:id").setParameter("id",testShift).executeUpdate();
         var deleted = scheduleHistory.list(store,day,day,principal).stream()
-                .filter(e -> e.after()==null && e.before()!=null && e.before().path("endTime").asText().startsWith("17:00"))
+                .filter(e -> e.after()==null && e.before()!=null && snapshotText(e.before(), "endTime").startsWith("17:00"))
                 .findFirst().orElseThrow();
-        assertEquals("Quầy thử",deleted.before().path("zones").get(0).asText());
+        assertEquals("Quầy thử",snapshotList(deleted.before(), "zones").get(0));
         UUID incidentKey = UUID.randomUUID();
         try {
             var unreadablePhoto = new org.springframework.mock.web.MockMultipartFile("photos", "photo.jpg", "image/jpeg", new byte[]{(byte)255,(byte)216,(byte)255,1}) {
@@ -164,5 +164,15 @@ class MessagingDatabaseIntegrationTest {
         controller.read(store, thread.id(), new MessagingController.ReadRequest(second.id()), bao);
         controller.read(store, thread.id(), new MessagingController.ReadRequest(sent.id()), bao);
         assertEquals(0L, unread.unread(bao).get("unreadCount"), "An older read receipt must not move the cursor backwards");
+    }
+
+    private static String snapshotText(java.util.Map<String, Object> snapshot, String field) {
+        Object value = snapshot.get(field);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static java.util.List<?> snapshotList(java.util.Map<String, Object> snapshot, String field) {
+        Object value = snapshot.get(field);
+        return value instanceof java.util.List<?> list ? list : java.util.List.of();
     }
 }

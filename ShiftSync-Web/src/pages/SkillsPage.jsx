@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getAllStores } from '../services/storeService';
 import { getSkillsByStore, createSkill, updateSkill, deleteSkill } from '../services/skillService';
+import { getSessionRole } from '../services/authSession';
 import './SkillsPage.css';
 
 const PRESET_COLORS = [
@@ -46,9 +47,10 @@ export default function SkillsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // RBAC Permission Check
-  const userRole = localStorage.getItem('userRole') || localStorage.getItem('role') || '';
+  const userRole = getSessionRole();
   const canEdit = userRole === 'ADMIN' || userRole === 'MANAGER';
 
   useEffect(() => {
@@ -67,12 +69,16 @@ export default function SkillsPage() {
 
   const load = useCallback(async () => {
     if (!storeId) return;
+    setLoading(true);
+    setError('');
     try {
       const res = await getSkillsByStore(storeId);
       const data = res.data;
       setSkills(Array.isArray(data) ? data : data.content || []);
     } catch {
       setError('Không tải được danh sách vị trí');
+    } finally {
+      setLoading(false);
     }
   }, [storeId]);
 
@@ -171,7 +177,7 @@ export default function SkillsPage() {
       actions={
         canEdit && (
           <button className="skill-btn-primary ss-btn-elevated" onClick={openAddModal}>
-            + Thêm vị trí mới
+            Thêm vị trí mới
           </button>
         )
       }
@@ -183,95 +189,50 @@ export default function SkillsPage() {
 
         <main className="emp-layout-main">
 
-        {/* Success Alert Banner */}
         {success && (
-          <div style={{
-            backgroundColor: '#F0FDF4',
-            border: '1px solid #86EFAC',
-            color: '#166534',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <span> {success}</span>
-            <button
-              onClick={() => setSuccess('')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#166534',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '16px'
-              }}
-            >
-              ✕
-            </button>
+          <div className="skill-alert skill-alert--success" role="status">
+            <span>{success}</span><button type="button" aria-label="Đóng thông báo" onClick={() => setSuccess('')}>Đóng</button>
           </div>
         )}
 
-        {/* Error Alert Banner */}
-        {error && (
-          <div style={{
-            backgroundColor: '#FEF2F2',
-            border: '1px solid #FCA5A5',
-            color: '#991B1B',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <span> {error}</span>
-            <button
-              onClick={() => setError('')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#991B1B',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '16px'
-              }}
-            >
-              ✕
-            </button>
+        {error && !showModal && (
+          <div className="skill-alert skill-alert--error" role="alert">
+            <span>{error}</span><button type="button" aria-label="Đóng thông báo" onClick={() => setError('')}>Đóng</button>
           </div>
         )}
+
+        <section className="skill-overview" aria-label="Tổng quan vị trí">
+          <div><span>Vị trí đang dùng</span><strong>{skills.length}</strong></div>
+          <div><span>Kết quả hiển thị</span><strong>{filtered.length}</strong></div>
+          <p>Mỗi vị trí có mức lương và màu nhận diện riêng trên lịch ca.</p>
+        </section>
 
         <div className="skill-table-card" role="region" aria-label="Danh sách vị trí và mức lương" tabIndex={0}>
           <div className="skill-table-header">
-            <span style={{ width: canEdit ? '40%' : '55%' }}>Vị trí / Kỹ năng</span>
-            <span style={{ width: canEdit ? '35%' : '45%' }}>Mức lương / giờ</span>
+            <span className="skill-col-name">Vị trí / Kỹ năng</span>
+            <span className="skill-col-rate">Mức lương / giờ</span>
             {canEdit && (
-              <span style={{ width: '25%', textAlign: 'right' }}>Thao tác</span>
+              <span className="skill-col-actions">Thao tác</span>
             )}
           </div>
-          {filtered.map((sk) => (
+          {loading && <div className="skill-loading" aria-live="polite"><span /><span /><span /></div>}
+          {!loading && filtered.map((sk) => (
             <div className="skill-row" key={sk.id}>
-              <div className="skill-cell-name" style={{ width: canEdit ? '40%' : '55%', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="skill-cell-name">
                 <span
                   className="skill-dot"
                   style={{ background: getSkillColor(sk) }}
                 />
-                <span style={{ fontWeight: 600, color: 'var(--ss-tx)' }}>{sk.name}</span>
+                <span>{sk.name}</span>
               </div>
-              <div className="skill-cell-rate" style={{ width: canEdit ? '35%' : '45%', color: '#15803D', fontWeight: 600 }}>
+              <div className="skill-cell-rate">
                 {formatVND(sk.hourlyRate)}
-                {sk.scheduledEffectiveDate && <div style={{ fontSize: 12, fontWeight: 400 }}>
+                {sk.scheduledEffectiveDate && <div className="skill-rate-scheduled">
                   Từ {sk.scheduledEffectiveDate}: {formatVND(sk.scheduledHourlyRate)}
                 </div>}
               </div>
               {canEdit && (
-                <div className="skill-cell-actions" style={{ width: '25%', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <div className="skill-cell-actions">
                   <button className="skill-edit-btn" onClick={() => openEditModal(sk)}>
                     Sửa
                   </button>
@@ -283,9 +244,11 @@ export default function SkillsPage() {
             </div>
           ))}
 
-          {filtered.length === 0 && (
-            <div style={{ padding: '32px', textAlign: 'center', color: '#71717A', fontSize: '14px' }}>
-              {search ? 'Không có vị trí khớp từ khóa. Thử tìm kiếm lại.' : 'Chưa có vị trí công việc nào được cấu hình cho chi nhánh này.'}
+          {!loading && filtered.length === 0 && (
+            <div className="skill-empty">
+              <strong>{search ? 'Không tìm thấy vị trí phù hợp' : 'Chưa có vị trí công việc'}</strong>
+              <p>{search ? 'Thử một từ khóa khác hoặc xóa bộ lọc để xem toàn bộ vị trí.' : 'Tạo vị trí đầu tiên để dùng trong phân công và tính lương.'}</p>
+              {!search && canEdit && <button type="button" onClick={openAddModal}>Tạo vị trí đầu tiên</button>}
             </div>
           )}
         </div>
@@ -300,13 +263,14 @@ export default function SkillsPage() {
             onSubmit={handleSubmit}
           >
             <div className="skill-modal-header">
-              <h2>{editingSkill ? 'Chỉnh mức lương' : 'Thêm vị trí công việc'}</h2>
+              <div><p>{editingSkill ? 'ĐIỀU CHỈNH QUY TẮC' : 'CẤU HÌNH VỊ TRÍ'}</p><h2>{editingSkill ? 'Chỉnh mức lương' : 'Thêm vị trí công việc'}</h2></div>
               <button
                 type="button"
                 className="skill-modal-close"
+                aria-label="Đóng biểu mẫu"
                 onClick={() => setShowModal(false)}
               >
-                ✕
+                Đóng
               </button>
             </div>
             
@@ -331,7 +295,7 @@ export default function SkillsPage() {
                 value={hourlyRate}
                 onChange={(e) => setHourlyRate(e.target.value)}
               />
-              <span style={{ fontSize: '13px', color: '#15803D', fontWeight: 600, marginTop: '4px' }}>
+              <span className="skill-rate-preview">
                 Xem trước: {formatVND(hourlyRate)}
               </span>
             </label>
@@ -343,47 +307,32 @@ export default function SkillsPage() {
               </label>
             )}
 
-            {error && <p className="skill-form-error" style={{ color: '#EF4444', fontSize: '13px', margin: '4px 0' }}>{error}</p>}
+            {error && <p className="skill-form-error" role="alert">{error}</p>}
 
             <label>
               Màu đại diện
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
+              <div className="skill-palette">
                 {PRESET_COLORS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      backgroundColor: c,
-                      border: color === c ? '2.5px solid #18181B' : '1.5px solid rgba(0,0,0,0.1)',
-                      cursor: 'pointer',
-                      transform: color === c ? 'scale(1.15)' : 'none',
-                      transition: 'all 0.15s ease',
-                    }}
+                    aria-label={`Chọn màu ${c}`}
+                    aria-pressed={color === c}
+                    style={{ backgroundColor: c }}
                   />
                 ))}
                 <input
                   type="color"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    padding: 0,
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    background: 'none',
-                  }}
+                  className="skill-custom-color"
                   title="Chọn màu tuỳ chỉnh"
                 />
               </div>
             </label>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+            <div className="skill-modal-footer">
               <button
                 type="button"
                 className="skill-modal-btn-cancel"

@@ -64,7 +64,8 @@ export default function AdminPage() {
     email: '',
     password: '',
     phone: '',
-    systemRole: 'MANAGER'
+    systemRole: 'MANAGER',
+    storeId: ''
   });
 
   const [confirmDelete, setConfirmDelete] = useState(null); // { type: 'store' | 'user', id, name }
@@ -330,7 +331,8 @@ export default function AdminPage() {
       email: '',
       password: '',
       phone: '',
-      systemRole: defaultRole
+      systemRole: defaultRole,
+      storeId: ''
     });
     setShowUserModal(true);
   };
@@ -342,7 +344,8 @@ export default function AdminPage() {
       email: user.email || '',
       password: '',
       phone: user.phone || '',
-      systemRole: user.systemRole || user.role || 'STAFF'
+      systemRole: user.systemRole || user.role || 'STAFF',
+      storeId: ''
     });
     setShowUserModal(true);
   };
@@ -353,8 +356,12 @@ export default function AdminPage() {
       showToast('Thiếu thông tin', 'Vui lòng nhập họ tên và email.', true);
       return;
     }
-    if (!editingUser && (!userForm.password || userForm.password.length < 6)) {
-      showToast('Mật khẩu yếu', 'Mật khẩu phải có ít nhất 6 ký tự.', true);
+    if (!editingUser && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/.test(userForm.password)) {
+      showToast('Mật khẩu chưa đạt yêu cầu', 'Mật khẩu cần ít nhất 8 ký tự, gồm tối thiểu một chữ cái và một chữ số.', true);
+      return;
+    }
+    if (!editingUser && userForm.systemRole === 'STAFF' && !userForm.storeId) {
+      showToast('Chưa chọn chi nhánh', 'Tài khoản nhân viên phải được cấp kèm một chi nhánh làm việc.', true);
       return;
     }
 
@@ -375,7 +382,8 @@ export default function AdminPage() {
           email: userForm.email.trim(),
           password: userForm.password.trim(),
           phone: userForm.phone.trim(),
-          systemRole: userForm.systemRole
+          systemRole: userForm.systemRole,
+          ...(userForm.systemRole === 'STAFF' ? { storeId: userForm.storeId } : {})
         });
         showToast('Tạo tài khoản', `Đã tạo tài khoản ${userForm.systemRole}: "${userForm.fullName}".`);
       }
@@ -1326,7 +1334,7 @@ export default function AdminPage() {
                   <input
                     type="password"
                     required={!editingUser}
-                    placeholder="Tối thiểu 6 ký tự..."
+                    placeholder="Tối thiểu 8 ký tự, có chữ và số"
                     value={userForm.password}
                     onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                     className="adm-form-input"
@@ -1355,10 +1363,25 @@ export default function AdminPage() {
                     >
                       <option value="MANAGER">Quản Lý Chi Nhánh (MANAGER)</option>
                       <option value="STAFF">Nhân Viên (STAFF)</option>
-                      <option value="ADMIN">Quản Trị Viên (ADMIN)</option>
                     </select>
                   </div>
                 </div>
+
+                {!editingUser && userForm.systemRole === 'STAFF' && (
+                  <div className="adm-form-group">
+                    <label className="adm-form-label">Chi Nhánh Làm Việc *</label>
+                    <select
+                      required
+                      value={userForm.storeId}
+                      onChange={(e) => setUserForm({ ...userForm, storeId: e.target.value })}
+                      className="adm-form-select"
+                    >
+                      <option value="">Chọn chi nhánh cấp tài khoản</option>
+                      {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                    </select>
+                    <p className="adm-form-hint">Nhân viên được tạo cùng hợp đồng mặc định của chi nhánh này.</p>
+                  </div>
+                )}
               </div>
 
               <div className="adm-modal-footer">

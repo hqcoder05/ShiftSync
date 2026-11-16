@@ -1,7 +1,9 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform } from 'react-native';
 import Svg, { Circle, Ellipse, G, Path } from 'react-native-svg';
+
+const canUseNativeAnimationDriver = Platform.OS !== 'web';
 
 export default function AnimatedNotificationIcon({ variant = 'bell', size = 34, animated = true }) {
   const swing = useRef(new Animated.Value(0)).current;
@@ -15,13 +17,13 @@ export default function AnimatedNotificationIcon({ variant = 'bell', size = 34, 
     swing.setValue(0);
     if (!animated || reduceMotion) return;
     const loop = Animated.loop(Animated.sequence(variant === 'megaphone' ? [
-      Animated.timing(swing, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(swing, { toValue: -1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(swing, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
+      Animated.timing(swing, { toValue: -1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
+      Animated.timing(swing, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
     ] : [
-      Animated.timing(swing, { toValue: 1, duration: 320, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(swing, { toValue: -1, duration: 640, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(swing, { toValue: 0, duration: 320, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: 1, duration: 320, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
+      Animated.timing(swing, { toValue: -1, duration: 640, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
+      Animated.timing(swing, { toValue: 0, duration: 320, easing: Easing.inOut(Easing.sin), useNativeDriver: canUseNativeAnimationDriver }),
       Animated.delay(500),
     ]));
     loop.start();

@@ -2,7 +2,7 @@ import { colors as uiColors } from '../theme/koreanPalette';
 import { createAppStyles } from '../theme/appTheme';
 import { ensureTouchTarget } from '../utils/touchTarget';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -67,8 +67,13 @@ export default function MoreScreen({ navigation }) {
         <Pressable accessibilityRole="button" accessibilityLabel={t('viewProfile')} onPress={() => navigation.navigate('Profile', undefined, { pop: true })} style={ensureTouchTarget(styles.profile)}>
           <View style={styles.avatar}><UserAvatar avatarId={profile?.avatarId || 'dilan'} size={64} /></View>
           <View style={styles.copy}>
-            {loading ? <ActivityIndicator color={uiColors.primaryStrong} style={{ alignSelf: 'flex-start' }} /> : <Text style={styles.name}>{name}</Text>}
-            <Text numberOfLines={1} style={styles.email}>{profile?.email || t('editProfile')}</Text>
+            {loading ? <View accessibilityLabel="Đang tải thông tin tài khoản" accessibilityState={{ busy: true }} aria-busy style={styles.profileSkeleton}>
+              <View style={styles.profileSkeletonName} />
+              <View style={styles.profileSkeletonEmail} />
+            </View> : <>
+              <Text style={styles.name}>{name}</Text>
+              <Text numberOfLines={1} style={styles.email}>{profile?.email || t('editProfile')}</Text>
+            </>}
           </View>
           <Ionicons name="chevron-forward" size={19} color={uiColors.muted} accessible={false} />
         </Pressable>
@@ -105,6 +110,9 @@ const styles = createAppStyles({
   avatar: { width: 68, height: 68, backgroundColor: uiColors.canvas, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   menuIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, minWidth: 0 },
+  profileSkeleton: { gap: 9, paddingVertical: 4 },
+  profileSkeletonName: { width: '58%', height: 20, borderRadius: 7, backgroundColor: uiColors.line },
+  profileSkeletonEmail: { width: '82%', height: 13, borderRadius: 6, backgroundColor: uiColors.canvas },
   name: { color: uiColors.ink, fontSize: 18, lineHeight: 25, fontWeight: '600', letterSpacing: -0.3 },
   email: { color: uiColors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
   sectionTitle: { paddingHorizontal: 24, paddingTop: 22, paddingBottom: 10, color: uiColors.secondary, fontSize: 12, fontWeight: '600' },

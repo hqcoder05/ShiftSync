@@ -108,7 +108,7 @@ export default function DashboardSpatialSummary({
         <button
           type="button"
           className="db-spatial-btn"
-          onClick={() => navigate("/schedule?view=3d")}
+          onClick={() => navigate('/store-3d')}
           title="Mở không gian 3D tương tác toàn màn hình"
         >
           <span>Xem 3D</span>

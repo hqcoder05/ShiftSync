@@ -1,6 +1,6 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +11,9 @@ import { navigationRef } from './navigationRef';
 import LazyScreen from './LazyScreen';
 import IOSDiagnosticScreen from '../screens/IOSDiagnosticScreen';
 import { registerForPushNotificationsAsync } from '../services/pushNotificationHelper';
+import ContentSkeleton from '../components/ContentSkeleton';
+import api from '../services/api';
+import { getNetworkSnapshot } from '../services/networkState';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -23,7 +26,6 @@ const loadPayroll = () => import('../screens/PayrollScreen');
 const loadRequest = () => import('../screens/RequestScreen');
 const loadAvailability = () => import('../screens/AvailabilityScreen');
 const loadProfile = () => import('../screens/ProfileScreenApi');
-const loadApiTestHub = () => import('../screens/ApiTestHubScreen');
 const loadMarketplace = () => import('../screens/MarketplaceScreen');
 const loadNotification = () => import('../screens/NotificationScreen');
 const loadMessaging = () => import('../screens/MessagingScreen');
@@ -43,7 +45,6 @@ const PayrollRoute = lazy(loadPayroll);
 const RequestRoute = lazy(loadRequest);
 const AvailabilityRoute = lazy(loadAvailability);
 const ProfileRoute = lazy(loadProfile);
-const ApiTestHubRoute = lazy(loadApiTestHub);
 const MarketplaceRoute = lazy(loadMarketplace);
 const NotificationRoute = lazy(loadNotification);
 const MessagingRoute = lazy(loadMessaging);
@@ -86,9 +87,25 @@ export default function AppNavigator() {
     }
     const checkAuthStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem('accessToken');
+        const values = new Map(await AsyncStorage.multiGet(['accessToken', 'userEmail']));
+        const token = values.get('accessToken');
+        const email = values.get('userEmail')?.trim().toLowerCase();
         if (token) {
-          // Authenticated API calls share one refresh flow; cached data remains usable offline.
+          // Do not enter the app based on an expired token. The shared API layer
+          // refreshes a valid session once; an expired refresh token returns to
+          // Login before protected screens start issuing parallel 401 requests.
+          if (getNetworkSnapshot().online) {
+            try {
+              await api.get('/users/me', { expectedSessionEmail: email, timeout: 10000 });
+            } catch (error) {
+              if ([401, 403].includes(error.response?.status) || error.code === 'NO_REFRESH_TOKEN') {
+                await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userRole', 'userEmail']);
+                setInitialRoute('Login');
+                return;
+              }
+              // A temporary network failure may still have locally cached data.
+            }
+          }
           setInitialRoute('MainTabs');
           registerForPushNotificationsAsync().catch((e) => console.log('[Push Auto-login Error]:', e));
         } else {
@@ -107,8 +124,8 @@ export default function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: uiColors.surface, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={uiColors.primaryStrong} />
+      <View accessibilityLabel="Đang khởi động ứng dụng" accessibilityState={{ busy: true }} aria-busy style={{ flex: 1, backgroundColor: uiColors.surface, paddingTop: 36 }}>
+        <ContentSkeleton />
       </View>
     );
   }
@@ -129,7 +146,6 @@ export default function AppNavigator() {
         <Stack.Screen name="ActivityTimeline" component={ActivityTimelineRoute} />
         <Stack.Screen name="ScheduleHistory" component={ScheduleHistoryRoute} />
         <Stack.Screen name="HelpCenter" component={HelpCenterRoute} />
-        <Stack.Screen name="ApiTestHub" component={ApiTestHubRoute} />
         <Stack.Screen name="Diagnostics" component={IOSDiagnosticScreen} />
       </Stack.Navigator>
     </NavigationContainer>

@@ -483,12 +483,13 @@ export default function FlowerMascot3DWeb({
     }
 
     let animId = null;
-    let clock = new THREE.Clock();
+    let clock = new THREE.Timer();
     let timer = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
 
       if (!isDragging.current) {
         duoRoot.rotation.y += rotVelocity.current.y;

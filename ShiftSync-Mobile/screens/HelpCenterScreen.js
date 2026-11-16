@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BackIcon from '../components/BackIcon';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { loadHelpCenterContext, saveSupportContact } from '../services/helpCenterService';
 import { showAlert } from '../utils/alert';
 import useActionGuard from '../utils/useActionGuard';
@@ -103,7 +104,7 @@ export default function HelpCenterScreen({ navigation }) {
         return <Pressable key={id} onPress={() => load(id)} accessibilityRole="button" accessibilityState={{ selected }} aria-selected={selected} style={ensureTouchTarget([styles.storePill, selected && styles.selectedPill])}><Text style={[styles.storeText, selected && styles.selectedText]}>{store.storeName || store.name || 'Chi nhánh'}</Text></Pressable>;
       })}</ScrollView>}
       <View style={styles.supportCard}>
-        {loading ? <View style={styles.loading}><ActivityIndicator color={uiColors.primaryStrong} /><Text style={styles.body}>Đang tải hỗ trợ chi nhánh...</Text></View> : error ? <><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable onPress={() => load()} style={ensureTouchTarget(styles.textButton)} accessibilityRole="button"><Text style={styles.link}>Thử lại</Text></Pressable></> : !context?.store ? <Text style={styles.body}>Bạn chưa có chi nhánh đang hoạt động để hiển thị hotline hỗ trợ.</Text> : <>
+        {loading ? <ContentSkeleton variant="help" /> : error ? <><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable onPress={() => load()} style={ensureTouchTarget(styles.textButton)} accessibilityRole="button"><Text style={styles.link}>Thử lại</Text></Pressable></> : !context?.store ? <Text style={styles.body}>Bạn chưa có chi nhánh đang hoạt động để hiển thị hotline hỗ trợ.</Text> : <>
           <Text style={styles.supportStore}>{context.store.storeName || context.store.name || 'Chi nhánh của bạn'}</Text>
           {context.supportError ? <><Text style={styles.error} accessibilityRole="alert">Chưa tải được hotline của chi nhánh.</Text><Pressable onPress={() => load()} style={ensureTouchTarget(styles.textButton)} accessibilityRole="button"><Text style={styles.link}>Tải lại hotline</Text></Pressable></> : supportPhone ? <><Text style={styles.body}>{context.contact.supportLabel || 'Hotline hỗ trợ chi nhánh'}</Text><Text style={styles.phone}>{supportPhone}</Text><Pressable onPress={dial} disabled={busy.dial} accessibilityRole="button" accessibilityLabel={`Mở điện thoại gọi hỗ trợ chi nhánh ${supportPhone}`} style={ensureTouchTarget(styles.callButton)}><Ionicons name="call-outline" size={20} color="#FFFFFF" accessible={false} /><Text style={styles.callText}>Gọi hỗ trợ chi nhánh</Text></Pressable><Text style={styles.hint}>Nút mở ứng dụng điện thoại để bạn xác nhận cuộc gọi.</Text></> : <><Text style={styles.body}>Chi nhánh chưa cấu hình hotline hỗ trợ.</Text><Pressable onPress={() => navigation.navigate('Messaging', undefined, { pop: true })} style={ensureTouchTarget(styles.textButton)} accessibilityRole="button"><Text style={styles.link}>Liên hệ quản lý qua Nhắn tin</Text></Pressable></>}
           <Text style={styles.hint}>Đây là số hỗ trợ nội bộ do chi nhánh cung cấp.</Text>

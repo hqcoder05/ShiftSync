@@ -32,22 +32,32 @@ public class ShiftSwapController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody SwapCreateRequest request) {
         
-        ShiftSwapRequest swap = shiftSwapService.createSwapRequest(
-                userDetails.getId(),
-                request.getFromShiftId(),
-                request.getToStaffId(),
-                request.getToShiftId()
-        );
-        ShiftSwapRequestDTO dto = ShiftSwapRequestDTO.builder()
-                .id(swap.getId())
-                .fromStaffId(swap.getFromStaff().getId())
-                .fromShiftId(swap.getFromShift().getId())
-                .toStaffId(swap.getToStaff().getId())
-                .toShiftId(swap.getToShift() != null ? swap.getToShift().getId() : null)
-                .status(swap.getStatus())
-                .approvedById(swap.getApprovedBy() != null ? swap.getApprovedBy().getId() : null)
-                .employeeAccepted(swap.isEmployeeAccepted())
-                .build();
+        ShiftSwapRequest swap;
+        if (request.getToStaffIds() != null && !request.getToStaffIds().isEmpty()) {
+            if (request.getToShiftId() != null) {
+                throw new com.shiftsync.shared.exception.BusinessException(
+                        "Chỉ hỗ trợ chọn nhiều người khi nhường ca 1 chiều",
+                        org.springframework.http.HttpStatus.BAD_REQUEST);
+            }
+            swap = shiftSwapService.createMultiGiveawayRequests(
+                    userDetails.getId(),
+                    request.getFromShiftId(),
+                    request.getToStaffIds()
+            ).get(0);
+        } else {
+            if (request.getToStaffId() == null) {
+                throw new com.shiftsync.shared.exception.BusinessException(
+                        "To staff ID is required",
+                        org.springframework.http.HttpStatus.BAD_REQUEST);
+            }
+            swap = shiftSwapService.createSwapRequest(
+                    userDetails.getId(),
+                    request.getFromShiftId(),
+                    request.getToStaffId(),
+                    request.getToShiftId()
+            );
+        }
+        ShiftSwapRequestDTO dto = shiftSwapService.toDTO(swap, userDetails.getId());
         return ResponseEntity.ok(dto);
     }
 

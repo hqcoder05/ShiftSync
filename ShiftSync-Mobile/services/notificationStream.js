@@ -1,7 +1,8 @@
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { getBaseUrl } from './api';
+import { getBaseUrl } from './api';
 import { getNetworkSnapshot, subscribeNetwork } from './networkState';
+import { getMyProfile } from './profileService';
 
 const messagingListeners = new Set();
 export const subscribeMessagingEvents = (callback) => { messagingListeners.add(callback); return () => messagingListeners.delete(callback); };
@@ -32,8 +33,9 @@ export function startNotificationStream(onNotification) {
     try {
       const before = await session();
       if (!before.token || !before.email) return;
-      // Uses the shared Axios refresh flow before opening the long-lived authenticated connection.
-      await api.get('/users/me', { expectedSessionEmail: before.email, timeout: 5000 });
+      // Validate through the shared profile request so startup does not fetch
+      // the same identity separately for the Dashboard and notification stream.
+      await getMyProfile({ expectedSessionEmail: before.email, timeout: 5000 });
       const current = await session();
       if (!active() || before.email !== current.email || !current.token) return;
       owner = current;

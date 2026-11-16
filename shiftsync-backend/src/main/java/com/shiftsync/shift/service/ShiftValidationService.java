@@ -22,6 +22,14 @@ public class ShiftValidationService {
     private final com.shiftsync.payroll.service.CompensationRevisionResolver compensationRevisions;
 
     public void validateNoOverlapAndWeeklyHours(Shift newShift, UUID staffId, UUID excludedShiftId) {
+        validateNoOverlapAndWeeklyHours(newShift, staffId, excludedShiftId, true);
+    }
+
+    public void validateNoOverlap(Shift newShift, UUID staffId, UUID excludedShiftId) {
+        validateNoOverlapAndWeeklyHours(newShift, staffId, excludedShiftId, false);
+    }
+
+    private void validateNoOverlapAndWeeklyHours(Shift newShift, UUID staffId, UUID excludedShiftId, boolean enforceWeeklyHours) {
         List<Employment> employments=employmentRepository.findByUserIdAndStatus(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE);
         if (employments.isEmpty()) throw new BusinessException("Không tìm thấy hợp đồng đang hoạt động", HttpStatus.BAD_REQUEST);
         int configuredLimit=Integer.MAX_VALUE;
@@ -63,10 +71,12 @@ public class ShiftValidationService {
             throw new BusinessException("Cần nghỉ ít nhất " + restHours + " giờ giữa hai ca, kể cả ca ở chi nhánh khác.",HttpStatus.BAD_REQUEST);
         }
 
-        final int storeLimit=configuredLimit;
-        if (!ShiftTimeRange.fitsWeeklyLimit(activeShifts, newShift,
-                day -> Math.min(storeLimit, StaffContractLimit.weeklyHours(employments, day, compensationRevisions)))) {
-            throw new BusinessException("Nhận thêm ca này sẽ vượt quá số giờ làm việc tối đa trong tuần theo hợp đồng có hiệu lực", HttpStatus.BAD_REQUEST);
+        if (enforceWeeklyHours) {
+            final int storeLimit = configuredLimit;
+            if (!ShiftTimeRange.fitsWeeklyLimit(activeShifts, newShift,
+                    day -> Math.min(storeLimit, StaffContractLimit.weeklyHours(employments, day, compensationRevisions)))) {
+                throw new BusinessException("Nhận thêm ca này sẽ vượt quá số giờ làm việc tối đa trong tuần theo hợp đồng có hiệu lực", HttpStatus.BAD_REQUEST);
+            }
         }
     }
 }

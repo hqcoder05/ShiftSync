@@ -29,16 +29,16 @@ public class FirebaseConfig {
                                 .build();
                         FirebaseApp.initializeApp(options);
                     }
-                    log.info("Đã khởi tạo Firebase thành công");
+                    log.info("Da khoi tao Firebase thanh cong");
                 } else {
-                    log.warn("Không tìm thấy tệp cấu hình Firebase; chức năng thông báo Firebase chưa được khởi tạo");
+                    log.warn("Khong tim thay tep cau hinh Firebase; chuc nang thong bao Firebase chua duoc khoi tao");
                     // For MVP/testing, if file is missing, we just log a warning instead of crashing the whole app.
                 }
             } else {
-                log.debug("Firebase đã được khởi tạo, sử dụng phiên hiện có");
+                log.debug("Firebase da duoc khoi tao, su dung phien hien co");
             }
         } catch (Exception e) {
-            log.error("Không thể khởi tạo Firebase", e);
+            log.error("Khong the khoi tao Firebase", e);
         }
     }
 }

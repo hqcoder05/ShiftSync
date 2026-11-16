@@ -194,4 +194,14 @@ p {
   .ss-btn-elevated:hover {
     transform: none !important;
   }
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ss-ac, #4f46e5);
+  outline-offset: 2px;
 }

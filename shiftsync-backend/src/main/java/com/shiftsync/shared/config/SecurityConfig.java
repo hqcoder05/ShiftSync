@@ -1,6 +1,7 @@
 package com.shiftsync.shared.config;
 
 import com.shiftsync.shared.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -79,9 +80,18 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
+                // An authenticated SSE request is resumed by Spring on an ASYNC
+                // dispatcher after its response has already started. Re-checking
+                // authorization there loses the original SecurityContext and
+                // produces a committed-response AccessDeniedException. The first
+                // REQUEST dispatch still has to pass authentication below.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
+                // API documentation reveals the complete endpoint contract.  It remains
+                // available to authenticated operators, but is not public in production.
+                // Docker/Kubernetes probes must be usable without a user token. Keep the
+                // public surface intentionally narrow: other Actuator endpoints remain protected.
+                .requestMatchers("/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness").permitAll()
                 .requestMatchers("/ws", "/ws/**", "/ws/websocket").permitAll()
                 .anyRequest().authenticated()
             )

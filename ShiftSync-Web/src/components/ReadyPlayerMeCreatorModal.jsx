@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Link as LinkIcon, Upload, Check } from 'lucide-react';
+import { avatarUrlError, glbFileError } from '../utils/avatarSecurity';
 
 /**
  * ReadyPlayerMeCreatorModal
@@ -27,19 +28,21 @@ export default function ReadyPlayerMeCreatorModal({
   // Ready Player Me Subdomain (shift-sync or generic readyplayer.me)
   const rpmSubdomain = 'demo'; // or custom readyplayer.me project
   const frameUrl = `https://${rpmSubdomain}.readyplayer.me/avatar?frameApi&bodyType=fullbody&clearCache`;
+  const frameOrigin = `https://${rpmSubdomain}.readyplayer.me`;
 
   // Listen for Ready Player Me PostMessage Events
   useEffect(() => {
     if (!isOpen) return;
 
     function handleRPMMessage(event) {
+      if (event.origin !== frameOrigin || event.source !== iframeRef.current?.contentWindow) return;
       const json = typeof event.data === 'string' ? safeParseJson(event.data) : event.data;
       if (!json || json.source !== 'readyplayerme') return;
 
       // Event: Avatar exported from Ready Player Me editor
       if (json.eventName === 'v1.avatar.exported') {
         const glbUrl = json.data?.url;
-        if (glbUrl) {
+        if (glbUrl && !avatarUrlError(glbUrl)) {
           setIsExporting(true);
           if (onAvatarReady) {
             onAvatarReady(glbUrl);
@@ -59,7 +62,7 @@ export default function ReadyPlayerMeCreatorModal({
     return () => {
       window.removeEventListener('message', handleRPMMessage);
     };
-  }, [isOpen, onAvatarReady, onClose]);
+  }, [isOpen, onAvatarReady, onClose, frameOrigin]);
 
   if (!isOpen) return null;
 
@@ -69,8 +72,9 @@ export default function ReadyPlayerMeCreatorModal({
       setErrorMsg('Vui lòng nhập đường dẫn URL .glb');
       return;
     }
-    if (!trimmed.endsWith('.glb') && !trimmed.includes('readyplayer.me')) {
-      setErrorMsg('Đường dẫn phải là file 3D định dạng .glb hoặc liên kết Ready Player Me');
+    const validationError = avatarUrlError(trimmed);
+    if (validationError) {
+      setErrorMsg(validationError);
       return;
     }
     setErrorMsg('');
@@ -80,12 +84,13 @@ export default function ReadyPlayerMeCreatorModal({
     onClose();
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.glb')) {
-      setErrorMsg('Chỉ hỗ trợ file 3D định dạng .glb (GLTF Binary)');
+    const validationError = await glbFileError(file);
+    if (validationError) {
+      setErrorMsg(validationError);
       return;
     }
 
@@ -249,7 +254,7 @@ export default function ReadyPlayerMeCreatorModal({
                 ref={iframeRef}
                 src={frameUrl}
                 title="Ready Player Me Avatar Studio"
-                allow="camera *; microphone *; clipboard-write"
+                allow="camera; microphone; clipboard-write"
                 style={{
                   width: '100%',
                   height: '100%',

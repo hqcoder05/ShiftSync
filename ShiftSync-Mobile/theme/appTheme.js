@@ -1,11 +1,13 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { colors, resolveUiColor } from './koreanPalette';
 
 export { colors, resolveUiColor } from './koreanPalette';
-export const raisedSurface = {
-  shadowColor: colors.ink, shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.018, shadowRadius: 12, elevation: 1,
-};
+export const raisedSurface = Platform.OS === 'web'
+  ? { boxShadow: '0px 3px 12px rgba(19, 28, 45, 0.018)' }
+  : {
+      shadowColor: colors.ink, shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.018, shadowRadius: 12, elevation: 1,
+    };
 const panels = new Set(['card', 'shiftCard', 'slotCard', 'reportCard', 'requestItemCard',
   'historyItemCard', 'proposalCard', 'supportCard', 'profileCard', 'emptyCard', 'bannerCard',
   'formContainer', 'detailModalCard', 'selectedColleagueCard', 'incomingSwapCard']);

@@ -51,7 +51,17 @@ export async function submitCheckedClaim({ userId, storeId, shiftId }) {
   return checked;
 }
 
-export async function submitCheckedSwap({ userId, storeId, fromShiftId, toStaffId, toShiftId }) {
+export async function submitCheckedSwap({ userId, storeId, fromShiftId, toStaffId, toStaffIds, toShiftId }) {
+  if (!toShiftId) {
+    const values = new Map(await AsyncStorage.multiGet(['userEmail']));
+    const email = values.get('userEmail')?.trim().toLowerCase();
+    const config = email ? { expectedSessionEmail: email } : {};
+    const payload = Array.isArray(toStaffIds) && toStaffIds.length > 0
+      ? { fromShiftId, toStaffIds: toStaffIds.slice(0, 3), toShiftId: null }
+      : { fromShiftId, toStaffId, toShiftId: null };
+    await api.post('/users/me/swaps', payload, config);
+    return { conflicts: [], config };
+  }
   const checked = await freshSchedule({ userId, storeId, candidateShiftId: toShiftId, excludedShiftId: fromShiftId, targetStaffId: toStaffId });
   if (checked.conflicts.length) return checked;
   await api.post('/users/me/swaps', { fromShiftId, toStaffId, toShiftId }, checked.config);

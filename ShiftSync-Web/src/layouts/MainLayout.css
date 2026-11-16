@@ -91,3 +91,25 @@
 .ss-app-shell:has(.sch-page--explorer) > .ss-page-footer {
   display: none;
 }
+.ss-workspace-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  background: color-mix(in srgb, var(--ss-ac, #0f766e) 12%, var(--ss-bg, #fff));
+  border-bottom: 1px solid color-mix(in srgb, var(--ss-ac, #0f766e) 32%, transparent);
+  color: var(--ss-tx, #1c1612);
+  font-size: 0.875rem;
+}
+
+.ss-workspace-banner button {
+  border: 1px solid var(--ss-ac, #0f766e);
+  border-radius: 0.375rem;
+  padding: 0.3rem 0.55rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

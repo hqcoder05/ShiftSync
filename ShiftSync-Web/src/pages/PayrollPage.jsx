@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { getAllStores } from '../services/storeService';
 import { getStaffByStore } from '../services/employmentService';
 import {
@@ -43,8 +45,8 @@ const formatPeriodLabel = (startDate, endDate) => {
 };
 
 export default function PayrollPage() {
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const isManager = canManageStore(userRole);
   const isStaff = !isManager;
   const [downloadingPdfId, setDownloadingPdfId] = useState(null);
 

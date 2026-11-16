@@ -14,8 +14,8 @@ export default function DashboardSkeleton() {
   useEffect(() => {
     if (reduceMotion) { opacity.setValue(1); return; }
     const animation = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0.55, duration: 750, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: false }),
+      Animated.timing(opacity, { toValue: 0.55, duration: 750, useNativeDriver: false }),
     ]));
     animation.start();
     return () => animation.stop();

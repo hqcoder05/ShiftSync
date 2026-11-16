@@ -5,6 +5,8 @@ import EmployeeModuleLayout from '../components/EmployeeModuleLayout';
 import { getAllStores, createStore, updateStore, deleteStore } from '../services/storeService';
 import { getSkillsByStore, createSkill, updateSkill, deleteSkill } from '../services/skillService';
 import { getApiErrorMessage, isRequestCanceled } from '../services/api';
+import { getSessionRole } from '../services/authSession';
+import { canAdministerSystem } from '../utils/roleAccess';
 import Store3DManager from '../components/spatial/Store3DManager';
 import './StoresPage.css';
 
@@ -57,6 +59,7 @@ function ColorPicker({ value, onChange }) {
 
 export default function StoresPage() {
   const confirm = useConfirmation();
+  const canProvisionStores = canAdministerSystem(getSessionRole());
   const [stores, setStores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -341,6 +344,10 @@ export default function StoresPage() {
   };
 
   const handleDelete = async (id, name) => {
+    if (!canProvisionStores) {
+      showToast('Chỉ Quản trị viên mới có thể xoá chi nhánh.');
+      return;
+    }
     if (!(await confirm({ message: `Xoá chi nhánh "${name}"?`, confirmLabel: 'Xóa' }))) return;
     try {
       await deleteStore(id);
@@ -359,9 +366,9 @@ export default function StoresPage() {
       title="Chi nhánh"
       subtitle="Quản lý các chi nhánh và vị trí không gian làm việc"
       actions={
-        <button className="store-add-btn ss-btn-elevated" onClick={openCreate}>
+        canProvisionStores ? <button className="store-add-btn ss-btn-elevated" onClick={openCreate}>
           + Thêm chi nhánh
-        </button>
+        </button> : null
       }
     >
       {/* Black Toast */}
@@ -432,7 +439,7 @@ export default function StoresPage() {
                         Không gian 3D
                       </button>
                       <button onClick={() => openEdit(s)}>Sửa</button>
-                      <button onClick={() => handleDelete(s.id, s.name)}>Xoá</button>
+                      {canProvisionStores && <button onClick={() => handleDelete(s.id, s.name)}>Xoá</button>}
                     </div>
                   </div>
 

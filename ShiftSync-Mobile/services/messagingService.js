@@ -7,6 +7,7 @@ let unreadCount = 0;
 let unreadGeneration = 0;
 let unreadRequest = 0;
 let unreadRetryAfter = 0;
+let unreadRefreshFlight = null;
 const unreadListeners = new Set();
 export const getMessagingUnreadSnapshot = () => unreadCount;
 export const subscribeMessagingUnread = (listener) => { unreadListeners.add(listener); return () => unreadListeners.delete(listener); };
@@ -16,9 +17,23 @@ const publishUnread = (count) => {
   unreadCount = next;
   unreadListeners.forEach((listener) => { try { listener(); } catch {} });
 };
-export function resetMessagingUnread() { unreadGeneration += 1; unreadRetryAfter = 0; publishUnread(0); }
+export function resetMessagingUnread() { unreadGeneration += 1; unreadRetryAfter = 0; unreadRefreshFlight = null; publishUnread(0); }
 export async function refreshMessagingUnreadCount() {
   if (Date.now() < unreadRetryAfter) return;
+  const previous = unreadRefreshFlight;
+  if (previous && previous.generation === unreadGeneration) return previous.promise;
+
+  const work = fetchMessagingUnreadCount();
+  const entry = { promise: work, generation: unreadGeneration };
+  unreadRefreshFlight = entry;
+  work.then(
+    () => { if (unreadRefreshFlight === entry) unreadRefreshFlight = null; },
+    () => { if (unreadRefreshFlight === entry) unreadRefreshFlight = null; },
+  );
+  return work;
+}
+
+async function fetchMessagingUnreadCount() {
   const generation = unreadGeneration;
   const request = ++unreadRequest;
   let response;

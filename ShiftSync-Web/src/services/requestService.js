@@ -1,4 +1,5 @@
 import api from './api';
+import { getSessionEmail } from './authSession';
 
 /**
  * Lấy danh sách yêu cầu từ Backend API (/api/requests).
@@ -21,7 +22,7 @@ export const createRequest = async (requestData) => {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = now.getFullYear();
 
-  const currentUserEmail = localStorage.getItem('userEmail') || 'staff';
+  const currentUserEmail = getSessionEmail() || 'staff';
   const defaultRequester = currentUserEmail.split('@')[0] || 'Nhân viên';
 
   const selectedStoreId = requestData.storeId || (typeof localStorage !== 'undefined' ? localStorage.getItem('selectedStoreId') : null);

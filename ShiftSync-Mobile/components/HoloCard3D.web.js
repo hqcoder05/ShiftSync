@@ -246,12 +246,13 @@ export default function HoloCard3D({
     container.addEventListener('touchend', onTouchEnd, { passive: true });
 
     // ── Animation Loop ──
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let animId = null;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const hovered = isHoveredRef.current;
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;

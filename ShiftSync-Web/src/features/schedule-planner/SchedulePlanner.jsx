@@ -6,6 +6,7 @@ import {getShiftTimeRange,formatShiftMinute} from '../spatial-workspace/utils/sh
 import {assignmentsOf,staffIdOf,withDrafts,plannerWarnings,candidateReasons} from './plannerModel.js';
 import './schedule-planner.css';
 import '../spatial-workspace/components/store-explorer.css';
+import { hasManagerRole } from '../../services/authSession.js';
 
 export default function SchedulePlanner({storeId,storeName,storeCategory,layout,zones=[],employees=[],skills=[],shifts=[],date,onDateChange,onExit,onReload,onOpenAutoSchedule,isAutoScheduling=false}){
  const [mode,setMode]=useState('Spatial'),[shiftId,setShiftId]=useState(''),[zoneId,setZoneId]=useState('');
@@ -13,7 +14,7 @@ export default function SchedulePlanner({storeId,storeName,storeCategory,layout,
  const [retry,setRetry]=useState(0),[saving,setSaving]=useState(false),[message,setMessage]=useState(''),[exitPrompt,setExitPrompt]=useState(false);
  const saveLock=useRef(false),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
- const canEdit=['MANAGER','ADMIN'].includes(localStorage.getItem('userRole'));
+ const canEdit=hasManagerRole();
  const planned=useMemo(()=>withDrafts(shifts,drafts),[shifts,drafts]);
  const dayShifts=planned.filter(s=>(s.shiftDate||s.date)===date&&s.status!=='CANCELLED');
  const shift=dayShifts.find(s=>s.id===shiftId)||dayShifts[0]||null,zone=zones.find(z=>z.id===zoneId)||null;

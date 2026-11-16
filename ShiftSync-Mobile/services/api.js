@@ -2,10 +2,13 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import { resetToLogin } from '../navigation/navigationRef';
 import { getNetworkSnapshot } from './networkState';
 
 const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
+// Đủ cho mạng di động nội bộ nhưng không giữ giao diện ở trạng thái chờ quá lâu.
+const API_TIMEOUT_MS = 12000;
 let sessionVersion = 0;
 let authStorage = Promise.resolve();
 const serializeAuthStorage = (work) => {
@@ -49,6 +52,12 @@ export const getHostIp = () => {
     }
   }
 
+  // Android emulators reach the development host through 10.0.2.2.
+  // `localhost` inside the emulator points back to the emulator itself.
+  if (Platform.OS === 'android' && !Device.isDevice) {
+    return '10.0.2.2';
+  }
+
   return 'localhost';
 };
 
@@ -65,7 +74,7 @@ export const getBaseUrl = () => {
 
 const api = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 20000,
+  timeout: API_TIMEOUT_MS,
 });
 
 api.interceptors.request.use(async (config) => {

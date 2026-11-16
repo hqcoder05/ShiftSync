@@ -10,6 +10,7 @@ import BackIcon from '../components/BackIcon';
 import IncomeIllustration from '../components/IncomeIllustration';
 import ThreeIllustration from '../components/ThreeIllustration';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { downloadAndSharePayslipPdf, getMyPayslips } from '../services/payrollService';
 import { getMyAttendance } from '../services/attendanceService';
 import { formatVND, formatDateDMY, getPayrollStatusInfo } from '../utils/currency';
@@ -82,7 +83,7 @@ export default function PayrollScreen({ navigation }) {
     </View>
     <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottomPadding }]} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={uiColors.orange} />}>
       {!!error && <View style={s.error}><Text style={s.errorText}>{error}</Text><Pressable style={ensureTouchTarget()} accessibilityRole="button" onPress={load}><Text style={s.link}>Thử lại</Text></Pressable></View>}
-      {selected ? <>
+      {loading && !selected ? <ContentSkeleton variant="payroll" /> : selected ? <>
         <View style={s.summary}>
           <Text style={s.period}>{periodLabel(selected)}</Text>
           <Text style={s.caption}>Thu nhập kỳ này</Text>

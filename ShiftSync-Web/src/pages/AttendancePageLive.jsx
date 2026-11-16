@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useConfirmation } from '../context/ConfirmationContext';
 import { getAllStores } from '../services/storeService';
@@ -144,8 +146,8 @@ const getAttendanceStatus = (row) => {
 export default function AttendancePageLive() {
   const confirm = useConfirmation();
   const navigate = useNavigate();
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const isManager = canManageStore(userRole);
   const isStaff = !isManager;
 
   // Stores & Employees state

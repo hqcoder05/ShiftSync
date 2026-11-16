@@ -299,7 +299,7 @@
       undefined,
       (err) => {
         console.error('Failed to load workstation model:', err);
-        loadingEl.innerHTML = `<p style="color: #ef4444;">Lỗi tải mô hình 3D: ${err.message}</p>`;
+        loadingEl.textContent = `Lỗi tải mô hình 3D: ${String(err.message || 'Không xác định')}`;
       }
     );
 

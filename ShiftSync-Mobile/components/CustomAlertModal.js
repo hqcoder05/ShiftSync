@@ -24,13 +24,13 @@ export default function CustomAlertModal() {
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.spring(scaleAnim, {
           toValue: 1,
           friction: 8,
           tension: 40,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
     });
@@ -45,12 +45,12 @@ export default function CustomAlertModal() {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 140,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(scaleAnim, {
         toValue: 0.95,
         duration: 140,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start(() => {
       setConfig(null);
@@ -215,11 +215,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 22,
     alignItems: 'center',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 10,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 12px 24px rgba(19, 28, 45, 0.16)' }
+      : { shadowColor: colors.ink, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 24, elevation: 10 }),
     borderWidth: 1,
     borderColor: colors.line,
   },

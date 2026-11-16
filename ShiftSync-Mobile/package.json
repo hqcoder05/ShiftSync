@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web --output-dir .expo-web",
+    "test:browser": "node scripts/week4-browser.cjs",
     "test:week4": "node scripts/test-week4.cjs",
     "audit:a11y": "node scripts/audit-accessibility.cjs",
     "eas-build-post-install": "node scripts/check-demo-config.cjs",
@@ -17,26 +18,26 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-community/netinfo": "12.0.1",
     "@react-navigation/bottom-tabs": "^7.18.15",
     "@react-navigation/native": "^7.3.15",
     "@react-navigation/native-stack": "^7.18.8",
-    "@react-three/fiber": "^9.7.0",
-    "axios": "^1.19.0",
-    "expo": "~57.0.19",
+    "@react-three/fiber": "^9.8.2",
+    "axios": "^1.21.1",
+    "expo": "~57.0.33",
     "expo-asset": "~57.0.16",
-    "expo-camera": "~57.0.4",
+    "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.17",
     "expo-device": "~57.0.2",
     "expo-file-system": "~57.0.6",
     "expo-font": "~57.0.4",
-    "expo-gl": "~57.0.2",
+    "expo-gl": "~57.0.3",
     "expo-haptics": "~57.0.2",
-    "expo-image-manipulator": "~57.0.15",
-    "expo-location": "~57.0.15",
-    "expo-notifications": "~57.0.22",
-    "expo-sharing": "~57.0.25",
+    "expo-image-manipulator": "~57.0.22",
+    "expo-location": "~57.0.23",
+    "expo-notifications": "~57.0.25",
+    "expo-sharing": "~57.0.26",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -45,7 +46,19 @@
     "react-native-screens": "4.26.2",
     "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2",
-    "three": "^0.186.0"
+    "three": "^0.187.0"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "exclude": ["expo-gl"]
+    }
+  },
+  "overrides": {
+    "minimatch": "11.0.8",
+    "shell-quote": "1.12.0"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
 }

@@ -49,6 +49,12 @@ services:
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:?Cần đặt JWT_SECRET trong môi trường hoặc tệp .env ở thư mục gốc}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      # Must be true behind HTTPS in staging/production; false keeps localhost development usable.
+      AUTH_REFRESH_COOKIE_SECURE: ${AUTH_REFRESH_COOKIE_SECURE:-false}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      INITIAL_ADMIN_FULL_NAME: ${INITIAL_ADMIN_FULL_NAME:-System Administrator}
+      INITIAL_ADMIN_ALLOW_EXISTING: ${INITIAL_ADMIN_ALLOW_EXISTING:-false}
       WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:?Cần đặt WS_ALLOWED_ORIGINS trong môi trường hoặc tệp .env ở thư mục gốc}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Cần đặt CORS_ALLOWED_ORIGINS trong môi trường hoặc tệp .env ở thư mục gốc}
     depends_on:
@@ -102,6 +108,10 @@ networks:
 
 volumes:
   shiftsync-pgdata:
+    # Preserve development data created by the former backend-only Compose file.
+    # A fresh Docker installation creates this volume automatically.
+    name: shiftsync-backend_pgdata
   shiftsync-redisdata:
+    name: shiftsync-backend_redisdata
   shiftsync-web-node-modules:
   shiftsync-mobile-node-modules:

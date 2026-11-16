@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useConfirmation } from '../context/ConfirmationContext';
 import StaffAvailabilityPage from './StaffAvailabilityPage';
@@ -15,7 +17,7 @@ import Store3DCanvas from '../components/spatial/Store3DCanvas';
 import CompactDropdownFilter from '../components/CompactDropdownFilter';
 import DemandPlanningModal from '../components/demand-planning/DemandPlanningModal';
 import ShiftQrModal from '../components/attendance/ShiftQrModal';
-import { Compass, Users } from 'lucide-react';
+import { BadgeDollarSign, BriefcaseBusiness, CalendarDays, Compass, Mail, PencilLine, Phone, UserRoundPlus, Users, X } from 'lucide-react';
 import iconAi from '../assets/icons/icon-ai.png';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarForEmployee } from '../components/avatarConfigs';
@@ -29,6 +31,7 @@ import AutoSchedulerVisualization from '../features/auto-scheduler/AutoScheduler
 import {assignmentChanges, replayShifts, shiftsInWindow} from '../features/auto-scheduler/visualizationModel.js';
 import {assignmentsOf} from '../features/schedule-planner/plannerModel.js';
 import ScheduleReveal from '../features/auto-scheduler/ScheduleReveal.jsx';
+import { isLegacySpatialScheduleSearch, SPATIAL_WORKSPACE_PATH } from '../utils/spatialRoute.js';
 
 /* ── Helpers ────────────────────────────────────────────── */
 // Pastel colour palette for schedule views
@@ -125,7 +128,7 @@ const defaultColorFor = (name = '') => {
 
 const colorFor = (name = '') => defaultColorFor(name);
 
-const formatScheduleMutationError = (message, form = {}) => {
+const formatScheduleMutationError = (message, form = {}, employees = []) => {
   const rawMessage = String(message || '');
   const dateLabel = form.shiftDate
     ? form.shiftDate.split('-').reverse().join('/')
@@ -135,7 +138,20 @@ const formatScheduleMutationError = (message, form = {}) => {
   const timeLabel = start && end ? ` ${start}–${end}` : '';
 
   if (rawMessage.toLowerCase().includes('outside registered availability')) {
-    return `Nhân viên chưa đăng ký khả dụng cho ca${timeLabel} ngày ${dateLabel}. Hãy cập nhật mục Khả dụng nhân sự hoặc chọn nhân viên/khung giờ khác.`;
+    const employee = employees.find((item) => String(item.staffId || item.id) === String(form.staffId));
+    const date = form.shiftDate ? new Date(`${form.shiftDate}T00:00:00`) : null;
+    const dayOfWeek = date && !Number.isNaN(date.getTime()) ? date.getDay() : null;
+    const daySlots = dayOfWeek == null ? [] : (employee?.availabilitySlots || []).filter((slot) => Number(slot.dayOfWeek) === dayOfWeek);
+    const formatTime = (value) => typeof value === 'string'
+      ? value.slice(0, 5)
+      : value ? `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}` : '';
+    const registeredTimes = daySlots
+      .map((slot) => `${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`)
+      .filter((range) => !range.startsWith('–') && !range.endsWith('–'));
+    const availabilityLabel = registeredTimes.length
+      ? `Nhân viên đã đăng ký rảnh ${registeredTimes.join(', ')} ngày ${dateLabel}, nhưng các khung giờ này không bao phủ toàn bộ ca${timeLabel}.`
+      : `Không tìm thấy khung giờ rảnh bao phủ toàn bộ ca${timeLabel} ngày ${dateLabel}.`;
+    return `${availabilityLabel} Hãy chọn ca nằm trọn trong giờ rảnh hoặc cập nhật mục Khả dụng nhân sự.`;
   }
   if (rawMessage.toLowerCase().includes('blackout date')) {
     return `Nhân viên đã đánh dấu không thể làm việc ngày ${dateLabel}. Hãy chọn nhân viên hoặc ngày khác.`;
@@ -333,12 +349,12 @@ const getShiftPositionColor = (shift, emp, storeSkills = []) => {
 };
 
 /* ── Component ────────────────────────────────────────────── */
-export default function SchedulePage() {
+export default function SchedulePage({ spatialOnly = false }) {
   const confirm = useConfirmation();
   const navigate = useNavigate();
   const location = useLocation();
-  const userRole = localStorage.getItem('userRole') || 'STAFF';
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const isManager = canManageStore(userRole);
 
   /* -- Sub-tab: "Lập lịch" vs "Khả dụng nhân viên" -- */
   const [scheduleSubTab, setScheduleSubTab] = useState(() => {
@@ -387,14 +403,19 @@ export default function SchedulePage() {
   const autoVisualizationLock = useRef(false);
 
   /* -- navigation state -- */
-  const [viewMode, setViewMode] = useState(() =>
-    new URLSearchParams(location.search).get('view') === '3d' ? '3D' : 'Tuần'
-  );
+  const [viewMode, setViewMode] = useState(() => spatialOnly ? '3D' : 'Tuần');
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('view') === '3d') {
-      queueMicrotask(() => setViewMode('3D'));
+    if (spatialOnly) {
+      queueMicrotask(() => {
+        setScheduleSubTab('board');
+        setViewMode('3D');
+      });
+      return;
     }
-  }, [location.search]);
+    if (isLegacySpatialScheduleSearch(location.search)) {
+      navigate(SPATIAL_WORKSPACE_PATH, { replace: true });
+    }
+  }, [location.search, navigate, spatialOnly]);
   const [currentDate, setCurrentDate] = useState(() => new Date());
 
   /* -- 3D Spatial Computing state -- */
@@ -973,7 +994,9 @@ export default function SchedulePage() {
               id: emp.id,
               hasSlots: Array.isArray(availRes.data) && availRes.data.length > 0,
               slots: Array.isArray(availRes.data) ? availRes.data : [],
-              skillIds: Array.isArray(skillsRes.data) ? skillsRes.data : [],
+              skillIds: Array.isArray(skillsRes.data)
+                ? skillsRes.data.map((item) => (typeof item === 'object' ? (item.id ?? item.skillId) : item)).filter((id) => id != null)
+                : [],
             }))
           )
         ).then((results) => {
@@ -993,7 +1016,7 @@ export default function SchedulePage() {
           setEmployees((prev) =>
             prev.map((emp) => {
               const sIds = empSkillsMap[emp.id] || [];
-              const empSkillObjs = sIds.map((sid) => loadedSkills.find((sk) => sk.id === sid)).filter(Boolean);
+              const empSkillObjs = sIds.map((sid) => loadedSkills.find((sk) => String(sk.id) === String(sid))).filter(Boolean);
               const primarySkill = empSkillObjs[0]?.name || emp.position;
               return {
                 ...emp,
@@ -1120,10 +1143,13 @@ export default function SchedulePage() {
     const emp = employees.find((e) => (e.staffId || e.id) === targetEmpId);
     if (!emp) return { location: '', color: SHIFT_COLORS[0] };
 
+    const assignedSkills = (emp.skills || [])
+      .map((item) => typeof item === 'object' ? skills.find((sk) => String(sk.id) === String(item.id ?? item.skillId)) : skills.find((sk) => String(sk.id) === String(item)))
+      .filter(Boolean);
     const pos = emp.position || emp.jobTitle || emp.skillName || emp.skill?.name || '';
-    const matchedSkill = skills.find(
-      (sk) => (emp.skillId && sk.id === emp.skillId) || (pos && sk.name.toLowerCase() === pos.toLowerCase())
-    );
+    const matchedSkill = assignedSkills.find((sk) => emp.skillId && String(sk.id) === String(emp.skillId))
+      || assignedSkills.find((sk) => pos && sk.name.toLowerCase() === pos.toLowerCase())
+      || assignedSkills[0];
 
     const locationVal = matchedSkill ? matchedSkill.id : '';
     const colorVal = matchedSkill ? getSkillColor(matchedSkill) : (pos ? colorFor(pos) : SHIFT_COLORS[0]);
@@ -1216,7 +1242,12 @@ export default function SchedulePage() {
     setMenuFor(null);
   };
 
-  const openAddUserModal = () => {
+  const openCreateEmployee = () => {
+    setShowAddUserModal(false);
+    navigate('/employees?action=create');
+  };
+
+  const openAddUserModal = async () => {
     setAddUserForm({
       staffId: '',
       employmentType: 'PART_TIME',
@@ -1224,10 +1255,22 @@ export default function SchedulePage() {
       joinedDate: toISODate(new Date()),
       skillId: '',
     });
-    setShowAddUserModal(true);
-    getEmployees(0, 100)
-      .then((res) => setAllEmployees(res.data.content || res.data || []))
-      .catch(() => setAllEmployees([]));
+    try {
+      const res = await getEmployees(0, 100);
+      const list = res.data.content || res.data || [];
+      const storeStaffIds = new Set(employees.map((employee) => employee.staffId || employee.id));
+      const eligibleStaff = list.filter((employee) =>
+        !storeStaffIds.has(employee.id) && (employee.role || employee.systemRole) !== 'ADMIN',
+      );
+      if (eligibleStaff.length === 0) {
+        openCreateEmployee();
+        return;
+      }
+      setAllEmployees(list);
+      setShowAddUserModal(true);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Không tải được danh sách nhân sự.'));
+    }
   };
 
   const openEditEmpModal = (emp) => {
@@ -1403,7 +1446,7 @@ export default function SchedulePage() {
       notifyShiftUpdates();
       await loadData();
     } catch (err) {
-      setError(formatScheduleMutationError(err.response?.data?.message, registerForm));
+      setError(formatScheduleMutationError(err.response?.data?.message, registerForm, employees));
     } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
@@ -1461,7 +1504,7 @@ export default function SchedulePage() {
       // field (requirements, assignment metadata and persisted note).
       await loadData();
     } catch (err) {
-      setError(formatScheduleMutationError(err.response?.data?.message, registerForm));
+      setError(formatScheduleMutationError(err.response?.data?.message, registerForm, employees));
     } finally {shiftSubmitRef.current=false;setSavingShift(false);}
   };
 
@@ -1747,6 +1790,47 @@ export default function SchedulePage() {
   }, [activeMatrixReplayChange, matrixAutoReplay, weekDatesFull]);
 
   /* ── Render ────────────────────────────────────── */
+  const spatialWorkspace = (
+    <Store3DCanvas
+      onExitWorkspace={() => navigate('/schedule')}
+      onDateChange={(date) => {
+        if (!date) return;
+        setCurrentDate(new Date(`${date}T12:00:00`));
+        setSelected3DShiftId(null);
+      }}
+      layout={storeLayout}
+      zones={storeZones}
+      staff={active3DStaff}
+      storeName={stores.find((s) => String(s.id) === String(storeId))?.name || 'ShiftSync Store'}
+      storeCategory={stores.find((s) => String(s.id) === String(storeId))?.category || 'OTHER'}
+      stores={stores}
+      selectedStoreId={storeId}
+      onSelectStore={handleStoreChange}
+      onRunAlgorithm={handleRunSpatialAllocation}
+      isAllocating={isAllocating3D}
+      allocatedSequence={allocatedSequence}
+      allDateShifts={activeDateShifts}
+      activeDate={toISODate(active3DDate)}
+      currentShift={current3DShift}
+      onSelectShift={(shift) => setSelected3DShiftId(shift?.id || null)}
+      employees={employees}
+      skills={skills}
+      storeId={storeId}
+      onApplyComplete={loadData}
+      onOpenAutoSchedule={handleRunAutoSchedule}
+      onPublishSchedule={handlePublish}
+    />
+  );
+
+  if (spatialOnly) {
+    return (
+      <main className="store-3d-page" aria-label="Không gian vận hành 3D">
+        {error && <p className="store-3d-page__error" role="alert">{error}</p>}
+        <div className="store-3d-page__stage">{spatialWorkspace}</div>
+      </main>
+    );
+  }
+
   return (
     <div className={`sch-page ${viewMode === '3D' && scheduleSubTab === 'board' ? 'sch-page--explorer' : ''}`}>
       {scheduleSubTab === 'board' && <header className="sch-page-heading">
@@ -1809,7 +1893,7 @@ export default function SchedulePage() {
             <button
               type="button"
               className={`sch-toggle-btn ${viewMode === '3D' ? 'active' : ''}`}
-              onClick={() => setViewMode('3D')}
+              onClick={() => navigate(SPATIAL_WORKSPACE_PATH)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
               <Compass size={13} />
@@ -2110,33 +2194,7 @@ export default function SchedulePage() {
         {viewMode === '3D' ? (
           <div className="sch-explorer-stage">
             {/* 3D Canvas Spatial Model - Full Expanded Height & Width */}
-            <div className="sch-explorer-frame">
-              <Store3DCanvas
-                onExitWorkspace={() => setViewMode('Tuần')}
-                onDateChange={(date) => { if (date) { setCurrentDate(new Date(`${date}T12:00:00`)); setSelected3DShiftId(null); } }}
-                layout={storeLayout}
-                zones={storeZones}
-                staff={active3DStaff}
-                storeName={stores.find((s) => String(s.id) === String(storeId))?.name || 'ShiftSync Store'}
-                storeCategory={stores.find((s) => String(s.id) === String(storeId))?.category || 'OTHER'}
-                stores={stores}
-                selectedStoreId={storeId}
-                onSelectStore={(id) => handleStoreChange(id)}
-                onRunAlgorithm={handleRunSpatialAllocation}
-                isAllocating={isAllocating3D}
-                allocatedSequence={allocatedSequence}
-                allDateShifts={activeDateShifts}
-                activeDate={toISODate(active3DDate)}
-                currentShift={current3DShift}
-                onSelectShift={(shift) => setSelected3DShiftId(shift?.id || null)}
-                employees={employees}
-                skills={skills}
-                storeId={storeId}
-                onApplyComplete={loadData}
-                onOpenAutoSchedule={handleRunAutoSchedule}
-                onPublishSchedule={handlePublish}
-              />
-            </div>
+            <div className="sch-explorer-frame">{spatialWorkspace}</div>
           </div>
         ) : (
           /* Schedule table */
@@ -2540,11 +2598,11 @@ export default function SchedulePage() {
                     <div className="sch-empty-content">
                       <span className="sch-empty-icon" aria-hidden="true"><Users size={22} strokeWidth={1.8} /></span>
                       <strong>{employees.length ? 'Không có nhân viên phù hợp' : 'Chưa có nhân viên trong cửa hàng'}</strong>
-                      <p>{employees.length ? 'Hãy đổi bộ lọc để xem lại lịch phân công.' : 'Thêm nhân viên để bắt đầu tạo và phân công ca làm việc.'}</p>
+                      <p>{employees.length ? 'Hãy đổi bộ lọc để xem lại lịch phân công.' : 'Tạo tài khoản nhân viên trước khi bắt đầu phân công ca làm việc.'}</p>
                       {employees.length ? (
                         <button type="button" onClick={() => { setSelectedSkills(['ALL']); setSelectedEmployees(['ALL']); }}>Xóa bộ lọc</button>
                       ) : (
-                        <button type="button" onClick={openAddUserModal}>Thêm nhân viên</button>
+                        <button type="button" onClick={openCreateEmployee}>Tạo nhân viên</button>
                       )}
                     </div>
                   </td>
@@ -2559,7 +2617,7 @@ export default function SchedulePage() {
                     className="sch-add-user-td"
                     onClick={openAddUserModal}
                   >
-                    <span className="sch-add-user-plus">+</span> Thêm nhân viên
+                    <span className="sch-add-user-plus">+</span> Gán nhân viên có sẵn vào chi nhánh
                   </td>
                 </tr>
               )}
@@ -2579,7 +2637,7 @@ export default function SchedulePage() {
           onClose={closeRegisterModal} onSubmit={modalMode==='edit'?handleUpdateShift:handleCreateShift}
           onDelete={()=>{if(editingShift){handleDeleteShift(editingShift);setShowRegisterModal(false);}}}
           onEmployeeChange={staffId=>{const defaults=getEmpDefaultSkillAndColor(staffId);setRegisterForm({...registerForm,staffId,...(modalMode==='create'?{location:defaults.location,color:defaults.color}:{})});}}
-          onSkillChange={id=>{const skill=skills.find(s=>s.id===id);setRegisterForm({...registerForm,location:id,color:skill?getSkillColor(skill):registerForm.color});}}
+          onSkillChange={id=>{const skill=skills.find(s=>String(s.id)===String(id));setRegisterForm({...registerForm,location:id,color:skill?getSkillColor(skill):registerForm.color});}}
           onSettings={()=>{closeRegisterModal();navigate('/settings?tab=attendance');}}
           onShowQr={() => setQrShift(editingShift)}/>
       </div>}
@@ -2588,89 +2646,87 @@ export default function SchedulePage() {
       {showAddUserModal && (
         <div className="sch-modal-overlay" onClick={() => setShowAddUserModal(false)}>
           <form
-            className="sch-modal sch-adduser-modal"
+            className="sch-modal sch-people-form-modal sch-adduser-modal"
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleAddUser}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sch-add-person-title"
           >
             <div className="sch-modal-header">
-              <h2>Thêm người vào lịch</h2>
+              <div className="sch-people-modal-heading">
+                <span className="sch-people-modal-icon"><UserRoundPlus size={19} aria-hidden="true" /></span>
+                <div>
+                  <p className="sch-people-modal-eyebrow">NHÂN SỰ CHI NHÁNH</p>
+                  <h2 id="sch-add-person-title">Thêm người vào lịch</h2>
+                  <p>Thiết lập vị trí và điều khoản làm việc cho chi nhánh đang chọn.</p>
+                </div>
+              </div>
               <button
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowAddUserModal(false)}
-              >&times;</button>
+                aria-label="Đóng biểu mẫu thêm nhân sự"
+              ><X size={16} aria-hidden="true" /></button>
             </div>
 
-            <label>
-              Nhân viên
-              <select
-                required
-                value={addUserForm.staffId}
-                onChange={(e) => setAddUserForm({ ...addUserForm, staffId: e.target.value })}
-              >
-                <option value="">-- Chọn nhân viên --</option>
-                {availableToAdd.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.fullName} ({e.email})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="sch-people-modal-body">
+              <div className="sch-people-context">
+                <span>Đang thêm vào</span>
+                <strong>{stores.find((store) => String(store.id) === String(storeId))?.name || 'Chi nhánh đang chọn'}</strong>
+              </div>
 
-            {availableToAdd.length === 0 && (
-              <p style={{ fontSize: 13, color: '#b8860b' }}>
-                Không còn nhân viên nào khác để thêm.
-              </p>
-            )}
+              {availableToAdd.length === 0 ? (
+                <div className="sch-people-create-empty">
+                  <span className="sch-people-modal-icon"><UserRoundPlus size={20} aria-hidden="true" /></span>
+                  <div>
+                    <strong>Chưa có nhân sự để thêm</strong>
+                    <p>Hãy tạo tài khoản nhân viên trước, sau đó quay lại đây để phân công vào chi nhánh.</p>
+                  </div>
+                  <button type="button" className="sch-save-btn" onClick={openCreateEmployee}>Tạo nhân viên</button>
+                </div>
+              ) : <div className="sch-people-fields">
+                <div className="sch-people-field sch-people-field-wide">
+                  <label htmlFor="sch-add-staff"><UserRoundPlus size={15} aria-hidden="true" /> Nhân viên <em>*</em></label>
+                  <select id="sch-add-staff" required value={addUserForm.staffId} onChange={(e) => setAddUserForm({ ...addUserForm, staffId: e.target.value })}>
+                    <option value="">Chọn nhân viên để thêm</option>
+                    {availableToAdd.map((e) => <option key={e.id} value={e.id}>{e.fullName} ({e.email})</option>)}
+                  </select>
+                  <small>Chỉ hiển thị tài khoản chưa thuộc chi nhánh này.</small>
+                </div>
 
-            <label>
-              Vị trí công việc
-              <select
-                value={addUserForm.skillId}
-                onChange={(e) => setAddUserForm({ ...addUserForm, skillId: e.target.value })}
-              >
-                <option value="">-- Chọn vị trí --</option>
-                {skills.map((sk) => (
-                  <option key={sk.id} value={sk.id}>{sk.name}</option>
-                ))}
-              </select>
-            </label>
+                <div className="sch-people-field">
+                  <label htmlFor="sch-add-skill"><BriefcaseBusiness size={15} aria-hidden="true" /> Vị trí công việc</label>
+                  <select id="sch-add-skill" value={addUserForm.skillId} onChange={(e) => setAddUserForm({ ...addUserForm, skillId: e.target.value })}>
+                    <option value="">Chọn vị trí đảm nhiệm</option>
+                    {skills.map((sk) => <option key={sk.id} value={sk.id}>{sk.name}</option>)}
+                  </select>
+                </div>
 
-            <label>
-              Loại hình
-              <select
-                value={addUserForm.employmentType}
-                onChange={(e) => setAddUserForm({ ...addUserForm, employmentType: e.target.value })}
-              >
-                <option value="FULL_TIME">Toàn thời gian</option>
-                <option value="PART_TIME">Bán thời gian</option>
-                <option value="SEASONAL">Thời vụ</option>
-                <option value="INTERN">Thực tập</option>
-              </select>
-            </label>
+                <div className="sch-people-field">
+                  <label htmlFor="sch-add-employment"><BriefcaseBusiness size={15} aria-hidden="true" /> Loại hình</label>
+                  <select id="sch-add-employment" value={addUserForm.employmentType} onChange={(e) => setAddUserForm({ ...addUserForm, employmentType: e.target.value })}>
+                    <option value="FULL_TIME">Toàn thời gian</option>
+                    <option value="PART_TIME">Bán thời gian</option>
+                    <option value="SEASONAL">Thời vụ</option>
+                    <option value="INTERN">Thực tập</option>
+                  </select>
+                </div>
 
-            <label>
-              Lương theo giờ (VNĐ)
-              <input
-                required
-                type="number"
-                min="0"
-                value={addUserForm.hourlyRate}
-                onChange={(e) => setAddUserForm({ ...addUserForm, hourlyRate: e.target.value })}
-              />
-            </label>
+                <div className="sch-people-field">
+                  <label htmlFor="sch-add-rate"><BadgeDollarSign size={15} aria-hidden="true" /> Lương theo giờ <em>*</em></label>
+                  <input id="sch-add-rate" required type="number" min="0" inputMode="numeric" value={addUserForm.hourlyRate} onChange={(e) => setAddUserForm({ ...addUserForm, hourlyRate: e.target.value })} />
+                  <small>Đơn vị: VNĐ mỗi giờ.</small>
+                </div>
 
-            <label>
-              Ngày vào làm
-              <input
-                required
-                type="date"
-                value={addUserForm.joinedDate}
-                onChange={(e) => setAddUserForm({ ...addUserForm, joinedDate: e.target.value })}
-              />
-            </label>
+                <div className="sch-people-field">
+                  <label htmlFor="sch-add-date"><CalendarDays size={15} aria-hidden="true" /> Ngày vào làm <em>*</em></label>
+                  <input id="sch-add-date" required type="date" value={addUserForm.joinedDate} onChange={(e) => setAddUserForm({ ...addUserForm, joinedDate: e.target.value })} />
+                </div>
+              </div>}
+            </div>
 
-            <div className="sch-modal-actions">
+            <div className="sch-modal-actions sch-people-modal-actions">
               <button
                 type="button"
                 className="sch-cancel-btn"
@@ -2678,8 +2734,8 @@ export default function SchedulePage() {
               >
                 Huỷ
               </button>
-              <button className="sch-save-btn" type="submit">
-                Thêm
+              <button className="sch-save-btn" type="submit" disabled={availableToAdd.length === 0}>
+                Thêm vào lịch
               </button>
             </div>
           </form>
@@ -2690,52 +2746,68 @@ export default function SchedulePage() {
       {showEditEmpModal && (
         <div className="sch-modal-overlay" onClick={() => setShowEditEmpModal(false)}>
           <form
-            className="sch-modal"
+            className="sch-modal sch-people-form-modal sch-edit-employee-modal"
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleSaveEmployee}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sch-edit-person-title"
           >
             <div className="sch-modal-header">
-              <h2>Chỉnh sửa thông tin nhân viên</h2>
+              <div className="sch-people-modal-heading">
+                <span className="sch-people-modal-icon"><PencilLine size={19} aria-hidden="true" /></span>
+                <div>
+                  <p className="sch-people-modal-eyebrow">HỒ SƠ NHÂN SỰ</p>
+                  <h2 id="sch-edit-person-title">Chỉnh sửa thông tin</h2>
+                  <p>Cập nhật thông tin liên hệ và vị trí công việc của nhân sự.</p>
+                </div>
+              </div>
               <button
                 type="button"
                 className="sch-modal-close"
                 onClick={() => setShowEditEmpModal(false)}
-              >&times;</button>
+                aria-label="Đóng biểu mẫu chỉnh sửa nhân sự"
+              ><X size={16} aria-hidden="true" /></button>
             </div>
 
-            <div className="sch-modal-grid">
-              <label>
-                Họ và tên
+            <div className="sch-people-modal-body">
+            <div className="sch-modal-grid sch-people-fields">
+              <div className="sch-people-field">
+                <label htmlFor="sch-edit-name"><UserRoundPlus size={15} aria-hidden="true" /> Họ và tên <em>*</em></label>
                 <input
+                  id="sch-edit-name"
                   required
                   type="text"
                   value={editEmpForm.fullName}
                   onChange={(e) => setEditEmpForm({ ...editEmpForm, fullName: e.target.value })}
                 />
-              </label>
+              </div>
 
-              <label>
-                Email
+              <div className="sch-people-field">
+                <label htmlFor="sch-edit-email"><Mail size={15} aria-hidden="true" /> Email <em>*</em></label>
                 <input
+                  id="sch-edit-email"
                   required
                   type="email"
                   value={editEmpForm.email}
                   onChange={(e) => setEditEmpForm({ ...editEmpForm, email: e.target.value })}
                 />
-              </label>
+              </div>
 
-              <label>
-                Số điện thoại
+              <div className="sch-people-field">
+                <label htmlFor="sch-edit-phone"><Phone size={15} aria-hidden="true" /> Số điện thoại</label>
                 <input
+                  id="sch-edit-phone"
                   type="text"
                   value={editEmpForm.phone}
                   onChange={(e) => setEditEmpForm({ ...editEmpForm, phone: e.target.value })}
                 />
-              </label>
+              </div>
 
-              <label>
-                Vị trí công việc
+              <div className="sch-people-field">
+                <label htmlFor="sch-edit-position"><BriefcaseBusiness size={15} aria-hidden="true" /> Vị trí công việc</label>
                 <select
+                  id="sch-edit-position"
                   value={editEmpForm.position}
                   onChange={(e) => setEditEmpForm({ ...editEmpForm, position: e.target.value })}
                 >
@@ -2746,7 +2818,8 @@ export default function SchedulePage() {
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
+            </div>
             </div>
 
             <div className="sch-modal-actions">

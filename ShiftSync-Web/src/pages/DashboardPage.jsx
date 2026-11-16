@@ -9,6 +9,7 @@ import { getSkillsByStore } from "../services/skillService";
 import { getRequests, updateRequestStatus } from "../services/requestService";
 import { getStoreLeaveRequests, approveLeaveRequest, rejectLeaveRequest } from "../services/leaveService";
 import { getStoreSwapRequests, approveSwapRequest, rejectSwapRequest } from "../services/swapService";
+import { formatSwapQuickTitle, formatSwapQuickSubtitle } from "../utils/swapDisplay";
 import { getStoreAdjustmentRequests, approveAdjustmentRequest, rejectAdjustmentRequest } from "../services/adjustmentService";
 import { getStoreLayout, getStoreZones } from "../services/layoutService";
 import { getStoreDashboardMetrics } from "../services/dashboardService";
@@ -342,8 +343,8 @@ export default function DashboardPage() {
       list.push({
         id: s.id,
         type: "swap",
-        title: `${s.fromStaffName || "Nhân viên"} xin đổi ca`,
-        subtitle: `Ca ngày ${s.fromShiftDate || "sắp tới"} → ${s.toStaffName || "người nhận"}`,
+        title: formatSwapQuickTitle(s),
+        subtitle: formatSwapQuickSubtitle(s),
         color: "var(--ss-p3)",
         staffName: s.fromStaffName,
         raw: s,
@@ -423,6 +424,11 @@ export default function DashboardPage() {
 
   // 10. Optimistic Mutation Handler (Following frontend-optimistic-mutations 5-beat lifecycle)
   const handleOptimisticAction = useCallback(async (item, action) => {
+    if (item.type === "swap" && action === "approve" && item.raw && !item.raw.employeeAccepted) {
+      toast.error("Cần đồng nghiệp xác nhận đồng ý trước khi Quản lý phê duyệt.");
+      return;
+    }
+
     // Beat 1: Guard in-flight mutation
     mutatingRef.current = true;
 
@@ -460,7 +466,7 @@ export default function DashboardPage() {
         if (action === "approve") await approveLeaveRequest(selectedStoreId, item.id);
         else await rejectLeaveRequest(selectedStoreId, item.id, { rejectionReason: "Từ chối bởi quản lý" });
       } else {
-        await updateRequestStatus(item.id, action === "approve" ? "Đã phê duyệt" : "Từ chối");
+        await updateRequestStatus(item.id, action === "approve" ? "APPROVED" : "REJECTED");
       }
     } catch (err) {
       // Roll back verbatim to snapshot

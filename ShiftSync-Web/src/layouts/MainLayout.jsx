@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/navbar/Navbar';
 import { logout } from '../services/authService';
 import { getAllStores } from '../services/storeService';
 import { getStoreLeaveRequests, getMyLeaveRequests, approveLeaveRequest, rejectLeaveRequest } from '../services/leaveService';
 import { getStoreSwapRequests, getMySwapRequests, approveSwapRequest, rejectSwapRequest } from '../services/swapService';
+import { formatSwapQuickTitle, formatSwapQuickSubtitle } from '../utils/swapDisplay';
 import { getStoreAdjustmentRequests, getMyAdjustmentRequests, approveAdjustmentRequest, rejectAdjustmentRequest } from '../services/adjustmentService';
 import { getMarketplaceShifts } from '../services/marketplaceService';
 import './MainLayout.css';
@@ -17,13 +18,15 @@ import {
   subscribeNotificationStream,
 } from '../services/notificationService';
 import { getApiErrorMessage, isRequestCanceled } from '../services/api';
+import { getAccessToken, getSessionEmail, getSessionRole } from '../services/authSession';
+import { canManageStore, getRoleLabel, isAdmin, isSystemWorkspace } from '../utils/roleAccess';
 
 export default function MainLayout() {
   const toast=useToast();
   const readRequestIds=useRef(new Set());
   const shownNotificationIds=useRef(new Set());
   const notificationPopupTimer=useRef(null);
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = getAccessToken();
   const navigate = useNavigate();
   const location = useLocation();
   const [navMode, setNavMode] = useState(() => localStorage.getItem('ss_flyout_mode') || 'top');
@@ -39,8 +42,16 @@ export default function MainLayout() {
   const [notifications, setNotifications] = useState([]);
   const [notificationPopup, setNotificationPopup] = useState(null);
 
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const userIsAdmin = isAdmin(userRole);
+  const systemWorkspace = useMemo(
+    () => isSystemWorkspace(userRole, location.pathname),
+    [userRole, location.pathname],
+  );
+  const isManager = useMemo(
+    () => canManageStore(userRole) && !systemWorkspace,
+    [userRole, systemWorkspace],
+  );
 
   const loadStores = useCallback(async (signal) => {
     if (signal?.aborted) return;
@@ -71,7 +82,7 @@ export default function MainLayout() {
   }, [loadStores]);
 
   const fetchCounts = useCallback(async () => {
-    const t = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const t = getAccessToken();
     if (!t) return;
     try {
       const [leaveRes, mktRes, unreadRes, notifRes, swapRes, adjRes] = await Promise.allSettled([
@@ -109,11 +120,12 @@ export default function MainLayout() {
           id: `swap-${s.id}`,
           rawId: s.id,
           type: 'swap',
-          title: 'Yêu cầu đổi ca',
-          description: `${s.fromStaffName || 'Nhân viên'} muốn đổi ca ${s.fromShiftDate ? `ngày ${s.fromShiftDate}` : ''} với ${s.toStaffName || 'đồng nghiệp'}`,
+          title: formatSwapQuickTitle(s),
+          description: formatSwapQuickSubtitle(s),
           createdAt: s.createdAt || new Date(),
           read: false,
-          needsAction: true,
+          needsAction: Boolean(s.employeeAccepted),
+          employeeAccepted: Boolean(s.employeeAccepted),
           source: 'swap',
         }));
       }
@@ -283,8 +295,14 @@ export default function MainLayout() {
       const realId = notif?.rawId || strId.replace(/^(swap|leave|adj)-/, '');
 
       if (source === 'swap' || strId.startsWith('swap-')) {
-        if (action === 'approve') await approveSwapRequest(realId);
-        else await rejectSwapRequest(realId);
+        if (action === 'approve') {
+          if (notif && notif.employeeAccepted === false) {
+            throw new Error('Đồng nghiệp chưa xác nhận đồng ý yêu cầu này.');
+          }
+          await approveSwapRequest(realId);
+        } else {
+          await rejectSwapRequest(realId);
+        }
       } else if ((source === 'leave' || strId.startsWith('leave-')) && selectedStoreId) {
         if (action === 'approve') await approveLeaveRequest(selectedStoreId, realId);
         else await rejectLeaveRequest(selectedStoreId, realId, { reason: 'Từ chối bởi quản lý' });
@@ -344,9 +362,9 @@ export default function MainLayout() {
 
   const currentStore = stores.find((s) => String(s.id) === String(selectedStoreId));
   const storeName = currentStore ? currentStore.name : (stores[0]?.name || 'Chưa có cửa hàng');
-  const userEmail = localStorage.getItem('userEmail') || 'manager.pvd@shiftsync.com';
+  const userEmail = getSessionEmail() || 'manager.pvd@shiftsync.com';
   const userName = localStorage.getItem('userName') || userEmail.split('@')[0];
-  const userRoleDisplay = isManager ? 'Quản lý' : 'Nhân viên';
+  const userRoleDisplay = getRoleLabel(userRole);
 
   return (
     <div
@@ -367,6 +385,7 @@ export default function MainLayout() {
           name: userName,
           role: userRoleDisplay,
           systemRole: userRole,
+          workspace: systemWorkspace ? 'SYSTEM' : 'OPERATIONS',
           avatarUrl: localStorage.getItem('userAvatarUrl') || undefined,
         }}
         storeName={storeName}
@@ -388,6 +407,21 @@ export default function MainLayout() {
         onOpenSearch={handleOpenSearch}
         onLogout={handleLogout}
       />
+      {userIsAdmin && (
+        <div className="ss-workspace-banner" role="status">
+          {systemWorkspace ? (
+            <>
+              <span>Đang ở không gian quản trị hệ thống.</span>
+              <button type="button" onClick={() => navigate('/dashboard')}>Vận hành chi nhánh</button>
+            </>
+          ) : (
+            <>
+              <span>Đang vận hành chi nhánh: <strong>{storeName}</strong>.</span>
+              <button type="button" onClick={() => navigate('/admin')}>Quay về quản trị hệ thống</button>
+            </>
+          )}
+        </div>
+      )}
       {storeLoadError && (
         <div className="ss-api-alert" role="alert">
           <span>{storeLoadError}</span>

@@ -50,16 +50,31 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
         cache-dependency-path: 'ShiftSync-Web/package-lock.json'
 
     - name: Lint, test and build web application
-      run: npm ci && npm run lint && npm run test && npm run build
+      run: npm ci && npm audit --omit=dev --audit-level=high && npm run lint && npm run test && npm run build
       working-directory: ShiftSync-Web
 
-    - name: Test and bundle mobile web application
-      run: npm ci && npm run test:week4 && npm run export:web
+    - name: Audit, test and bundle mobile web application
+      run: npm ci && npm audit --omit=dev --audit-level=high && npm run audit:a11y && npm run test:week4 && npm run export:web
+      working-directory: ShiftSync-Mobile
+
+    - name: Install Chromium for mobile browser checks
+      run: npx playwright install --with-deps chromium
+      working-directory: ShiftSync-Mobile
+
+    - name: Run mobile browser regression checks
+      run: |
+        npx expo start --web --non-interactive --port 8081 > /tmp/shiftsync-mobile-web.log 2>&1 &
+        for attempt in {1..60}; do
+          curl --fail --silent http://127.0.0.1:8081 > /dev/null && break
+          sleep 2
+        done
+        curl --fail --silent http://127.0.0.1:8081 > /dev/null
+        npm run test:browser
       working-directory: ShiftSync-Mobile
 
     - name: Run Maven Tests

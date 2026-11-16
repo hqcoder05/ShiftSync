@@ -9,7 +9,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Authentication", description = "Endpoints for user registration, login, and token refresh")
 public class AuthController {
 
+    private static final String WEB_CLIENT_HEADER = "X-ShiftSync-Client";
+    private static final String WEB_CLIENT_VALUE = "web";
+    private static final String REFRESH_COOKIE = "shiftsync_refresh";
+
     private final AuthService authService;
+
+    @Value("${auth.refresh-cookie.secure:false}")
+    private boolean refreshCookieSecure;
 
     public AuthController(AuthService authService) {
         this.authService = authService;
@@ -33,9 +43,11 @@ public class AuthController {
         @ApiResponse(responseCode = "400", description = "Invalid request payload"),
         @ApiResponse(responseCode = "401", description = "Email hoac mat khau khong dung")
     })
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(value = WEB_CLIENT_HEADER, required = false) String client) {
         AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+        return webClientResponse(response, client);
     }
 
     @PostMapping("/refresh")
@@ -45,9 +57,17 @@ public class AuthController {
         @ApiResponse(responseCode = "400", description = "Invalid request payload"),
         @ApiResponse(responseCode = "401", description = "Phien dang nhap da het han hoac khong hop le")
     })
-    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        AuthResponse response = authService.refresh(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<AuthResponse> refresh(
+            @RequestBody(required = false) RefreshRequest request,
+            @CookieValue(value = REFRESH_COOKIE, required = false) String refreshCookie,
+            @org.springframework.web.bind.annotation.RequestHeader(value = WEB_CLIENT_HEADER, required = false) String client) {
+        String refreshToken = isWebClient(client) ? refreshCookie : request == null ? null : request.getRefreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new com.shiftsync.shared.exception.BusinessException("Phien dang nhap da het han hoac khong hop le", org.springframework.http.HttpStatus.UNAUTHORIZED);
+        }
+        RefreshRequest refreshRequest = new RefreshRequest();
+        refreshRequest.setRefreshToken(refreshToken);
+        return webClientResponse(authService.refresh(refreshRequest), client);
     }
 
     @PostMapping("/logout")
@@ -57,8 +77,10 @@ public class AuthController {
         @ApiResponse(responseCode = "400", description = "Invalid request payload")
     })
     public ResponseEntity<Void> logout(
-            @jakarta.validation.Valid @RequestBody com.shiftsync.auth.dto.LogoutRequest request,
-            jakarta.servlet.http.HttpServletRequest httpRequest) {
+            @RequestBody(required = false) com.shiftsync.auth.dto.LogoutRequest request,
+            jakarta.servlet.http.HttpServletRequest httpRequest,
+            @CookieValue(value = REFRESH_COOKIE, required = false) String refreshCookie,
+            @org.springframework.web.bind.annotation.RequestHeader(value = WEB_CLIENT_HEADER, required = false) String client) {
         
         String authHeader = httpRequest.getHeader("Authorization");
         String accessToken = null;
@@ -66,7 +88,33 @@ public class AuthController {
             accessToken = authHeader.substring(7);
         }
         
-        authService.logout(accessToken, request.getRefreshToken());
-        return ResponseEntity.noContent().build();
+        String refreshToken = isWebClient(client) ? refreshCookie : request == null ? null : request.getRefreshToken();
+        authService.logout(accessToken, refreshToken);
+        ResponseEntity.HeadersBuilder<?> response = ResponseEntity.noContent();
+        if (isWebClient(client)) response.header("Set-Cookie", refreshCookie(null, 0).toString());
+        return response.build();
+    }
+
+    private ResponseEntity<AuthResponse> webClientResponse(AuthResponse response, String client) {
+        if (!isWebClient(client)) return ResponseEntity.ok(response);
+        String refreshToken = response.getRefreshToken();
+        response.setRefreshToken(null);
+        return ResponseEntity.ok()
+                .header("Set-Cookie", refreshCookie(refreshToken, java.time.Duration.ofDays(7).toSeconds()).toString())
+                .body(response);
+    }
+
+    private boolean isWebClient(String client) {
+        return WEB_CLIENT_VALUE.equalsIgnoreCase(client);
+    }
+
+    private ResponseCookie refreshCookie(String value, long maxAgeSeconds) {
+        return ResponseCookie.from(REFRESH_COOKIE, value == null ? "" : value)
+                .httpOnly(true)
+                .secure(refreshCookieSecure)
+                .sameSite("Lax")
+                .path("/api/auth")
+                .maxAge(maxAgeSeconds)
+                .build();
     }
 }

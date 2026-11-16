@@ -6,6 +6,8 @@ import { getStoreAdjustmentRequests, getMyAdjustmentRequests } from '../services
 import { getStoreSwapRequests, getMySwapRequests } from '../services/swapService';
 import { getIncomingWorkforceRequests, getMyWorkforceProposals } from '../services/workforceService';
 import { getMarketplaceShifts } from '../services/marketplaceService';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import {
   Clock,
   FileText,
@@ -38,8 +40,8 @@ export default function RequestPage() {
   }, [rawTab, navigate]);
 
   // Context & Stats
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const isManager = canManageStore(userRole);
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(() => localStorage.getItem('selectedStoreId') || '');
 

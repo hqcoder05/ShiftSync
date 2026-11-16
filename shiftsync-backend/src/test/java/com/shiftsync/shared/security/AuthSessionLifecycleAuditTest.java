@@ -75,6 +75,14 @@ class AuthSessionLifecycleAuditTest {
         assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->auth.refresh(refresh));
     }
 
+    @Test void changingEmailInvalidatesExistingAccessTokens() throws Exception {
+        var session=login();
+        var update=UserUpdateRequest.builder().fullName(user.getFullName()).email("updated-session@audit.invalid").build();
+        new UserService(users,encoder,mock(AuditLogService.class)).updateUser(user.getId(),update,new CustomUserDetails(user));
+        assertEquals("updated-session@audit.invalid",user.getEmail());
+        assertFalse(authenticates(session.getAccessToken()));
+    }
+
     @Test void simultaneousLoginsHaveIndependentAccessTokens() throws Exception {
         AuthResponse first=login(),second=login();
         assertNotEquals(first.getAccessToken(),second.getAccessToken());

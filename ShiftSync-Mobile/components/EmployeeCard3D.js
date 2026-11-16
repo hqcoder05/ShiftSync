@@ -14,6 +14,8 @@ import {
 import Svg, { Rect, Path, G, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import Avatar3D from './Avatar3D';
 
+const canUseNativeAnimationDriver = Platform.OS !== 'web';
+
 /**
  * EmployeeCard3D.js
  * ─────────────────────────────────────────────────────────────────────────────
@@ -48,12 +50,12 @@ export default function EmployeeCard3D({
         Animated.timing(idleAnim, {
           toValue: 1,
           duration: 3200,
-          useNativeDriver: true,
+          useNativeDriver: canUseNativeAnimationDriver,
         }),
         Animated.timing(idleAnim, {
           toValue: 0,
           duration: 3200,
-          useNativeDriver: true,
+          useNativeDriver: canUseNativeAnimationDriver,
         }),
       ])
     );
@@ -68,7 +70,7 @@ export default function EmployeeCard3D({
       toValue,
       friction: 7,
       tension: 12,
-      useNativeDriver: true,
+      useNativeDriver: canUseNativeAnimationDriver,
     }).start();
     setIsFlipped(!isFlipped);
   };
@@ -87,8 +89,8 @@ export default function EmployeeCard3D({
         tiltX.setValue(rotateX);
       },
       onPanResponderRelease: () => {
-        Animated.spring(tiltX, { toValue: 0, friction: 6, useNativeDriver: true }).start();
-        Animated.spring(tiltY, { toValue: 0, friction: 6, useNativeDriver: true }).start();
+        Animated.spring(tiltX, { toValue: 0, friction: 6, useNativeDriver: canUseNativeAnimationDriver }).start();
+        Animated.spring(tiltY, { toValue: 0, friction: 6, useNativeDriver: canUseNativeAnimationDriver }).start();
       },
     })
   ).current;
@@ -112,8 +114,8 @@ export default function EmployeeCard3D({
 
   const handleWebMouseLeave = () => {
     if (Platform.OS !== 'web') return;
-    Animated.spring(tiltX, { toValue: 0, friction: 6, useNativeDriver: true }).start();
-    Animated.spring(tiltY, { toValue: 0, friction: 6, useNativeDriver: true }).start();
+    Animated.spring(tiltX, { toValue: 0, friction: 6, useNativeDriver: canUseNativeAnimationDriver }).start();
+    Animated.spring(tiltY, { toValue: 0, friction: 6, useNativeDriver: canUseNativeAnimationDriver }).start();
   };
 
   // Kết hợp góc nghiêng idle float (3° -> 5.5°) và góc nghiêng tương tác (tiltX, tiltY)

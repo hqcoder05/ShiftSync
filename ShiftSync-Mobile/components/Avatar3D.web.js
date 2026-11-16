@@ -11,18 +11,6 @@ import { View, StyleSheet } from 'react-native';
 import { Canvas } from '@react-three/fiber';
 import Avatar3DScene from './Avatar3DScene';
 
-// Silence Fiber internal THREE.Clock deprecation warning
-if (typeof window !== 'undefined' && !window.__ss_clock_filter_installed) {
-  window.__ss_clock_filter_installed = true;
-  const _origWarn = console.warn;
-  console.warn = (...args) => {
-    if (typeof args[0] === 'string' && (args[0].includes('THREE.Clock') || args[0].includes('WEBGL_lose_context'))) {
-      return;
-    }
-    _origWarn.apply(console, args);
-  };
-}
-
 export default function Avatar3D({
   size         = 80,
   skinColor    = '#F4C5A3',

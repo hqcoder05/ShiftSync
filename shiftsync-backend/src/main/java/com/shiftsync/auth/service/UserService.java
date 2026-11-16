@@ -16,7 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.shiftsync.employment.entity.Employment;
 import com.shiftsync.employment.enums.EmploymentStatus;
 import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.employment.repository.ContractTypeRepository;
+import com.shiftsync.employment.entity.ContractType;
 import com.shiftsync.shared.security.SystemRole;
+import com.shiftsync.store.entity.Store;
+import com.shiftsync.store.repository.StoreRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -29,7 +33,9 @@ import com.shiftsync.shared.security.CustomUserDetails;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.time.LocalDate;
 
 @Service
 public class UserService {
@@ -37,6 +43,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmploymentRepository employmentRepository;
+    private final StoreRepository storeRepository;
+    private final ContractTypeRepository contractTypeRepository;
     private final SkillRepository skillRepository;
     private final StaffSkillRepository staffSkillRepository;
 
@@ -47,17 +55,28 @@ public class UserService {
             AuditLogService auditLogService,
             @Autowired(required = false) EmploymentRepository employmentRepository,
             @Autowired(required = false) SkillRepository skillRepository,
-            @Autowired(required = false) StaffSkillRepository staffSkillRepository) {
+            @Autowired(required = false) StaffSkillRepository staffSkillRepository,
+            @Autowired(required = false) StoreRepository storeRepository,
+            @Autowired(required = false) ContractTypeRepository contractTypeRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
         this.employmentRepository = employmentRepository;
+        this.storeRepository = storeRepository;
+        this.contractTypeRepository = contractTypeRepository;
         this.skillRepository = skillRepository;
         this.staffSkillRepository = staffSkillRepository;
     }
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService) {
-        this(userRepository, passwordEncoder, auditLogService, null, null, null);
+        this(userRepository, passwordEncoder, auditLogService, null, null, null, null, null);
+    }
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuditLogService auditLogService,
+                       EmploymentRepository employmentRepository, SkillRepository skillRepository,
+                       StaffSkillRepository staffSkillRepository) {
+        this(userRepository, passwordEncoder, auditLogService, employmentRepository, skillRepository,
+                staffSkillRepository, null, null);
     }
 
     @Transactional
@@ -78,6 +97,9 @@ public class UserService {
             }
             if (actorRole == SystemRole.MANAGER && request.getSystemRole() != SystemRole.STAFF) {
                 throw new BusinessException("Quản lý chỉ có quyền tạo tài khoản Nhân viên (STAFF)", HttpStatus.FORBIDDEN);
+            }
+            if (request.getSystemRole() == SystemRole.STAFF && request.getStoreId() == null) {
+                throw new BusinessException("Cần chọn chi nhánh khi tạo tài khoản nhân viên", HttpStatus.BAD_REQUEST);
             }
         } else {
             if (request.getSystemRole() == SystemRole.ADMIN) {
@@ -100,6 +122,10 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
+        if (request.getStoreId() != null) {
+            createInitialEmployment(savedUser, request, actorDetails);
+        }
+
         // Atomic Skill Assignment if role is STAFF and skillIds provided
         if (request.getSystemRole() == SystemRole.STAFF && request.getSkillIds() != null && !request.getSkillIds().isEmpty()) {
             if (skillRepository != null && staffSkillRepository != null) {
@@ -118,7 +144,52 @@ public class UserService {
             }
         }
 
+        auditLogService.log(actorDetails == null ? null : actorDetails.getId(), "CREATE", "User", savedUser.getId(),
+                null, java.util.Map.of("email", savedUser.getEmail(), "role", savedUser.getSystemRole().name(),
+                        "storeId", request.getStoreId() == null ? "" : request.getStoreId().toString()));
         return UserMapper.toDTO(savedUser);
+    }
+
+    private void createInitialEmployment(User user, UserCreateRequest request, CustomUserDetails actorDetails) {
+        if (employmentRepository == null || storeRepository == null || contractTypeRepository == null) {
+            throw new IllegalStateException("Thiếu cấu hình dịch vụ phân công nhân sự");
+        }
+        UUID storeId = request.getStoreId();
+        if (actorDetails != null && actorDetails.getUser() != null
+                && actorDetails.getUser().getSystemRole() == SystemRole.MANAGER
+                && !employmentRepository.isStaffInStore(actorDetails.getId(), storeId, EmploymentStatus.ACTIVE)) {
+            throw new BusinessException("Không có quyền tạo nhân sự cho chi nhánh này", HttpStatus.FORBIDDEN);
+        }
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy chi nhánh", HttpStatus.NOT_FOUND));
+        ContractType contractType;
+        if (request.getContractTypeId() != null) {
+            contractType = contractTypeRepository.findById(request.getContractTypeId())
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy loại hợp đồng đã chọn", HttpStatus.BAD_REQUEST));
+            if (contractType.getStore() == null || !storeId.equals(contractType.getStore().getId())) {
+                throw new BusinessException("Loại hợp đồng không thuộc chi nhánh được chọn", HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            contractType = contractTypeRepository.findByStoreId(storeId).stream().findFirst()
+                    .orElseThrow(() -> new BusinessException("Chi nhánh chưa có loại hợp đồng; cần cấu hình trước khi tạo nhân sự", HttpStatus.CONFLICT));
+        }
+        // Shift payroll resolves the assigned skill/position rate first. The
+        // employment rate is only the contractual fallback, never user input
+        // at account-creation time.
+        java.math.BigDecimal hourlyRate = contractType.getDefaultHourlyRate();
+        if (hourlyRate == null || hourlyRate.signum() <= 0) {
+            throw new BusinessException("Lương theo giờ phải lớn hơn 0", HttpStatus.BAD_REQUEST);
+        }
+        employmentRepository.save(Employment.builder()
+                .user(user)
+                .store(store)
+                .contractType(contractType)
+                .hourlyRate(hourlyRate)
+                .status(EmploymentStatus.ACTIVE)
+                .joinedDate(request.getJoinedDate() == null
+                        ? LocalDate.now(com.shiftsync.payroll.service.CompensationEffectiveDate.BUSINESS_ZONE)
+                        : request.getJoinedDate())
+                .build());
     }
 
         @Transactional(readOnly = true)
@@ -165,6 +236,8 @@ public class UserService {
     public UserDTO updateUser(UUID id, UserUpdateRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("User not found with id: " + id, HttpStatus.NOT_FOUND));
+        String previousEmail = user.getEmail();
+        boolean emailChanged = !Objects.equals(previousEmail, request.getEmail());
 
         userRepository.findByEmail(request.getEmail())
                 .ifPresent(existing -> {
@@ -183,8 +256,13 @@ public class UserService {
             user.setAvatarId(request.getAvatarId());
         }
 
-        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+        boolean passwordChanged = request.getPassword() != null && !request.getPassword().trim().isEmpty();
+        if (passwordChanged) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        }
+        // Email appears in the token subject and password proves account ownership.
+        // Either change must close every pre-existing access and refresh session.
+        if (emailChanged || passwordChanged) {
             user.setCredentialVersion(user.getCredentialVersion() + 1);
         }
 
@@ -194,6 +272,7 @@ public class UserService {
 
     @Transactional
     public UserDTO updateUserAvatar(UUID id, String avatarId) {
+        com.shiftsync.shared.security.AvatarUrlPolicy.validate(avatarId);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("User not found with id: " + id, HttpStatus.NOT_FOUND));
         user.setAvatarId(avatarId);
@@ -232,7 +311,16 @@ public class UserService {
     @Transactional
     public UserDTO updateUser(java.util.UUID id, com.shiftsync.auth.dto.UserUpdateRequest request, com.shiftsync.shared.security.CustomUserDetails userDetails) {
         authorizeUserAccess(id, userDetails, true);
-        return updateUser(id, request);
+        String previousEmail = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy tài khoản", HttpStatus.NOT_FOUND))
+                .getEmail();
+        boolean emailChanged = !Objects.equals(previousEmail, request.getEmail());
+        boolean passwordChanged = request.getPassword() != null && !request.getPassword().trim().isEmpty();
+        UserDTO updated = updateUser(id, request);
+        auditLogService.log(userDetails.getId(), "UPDATE", "User", id,
+                java.util.Map.of("email", userDetails.getId().equals(id) ? "self" : "staff"),
+                java.util.Map.of("emailChanged", emailChanged, "passwordChanged", passwordChanged));
+        return updated;
     }
 
     private void authorizeUserAccess(UUID targetId, CustomUserDetails actor, boolean modifying) {

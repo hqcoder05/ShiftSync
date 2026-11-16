@@ -430,6 +430,12 @@ public class ShiftScheduleExceptionAuditTest {
             when(employmentRepository.existsByUserIdAndStoreIdAndStatus(managerId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
             when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffAId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
             when(employmentRepository.existsByUserIdAndStoreIdAndStatus(staffBId, storeId, EmploymentStatus.ACTIVE)).thenReturn(true);
+            when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftA.getId(), staffAId))
+                    .thenReturn(Optional.of(ShiftAssignment.builder().id(UUID.randomUUID()).shift(shiftA).staff(staffA)
+                            .source(com.shiftsync.shift.enums.AssignmentSource.MANUAL).build()));
+            when(shiftAssignmentRepository.findByShiftIdAndStaffId(shiftB.getId(), staffBId))
+                    .thenReturn(Optional.of(ShiftAssignment.builder().id(UUID.randomUUID()).shift(shiftB).staff(staffB)
+                            .source(com.shiftsync.shift.enums.AssignmentSource.MANUAL).build()));
             when(leaveRequestRepository.findOverlappingRequests(staffAId, dateB, dateB))
                     .thenReturn(List.of(LeaveRequest.builder().status(LeaveStatus.APPROVED).build()));
 

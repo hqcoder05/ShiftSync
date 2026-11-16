@@ -15,6 +15,15 @@ public interface ShiftSwapRequestRepository extends JpaRepository<ShiftSwapReque
     boolean existsByFromShiftIdAndStatus(UUID fromShiftId, SwapStatus status);
     boolean existsByToShiftIdAndStatus(UUID toShiftId, SwapStatus status);
 
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM ShiftSwapRequest s WHERE s.status = :status " +
+           "AND ((s.fromShift.id = :shiftId AND s.fromStaff.id = :staffId) " +
+           "OR (s.toShift.id = :shiftId AND s.toStaff.id = :staffId))")
+    List<ShiftSwapRequest> findByStatusAndShiftAndStaff(@org.springframework.data.repository.query.Param("status") SwapStatus status,
+                                                        @org.springframework.data.repository.query.Param("shiftId") UUID shiftId,
+                                                        @org.springframework.data.repository.query.Param("staffId") UUID staffId);
+
+    List<ShiftSwapRequest> findByStatus(SwapStatus status);
+
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(s) FROM ShiftSwapRequest s WHERE s.fromShift.store.id = :storeId " +
            "AND s.fromShift.shiftDate >= :startDate AND s.fromShift.shiftDate <= :endDate")
     long countSwapRequestsByStoreAndDateRange(@org.springframework.data.repository.query.Param("storeId") UUID storeId, 

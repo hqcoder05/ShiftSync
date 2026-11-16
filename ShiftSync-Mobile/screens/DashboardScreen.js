@@ -77,6 +77,13 @@ const hasAuthenticatedAssignment = (item, userId) => (
   )
 );
 
+const shiftTimeMinutes = (value) => {
+  const [hour, minute] = typeof value === 'string'
+    ? value.split(':').map(Number)
+    : [Number(value?.hour), Number(value?.minute)];
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : -1;
+};
+
 function ShiftRow({ item, userId, onPress }) {
   const startTime = formatTimeWithPeriod(item.startTime);
   const endTime = formatTimeWithPeriod(item.endTime);
@@ -141,23 +148,28 @@ export default function DashboardScreen({ navigation }) {
         setTodayAttendance(null);
       }));
 
-      try {
-        const res = await getMyProfile();
+      pending.push(getMyProfile().then(async (res) => {
         const profile = res.data;
         setUserId(profile?.id || null);
         const name = profile?.fullName || profile?.name || '';
         setUserName(name);
-
         setSelectedAvatarId(await resolveProfileAvatar(profile));
-
-
-      } catch (err) {
+      }).catch(async () => {
         // Nếu API profile lỗi/offline, luôn đọc lại avatar đã lưu trong AsyncStorage
         const cached = await getStoredAvatar();
         if (cached) setSelectedAvatarId(cached);
-      }
+      }));
+
+      // Không để một API chậm giữ toàn bộ Dashboard ở spinner. Các tác vụ vẫn
+      // hoàn tất ở nền và tự cập nhật các thẻ tương ứng khi có dữ liệu.
+      const complete = Promise.allSettled(pending);
+      await Promise.race([
+        complete,
+        new Promise((resolve) => setTimeout(resolve, 850)),
+      ]);
+      setLoading(false);
+      await complete;
     } finally {
-      await Promise.allSettled(pending);
       setLoading(false);
       isFetchingRef.current = false;
     }
@@ -205,7 +217,18 @@ export default function DashboardScreen({ navigation }) {
     [assignedShifts, todayIso, userId]
   );
 
-  const todayShift = realShifts.find((shift) => shift.shiftDate === todayIso);
+  const todayShifts = realShifts.filter((shift) => shift.shiftDate === todayIso);
+  const vietnamNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const currentVietnamMinutes = vietnamNow.getUTCHours() * 60 + vietnamNow.getUTCMinutes();
+  const todayNextShift = todayShifts.find((shift) => shiftTimeMinutes(shift.startTime) > currentVietnamMinutes);
+  const todayShift = todayShifts.find((shift) => (
+    shiftTimeMinutes(shift.startTime) <= currentVietnamMinutes
+    && shiftTimeMinutes(shift.endTime) > currentVietnamMinutes
+  ));
+  const nextShift = realShifts.find((shift) => (
+    shift.shiftDate > todayIso
+    || (shift.shiftDate === todayIso && shiftTimeMinutes(shift.startTime) > currentVietnamMinutes)
+  ));
 
   // ✅ Báo cáo thu nhập: Backend là Source of Truth. Ưu tiên phiếu lương chính thức từ kỳ gần nhất
   const calculatedStats = useMemo(() => {
@@ -223,8 +246,14 @@ export default function DashboardScreen({ navigation }) {
   }, [latestPayslip]);
 
   // ✅ Shifts được lấy trực tiếp từ API, không cần map thành mảng
-  const todayShifts = realShifts.filter((shift) => shift.shiftDate === todayIso);
-  const displayShifts = realShifts.filter((shift) => shift.shiftDate > todayIso).slice(0, 3);
+  const displayShifts = nextShift ? [nextShift] : [];
+  const emptyBannerMessage = loadError
+    ? 'Kiểm tra kết nối và nhấn để thử lại.'
+    : todayNextShift
+      ? `Ca tiếp theo hôm nay bắt đầu lúc ${formatTimeWithPeriod(todayNextShift.startTime).time} ${formatTimeWithPeriod(todayNextShift.startTime).period}.`
+      : todayShifts.length
+        ? 'Các ca hôm nay đã kết thúc. Xem ca tiếp theo bên dưới.'
+        : 'Hôm nay chưa có ca làm. Ca tiếp theo sẽ hiển thị bên dưới.';
   const isCheckedIn = Boolean(todayAttendance?.checkInTime);
   const isCheckedOut = Boolean(todayAttendance?.checkOutTime);
   const startTimeObj = todayShift ? formatTimeWithPeriod(todayShift.startTime) : null;
@@ -250,7 +279,7 @@ export default function DashboardScreen({ navigation }) {
           </View>
           <View style={s.todayHeading}><Text style={s.today}>HÔM NAY</Text><Text style={s.todayDate}>{todayText}</Text></View>
           <Text accessibilityRole="header" style={s.headline}>{loadError ? 'Chưa tải được lịch làm' : todayShifts.length ? `Bạn có ${todayShifts.length === 1 ? 'một' : todayShifts.length} ca làm hôm nay` : 'Một ngày chưa có ca làm'}</Text>
-          {!todayShift && <Pressable accessibilityRole="button" onPress={() => loadError ? loadData() : nav(navigation, 'Schedule')} style={ensureTouchTarget(s.emptyBanner)}><Text style={s.emptyBannerText}>{loadError ? 'Kiểm tra kết nối và nhấn để thử lại.' : 'Lịch trống hôm nay. Bạn có thể xem các ca sắp tới tại đây.'}</Text><Ionicons name="chevron-forward" size={18} color={uiColors.secondary} accessible={false} /></Pressable>}
+          {!todayShift && <Pressable accessibilityRole="button" onPress={() => loadError ? loadData() : nav(navigation, 'Schedule')} style={ensureTouchTarget(s.emptyBanner)}><Text style={s.emptyBannerText}>{emptyBannerMessage}</Text><Ionicons name="chevron-forward" size={18} color={uiColors.secondary} accessible={false} /></Pressable>}
           {todayShift && (
             <Pressable accessibilityRole="button" accessibilityLabel={isCheckedOut ? 'Xem lịch sử chấm công của ca hôm nay' : isCheckedIn ? 'Mở chấm công ra ca hôm nay' : 'Mở chấm công vào ca hôm nay'} onPress={() => nav(navigation, 'Attendance')} style={ensureTouchTarget(({ pressed }) => [s.todayCard, pressed && s.pressed])}>
               <View style={s.timeRange}>
@@ -271,10 +300,10 @@ export default function DashboardScreen({ navigation }) {
 
         <View style={s.upcomingSection}>
           <View style={s.sectionHeader}>
-            <Text accessibilityRole="header" style={s.sectionTitle}>Ca làm việc sắp tới</Text>
+            <Text accessibilityRole="header" style={s.sectionTitle}>Ca tiếp theo</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Xem tất cả lịch làm việc" onPress={() => nav(navigation, 'Schedule')} style={ensureTouchTarget(s.sectionLink)}><Text style={s.link}>Xem tất cả</Text></Pressable>
           </View>
-          {displayShifts.length ? displayShifts.map((item) => <ShiftRow key={item.id} item={item} userId={userId} onPress={() => nav(navigation, 'Schedule')} />) : <Text style={s.empty}>Chưa có ca làm việc sắp tới.</Text>}
+          {displayShifts.length ? displayShifts.map((item) => <ShiftRow key={item.id} item={item} userId={userId} onPress={() => nav(navigation, 'Schedule')} />) : <Text style={s.empty}>Chưa có ca tiếp theo được công bố.</Text>}
         </View>
 
         <View style={s.income}>

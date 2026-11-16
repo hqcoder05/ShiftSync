@@ -303,15 +303,19 @@ public class ShiftAssignmentService {
         publishShiftEventAfterCommit(storeId, "ASSIGNMENT_CREATED", shiftId, staffId,
                 assignedZone == null ? null : assignedZone.getId());
 
-        try {
-            notificationService.sendNotification(
-                    staff.getId(),
-                    com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
-                    "Phân công ca làm việc",
-                    "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
-                    java.util.Map.of("shiftId", shift.getId().toString())
-            );
-        } catch (Exception ignored) {
+        // Draft assignments are internal scheduling work. The publishShifts
+        // flow sends the employee notification after the schedule is published.
+        if (shift.getStatus() == com.shiftsync.shift.enums.ShiftStatus.PUBLISHED) {
+            try {
+                notificationService.sendNotification(
+                        staff.getId(),
+                        com.shiftsync.notification.entity.NotificationType.SCHEDULE_PUBLISHED,
+                        "Phân công ca làm việc",
+                        "Bạn đã được phân công ca làm việc ngày " + shift.getShiftDate() + " (" + shift.getStartTime() + " - " + shift.getEndTime() + ")",
+                        java.util.Map.of("shiftId", shift.getId().toString())
+                );
+            } catch (Exception ignored) {
+            }
         }
 
         return mapToResponseDTO(assignment);

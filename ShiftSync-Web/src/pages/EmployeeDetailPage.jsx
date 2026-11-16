@@ -11,6 +11,7 @@ import { getStoreAttendance } from '../services/attendanceService';
 import { getStaffAvailability } from '../services/availabilityService';
 import { getCompensationHistory, reconcileCompensationHistory } from '../services/historicalCompensationService';
 import { getApiErrorMessage, isRequestCanceled } from '../services/api';
+import { getSessionRole } from '../services/authSession';
 import Avatar3DWeb from '../components/Avatar3DWeb';
 import { getAvatarById, getAvatarForEmployee } from '../components/avatarConfigs';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
@@ -75,6 +76,7 @@ export default function EmployeeDetailPage() {
     password: '',
     cccd: '',
     storeId: '',
+    contractTypeId: '',
     status: 'ACTIVE',
     address: '',
     dob: '',
@@ -90,6 +92,8 @@ export default function EmployeeDetailPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editContractTypes, setEditContractTypes] = useState([]);
+  const [loadingEditContracts, setLoadingEditContracts] = useState(false);
 
   // Skills Management
   const [allSkills, setAllSkills] = useState([]);
@@ -137,7 +141,8 @@ export default function EmployeeDetailPage() {
       email: employee?.email || '',
       password: '',
       cccd: empMeta.cccd || '',
-      storeId: editForm.storeId,
+      storeId: activeEmployment?.storeId || editForm.storeId,
+      contractTypeId: activeEmployment?.scheduledContractTypeId || activeEmployment?.contractType?.id || '',
       status: employee?.status || 'ACTIVE',
       address: empMeta.address || '',
       dob: empMeta.dob || '',
@@ -148,6 +153,36 @@ export default function EmployeeDetailPage() {
     setSkillSearch('');
     setShowEditModal(true);
   };
+
+  // The available contract types always follow the branch selected in the
+  // profile modal. A contract cannot be selected across branches.
+  useEffect(() => {
+    if (!showEditModal || !editForm.storeId) return undefined;
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setLoadingEditContracts(true);
+    });
+    getContractTypes(editForm.storeId)
+      .then((response) => {
+        if (!active) return;
+        const list = Array.isArray(response.data) ? response.data : (response.data?.content || []);
+        setEditContractTypes(list);
+        setEditForm((previous) => {
+          if (String(previous.storeId) !== String(editForm.storeId)) return previous;
+          const selectedExists = list.some((contract) => String(contract.id) === String(previous.contractTypeId));
+          return selectedExists || !list[0]?.id
+            ? previous
+            : { ...previous, contractTypeId: String(list[0].id) };
+        });
+      })
+      .catch(() => {
+        if (active) setEditContractTypes([]);
+      })
+      .finally(() => {
+        if (active) setLoadingEditContracts(false);
+      });
+    return () => { active = false; };
+  }, [showEditModal, editForm.storeId]);
 
   const showToast = (msg) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -255,6 +290,7 @@ export default function EmployeeDetailPage() {
         const targetStoreId = (aList[0]?.storeId) || localStorage.getItem('selectedStoreId') || storeList[0]?.id || '';
 
         // 5. Populate initial edit form
+        const targetEmployment = aList.find((assignment) => assignment.status === 'ACTIVE') || aList[0];
         setEditForm({
           fullName: empData.fullName || '',
           phone: empData.phone || '',
@@ -262,7 +298,8 @@ export default function EmployeeDetailPage() {
           password: '',
           cccd: currentMeta.cccd || '',
           storeId: targetStoreId,
-          status: aList[0]?.status || empData.status || 'ACTIVE',
+          contractTypeId: targetEmployment?.scheduledContractTypeId || targetEmployment?.contractType?.id || '',
+          status: targetEmployment?.status || empData.status || 'ACTIVE',
           address: currentMeta.address || '',
           dob: currentMeta.dob || '',
           gender: currentMeta.gender || 'Nam'
@@ -327,9 +364,7 @@ export default function EmployeeDetailPage() {
   }, [id, reloadKey]);
 
   // Primary active employment
-  const activeEmployment = useMemo(() => {
-    return assignedStores.find(a => a.status === 'ACTIVE') || assignedStores[0] || null;
-  }, [assignedStores]);
+  const activeEmployment = assignedStores.find((assignment) => assignment.status === 'ACTIVE') || assignedStores[0] || null;
 
   useEffect(() => {
     if (activeTab !== 'payroll' || !activeEmployment?.storeId || !activeEmployment?.id) return;
@@ -544,22 +579,26 @@ export default function EmployeeDetailPage() {
     };
   }, [availability]);
 
-  // Show only skills actually assigned to this staff member and the current contractual rate.
+  // Shift payroll resolves the assigned skill rate first; an employment rate
+  // is only a fallback for shifts without a required skill.
   const payMatrix = useMemo(() => {
-    if (staffSkills.length > 0 && Number.isFinite(hourlyRateNum)) {
+    if (staffSkills.length > 0) {
       return staffSkills.map((sk, index) => {
         const isPrimary = index === 0;
+        const skillRate = Number(sk.hourlyRate);
         return {
           id: sk.id,
           name: sk.name,
           type: isPrimary ? 'Định mức chính' : 'Kiêm nhiệm',
-          rate: `${hourlyRateNum.toLocaleString('vi-VN')} đ/giờ`,
+          rate: Number.isFinite(skillRate) && skillRate >= 0
+            ? `${skillRate.toLocaleString('vi-VN')} đ/giờ`
+            : 'Chưa thiết lập mức lương kỹ năng',
           color: index === 0 ? 'var(--emp-primary)' : index === 1 ? 'var(--emp-secondary)' : 'var(--emp-outline)'
         };
       });
     }
     return [];
-  }, [staffSkills, hourlyRateNum]);
+  }, [staffSkills]);
 
   // Password validation helper
   const validatePassword = (pwd) => {
@@ -584,6 +623,14 @@ export default function EmployeeDetailPage() {
       }
     }
 
+    const selectedContract = editContractTypes.find(
+      (contract) => String(contract.id) === String(editForm.contractTypeId)
+    );
+    if (editForm.storeId && (!selectedContract || Number(selectedContract.defaultHourlyRate) <= 0)) {
+      showToast('Vui lòng chọn loại hợp đồng hợp lệ cho chi nhánh này.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       // 1. Update basic user in backend (including password if entered)
@@ -601,25 +648,29 @@ export default function EmployeeDetailPage() {
 
       // 2. Update store assignment if storeId provided
       if (editForm.storeId) {
-        const isAlreadyInStore = assignedStores.some(
-          (a) => String(a.storeId) === String(editForm.storeId) && a.status === 'ACTIVE'
+        const employmentAtSelectedStore = assignedStores.find(
+          (assignment) => String(assignment.storeId) === String(editForm.storeId) && assignment.status === 'ACTIVE'
         );
-        if (!isAlreadyInStore) {
-          try {
-            const ctRes = await getContractTypes(editForm.storeId);
-            const cts = ctRes?.data || [];
-            const contractTypeId = cts[0]?.id;
-            if (contractTypeId) {
-              await assignStaffToStore(editForm.storeId, {
-                staffId: employee.id,
-                contractTypeId,
-                hourlyRate: hourlyRateNum || 28000,
-                joinedDate: activeEmployment?.joinedDate || new Date().toISOString().slice(0, 10),
-              });
-            }
-          } catch (err) {
-            console.warn('Store assignment sync warning:', err.message);
+        if (employmentAtSelectedStore) {
+          const currentContractId = employmentAtSelectedStore.contractType?.id;
+          if (String(currentContractId) !== String(selectedContract.id)) {
+            const response = await updateEmployment(editForm.storeId, employee.id, {
+              contractTypeId: selectedContract.id,
+              // The contract is the fallback only; skill/position decides actual shift pay.
+              hourlyRate: Number(selectedContract.defaultHourlyRate),
+              effectiveDate: tomorrowInVietnam(),
+            });
+            setAssignedStores((rows) => rows.map((row) => row.id === response.data.id ? response.data : row));
+            showToast(`Đã lên lịch áp dụng hợp đồng mới từ ${response.data.scheduledEffectiveDate || tomorrowInVietnam()}.`);
           }
+        } else {
+          const response = await assignStaffToStore(editForm.storeId, {
+            staffId: employee.id,
+            contractTypeId: selectedContract.id,
+            hourlyRate: Number(selectedContract.defaultHourlyRate),
+            joinedDate: activeEmployment?.joinedDate || new Date().toISOString().slice(0, 10),
+          });
+          setAssignedStores((rows) => [...rows, response.data]);
         }
       }
 
@@ -649,7 +700,7 @@ export default function EmployeeDetailPage() {
         fullName: editForm.fullName,
         phone: editForm.phone,
         email: editForm.email || prev.email,
-        status: editForm.status
+        status: employee.status
       }));
 
       setShowEditModal(false);
@@ -1168,7 +1219,7 @@ export default function EmployeeDetailPage() {
                 </tbody>
               </table>
             </div>
-            {['ADMIN'].includes(localStorage.getItem('userRole') || localStorage.getItem('role')) && compensationHistory && (
+            {['ADMIN'].includes(getSessionRole()) && compensationHistory && (
               <div style={{ marginTop: 24 }}>
                 <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>Lịch sử điều khoản lương</h4>
                 {compensationHistory.untrackedChanges && <p style={{ color: '#b42318', fontSize: 12 }}>Có thay đổi lịch sử chưa được đối soát. Mở phần quản trị bảng lương để bổ sung căn cứ.</p>}
@@ -1198,7 +1249,7 @@ export default function EmployeeDetailPage() {
               {activeEmployment.scheduledContractTypeId !== activeEmployment.contractType?.id && ' (có thay đổi loại hợp đồng)'}
             </dd></div>}
           </dl> : <p className="hr-muted">Chưa có thông tin hợp đồng hoặc phân công chi nhánh cho nhân viên này.</p>}
-          {activeEmployment && ['ADMIN', 'MANAGER'].includes(localStorage.getItem('userRole') || localStorage.getItem('role')) && (
+          {activeEmployment && ['ADMIN', 'MANAGER'].includes(getSessionRole()) && (
             payEdit ? <form onSubmit={savePayEdit}>
               <label>Loại hợp đồng <select required value={payEdit.contractTypeId} onChange={(event) => setPayEdit({ ...payEdit, contractTypeId: event.target.value })}>
                 <option value="">Chọn hợp đồng</option>{payContracts.map((contract) => <option key={contract.id} value={contract.id}>{contract.name}</option>)}
@@ -1589,6 +1640,7 @@ export default function EmployeeDetailPage() {
                   password: '',
                   cccd: empMeta.cccd || '',
                   storeId: editForm.storeId,
+                  contractTypeId: editForm.contractTypeId,
                   status: employee?.status || 'ACTIVE',
                   address: empMeta.address || '',
                   dob: empMeta.dob || '',
@@ -1640,7 +1692,7 @@ export default function EmployeeDetailPage() {
                   Chỉnh sửa thông tin nhân sự
                 </h3>
                 <p className="ed-modal-subtitle">
-                  Cập nhật thông tin định danh, liên hệ, chi nhánh và trạng thái công tác.
+                  Cập nhật định danh, liên hệ và điều khoản làm việc theo chi nhánh.
                 </p>
               </div>
               <button
@@ -1700,9 +1752,17 @@ export default function EmployeeDetailPage() {
 
               <div className="ed-form-field">
                 <label htmlFor="ed-gender">Giới tính</label>
-                <select id="ed-gender" className="ed-form-select" value={editForm.gender || 'Nam'} onChange={e => setEditForm({...editForm, gender:e.target.value})}>
-                  <option value="Nam">Nam (mặc định)</option><option value="Nữ">Nữ</option><option value="Khác">Khác</option>
-                </select>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>person</span>
+                  </div>
+                  <select id="ed-gender" className="ed-form-select" value={editForm.gender || 'Nam'} onChange={e => setEditForm({...editForm, gender:e.target.value})}>
+                    <option value="Nam">Nam</option><option value="Nữ">Nữ</option><option value="Khác">Khác</option>
+                  </select>
+                  <div className="ed-select-arrow">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>expand_more</span>
+                  </div>
+                </div>
               </div>
               {/* Row 3: Số điện thoại | CCCD */}
               <div className="ed-form-grid-2">
@@ -1744,7 +1804,7 @@ export default function EmployeeDetailPage() {
               {/* Row 4: Chi nhánh | Trạng thái */}
               <div className="ed-form-grid-2">
                 <div className="ed-form-field">
-                  <label htmlFor="ed-store">Chi nhánh chính</label>
+                  <label htmlFor="ed-store">Chi nhánh áp dụng hợp đồng</label>
                   <div className="ed-input-wrap">
                     <div className="ed-input-icon">
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>store</span>
@@ -1753,7 +1813,7 @@ export default function EmployeeDetailPage() {
                       id="ed-store"
                       className="ed-form-select"
                       value={editForm.storeId}
-                      onChange={e => setEditForm({ ...editForm, storeId: e.target.value })}
+                      onChange={e => setEditForm({ ...editForm, storeId: e.target.value, contractTypeId: '' })}
                     >
                       {stores.map(s => (
                         <option key={s.id} value={s.id}>
@@ -1776,21 +1836,41 @@ export default function EmployeeDetailPage() {
                     <div className="ed-input-icon">
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>work</span>
                     </div>
-                    <select
+                    <input
                       id="ed-status"
-                      className="ed-form-select"
-                      value={editForm.status}
-                      onChange={e => setEditForm({ ...editForm, status: e.target.value })}
-                    >
-                      <option value="ACTIVE">Đang làm việc (Active)</option>
-                      <option value="LEAVE">Nghỉ phép tạm thời (Leave)</option>
-                      <option value="INACTIVE">Đã nghỉ việc (Inactive)</option>
-                    </select>
-                    <div className="ed-select-arrow">
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>expand_more</span>
-                    </div>
+                      className="ed-form-input"
+                      readOnly
+                      value={editForm.status === 'ACTIVE' ? 'Đang làm việc' : editForm.status === 'LEAVE' ? 'Nghỉ phép tạm thời' : 'Đã nghỉ việc'}
+                      aria-describedby="ed-status-note"
+                    />
+                  </div>
+                  <small id="ed-status-note" className="ed-field-hint">Trạng thái được thay đổi tại hồ sơ hợp đồng để tránh mất lịch sử công tác.</small>
+                </div>
+              </div>
+
+              <div className="ed-form-field">
+                <label htmlFor="ed-contract-type">Loại hợp đồng <span style={{ color: '#ef4444' }}>*</span></label>
+                <div className="ed-input-wrap">
+                  <div className="ed-input-icon">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>description</span>
+                  </div>
+                  <select
+                    id="ed-contract-type"
+                    className="ed-form-select"
+                    value={editForm.contractTypeId}
+                    disabled={loadingEditContracts || !editForm.storeId}
+                    onChange={e => setEditForm({ ...editForm, contractTypeId: e.target.value })}
+                  >
+                    <option value="">{loadingEditContracts ? 'Đang tải loại hợp đồng...' : 'Chọn loại hợp đồng'}</option>
+                    {editContractTypes.map((contract) => (
+                      <option key={contract.id} value={contract.id}>{contract.name}</option>
+                    ))}
+                  </select>
+                  <div className="ed-select-arrow">
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8' }}>expand_more</span>
                   </div>
                 </div>
+                <small className="ed-field-hint">{activeEmployment?.scheduledEffectiveDate && String(activeEmployment?.storeId) === String(editForm.storeId) ? `Đã có thay đổi được lên lịch từ ${activeEmployment.scheduledEffectiveDate}. ` : ''}Thay đổi mới áp dụng từ ngày mai. Lương ca vẫn tính theo kỹ năng/vị trí đã giao.</small>
               </div>
 
               {/* Row 5: Địa chỉ thường trú */}
@@ -1852,7 +1932,7 @@ export default function EmployeeDetailPage() {
                     <span className="ed-skill-count-badge">{selectedSkills.length} kỹ năng</span>
                   </div>
                   <p className="ed-section-subtitle">
-                    Gán các kỹ năng mà nhân viên có thể thực hiện trong ca làm việc.
+                    Lương mỗi ca lấy theo kỹ năng/vị trí được giao. Chỉnh mức lương tại danh mục kỹ năng, không sửa trong hồ sơ nhân viên.
                   </p>
                 </div>
 

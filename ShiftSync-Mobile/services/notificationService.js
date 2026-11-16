@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cachedRequest } from './offlineCache';
 import { getNetworkSnapshot, isNetworkFailure } from './networkState';
-import * as Notifications from 'expo-notifications';
 
 const DEVICE_FCM_TOKEN_KEY = '@device_fcm_token';
 
@@ -12,6 +11,7 @@ let version = 0;
 let unreadOwner = null;
 let sessionGeneration = 0;
 let cacheWrites = Promise.resolve();
+const unreadCountRequests = new Map();
 const subscribers = new Set();
 export const getUnreadSnapshot = () => unread;
 export const subscribeUnreadCount = (callback) => { subscribers.add(callback); return () => subscribers.delete(callback); };
@@ -20,7 +20,9 @@ export function publishUnreadCount(value, ownerEmail = null) {
   if (!ownerEmail) sessionGeneration += 1;
   unreadOwner = ownerEmail;
   const next = Math.max(0, Number(value) || 0);
-  if (Platform.OS !== 'web') Notifications.setBadgeCountAsync(next).catch(() => {});
+  // Do not load the native Expo module in a browser bundle: web uses the in-app
+  // badge, while iOS/Android also mirror it onto the application icon.
+  if (Platform.OS !== 'web') require('expo-notifications').setBadgeCountAsync(next).catch(() => {});
   if (next === unread) return;
   unread = next;
   subscribers.forEach((callback) => { try { callback(next); } catch {} });
@@ -88,6 +90,20 @@ async function cachedCount(session) {
 export const getUnreadNotificationCount = async () => {
   const session = await readSession();
   if (!session.token || !session.email) throw Object.assign(new Error('Chưa đăng nhập.'), { code: 'NO_SESSION' });
+  const requestKey = `${session.generation}:${session.email}:${session.token}`;
+  const previous = unreadCountRequests.get(requestKey);
+  if (previous) return previous;
+
+  const work = fetchUnreadNotificationCount(session);
+  unreadCountRequests.set(requestKey, work);
+  work.then(
+    () => { if (unreadCountRequests.get(requestKey) === work) unreadCountRequests.delete(requestKey); },
+    () => { if (unreadCountRequests.get(requestKey) === work) unreadCountRequests.delete(requestKey); },
+  );
+  return work;
+};
+
+async function fetchUnreadNotificationCount(session) {
   if (unreadOwner && unreadOwner !== session.email) { publishUnreadCount(0); session.generation = sessionGeneration; }
   const current = version;
   let response;
@@ -105,7 +121,7 @@ export const getUnreadNotificationCount = async () => {
     if (!response.fromCache) await persistCount(session, unread, version);
   }
   return { ...response, data: { ...response.data, unreadCount: unread } };
-};
+}
 function patchCachedNotifications(id, session) {
   cacheWrites = cacheWrites.catch(() => {}).then(async () => {
     const key = `@cache:${session.email}:notifications`;

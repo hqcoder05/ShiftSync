@@ -188,6 +188,9 @@ public class HeadcountQuotaService {
     }
 
     private PositionDTO mapSkillToPositionDTO(UUID branchId, Skill s, LocalDate date) {
+        // Keep the branch's configured skill name as the row label. The role code below
+        // is only for applying shared defaults; replacing names like "Bếp chính" and
+        // "Bếp phụ" with the same generic label creates indistinguishable quota rows.
         String name = s.getName();
         String nameLower = name.toLowerCase();
 
@@ -205,52 +208,32 @@ public class HeadcountQuotaService {
 
         if (nameLower.contains("barista") || nameLower.contains("pha chế")) {
             code = "BARISTA";
-            name = "Barista";
             color = "purple";
             icon = "coffee";
-            defaultMin = 1;
-            defaultTarget = 2;
-            defaultMax = 4;
             shiftScope = "ALL";
             desc = "Pha chế & Quầy";
         } else if (nameLower.contains("thu ngân") || nameLower.contains("cashier")) {
             code = "CASHIER";
-            name = "Cashier";
             color = "amber";
             icon = "credit-card";
-            defaultMin = 1;
-            defaultTarget = 2;
-            defaultMax = 2;
             shiftScope = "PEAK_ONLY";
             desc = "Order & Tính tiền";
         } else if (nameLower.contains("bếp") || nameLower.contains("kitchen")) {
             code = "KITCHEN";
-            name = "Kitchen";
             color = "orange";
             icon = "utensils";
-            defaultMin = 1;
-            defaultTarget = 2;
-            defaultMax = 3;
             shiftScope = "ALL";
             desc = "Bếp nóng & Bánh";
         } else if (nameLower.contains("waiter") || nameLower.contains("phục vụ") || nameLower.contains("sảnh") || nameLower.contains("bàn")) {
             code = "WAITER";
-            name = "Waiter";
             color = "blue";
             icon = "utensils";
-            defaultMin = 1;
-            defaultTarget = 2;
-            defaultMax = 3;
             shiftScope = "ALL";
             desc = "Sảnh & Bàn khách";
         } else if (nameLower.contains("leader") || nameLower.contains("trưởng ca") || nameLower.contains("giám sát") || nameLower.contains("supervisor")) {
             code = "LEADER";
-            name = "Trưởng ca";
             color = "indigo";
             icon = "badge";
-            defaultMin = 1;
-            defaultTarget = 1;
-            defaultMax = 1;
             shiftScope = "ALL";
             desc = "Điều phối & Giám sát ca";
         }
@@ -306,12 +289,12 @@ public class HeadcountQuotaService {
         String morningStart = morningShift != null && morningShift.getStartTime() != null ? String.format("%02d:%02d", morningShift.getStartTime().getHour(), morningShift.getStartTime().getMinute()) : openStr;
         String morningEnd = morningShift != null && morningShift.getEndTime() != null ? String.format("%02d:%02d", morningShift.getEndTime().getHour(), morningShift.getEndTime().getMinute()) : midStr;
         String morningName = (morningShift != null && morningShift.getNote() != null && !morningShift.getNote().isBlank()) ? morningShift.getNote() : "Ca Sáng";
-        shiftQuotas.add(buildDailyShiftQuota(morningShift, morningName + " (" + morningStart + "-" + morningEnd + ")", morningStart, morningEnd, generateTimelineHours(morningShift != null ? morningShift.getStartTime() : open, morningShift != null ? morningShift.getEndTime() : mid), positions, true, date, false));
+        shiftQuotas.add(buildDailyShiftQuota(morningShift, morningName + " (" + morningStart + "-" + morningEnd + ")", morningStart, morningEnd, generateTimelineHours(morningShift != null ? morningShift.getStartTime() : open, morningShift != null ? morningShift.getEndTime() : mid), positions, date, false));
 
         String afternoonStart = afternoonShift != null && afternoonShift.getStartTime() != null ? String.format("%02d:%02d", afternoonShift.getStartTime().getHour(), afternoonShift.getStartTime().getMinute()) : midStr;
         String afternoonEnd = afternoonShift != null && afternoonShift.getEndTime() != null ? String.format("%02d:%02d", afternoonShift.getEndTime().getHour(), afternoonShift.getEndTime().getMinute()) : closeStr;
         String afternoonName = (afternoonShift != null && afternoonShift.getNote() != null && !afternoonShift.getNote().isBlank()) ? afternoonShift.getNote() : "Ca Chiều";
-        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, afternoonName + " (" + afternoonStart + "-" + afternoonEnd + ")", afternoonStart, afternoonEnd, generateTimelineHours(afternoonShift != null ? afternoonShift.getStartTime() : mid, afternoonShift != null ? afternoonShift.getEndTime() : close), positions, false, date, false));
+        shiftQuotas.add(buildDailyShiftQuota(afternoonShift, afternoonName + " (" + afternoonStart + "-" + afternoonEnd + ")", afternoonStart, afternoonEnd, generateTimelineHours(afternoonShift != null ? afternoonShift.getStartTime() : mid, afternoonShift != null ? afternoonShift.getEndTime() : close), positions, date, false));
 
         if (shifts != null) {
             for (Shift s : shifts) {
@@ -321,7 +304,7 @@ public class HeadcountQuotaService {
                     String sStart = String.format("%02d:%02d", s.getStartTime().getHour(), s.getStartTime().getMinute());
                     String sEnd = String.format("%02d:%02d", s.getEndTime().getHour(), s.getEndTime().getMinute());
                     String sName = (s.getNote() != null && !s.getNote().isBlank()) ? s.getNote() : ("Ca " + sStart + "-" + sEnd);
-                    shiftQuotas.add(buildDailyShiftQuota(s, sName + " (" + sStart + "-" + sEnd + ")", sStart, sEnd, generateTimelineHours(s.getStartTime(), s.getEndTime()), positions, false, date, true));
+                    shiftQuotas.add(buildDailyShiftQuota(s, sName + " (" + sStart + "-" + sEnd + ")", sStart, sEnd, generateTimelineHours(s.getStartTime(), s.getEndTime()), positions, date, true));
                 }
             }
         }
@@ -531,7 +514,7 @@ public class HeadcountQuotaService {
 
     private DailyQuotaResponse.DailyShiftQuota buildDailyShiftQuota(
             Shift shift, String name, String startTime, String endTime,
-            List<Integer> timelineHours, List<PositionDTO> positions, boolean isMorning, LocalDate date, boolean isCustom) {
+            List<Integer> timelineHours, List<PositionDTO> positions, LocalDate date, boolean isCustom) {
 
         List<DailyQuotaResponse.DailyQuotaCell> cells = new ArrayList<>();
         Map<UUID, Integer> reqMap = new HashMap<>();
@@ -547,7 +530,7 @@ public class HeadcountQuotaService {
         for (PositionDTO pos : positions) {
             Integer count = reqMap.get(pos.getId());
             if (count == null) {
-                count = isCustom ? 0 : suggestedCount(pos, date, isMorning);
+                count = suggestedCount(pos);
             }
 
             int min = pos.getDefaultMin();
@@ -896,7 +879,7 @@ public class HeadcountQuotaService {
 
         boolean saved = count != -1;
         if (count == -1) {
-            count = suggestedCount(pos, date, "morning".equals(shiftType));
+            count = suggestedCount(pos);
         }
 
         int min = pos.getDefaultMin();
@@ -905,7 +888,7 @@ public class HeadcountQuotaService {
 
         String status = "COMPLIANT";
         String statusLabel = "Đạt chuẩn";
-        boolean isPeakSlot = isWeekend && "afternoon".equalsIgnoreCase(shiftType) && "BARISTA".equals(pos.getCode()) && count > target;
+        boolean isPeakSlot = isWeekend && "afternoon".equalsIgnoreCase(shiftType) && count > target;
 
         if (count < min) {
             status = "VIOLATION";
@@ -940,12 +923,7 @@ public class HeadcountQuotaService {
                 .build();
     }
 
-    private int suggestedCount(PositionDTO position, LocalDate date, boolean morning) {
-        boolean weekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
-        if (weekend && ("BARISTA".equals(position.getCode()) || "KITCHEN".equals(position.getCode()))) {
-            return position.getDefaultTarget() + 1;
-        }
-        if ("CASHIER".equals(position.getCode())) return morning ? 1 : 2;
+    private int suggestedCount(PositionDTO position) {
         return position.getDefaultTarget();
     }
 
@@ -1105,7 +1083,9 @@ public class HeadcountQuotaService {
         LocalTime mid = getStoreMidTime(store);
         LocalTime close = getStoreCloseTime(store);
 
-        List<PositionDTO> positions = getPositions(branchId);
+        LocalDate rulesDate = "DAY".equalsIgnoreCase(req.getScope()) && req.getDate() != null
+                ? req.getDate() : (req.getWeekStart() != null ? req.getWeekStart() : LocalDate.now());
+        List<PositionDTO> positions = getPositions(branchId, rulesDate);
         List<LocalDate> dates = new ArrayList<>();
 
         if ("DAY".equalsIgnoreCase(req.getScope()) && req.getDate() != null) {
@@ -1121,8 +1101,6 @@ public class HeadcountQuotaService {
             throw new BusinessException("Hãy tạo các vị trí của cửa hàng trước khi tự động điền định biên", HttpStatus.BAD_REQUEST);
         }
         for (LocalDate d : dates) {
-            boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
-
             Shift morning = getOrCreateShift(store, d, open, mid, "Ca Sáng");
             Shift afternoon = getOrCreateShift(store, slotDate(d, open, mid), mid, close, "Ca Chiều");
 
@@ -1130,13 +1108,9 @@ public class HeadcountQuotaService {
                 if (s.getRequirements() == null) {
                     s.setRequirements(new ArrayList<>());
                 }
-                boolean isMorning = s == morning;
                 for (PositionDTO pos : positions) {
                     Skill skill = posSkillMap.get(pos.getId());
                     if (skill == null) continue;
-
-                    int targetCount = suggestedCount(pos, d, isMorning);
-                    requireCapacity(s, skill.getId(), targetCount);
 
                     ShiftSkillRequirement existing = null;
                     for (ShiftSkillRequirement r : s.getRequirements()) {
@@ -1146,14 +1120,16 @@ public class HeadcountQuotaService {
                         }
                     }
 
+                    // Auto-fill initializes the matrix, but must not discard counts the
+                    // manager has already configured for this shift and position.
                     if (existing == null) {
+                        int targetCount = suggestedCount(pos);
+                        requireCapacity(s, skill.getId(), targetCount);
                         s.getRequirements().add(ShiftSkillRequirement.builder()
                                 .shift(s)
                                 .skill(skill)
                                 .requiredCount(targetCount)
                                 .build());
-                    } else {
-                        existing.setRequiredCount(targetCount);
                     }
                 }
                 shiftRepository.save(s);
@@ -1212,8 +1188,6 @@ public class HeadcountQuotaService {
             throw new BusinessException("Hãy tạo các vị trí của cửa hàng trước khi áp dụng định biên", HttpStatus.BAD_REQUEST);
         }
         for (LocalDate d : dates) {
-            boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
-
             Shift morning = getOrCreateShift(store, d, openTime, midTime, "Ca Sáng");
             Shift afternoon = getOrCreateShift(store, slotDate(d, openTime, midTime), midTime, closeTime, "Ca Chiều");
 
@@ -1221,8 +1195,6 @@ public class HeadcountQuotaService {
                 if (s.getRequirements() == null) {
                     s.setRequirements(new ArrayList<>());
                 }
-                boolean isMorning = s == morning;
-
                 Map<UUID, ShiftSkillRequirement> existingReqs = new HashMap<>();
                 for (ShiftSkillRequirement r : s.getRequirements()) {
                     if (r.getSkill() != null) {
@@ -1236,7 +1208,7 @@ public class HeadcountQuotaService {
                     if (skill == null) continue;
 
                     if (!existingReqs.containsKey(skill.getId())) {
-                        int targetCount = suggestedCount(pos, d, isMorning);
+                        int targetCount = suggestedCount(pos);
 
                         s.getRequirements().add(ShiftSkillRequirement.builder()
                                 .shift(s)

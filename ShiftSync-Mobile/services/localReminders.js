@@ -1,26 +1,34 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+
+const getNativeNotifications = () => require('expo-notifications');
 
 let syncing = Promise.resolve();
 const normalizeEmail = (value) => value?.trim().toLowerCase();
 const readOwner = async () => { const values = new Map(await AsyncStorage.multiGet(['userEmail', 'accessToken'])); return { email: normalizeEmail(values.get('userEmail')), token: values.get('accessToken') }; };
 const isOwner = async (owner) => { const current = await readOwner(); return owner.email === current.email && owner.token === current.token; };
-export const canPresentNotifications = (permission) => permission?.granted === true || permission?.status === 'granted'
-  || [Notifications.IosAuthorizationStatus?.AUTHORIZED, Notifications.IosAuthorizationStatus?.PROVISIONAL, Notifications.IosAuthorizationStatus?.EPHEMERAL].some((status) => status != null && status === permission?.ios?.status);
+export const canPresentNotifications = (permission) => {
+  const notifications = Platform.OS === 'web' ? null : getNativeNotifications();
+  return permission?.granted === true || permission?.status === 'granted'
+    || [notifications?.IosAuthorizationStatus?.AUTHORIZED, notifications?.IosAuthorizationStatus?.PROVISIONAL, notifications?.IosAuthorizationStatus?.EPHEMERAL].some((status) => status != null && status === permission?.ios?.status);
+};
 
 export async function prepareNotificationChannel() {
-  if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('default', {
-    name: 'ShiftSync · Nhắc ca và thông báo', importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default', vibrationPattern: [0, 250, 150, 250], lightColor: '#FF7043',
-  });
+  if (Platform.OS === 'android') {
+    const notifications = getNativeNotifications();
+    await notifications.setNotificationChannelAsync('shift-reminders-v2', {
+    name: 'ShiftSync · Nhắc ca và thông báo', importance: notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 150, 250], lightColor: '#FF7043',
+    });
+  }
 }
 
 export async function requestReminderPermission() {
   if (Platform.OS === 'web') return false;
+  const notifications = getNativeNotifications();
   await prepareNotificationChannel();
-  const existing = await Notifications.getPermissionsAsync();
-  return canPresentNotifications(existing) || canPresentNotifications(await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }));
+  const existing = await notifications.getPermissionsAsync();
+  return canPresentNotifications(existing) || canPresentNotifications(await notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }));
 }
 
 export function syncShiftReminders(shifts) {
@@ -28,13 +36,14 @@ export function syncShiftReminders(shifts) {
   const ownerPromise = readOwner();
   syncing = syncing.catch(() => {}).then(async () => {
     if (Platform.OS === 'web') return;
+    const notifications = getNativeNotifications();
     const owner = await ownerPromise;
     if (!owner.email || !owner.token || !await isOwner(owner)) return;
     await prepareNotificationChannel();
-    const permission = await Notifications.getPermissionsAsync();
+    const permission = await notifications.getPermissionsAsync();
     const enabled = canPresentNotifications(permission) && await AsyncStorage.getItem(`@reminders:${owner.email}`) !== 'off';
-    const prefix = `shiftsync:${owner.email}:`;
-    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    const prefix = `shiftsync:v2:${owner.email}:`;
+    const existing = await notifications.getAllScheduledNotificationsAsync();
     if (!await isOwner(owner)) return;
     const allDesired = new Map();
     if (enabled) for (const shift of shifts || []) {
@@ -55,17 +64,17 @@ export function syncShiftReminders(shifts) {
       if (!await isOwner(owner)) return;
       const wanted = desired.get(item.identifier);
       if (!item.identifier.startsWith(prefix) || !wanted || Number(item.content.data?.scheduledAt) !== wanted.time) {
-        await Notifications.cancelScheduledNotificationAsync(item.identifier);
+        await notifications.cancelScheduledNotificationAsync(item.identifier);
       } else desired.delete(item.identifier);
     }
     for (const [identifier, { time, shift, minutes }] of desired) {
       if (!await isOwner(owner)) return;
-      await Notifications.scheduleNotificationAsync({ identifier,
+      await notifications.scheduleNotificationAsync({ identifier,
         content: { title: `Ca làm bắt đầu sau ${minutes} phút`, body: `${String(shift.startTime).slice(0, 5)} · ${shift.storeName || 'Cửa hàng được phân công'}`,
-          data: { shiftId: shift.id, scheduledAt: time, ownerEmail: owner.email }, sound: 'default' },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(time), channelId: 'default' },
+          data: { shiftId: shift.id, scheduledAt: time, ownerEmail: owner.email } },
+        trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date: new Date(time), channelId: 'shift-reminders-v2' },
       });
-      if (!await isOwner(owner)) { await Notifications.cancelScheduledNotificationAsync(identifier); return; }
+      if (!await isOwner(owner)) { await notifications.cancelScheduledNotificationAsync(identifier); return; }
     }
     return { scheduled: Math.min(allDesired.size, capacity), deferred: Math.max(0, allDesired.size - capacity), enabled };
   });
@@ -75,8 +84,9 @@ export function syncShiftReminders(shifts) {
 export function clearShiftReminders() {
   syncing = syncing.catch(() => {}).then(async () => {
     if (Platform.OS === 'web') return;
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    await Promise.all(scheduled.filter((item) => item.identifier.startsWith('shiftsync:')).map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)));
+    const notifications = getNativeNotifications();
+    const scheduled = await notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(scheduled.filter((item) => item.identifier.startsWith('shiftsync:')).map((item) => notifications.cancelScheduledNotificationAsync(item.identifier)));
   });
   return syncing;
 }

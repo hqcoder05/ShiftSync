@@ -131,7 +131,7 @@ export default function Dashboard({
           </p>
         </div>
         <div className="db-head-actions">
-          <Link to="/schedule?view=3d" className="db-action-btn outline">
+          <Link to="/store-3d" className="db-action-btn outline">
             <MapPin size={16} aria-hidden="true" />
             <span>Không gian 3D</span>
             <ArrowUpRight size={15} aria-hidden="true" />

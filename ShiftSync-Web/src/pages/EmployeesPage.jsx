@@ -12,6 +12,7 @@ import { getApiErrorMessage, isRequestCanceled } from '../services/api';
 import AvatarCollectionModal from '../components/AvatarCollectionModal';
 import AddUserModal from '../components/AddUserModal';
 import './EmployeesPage.css';
+import { getSessionRole } from '../services/authSession';
 
 const getEmployeeAvatarId = (emp) => {
   if (!emp) return 'dilan';
@@ -45,7 +46,7 @@ export default function EmployeesPage() {
   });
 
   // RBAC: determine if current user is allowed to create new staff
-  const currentRole = (localStorage.getItem('userRole') || '').toUpperCase();
+  const currentRole = getSessionRole();
   const canCreateUser = currentRole === 'ADMIN' || currentRole === 'MANAGER';
 
   // Black Toast
@@ -122,6 +123,17 @@ export default function EmployeesPage() {
     }
     setShowAddUserModal(true);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('action') !== 'create' || !canCreateUser) return;
+    queueMicrotask(() => {
+      setShowAddUserModal(true);
+      params.delete('action');
+      const nextSearch = params.toString();
+      navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true });
+    });
+  }, [canCreateUser, location.pathname, location.search, navigate]);
 
   const handleDelete = async (id) => {
     if (!(await confirm({ message: 'Xoá nhân viên này?', confirmLabel: 'Xóa' }))) return;
@@ -348,6 +360,7 @@ export default function EmployeesPage() {
       isOpen={showAddUserModal}
       onClose={() => setShowAddUserModal(false)}
       storeId={selectedStoreId || localStorage.getItem('selectedStoreId') || ''}
+      storeName={stores.find((store) => store.id === (selectedStoreId || localStorage.getItem('selectedStoreId') || ''))?.name}
       onSuccess={(newUser) => {
         showToast(`Đã tạo nhân sự mới: ${newUser?.fullName || 'Nhân viên'}`);
         fetchEmployees();

@@ -1,12 +1,13 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import { createAppStyles } from '../theme/appTheme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ThreeIllustration from '../components/ThreeIllustration';
 import { ensureTouchTarget } from '../utils/touchTarget';
 import BackIcon from '../components/BackIcon';
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, Switch, ScrollView, TouchableOpacity, ActivityIndicator,
-  StyleSheet, Alert, SafeAreaView,
+  StyleSheet, Alert,
 } from 'react-native';
 import { showAlert } from '../utils/alert';
 import useActionGuard from '../utils/useActionGuard';
@@ -73,7 +74,7 @@ export default function AvailabilityScreen({ navigation }) {
 
   useEffect(() => {
     loadAvailability();
-    const timer = setInterval(() => setClockNow(new Date()), 1000);
+    const timer = setInterval(() => setClockNow(new Date()), 30000);
     const unsubscribe = navigation.addListener?.('focus', () => {
       setClockNow(new Date());
       loadAvailability();
@@ -304,9 +305,13 @@ export default function AvailabilityScreen({ navigation }) {
           <Text style={styles.myShiftsText}>Xem lịch ca làm việc</Text>
         </TouchableOpacity>
 
-        {dataLoading && <ActivityIndicator accessibilityLabel="Đang tải lịch rảnh" color={uiColors.primaryStrong} style={{ marginBottom: 12 }} />}
         {!!loadError && <TouchableOpacity accessibilityRole="button" onPress={loadAvailability} style={ensureTouchTarget(styles.deadlineNotice)}><Text style={styles.deadlineTitle}>{loadError}</Text><Text style={styles.myShiftsText}>Thử lại</Text></TouchableOpacity>}
 
+        {dataLoading ? <View accessibilityLabel="Đang tải lịch rảnh" accessibilityState={{ busy: true }} aria-busy style={styles.availabilitySkeleton}>
+          <View style={styles.skeletonDays}>{days.map((day) => <View key={day.value} style={styles.skeletonDay} />)}</View>
+          <View style={styles.skeletonCard}><View style={[styles.skeletonLine, { width: '42%' }]} /><View style={[styles.skeletonLine, { width: '78%' }]} /><View style={styles.skeletonBlock} /></View>
+          <View style={styles.skeletonCard}><View style={[styles.skeletonLine, { width: '50%' }]} /><View style={[styles.skeletonLine, { width: '92%' }]} /><View style={[styles.skeletonLine, { width: '64%' }]} /></View>
+        </View> : <>
         {/* 7 ngày trong tuần */}
         <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }}>
         <View style={[styles.dayRow, { minWidth: 336, flex: 1 }]}>
@@ -487,6 +492,7 @@ export default function AvailabilityScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        </>}
         <View style={{ height: 90 }} />
       </ScrollView>
       <BottomNavbar navigation={navigation} activeRoute="Availability" />
@@ -502,6 +508,7 @@ const styles = createAppStyles({
   deadlineTitle: { color: "#404B57", fontSize: 13, fontWeight: '600', lineHeight: 20 },
   deadlineText: { color: uiColors.secondary, fontSize: 12, lineHeight: 18, marginTop: 3 },
   recurringNote: { color: uiColors.muted, fontSize: 11, lineHeight: 17, marginTop: 7 },
+  availabilitySkeleton: { gap: 16 }, skeletonDays: { minHeight: 76, flexDirection: 'row', gap: 6, alignItems: 'center' }, skeletonDay: { flex: 1, height: 60, borderRadius: 12, backgroundColor: uiColors.line }, skeletonCard: { gap: 13, padding: 18, borderRadius: 18, borderWidth: 1, borderColor: uiColors.line, backgroundColor: uiColors.surface }, skeletonLine: { height: 13, borderRadius: 7, backgroundColor: uiColors.line }, skeletonBlock: { height: 86, borderRadius: 12, backgroundColor: uiColors.subtle },
   disabledControl: { opacity: 0.45 },
   formReadOnly: { backgroundColor: uiColors.canvas },
   page: { flex: 1, backgroundColor: uiColors.surface },

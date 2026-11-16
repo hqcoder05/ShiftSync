@@ -32,14 +32,16 @@ public class StoreController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a new store branch", description = "Registers a new store branch with custom geofencing parameters and operational hours.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Store successfully created"),
         @ApiResponse(responseCode = "400", description = "Invalid request payload or validation failed")
     })
-    public ResponseEntity<StoreDTO> createStore(@Valid @RequestBody StoreCreateRequest request) {
-        StoreDTO storeDTO = storeService.createStore(request);
+    public ResponseEntity<StoreDTO> createStore(
+            @Valid @RequestBody StoreCreateRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        StoreDTO storeDTO = storeService.createStore(request, userDetails != null ? userDetails.getId() : null);
         return new ResponseEntity<>(storeDTO, HttpStatus.CREATED);
     }
 
@@ -105,8 +107,9 @@ public class StoreController {
     })
     public ResponseEntity<StoreDTO> updateStore(
             @PathVariable UUID id,
-            @Valid @RequestBody StoreUpdateRequest request) {
-        StoreDTO storeDTO = storeService.updateStore(id, request);
+            @Valid @RequestBody StoreUpdateRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.shiftsync.shared.security.CustomUserDetails userDetails) {
+        StoreDTO storeDTO = storeService.updateStore(id, request, userDetails != null ? userDetails.getId() : null);
         return ResponseEntity.ok(storeDTO);
     }
 

@@ -1,5 +1,6 @@
 import { colors as uiColors, resolveUiColor } from '../theme/koreanPalette';
 import ThreeIllustration from '../components/ThreeIllustration';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { createAppStyles } from '../theme/appTheme';
 import { ensureTouchTarget } from '../utils/touchTarget';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -26,6 +27,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { createStaffRequest } from '../services/requestService';
 import { submitCheckedSwap } from '../services/scheduleConflictService';
+import api from '../services/api';
 import ScheduleConflictAlert from '../components/ScheduleConflictAlert';
 import { getLeaveTypes } from '../services/leaveService';
 import { getMyProfile, getMyStores } from '../services/profileService';
@@ -329,6 +331,9 @@ export default function ScheduleScreen({ navigation }) {
   const [scheduleErrors, setScheduleErrors] = useState({ my_shifts: false, schedule: false });
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [storeColleagues, setStoreColleagues] = useState([]);
+  const [storeShiftsRaw, setStoreShiftsRaw] = useState([]);
+  const [swapMode, setSwapMode] = useState('swap'); // 'swap' | 'giveaway'
+  const [selectedGiveawayStaffs, setSelectedGiveawayStaffs] = useState([]);
 
   // ── Custom Toast / Thông báo đẹp ──
   const [toastMessage, setToastMessage] = useState(null);
@@ -390,6 +395,7 @@ export default function ScheduleScreen({ navigation }) {
   // ── Live shifts state ──
   const [liveMyShifts, setLiveMyShifts] = useState([]);
   const [liveStoreShifts, setLiveStoreShifts] = useState([]);
+  const [registeredAvailability, setRegisteredAvailability] = useState([]);
 
   const vietnamToday = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   // Recreate UI-only Date carriers after a device-zone change; business date
@@ -398,6 +404,23 @@ export default function ScheduleScreen({ navigation }) {
   const weekDays = useMemo(() => getWeekDates(weekOffset), [weekOffset, vietnamToday, calendarDeviceOffset]);
   const startDay = weekDays[0];
   const endDay = weekDays[weekDays.length - 1];
+
+  useEffect(() => {
+    let mounted = true;
+    const loadAvailability = async () => {
+      setRegisteredAvailability([]);
+      try {
+        const { data } = await api.get(`/availability/weeks/${weekDays[0].fullDateStr}`);
+        if (mounted) setRegisteredAvailability(data?.slots || []);
+      } catch {
+        if (mounted) setRegisteredAvailability([]);
+      }
+    };
+    loadAvailability();
+    const unsubscribe = navigation.addListener('focus', loadAvailability);
+    return () => { mounted = false; unsubscribe?.(); };
+  }, [navigation, weekDays[0].fullDateStr]);
+
   const monthTitle = startDay.dateObj.getMonth() === endDay.dateObj.getMonth()
     ? `${MONTH_NAMES[startDay.dateObj.getMonth()]}, ${startDay.dateObj.getFullYear()}`
     : `${MONTH_NAMES[startDay.dateObj.getMonth()]} - ${MONTH_NAMES[endDay.dateObj.getMonth()]}, ${endDay.dateObj.getFullYear()}`;
@@ -578,14 +601,18 @@ export default function ScheduleScreen({ navigation }) {
         setLiveMyShifts([]);
       }
 
-      // 3. Fetch real store shifts if storeId exists
+      // 3. Fetch real store shifts & staff if storeId exists
       if (activeStoreId) {
-        const storeRes = await getShiftsForStore(activeStoreId).catch(() => {
-          nextErrors.schedule = true;
-          return null;
-        });
+        const [storeRes, storeStaffRes] = await Promise.all([
+          getShiftsForStore(activeStoreId).catch(() => {
+            nextErrors.schedule = true;
+            return null;
+          }),
+          api.get(`/stores/${activeStoreId}/staff`).catch(() => null),
+        ]);
+        const colleaguesMap = new Map();
+        setStoreShiftsRaw(Array.isArray(storeRes?.data) ? storeRes.data : []);
         if (storeRes && storeRes.data && Array.isArray(storeRes.data) && storeRes.data.length > 0) {
-          const colleaguesMap = new Map();
           const mappedStore = storeRes.data.flatMap((s, idx) => {
             const [y, m, d] = (s.shiftDate || '').split('-').map(Number);
             const shiftDateObj = y ? new Date(y, m - 1, d) : vietnamCalendarDate();
@@ -602,9 +629,9 @@ export default function ScheduleScreen({ navigation }) {
               const staffName = assignment?.staffName || s.assignedStaffName || s.staffName || 'Nhân viên';
 
               const staffId = assignment?.staffId || s.staffId || s.assignedStaffId;
-              if (staffName && staffName !== 'Chưa phân công' && (!currentUser?.fullName || staffName !== currentUser.fullName)) {
-                if (!colleaguesMap.has(staffName)) {
-                  colleaguesMap.set(staffName, {
+              if (staffId && staffName && staffName !== 'Chưa phân công' && (!currentUser?.id || String(staffId) !== String(currentUser.id))) {
+                if (!colleaguesMap.has(String(staffId))) {
+                  colleaguesMap.set(String(staffId), {
                     staffId,
                     name: staffName,
                     role: assignmentDetails.position,
@@ -639,17 +666,34 @@ export default function ScheduleScreen({ navigation }) {
             });
           });
           setLiveStoreShifts(mappedStore);
-          const colleaguesList = Array.from(colleaguesMap.values());
-          setStoreColleagues(colleaguesList);
-          if (colleaguesList.length > 0) {
-            setSelectedSwapStaff((prev) => prev || colleaguesList[0].name);
-          }
         } else if (storeRes) {
           setLiveStoreShifts([]);
-          setStoreColleagues([]);
+        }
+        if (Array.isArray(storeStaffRes?.data)) {
+          storeStaffRes.data.forEach((member) => {
+            const staffId = member.staffId || member.id;
+            const staffName = member.staffFullName || member.fullName || member.name || '';
+            if (staffId && staffName && (!currentUser?.id || String(staffId) !== String(currentUser.id)) && !colleaguesMap.has(String(staffId))) {
+              colleaguesMap.set(String(staffId), {
+                staffId,
+                name: staffName,
+                role: member.positionName || member.roleName || member.systemRole || 'Nhân viên',
+                avatarId: member.avatarId,
+                shiftId: null,
+                shiftDate: null,
+                timeRange: null,
+              });
+            }
+          });
+        }
+        const colleaguesList = Array.from(colleaguesMap.values());
+        setStoreColleagues(colleaguesList);
+        if (colleaguesList.length > 0) {
+          setSelectedSwapStaff((prev) => prev || colleaguesList.find((c) => Boolean(c.shiftId))?.name || colleaguesList[0].name);
         }
       } else if (!nextErrors.schedule) {
         setLiveStoreShifts([]);
+        setStoreShiftsRaw([]);
         setStoreColleagues([]);
       }
     } catch (e) {
@@ -711,7 +755,7 @@ export default function ScheduleScreen({ navigation }) {
     setLeaveModalVisible(true);
   };
 
-  // ── Submit Đổi ca ──
+  // ── Submit Đổi ca / Nhường ca 1 chiều ──
   const handleSubmitSwap = () => runAction('submit', async () => {
     setSwapError(null);
     if (!resolveOwnedRequestShift(selectedSwapShift, liveMyShifts, currentUserProfile?.id)) {
@@ -720,6 +764,35 @@ export default function ScheduleScreen({ navigation }) {
       showToast('Lưu ý', msg, 'warning');
       return;
     }
+    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
+
+    if (swapMode === 'giveaway') {
+      if (selectedGiveawayStaffs.length === 0 || selectedGiveawayStaffs.length > 3) {
+        const msg = 'Vui lòng chọn từ 1 đến 3 đồng nghiệp chưa có ca hôm đó để nhường ca';
+        setSwapError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
+      try {
+        const toStaffIds = selectedGiveawayStaffs.map((s) => s.staffId || s.id);
+        const checked = await submitCheckedSwap({ userId: currentUserProfile?.id, storeId: activeStoreId, fromShiftId, toStaffIds, toShiftId: null });
+        if (checked.conflicts.length) {
+          setScheduleConflict(checked);
+          return;
+        }
+        setSwapModalVisible(false);
+        setSwapError(null);
+        setSelectedGiveawayStaffs([]);
+        showToast('Gửi thành công', `Đã gửi đề nghị nhường ca ${selectedSwapShift.dayLabel} cho ${selectedGiveawayStaffs.map((s) => s.name).join(', ')}`);
+        triggerLaunchPlane();
+      } catch (e) {
+        const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu nhường ca';
+        setSwapError(errMsg);
+        showToast('Thất bại', errMsg, 'error');
+      }
+      return;
+    }
+
     if (!selectedSwapStaff) {
       const msg = 'Vui lòng chọn đồng nghiệp để đổi ca';
       setSwapError(msg);
@@ -732,9 +805,12 @@ export default function ScheduleScreen({ navigation }) {
       : storeColleagues.find((c) => c.name === selectedSwapStaff || c.staffId === selectedSwapStaff);
 
     const colleagueName = targetColleague?.name || (typeof selectedSwapStaff === 'string' ? selectedSwapStaff : 'Đồng nghiệp');
-    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
     const toStaffId = targetColleague?.staffId || targetColleague?.id;
     const toShiftId = targetColleague?.shiftId;
+    if (!toStaffId || !toShiftId) {
+      setSwapError('Vui lòng chọn đồng nghiệp có ca sắp tới để đổi ca 2 chiều.');
+      return;
+    }
 
     try {
       const checked = await submitCheckedSwap({ userId: currentUserProfile?.id, storeId: activeStoreId, fromShiftId, toStaffId, toShiftId });
@@ -745,13 +821,12 @@ export default function ScheduleScreen({ navigation }) {
       setSwapModalVisible(false);
       setSwapError(null);
       showToast('Gửi thành công', `Đã gửi yêu cầu đổi ca ${selectedSwapShift.dayLabel} với ${colleagueName} tới Quản lý`);
-      // ✈️ Phóng máy bay giấy 3D khi gửi yêu cầu thành công
+      // Phóng máy bay giấy 3D khi gửi yêu cầu thành công
       triggerLaunchPlane();
     } catch (e) {
       const errMsg = e.response?.data?.message || e.response?.data?.error || e.message || 'Không thể gửi yêu cầu đổi ca';
       setSwapError(errMsg);
       showToast('Thất bại', errMsg, 'error');
-    } finally {
     }
   });
 
@@ -1023,17 +1098,26 @@ export default function ScheduleScreen({ navigation }) {
         </View>}
 
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={uiColors.primaryStrong} />
-            <Text style={styles.loadingText}>Đang tải lịch làm việc...</Text>
-          </View>
+          <ContentSkeleton variant="schedule" />
         ) : hasScheduleError && visibleShiftCount === 0 ? null : !weekHasShifts ? (
           <View style={{ paddingTop: 8 }}>
             <View style={[styles.emptyScheduleNotice, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}><View style={{ flex: 1 }}><Text style={styles.emptyScheduleNoticeTitle}>Tuần này chưa có lịch làm</Text><Text style={styles.emptyScheduleNoticeText}>Cho quản lý biết khi nào bạn có thể làm việc.</Text></View><ThreeIllustration kind="calendar" size={68} /></View>
-            {weekDays.map((day, index) => <View key={day.fullDateStr} style={styles.emptyScheduleDay}>
-              <View style={styles.emptyScheduleDayHeader}><Text style={styles.emptyScheduleDate}>{day.fullHeaderDate}</Text><View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}><Ionicons name="people-outline" size={14} color={uiColors.muted} /><Text style={{ color: uiColors.muted, fontSize: 12 }}>0</Text></View></View>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Đăng ký lịch rảnh ${day.fullHeaderDate}`} onPress={() => navigation.navigate('Availability', undefined, { pop: true })} style={ensureTouchTarget(styles.availabilityDashedButton)}><Ionicons accessible={false} name="add" size={17} color={uiColors.muted} /><Text style={styles.availabilityDashedText}>Đăng ký lịch rảnh</Text></TouchableOpacity>
-            </View>)}
+            {weekDays.map((day) => {
+              const dayAvailability = registeredAvailability.filter((slot) => Number(slot.dayOfWeek) === day.dowIndex);
+              const times = dayAvailability.map((slot) => {
+                const start = String(slot.startTime || '').slice(0, 5);
+                const end = String(slot.endTime || '').slice(0, 5);
+                return start === '00:00' && end === '23:59' ? 'Cả ngày' : `${start}–${end}`;
+              });
+              return <View key={day.fullDateStr} style={styles.emptyScheduleDay}>
+                <View style={styles.emptyScheduleDayHeader}><Text style={styles.emptyScheduleDate}>{day.fullHeaderDate}</Text><View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}><Ionicons name="people-outline" size={14} color={uiColors.muted} /><Text style={{ color: uiColors.muted, fontSize: 12 }}>0</Text></View></View>
+                {times.length > 0 && <View style={styles.registeredAvailabilityRow}>
+                  <Ionicons name="time-outline" size={15} color={uiColors.success} accessible={false} />
+                  <Text style={styles.registeredAvailabilityText}>Lịch rảnh đã đăng ký · {times.join(', ')}</Text>
+                </View>}
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Đăng ký lịch rảnh ${day.fullHeaderDate}`} onPress={() => navigation.navigate('Availability', undefined, { pop: true })} style={ensureTouchTarget(styles.availabilityDashedButton)}><Ionicons accessible={false} name="add" size={17} color={uiColors.muted} /><Text style={styles.availabilityDashedText}>Đăng ký lịch rảnh</Text></TouchableOpacity>
+              </View>;
+            })}
           </View>
         ) : visibleShiftCount === 0 ? (
           <View style={styles.emptyWeekCard}>
@@ -1066,7 +1150,7 @@ export default function ScheduleScreen({ navigation }) {
                           style={ensureTouchTarget([styles.shiftItemRow, isTeam && styles.teamShiftRow])}
                           onPress={() => handleShiftPress(shift, dayItem)}
                           accessibilityRole="button"
-                          accessibilityLabel={`${shift.staffName}, ${shift.timeRange}, ${shift.storeName || shift.location}, ${shift.position || 'Chưa xác định vị trí'}`}
+                          accessibilityLabel={`${shift.staffName}, ${shift.timeRange}, ${shift.storeName || shift.location}, ${shift.position || 'Chưa xác định vị trí'}${shift.hasFlag ? `, ghi chú từ quản lý: ${shift.note}` : ''}`}
                           accessibilityHint="Xem chi tiết và yêu cầu cho ca làm"
                           activeOpacity={0.75}
                         >
@@ -1079,7 +1163,7 @@ export default function ScheduleScreen({ navigation }) {
                               <View style={[styles.roleDot, { backgroundColor: theme.dotColor }]} />
                               <Text style={styles.roleLabelText}>{shift.position || 'Chưa xác định vị trí'}</Text>
                             </View>
-                            {shift.hasFlag && <Text style={styles.shiftNoteHint}>Có ghi chú từ quản lý</Text>}
+                            {shift.hasFlag && <Text style={styles.shiftNoteHint} numberOfLines={2}>Ghi chú: {shift.note}</Text>}
                           </View>
                           {!isTeam && <Ionicons name="chevron-forward" size={19} color={uiColors.muted} accessible={false} />}
                         </TouchableOpacity>
@@ -1357,35 +1441,124 @@ export default function ScheduleScreen({ navigation }) {
               </View>
             </View>
 
-            <Text style={styles.suggestSectionTitle}>Gợi ý đồng nghiệp</Text>
-
-            <View style={styles.suggestList}>
-              {storeColleagues.length === 0 ? (
-                <View style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
-                </View>
-              ) : (
-                storeColleagues.map((staff, idx) => {
-                  const isSelected = selectedSwapStaff === staff.name;
-
-                  return (
-                    <TouchableOpacity accessibilityLabel={`Chọn đồng nghiệp ${staff.name}, ${staff.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
-                      key={idx}
-                      style={ensureTouchTarget([styles.suggestItem, isSelected && styles.suggestItemSelected])}
-                      onPress={() => setSelectedSwapStaff(staff.name)}
-                      activeOpacity={0.7}
-                    >
-                      <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
-                      <View style={styles.suggestInfo}>
-                        <Text style={styles.suggestName}>{staff.name}</Text>
-                        <Text style={styles.suggestRole}>{staff.role}</Text>
-                      </View>
-                      {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
+            <Text style={styles.suggestSectionTitle}>Hình thức chuyển ca</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: swapMode === 'swap' }}
+                onPress={() => setSwapMode('swap')}
+                style={ensureTouchTarget([
+                  { flex: 1, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                  swapMode === 'swap'
+                    ? { backgroundColor: '#EEF2FF', borderColor: '#6366F1' }
+                    : { backgroundColor: uiColors.surfaceAlt, borderColor: uiColors.border },
+                ])}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: swapMode === 'swap' ? '#4338CA' : uiColors.inkMuted }}>
+                  Đổi ca 2 chiều
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: swapMode === 'giveaway' }}
+                onPress={() => setSwapMode('giveaway')}
+                style={ensureTouchTarget([
+                  { flex: 1, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                  swapMode === 'giveaway'
+                    ? { backgroundColor: '#ECFDF5', borderColor: '#10B981' }
+                    : { backgroundColor: uiColors.surfaceAlt, borderColor: uiColors.border },
+                ])}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: swapMode === 'giveaway' ? '#047857' : uiColors.inkMuted }}>
+                  Nhường ca 1 chiều
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {(() => {
+              const busyStaffIds = new Set();
+              if (selectedSwapShift?.shiftDate && Array.isArray(storeShiftsRaw)) {
+                storeShiftsRaw.forEach((s) => {
+                  if (s.shiftDate === selectedSwapShift.shiftDate && s.status !== 'CANCELLED') {
+                    if (Array.isArray(s.shiftAssignments)) {
+                      s.shiftAssignments.forEach((a) => { if (a.staffId) busyStaffIds.add(String(a.staffId)); });
+                    }
+                    if (s.staffId) busyStaffIds.add(String(s.staffId));
+                    if (s.assignedStaffId) busyStaffIds.add(String(s.assignedStaffId));
+                  }
+                });
+              }
+              const eligible = swapMode === 'giveaway'
+                ? storeColleagues.filter((staff) => !busyStaffIds.has(String(staff.staffId)))
+                : storeColleagues.filter((staff) => Boolean(staff.shiftId));
+
+              return (
+                <>
+                  <Text style={styles.suggestSectionTitle}>
+                    {swapMode === 'giveaway'
+                      ? `Đồng nghiệp chưa có ca hôm đó (${selectedGiveawayStaffs.length}/3)`
+                      : 'Gợi ý đồng nghiệp'}
+                  </Text>
+                  {swapMode === 'giveaway' ? (
+                    <Text style={{ fontSize: 12, color: uiColors.inkMuted, marginBottom: 10 }}>
+                      Chọn tối đa 3 người. Cho phép nhận ca kể cả khi chưa đăng ký rảnh hoặc vượt giới hạn giờ tuần.
+                    </Text>
+                  ) : null}
+
+                  <View style={styles.suggestList}>
+                    {eligible.length === 0 ? (
+                      <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic', textAlign: 'center' }}>
+                          {swapMode === 'giveaway'
+                            ? 'Không có đồng nghiệp nào trống ca vào ngày này'
+                            : 'Chưa có đồng nghiệp có ca sắp tới để đổi 2 chiều'}
+                        </Text>
+                      </View>
+                    ) : (
+                      eligible.map((staff, idx) => {
+                        const isSelected = swapMode === 'giveaway'
+                          ? selectedGiveawayStaffs.some((item) => String(item.staffId) === String(staff.staffId))
+                          : selectedSwapStaff === staff.name;
+
+                        return (
+                          <TouchableOpacity accessibilityLabel={`Chọn đồng nghiệp ${staff.name}, ${staff.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
+                            key={staff.staffId || idx}
+                            style={ensureTouchTarget([styles.suggestItem, isSelected && styles.suggestItemSelected])}
+                            onPress={() => {
+                              if (swapMode === 'giveaway') {
+                                setSelectedGiveawayStaffs((prev) => {
+                                  const exists = prev.some((item) => String(item.staffId) === String(staff.staffId));
+                                  if (exists) return prev.filter((item) => String(item.staffId) !== String(staff.staffId));
+                                  if (prev.length >= 3) {
+                                    showToast('Giới hạn tối đa', 'Tối đa chỉ được chọn 3 đồng nghiệp cho nhường ca 1 chiều', 'warning');
+                                    return prev;
+                                  }
+                                  return [...prev, staff];
+                                });
+                              } else {
+                                setSelectedSwapStaff(staff.name);
+                              }
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
+                            <View style={styles.suggestInfo}>
+                              <Text style={styles.suggestName}>{staff.name}</Text>
+                              <Text style={styles.suggestRole}>
+                                {swapMode === 'giveaway'
+                                  ? `${staff.role} • Không có ca ngày ${selectedSwapShift?.shiftDate || ''}`
+                                  : `${staff.role}${staff.timeRange ? ` • ${staff.timeRange}` : ''}`}
+                              </Text>
+                            </View>
+                            {isSelected && <Text style={styles.suggestCheckmark}>✓</Text>}
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+                </>
+              );
+            })()}
 
             {swapError ? (
               <View style={styles.modalErrorBox}>
@@ -1716,6 +1889,8 @@ const styles = createAppStyles({
   emptyScheduleNoticeText: { fontSize: 12, color: uiColors.muted, marginTop: 5 },
   emptyScheduleDay: { paddingBottom: 14, backgroundColor: uiColors.surface },
   emptyScheduleDayHeader: { backgroundColor: uiColors.canvas, paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  registeredAvailabilityRow: { marginHorizontal: 20, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  registeredAvailabilityText: { color: uiColors.success, fontSize: 12, fontWeight: '600' },
   emptyScheduleDate: { fontSize: 12, color: uiColors.secondary, fontWeight: '500' },
   availabilityDashedButton: { marginHorizontal: 20, marginTop: 13, minHeight: 43, borderWidth: 1, borderColor: uiColors.lineStrong, borderStyle: 'dashed', borderRadius: 13, flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center' },
   availabilityDashedText: { color: uiColors.muted, fontSize: 12 },

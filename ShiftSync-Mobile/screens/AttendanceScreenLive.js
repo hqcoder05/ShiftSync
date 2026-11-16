@@ -37,6 +37,8 @@ import { selectAttendanceShift, isAttendanceDateCurrent } from '../utils/attenda
 import { attendanceLocationError, haversineMeters } from '../utils/location';
 import useActionGuard from '../utils/useActionGuard';
 import StoreMapPreview from '../components/StoreMapPreview';
+import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { showAlert } from '../utils/alert';
 
 const localDateISO = (date = new Date()) => {
@@ -85,6 +87,7 @@ const statusBadge = (status) => {
 };
 
 export default function AttendanceScreenLive({ navigation }) {
+  const bottomNavbarPadding = useBottomNavbarPadding();
   useResumeRefresh(navigation, () => loadData(false));
   const insets = useSafeAreaInsets();
   const { runAction, busy } = useActionGuard();
@@ -425,13 +428,10 @@ export default function AttendanceScreenLive({ navigation }) {
           <Ionicons name={historyVisible ? 'refresh-outline' : 'time-outline'} size={24} color={uiColors.muted} accessible={false} />
         </Pressable>
       </View>
-      <ScrollView ref={scrollViewRef} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+      <ScrollView ref={scrollViewRef} contentContainerStyle={[styles.content, { paddingBottom: bottomNavbarPadding + 24 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData()} tintColor={uiColors.info} colors={[uiColors.info]} />}>
-        {loading ? <View style={styles.loader}>
-          <ActivityIndicator size="large" color={uiColors.info} />
-          <Text style={styles.loaderText}>Đang tải ca làm của bạn...</Text>
-        </View> : <>
+        {loading ? <ContentSkeleton variant="attendance" /> : <>
           {loadError && <View style={styles.errorCard} accessibilityRole="alert">
             <Ionicons name="cloud-offline-outline" size={24} color={uiColors.primaryStrong} accessible={false} />
             <View style={styles.flexCopy}>
@@ -646,6 +646,7 @@ export default function AttendanceScreenLive({ navigation }) {
           </>}
         </>}
       </ScrollView>
+      <BottomNavbar navigation={navigation} activeRoute="Attendance" />
       {/* ══ MODAL XEM ẢNH PHÓNG TO ══ */}
       <Modal visible={explanationVisible} transparent animationType="fade" onRequestClose={() => !explanationSubmitting && setExplanationVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.modalBackdrop, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>

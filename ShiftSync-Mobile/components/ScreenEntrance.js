@@ -17,7 +17,9 @@ export default function ScreenEntrance({ children }) {
     progress.stopAnimation();
     if (!focused || reduced) { progress.setValue(1); return undefined; }
     progress.setValue(0);
-    const animation = Animated.timing(progress, { toValue: 1, duration: 260, useNativeDriver: true });
+    // This animation changes both opacity and transform; JavaScript execution is
+    // intentional here so the same short entrance works on native and web.
+    const animation = Animated.timing(progress, { toValue: 1, duration: 260, useNativeDriver: false });
     animation.start();
     return () => animation.stop();
   }, [focused, reduced, progress]);

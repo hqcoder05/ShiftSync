@@ -14,14 +14,18 @@ import {
   AlertCircle,
   ChevronDown,
   Info,
+  CalendarDays,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import { createEmployee } from '../services/employeeService';
 import { getAllSkills } from '../services/skillService';
+import { getContractTypes } from '../services/contractTypeService';
 import './AddUserModal.css';
+import { getSessionRole } from '../services/authSession';
 
-export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
+export default function AddUserModal({ isOpen, onClose, onSuccess, storeId, storeName }) {
   // 1. Current Authenticated User Context
-  const currentRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  const currentRole = getSessionRole();
   const isAdmin = currentRole === 'ADMIN';
   const isManager = currentRole === 'MANAGER';
 
@@ -32,10 +36,15 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
     phone: '',
     password: '',
     role: 'STAFF',
+    gender: 'MALE',
+    contractTypeId: '',
+    joinedDate: new Date().toISOString().slice(0, 10),
   });
   const [showPassword, setShowPassword] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [skillsList, setSkillsList] = useState([]);
+  const [contractTypes, setContractTypes] = useState([]);
+  const [loadingContractTypes, setLoadingContractTypes] = useState(false);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillSearch, setSkillSearch] = useState('');
@@ -55,6 +64,9 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
         phone: '',
         password: '',
         role: 'STAFF',
+        gender: 'MALE',
+        contractTypeId: '',
+        joinedDate: new Date().toISOString().slice(0, 10),
       });
       setShowPassword(false);
       setSelectedSkills([]);
@@ -78,6 +90,26 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
           .finally(() => {
             setLoadingSkills(false);
           });
+
+      if (activeStoreId) {
+        setLoadingContractTypes(true);
+        getContractTypes(activeStoreId)
+          .then((res) => {
+            const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+            setContractTypes(list);
+            const first = list[0];
+            if (first?.id) {
+              setForm((current) => ({
+                ...current,
+                contractTypeId: String(first.id),
+              }));
+            }
+          })
+          .catch(() => setContractTypes([]))
+          .finally(() => setLoadingContractTypes(false));
+      } else {
+        setContractTypes([]);
+      }
       });
     }
   }, [isOpen, storeId, isAdmin, isManager]);
@@ -153,6 +185,13 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
       errors.password = 'Mật khẩu phải chứa ít nhất một chữ cái và một chữ số.';
     }
 
+    const activeStoreId = storeId || localStorage.getItem('selectedStoreId');
+    if ((isAdmin ? form.role : 'STAFF') === 'STAFF') {
+      if (!activeStoreId) errors.contractTypeId = 'Cần chọn chi nhánh trước khi tạo nhân viên.';
+      else if (!form.contractTypeId) errors.contractTypeId = 'Vui lòng chọn loại hợp đồng.';
+      else if (!form.joinedDate) errors.joinedDate = 'Vui lòng chọn ngày bắt đầu làm việc.';
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -175,6 +214,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
       password: form.password,
       systemRole: targetRole,
       gender: form.gender || 'MALE',
+      contractTypeId: targetRole === 'STAFF' ? form.contractTypeId : undefined,
+      joinedDate: targetRole === 'STAFF' ? form.joinedDate : undefined,
     };
 
     const activeStoreId = storeId || localStorage.getItem('selectedStoreId');
@@ -220,6 +261,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
   };
 
   const isStaffRole = (isAdmin ? form.role : 'STAFF') === 'STAFF';
+  const activeStoreId = storeId || localStorage.getItem('selectedStoreId');
+  const selectedContract = contractTypes.find((type) => String(type.id) === String(form.contractTypeId));
 
   return (
     <div
@@ -263,14 +306,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
 
         {/* Form Body */}
         <form id="add-user-form" className="aum-body" onSubmit={handleSubmit}>
-          {/* Row 1: Full Name | Email */}
+          {/* Row 1: Full Name | Gender */}
           <div className="aum-grid-2">
-            <div className="aum-field">
-              <label htmlFor="aum-gender">Giới tính</label>
-              <select id="aum-gender" value={form.gender || 'MALE'} onChange={e => setForm({...form,gender:e.target.value})}>
-                <option value="MALE">Nam (mặc định)</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option>
-              </select>
-            </div>
             {/* Họ và tên */}
             <div className="aum-form-group">
               <label className="aum-label" htmlFor="aum-fullname">
@@ -296,6 +333,19 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
               {fieldErrors.fullName && (
                 <span className="aum-field-error">{fieldErrors.fullName}</span>
               )}
+            </div>
+
+            <div className="aum-form-group">
+              <label className="aum-label" htmlFor="aum-gender">Giới tính</label>
+              <div className="aum-input-wrap">
+                <div className="aum-input-icon"><User size={16} /></div>
+                <select id="aum-gender" className="aum-select" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                  <option value="MALE">Nam</option>
+                  <option value="FEMALE">Nữ</option>
+                  <option value="OTHER">Khác</option>
+                </select>
+                <div className="aum-select-arrow"><ChevronDown size={15} /></div>
+              </div>
             </div>
 
             {/* Email */}
@@ -403,6 +453,48 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, storeId }) {
                 Manager có quyền quản lý nhân viên và các nghiệp vụ vận hành thuộc phạm vi được phân quyền.
               </span>
             </div>
+          )}
+
+          {isStaffRole && (
+            <section className="aum-employment-section" aria-labelledby="aum-employment-title">
+              <div className="aum-section-header">
+                <h4 id="aum-employment-title" className="aum-section-title">Thông tin làm việc ban đầu</h4>
+                <p className="aum-section-subtitle">Các giá trị này sẽ được ghi trực tiếp vào hồ sơ hợp đồng của nhân viên.</p>
+              </div>
+              <div className="aum-employment-store">
+                <BriefcaseBusiness size={16} aria-hidden="true" />
+                <span>Chi nhánh tiếp nhận</span>
+                <strong>{activeStoreId ? (storeName || 'Chi nhánh đang chọn') : 'Chưa chọn chi nhánh'}</strong>
+              </div>
+              <div className="aum-grid-2">
+                <div className="aum-form-group">
+                  <label className="aum-label" htmlFor="aum-contract-type">Loại hợp đồng <span className="aum-req">*</span></label>
+                  <div className="aum-input-wrap">
+                    <div className="aum-input-icon"><BriefcaseBusiness size={16} /></div>
+                    <select id="aum-contract-type" className={`aum-select ${fieldErrors.contractTypeId ? 'error' : ''}`} value={form.contractTypeId} disabled={loadingContractTypes || !activeStoreId} onChange={(e) => {
+                      setForm({ ...form, contractTypeId: e.target.value });
+                      if (fieldErrors.contractTypeId) setFieldErrors({ ...fieldErrors, contractTypeId: '' });
+                    }}>
+                      <option value="">{loadingContractTypes ? 'Đang tải loại hợp đồng...' : 'Chọn loại hợp đồng'}</option>
+                      {contractTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+                    </select>
+                    <div className="aum-select-arrow"><ChevronDown size={15} /></div>
+                  </div>
+                  {fieldErrors.contractTypeId && <span className="aum-field-error">{fieldErrors.contractTypeId}</span>}
+                </div>
+                <div className="aum-form-group">
+                  <label className="aum-label" htmlFor="aum-joined-date">Ngày bắt đầu <span className="aum-req">*</span></label>
+                  <div className="aum-input-wrap">
+                    <div className="aum-input-icon"><CalendarDays size={16} /></div>
+                    <input id="aum-joined-date" className={`aum-input ${fieldErrors.joinedDate ? 'error' : ''}`} type="date" value={form.joinedDate} onChange={(e) => setForm({ ...form, joinedDate: e.target.value })} />
+                  </div>
+                  {fieldErrors.joinedDate && <span className="aum-field-error">{fieldErrors.joinedDate}</span>}
+                </div>
+              </div>
+              <p className="aum-compensation-note">
+                Lương từng ca được xác định theo kỹ năng/vị trí được giao. {selectedContract?.defaultHourlyRate ? `Mức ${Number(selectedContract.defaultHourlyRate).toLocaleString('vi-VN')} đ/giờ của hợp đồng chỉ được dùng khi ca không có kỹ năng.` : 'Hợp đồng chỉ là mức dự phòng khi ca không có kỹ năng.'}
+              </p>
+            </section>
           )}
 
           {/* Row 3: Initial Password */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useConfirmation } from '../../context/ConfirmationContext';
+import { getSessionRole } from '../../services/authSession';
 import DemandDailyView from './DemandDailyView';
 import DemandWeeklyMatrixView from './DemandWeeklyMatrixView';
 import headcountQuotaService from '../../services/headcountQuotaService';
@@ -52,7 +53,7 @@ export default function DemandPlanningModal({
   const [viewMode, setViewMode] = useState('day'); // 'day' | 'week' | 'month'
   const [quotaSummary, setQuotaSummary] = useState(null);
 
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  const userRole = getSessionRole();
   const isAdmin = userRole === 'ADMIN';
 
   // Branches & Store Selection

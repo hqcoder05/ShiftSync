@@ -5,6 +5,7 @@ import {assignmentsOf} from '../schedule-planner/plannerModel.js';
 import {getShiftTimeRange} from '../spatial-workspace/utils/shiftTimeRange.js';
 import {assignmentChanges, replayShifts, shiftsInWindow, previewShifts} from './visualizationModel.js';
 import './auto-scheduler.css';
+import { hasManagerRole } from '../../services/authSession.js';
 
 export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, onReplayOnBoard}) {
   const {storeId, storeName, storeCategory, layout, zones, employees, skills, before, startDate, endDate, replayOnBoard} = snapshot;
@@ -131,8 +132,8 @@ export default function AutoSchedulerVisualization({snapshot, onClose, onSaved, 
         <div className="asv-tabs" aria-label="So sánh lịch">
           {[['before','Lịch hiện tại'],['replay',result?.dryRun ? 'Phát phương án thử' : 'Animation xếp ca'],['after',result?.dryRun ? 'Phương án thử' : 'Lịch đã lưu']].map(([id,label]) => <button key={id} aria-pressed={mode === id} disabled={id !== 'before' && !after} onClick={() => {setMode(id); setPlaying(false); if(id === 'replay'){setSpatial(true);setStep(0);if(changes[0]){setShiftId(changes[0].shiftId);setZoneId(changes[0].assignment.zoneId||'');}}}}>{label}</button>)}
         </div>
-        {!result && !attempted && <div className="asv-run-actions"><button disabled={busy || !['ADMIN','MANAGER'].includes(localStorage.getItem('userRole'))} onClick={() => run(true)}>{busy ? 'Đang thử phương án…' : 'Thử phương án'}</button><button className="asv-primary" disabled={busy || !['ADMIN','MANAGER'].includes(localStorage.getItem('userRole'))} onClick={() => run(false)}>Xếp & lưu</button></div>}
-        {result?.dryRun && <><button disabled={busy} onClick={() => run(true)}>Tạo bản xem trước mới</button><button className="asv-primary" disabled={busy || planInvalid || !result.planId || !after || !['ADMIN','MANAGER'].includes(localStorage.getItem('userRole'))} onClick={applyPreview}>{busy ? 'Đang xử lý…' : 'Áp dụng phương án này'}</button></>}
+        {!result && !attempted && <div className="asv-run-actions"><button disabled={busy || !hasManagerRole()} onClick={() => run(true)}>{busy ? 'Đang thử phương án…' : 'Thử phương án'}</button><button className="asv-primary" disabled={busy || !hasManagerRole()} onClick={() => run(false)}>Xếp & lưu</button></div>}
+        {result?.dryRun && <><button disabled={busy} onClick={() => run(true)}>Tạo bản xem trước mới</button><button className="asv-primary" disabled={busy || planInvalid || !result.planId || !after || !hasManagerRole()} onClick={applyPreview}>{busy ? 'Đang xử lý…' : 'Áp dụng phương án này'}</button></>}
         {attempted && !result && <button disabled={busy} onClick={retryRead}>Kiểm tra lịch trên máy chủ</button>}
         {result && !result.dryRun && !after && <button disabled={busy} onClick={retryRead}>Tải lại kết quả đã lưu</button>}
         {after && !result?.dryRun && changes.length > 0 && <button className="asv-primary" onClick={() => onReplayOnBoard?.({before, after, startDate, assignmentSequence: result?.assignmentSequence})}>Phát trên bảng tuần</button>}

@@ -108,7 +108,7 @@ export default function ThreeIllustration({ kind = 'income', size = 100, width =
     interaction.current.y = Math.max(-1, Math.min(1, ((y - rect.top) / rect.height) * 2 - 1));
   };
   const fallback = <Image source={previews[kind] || previews.income} resizeMode="contain" style={{ width, height }} />;
-  const artwork = <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none" style={{ width, height }}>
+  const artwork = <View accessible={false} importantForAccessibility="no-hide-descendants" style={{ width, height, pointerEvents: 'none' }}>
     {animated && focused && active && !reduced ? <>
       {!ready && fallback}
       <View style={{ position: 'absolute', top: 0, left: 0, width, height }}><SceneBoundary key={kind} fallback={fallback}>

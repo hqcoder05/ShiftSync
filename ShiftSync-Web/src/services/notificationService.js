@@ -1,5 +1,6 @@
 import api from './api';
 import { API_BASE_URL } from './api';
+import { getAccessToken } from './authSession';
 
 export const getNotificationPreferences = () =>
   api.get('/users/me/notification-preferences');
@@ -36,7 +37,7 @@ export const scheduleDelayedTestNotification = (payload = {}) => api.post('/noti
 // SSE response with fetch instead so the existing JWT policy remains intact.
 export const subscribeNotificationStream = (onMessage, onError) => {
   const controller = new AbortController();
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = getAccessToken();
   fetch(`${API_BASE_URL}/users/me/notifications/stream`, {
     headers: token ? { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' } : {},
     signal: controller.signal,

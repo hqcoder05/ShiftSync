@@ -1,7 +1,8 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import ScreenEntrance from '../components/ScreenEntrance';
+import ContentSkeleton from '../components/ContentSkeleton';
 
 export default function LazyScreen({ loader, ...props }) {
   const [Screen, setScreen] = useState(null);
@@ -22,6 +23,6 @@ export default function LazyScreen({ loader, ...props }) {
       </View>
     );
   }
-  if (!Screen) return <View style={{ flex: 1, backgroundColor: uiColors.surface, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={uiColors.primaryStrong} /></View>;
+  if (!Screen) return <View style={{ flex: 1, backgroundColor: uiColors.surface }}><ContentSkeleton /></View>;
   return <ScreenEntrance><Screen {...props} /></ScreenEntrance>;
 }

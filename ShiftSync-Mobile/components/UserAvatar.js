@@ -77,7 +77,7 @@ export default function UserAvatar({ avatarId = 'dilan', size = 56, style, anima
     style={[{ width: size, height: size, borderRadius: resolvedFraming === 'full' ? size * 0.12 : size / 2, overflow: 'hidden', backgroundColor: colors.lavender, alignItems: 'center', justifyContent: 'center' }, style]}>
     {animated && focused && active && !reduceMotion ? <>
       {!ready && fallback}
-      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, width: size, height: size }}><AvatarBoundary key={`${avatarId}:${resolvedFraming}`} fallback={fallback}>
+      <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, pointerEvents: 'none' }}><AvatarBoundary key={`${avatarId}:${resolvedFraming}`} fallback={fallback}>
       <Canvas style={{ width: size, height: size, opacity: ready ? 1 : 0 }} dpr={1.5} frameloop="always" camera={{ position: cameraPreset.position, fov: cameraPreset.fov }} gl={{ alpha: true, antialias: true }} onCreated={({ camera }) => camera.lookAt(...cameraPreset.target)}>
         <hemisphereLight args={['#FFF7EE', '#8594B2', 2]} />
         <directionalLight position={[-3, 4, 5]} intensity={3} color="#FFF6ED" />

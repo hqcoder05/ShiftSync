@@ -79,7 +79,13 @@ const tomorrowInVietnam = () => {
   return new Date(Date.UTC(get('year'), get('month') - 1, get('day') + 1)).toISOString().slice(0, 10);
 };
 
-export default function SettingsPage() {
+const TABS_BY_SCOPE = Object.freeze({
+  personal: ['notifications', 'appearance'],
+  store: ['general', 'attendance', 'schedule', 'config', 'dispatch'],
+  system: ['permissions', 'holidays'],
+});
+
+export default function SettingsPage({ scope = 'personal' }) {
   const confirm = useConfirmation();
   const { search } = useLocation();
   const { theme, setTheme, style, setStyle, navStyle, setNavStyle } = useTheme();
@@ -89,8 +95,9 @@ export default function SettingsPage() {
   const [initialConfig, setInitialConfig] = useState(DEFAULT_CONFIG);
   const [toastMessage, setToastMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const visibleTabs = TABS_BY_SCOPE[scope] || TABS_BY_SCOPE.personal;
   const requestedTab = new URLSearchParams(search).get('tab');
-  const urlTab = ['attendance', 'schedule', 'config', 'dispatch', 'permissions', 'notifications', 'appearance', 'holidays'].includes(requestedTab) ? requestedTab : 'general';
+  const urlTab = visibleTabs.includes(requestedTab) ? requestedTab : visibleTabs[0];
   const [tabSelection, setTabSelection] = useState(() => ({ search, tab: urlTab }));
   const activeTab = tabSelection.search === search ? tabSelection.tab : urlTab;
   const setActiveTab = (tab) => setTabSelection({ search, tab });
@@ -721,6 +728,7 @@ export default function SettingsPage() {
   };
 
   const handleTabClick = (tabKey) => {
+    if (!visibleTabs.includes(tabKey)) return;
     setActiveTab(tabKey);
     if (tabKey === 'holidays') {
       loadHolidays();
@@ -742,12 +750,12 @@ export default function SettingsPage() {
             <nav className="sc-breadcrumbs">
               <span className="sc-bc-item">Hệ thống</span>
               <span className="sc-bc-sep">/</span>
-              <span className="sc-bc-item">Cài đặt chuỗi</span>
+              <span className="sc-bc-item">{scope === 'personal' ? 'Tài khoản' : scope === 'system' ? 'Quản trị' : 'Cài đặt chuỗi'}</span>
               <span className="sc-bc-sep">/</span>
-              <span className="sc-bc-item active">Cửa hàng</span>
+              <span className="sc-bc-item active">{scope === 'personal' ? 'Cá nhân' : scope === 'system' ? 'Hệ thống' : 'Cửa hàng'}</span>
             </nav>
 
-            <div className="sc-store-quick-select">
+            {scope === 'store' && <div className="sc-store-quick-select">
               <span className="sc-sq-label">Chi nhánh:</span>
               <select
                 value={selectedStoreId}
@@ -760,17 +768,21 @@ export default function SettingsPage() {
                   </option>
                 ))}
               </select>
-            </div>
+            </div>}
           </div>
 
           <div className="sc-header-row">
             <div className="sc-header-left">
               <div className="sc-header-titles">
                 <div className="sc-title-cluster">
-                  <h1 className="sc-page-title">Cấu hình Cửa hàng</h1>
+                  <h1 className="sc-page-title">{scope === 'personal' ? 'Cài đặt cá nhân' : scope === 'system' ? 'Cấu hình hệ thống' : 'Cấu hình Cửa hàng'}</h1>
                 </div>
                 <p className="sc-page-desc">
-                  Quản lý định vị, ca kíp, quy tắc làm việc và phân quyền nhân viên cho điểm bán
+                  {scope === 'personal'
+                    ? 'Quản lý thông báo và giao diện dành riêng cho tài khoản của bạn'
+                    : scope === 'system'
+                      ? 'Quản lý phân quyền và các thiết lập áp dụng trên toàn hệ thống'
+                      : 'Quản lý định vị, ca kíp và quy tắc làm việc cho điểm bán'}
                 </p>
               </div>
             </div>
@@ -798,79 +810,79 @@ export default function SettingsPage() {
 
         {/* ── 2. Navigation Tab Strip ── */}
         <div className="sc-tabs-strip">
-          <button
+          {visibleTabs.includes('notifications') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'notifications' ? 'active' : ''}`}
             onClick={() => handleTabClick('notifications')}
           >
             <span>Thông báo</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('general') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'general' ? 'active' : ''}`}
             onClick={() => handleTabClick('general')}
           >
             <span>Thông tin chung</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('attendance') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
             onClick={() => handleTabClick('attendance')}
           >
             <span>Chấm công</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('schedule') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'schedule' ? 'active' : ''}`}
             onClick={() => handleTabClick('schedule')}
           >
             <span>Quy tắc lên lịch</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('config') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'config' ? 'active' : ''}`}
             onClick={() => handleTabClick('config')}
           >
             <span>Cấu hình ca</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('dispatch') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'dispatch' ? 'active' : ''}`}
             onClick={() => handleTabClick('dispatch')}
           >
             <span>Điều phối</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('permissions') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'permissions' ? 'active' : ''}`}
             onClick={() => handleTabClick('permissions')}
           >
             <span>Phân quyền</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('appearance') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
             onClick={() => handleTabClick('appearance')}
           >
             <Palette size={14} style={{ marginRight: 4 }} />
             <span>Giao diện & Chủ đề</span>
-          </button>
+          </button>}
 
-          <button
+          {visibleTabs.includes('holidays') && <button
             type="button"
             className={`sc-tab-btn ${activeTab === 'holidays' ? 'active' : ''}`}
             onClick={() => handleTabClick('holidays')}
           >
             <Calendar size={14} style={{ marginRight: 4 }} />
             <span>Ngày Lễ & Hệ số Lương</span>
-          </button>
+          </button>}
         </div>
 
         {/* ── 3. CARD 1: THÔNG TIN CƠ BẢN & VỊ TRÍ ── */}

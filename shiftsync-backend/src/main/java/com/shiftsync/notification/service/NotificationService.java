@@ -127,9 +127,10 @@ public class NotificationService {
                 .map(UserDeviceToken::getFcmToken)
                 .collect(Collectors.toList());
 
-        // Send a data-only FCM message. The service worker renders exactly one
-        // Windows notification while the app is in the background; an FCM
-        // notification payload would be auto-rendered first and cause a duplicate.
+        // Keep the top-level message data-only so the service worker renders
+        // exactly one Windows notification. Android also needs a platform
+        // notification payload for the OS to display a banner while the app is
+        // backgrounded or terminated.
         Map<String, String> pushData = new HashMap<>();
         if (data != null) {
             pushData.putAll(data);
@@ -142,7 +143,15 @@ public class NotificationService {
 
         MulticastMessage.Builder messageBuilder = MulticastMessage.builder()
                 .addAllTokens(fcmTokens)
-                .putAllData(pushData);
+                .putAllData(pushData)
+                .setAndroidConfig(AndroidConfig.builder()
+                        .setPriority(AndroidConfig.Priority.HIGH)
+                        .setNotification(AndroidNotification.builder()
+                                .setTitle(title)
+                                .setBody(body)
+                                .setChannelId("default")
+                                .build())
+                        .build());
 
         MulticastMessage message = messageBuilder.build();
 

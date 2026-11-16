@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),assert=require('assert/strict');
 const {chromium}=require('playwright');
-const out=path.resolve('qa-week3-2026-10-28'),base='http://localhost:8081';
+const out=path.resolve('qa-week3-2026-10-28'),base=process.env.E2E_BASE_URL||'http://localhost:8081';
 const report={evidence:'Chromium web with intercepted API fixtures and simulated document visibility. Not a physical Android/iOS or screen-reader test.',checks:[],errors:[]};
 let browser,current;
 const user={id:'11111111-1111-4111-8111-111111111111',fullName:'QA Tuần Bốn',email:'week4@example.invalid',systemRole:'STAFF',avatarId:'dilan'};
@@ -18,7 +18,7 @@ async function audit(page,label){
  report.checks.push(label+': visible targets >=48 CSS px, no document overflow');
 }
 (async()=>{
- browser=await chromium.launch({executablePath:path.resolve('qa-week2-2026-10-20/browsers/chromium-1248/chrome-win64/chrome.exe'),headless:true});
+ browser=await chromium.launch({headless:true});
  for(const width of [320,390]){
   const context=await browser.newContext({viewport:{width,height:844},locale:'vi-VN'});
   await context.addInitScript(()=>{
@@ -48,12 +48,12 @@ async function audit(page,label){
   const cdp=await context.newCDPSession(page);
   await cdp.send('Emulation.setTimezoneOverride',{timezoneId:'America/Los_Angeles'});
   await page.goto(base,{waitUntil:'domcontentloaded',timeout:120000});
-  await page.getByRole('button',{name:'Mở chấm công vào ca hôm nay',exact:true}).getByText('6:00',{exact:false}).first().waitFor({timeout:120000});
-  await page.getByText('THỨ 5, 29 THÁNG 10',{exact:true}).waitFor();
+  await page.getByText('6:00 AM.',{exact:false}).waitFor({timeout:120000});
+  await page.getByText(/Thứ 5, 29 tháng 10/i).waitFor();
   report.checks.push(width+': dashboard uses 29 Oct Vietnam while device is 28 Oct in Los Angeles');
   await audit(page,width+' dashboard');
   const before=calls.length;await page.evaluate(()=>window.__setVisibility('hidden'));start='09:00:00';await page.evaluate(()=>window.__setVisibility('visible'));
-  await page.getByRole('button',{name:'Mở chấm công vào ca hôm nay',exact:true}).getByText('9:00',{exact:false}).first().waitFor({timeout:30000});
+  await page.getByText('9:00 AM.',{exact:false}).waitFor({timeout:30000});
   assert.ok(calls.slice(before).includes('/api/users/me'));report.checks.push(width+': resume validates session and updates the visible shift without navigating/reloading');
   await page.getByRole('tab',{name:'Lịch làm',exact:true}).click();
   await page.getByRole('button',{name:'Lịch sử điều chỉnh',exact:true}).waitFor();

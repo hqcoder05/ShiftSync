@@ -8,6 +8,11 @@ import com.shiftsync.store.dto.StoreUpdateRequest;
 import com.shiftsync.store.entity.Store;
 import com.shiftsync.store.mapper.StoreMapper;
 import com.shiftsync.store.repository.StoreRepository;
+import com.shiftsync.employment.repository.EmploymentRepository;
+import com.shiftsync.employment.enums.EmploymentStatus;
+import com.shiftsync.shared.security.SystemRole;
+import com.shiftsync.auth.repository.UserRepository;
+import com.shiftsync.store.dto.ManagerSummaryDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.shiftsync.shift.service.ShiftTemplateService;
@@ -26,18 +31,33 @@ public class StoreService {
     private final ShiftTemplateService shiftTemplateService;
     private final EntityManager entityManager;
     private final com.shiftsync.leave.service.LeaveRequestService leaveRequestService;
+    private final EmploymentRepository employmentRepository;
+    private final UserRepository userRepository;
 
     public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService, EntityManager entityManager,
             com.shiftsync.leave.service.LeaveRequestService leaveRequestService) {
+        this(storeRepository, auditLogService, shiftTemplateService, entityManager, leaveRequestService, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public StoreService(StoreRepository storeRepository, AuditLogService auditLogService, ShiftTemplateService shiftTemplateService, EntityManager entityManager,
+            com.shiftsync.leave.service.LeaveRequestService leaveRequestService, EmploymentRepository employmentRepository, UserRepository userRepository) {
         this.storeRepository = storeRepository;
         this.auditLogService = auditLogService;
         this.shiftTemplateService = shiftTemplateService;
         this.entityManager = entityManager;
         this.leaveRequestService = leaveRequestService;
+        this.employmentRepository = employmentRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
     public StoreDTO createStore(StoreCreateRequest request) {
+        return createStore(request, null);
+    }
+
+    @Transactional
+    public StoreDTO createStore(StoreCreateRequest request, UUID actorId) {
         validateStoreBusinessRules(request);
 
         Store store = Store.builder()
@@ -52,20 +72,22 @@ public class StoreService {
                 .build();
 
         Store savedStore = storeRepository.save(store);
-        return StoreMapper.toDTO(savedStore);
+        auditLogService.log(actorId, "CREATE", "Store", savedStore.getId(), null,
+                java.util.Map.of("name", savedStore.getName()));
+        return toDetailedDTO(savedStore);
     }
 
     @Transactional(readOnly = true)
     public List<StoreDTO> getStoreDirectory() {
         return storeRepository.findAll().stream()
-                .map(StoreMapper::toDTO)
+                .map(this::toDetailedDTO)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public Page<StoreDTO> getAllStores(Pageable pageable) {
         return storeRepository.findAll(pageable)
-                .map(StoreMapper::toDTO);
+                .map(this::toDetailedDTO);
     }
 
     @Transactional(readOnly = true)
@@ -73,23 +95,39 @@ public class StoreService {
         if (search == null || search.trim().isEmpty()) {
             return getAllStores(pageable);
         }
-        return storeRepository.searchStores(search, pageable).map(StoreMapper::toDTO);
+        return storeRepository.searchStores(search, pageable).map(this::toDetailedDTO);
     }
 
     @Transactional(readOnly = true)
     public Page<StoreDTO> getMyStores(UUID staffId, String search, Pageable pageable) {
         if (search == null || search.trim().isEmpty()) {
             return storeRepository.findStoresByStaffId(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, pageable)
-                    .map(StoreMapper::toDTO);
+                    .map(this::toDetailedDTO);
         }
         return storeRepository.findStoresByStaffIdWithSearch(staffId, com.shiftsync.employment.enums.EmploymentStatus.ACTIVE, search.trim(), pageable)
-                .map(StoreMapper::toDTO);
+                .map(this::toDetailedDTO);
     }
 
     @Transactional(readOnly = true)
     public com.shiftsync.store.dto.StoreOverviewDTO getStoreOverview() {
+        if (employmentRepository == null || userRepository == null) {
+            return com.shiftsync.store.dto.StoreOverviewDTO.builder()
+                    .totalStores(storeRepository.count())
+                    .build();
+        }
+        var managerEmployments = employmentRepository.findByStatusAndUserSystemRole(EmploymentStatus.ACTIVE, SystemRole.MANAGER);
+        var assignedStoreIds = managerEmployments.stream().map(e -> e.getStore().getId()).collect(java.util.stream.Collectors.toSet());
+        var assignedManagerIds = managerEmployments.stream().map(e -> e.getUser().getId()).collect(java.util.stream.Collectors.toSet());
+        long totalStores = storeRepository.count();
+        long totalManagers = userRepository.countBySystemRole(SystemRole.MANAGER);
         return com.shiftsync.store.dto.StoreOverviewDTO.builder()
-                .totalStores(storeRepository.count())
+                .totalStores(totalStores)
+                .assignedStoresCount(assignedStoreIds.size())
+                .unassignedStoresCount(Math.max(0, totalStores - assignedStoreIds.size()))
+                .totalManagers(totalManagers)
+                .assignedManagersCount(assignedManagerIds.size())
+                .unassignedManagersCount(Math.max(0, totalManagers - assignedManagerIds.size()))
+                .totalUsers(userRepository.count())
                 .build();
     }
 
@@ -97,13 +135,22 @@ public class StoreService {
     public StoreDTO getStoreById(UUID id) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Store not found with id: " + id, HttpStatus.NOT_FOUND));
-        return StoreMapper.toDTO(store);
+        return toDetailedDTO(store);
     }
 
     @Transactional
     public StoreDTO updateStore(UUID id, StoreUpdateRequest request) {
+        return updateStore(id, request, null);
+    }
+
+    @Transactional
+    public StoreDTO updateStore(UUID id, StoreUpdateRequest request, UUID actorId) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Store not found with id: " + id, HttpStatus.NOT_FOUND));
+        java.util.Map<String, Object> before = new java.util.HashMap<>();
+        before.put("name", store.getName());
+        before.put("openTime", String.valueOf(store.getOpenTime()));
+        before.put("closeTime", String.valueOf(store.getCloseTime()));
 
         validateStoreBusinessRules(request);
 
@@ -127,7 +174,11 @@ public class StoreService {
         if (request.getOpenTime() != null || request.getCloseTime() != null) {
             shiftTemplateService.deactivateOutOfBoundsTemplates(updatedStore);
         }
-        return StoreMapper.toDTO(updatedStore);
+        auditLogService.log(actorId, "UPDATE", "Store", updatedStore.getId(), before,
+                java.util.Map.of("name", updatedStore.getName(),
+                        "openTime", String.valueOf(updatedStore.getOpenTime()),
+                        "closeTime", String.valueOf(updatedStore.getCloseTime())));
+        return toDetailedDTO(updatedStore);
     }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.SERIALIZABLE)
@@ -179,6 +230,32 @@ public class StoreService {
 
     private void validateStoreBusinessRules(StoreCreateRequest request) {
         validateTimeAndCoordinates(request.getOpenTime(), request.getCloseTime(), request.getLatitude(), request.getLongitude());
+    }
+
+    /**
+     * StoreMapper deliberately handles the immutable store fields. The admin
+     * workspace additionally needs current employment data so manager cards,
+     * counts and assignment status always reflect the database after a change.
+     */
+    private StoreDTO toDetailedDTO(Store store) {
+        StoreDTO dto = StoreMapper.toDTO(store);
+        if (employmentRepository == null) return dto;
+
+        var managers = employmentRepository
+                .findByStoreIdAndStatusAndUserSystemRole(store.getId(), EmploymentStatus.ACTIVE, SystemRole.MANAGER)
+                .stream()
+                .map(employment -> ManagerSummaryDTO.builder()
+                        .id(employment.getUser().getId())
+                        .fullName(employment.getUser().getFullName())
+                        .email(employment.getUser().getEmail())
+                        .phone(employment.getUser().getPhone())
+                        .avatarId(employment.getUser().getAvatarId())
+                        .build())
+                .toList();
+        dto.setManagers(managers);
+        dto.setManagerCount(managers.size());
+        dto.setStaffCount(Math.toIntExact(employmentRepository.countByStoreIdAndStatus(store.getId(), EmploymentStatus.ACTIVE)));
+        return dto;
     }
 
     private void validateStoreBusinessRules(StoreUpdateRequest request) {

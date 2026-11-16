@@ -19,6 +19,51 @@ const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;
   assert.doesNotMatch(webRegistry,/api\/auth\/register/);
   assert.match(security,/requestMatchers\("\/api\/auth\/login",\s*"\/api\/auth\/refresh",\s*"\/api\/auth\/logout"\)\.permitAll\(\)/);
  });
+ await check('Data-heavy mobile screens preserve context with skeleton loading states',()=>{
+  const screens=['screens/ScheduleScreen.js','screens/RequestScreen.js','screens/PayrollScreen.js','screens/MarketplaceScreen.js','screens/MessagingScreen.js'];
+  screens.forEach(file=>assert.match(fs.readFileSync(file,'utf8'),/ContentSkeleton/));
+  const availability=fs.readFileSync('screens/AvailabilityScreen.js','utf8');
+  assert.match(availability,/dataLoading \? <View accessibilityLabel="Đang tải lịch rảnh"/);
+  assert.match(fs.readFileSync('components/ContentSkeleton.js','utf8'),/variant === 'messages'/);
+ });
+ await check('Startup validates an online session before opening protected mobile screens',()=>{
+  const navigator=fs.readFileSync('navigation/AppNavigator.js','utf8');
+  assert.match(navigator,/await api\.get\('\/users\/me', \{ expectedSessionEmail: email, timeout: 10000 \}\)/);
+  assert.match(navigator,/AsyncStorage\.multiRemove\(\['accessToken', 'refreshToken', 'userRole', 'userEmail'\]\)/);
+  assert.match(navigator,/setInitialRoute\('Login'\)/);
+ });
+ await check('Mobile-owned web animations use Three Timer instead of deprecated Clock',()=>{
+  const files=['components/AttendanceBadge3D.web.js','components/HoloCard3D.web.js','components/FlowerMascot3D.web.js','components/LoginMascot3D.web.js','components/PaperPlane3D.web.js','components/Payroll3DCharacter.web.js'];
+  files.forEach(file=>{
+   const source=fs.readFileSync(file,'utf8');
+   assert.doesNotMatch(source,/new THREE\.Clock\(/);
+   assert.match(source,/new THREE\.Timer\(/);
+  });
+ });
+ await check('Bottom navigation uses a web-safe animation driver',()=>{
+  const navbar=fs.readFileSync('components/BottomNavbar.js','utf8');
+  assert.match(navbar,/Platform\.OS !== 'web'/);
+  assert.match(navbar,/useNativeDriver: canUseNativeAnimationDriver/);
+ });
+ await check('Web-capable app animations do not force the unsupported native driver',()=>{
+  const files=['components/AnimatedNotificationIcon.js','components/DashboardQuickActions.js','components/EmployeeCard3D.js','components/JoyBurst.js','screens/ProfileScreenApi.js'];
+  files.forEach(file=>{
+   const source=fs.readFileSync(file,'utf8');
+   assert.match(source,/Platform\.OS !== 'web'/);
+   assert.doesNotMatch(source,/useNativeDriver:\s*true/);
+  });
+ });
+ await check('3D avatar does not suppress browser warnings globally',()=>{
+  const avatar=fs.readFileSync('components/Avatar3D.web.js','utf8');
+  assert.doesNotMatch(avatar,/console\.warn\s*=/);
+  assert.doesNotMatch(avatar,/__ss_clock_filter_installed/);
+ });
+ await check('More screen preserves account layout while its profile is loading',()=>{
+  const more=fs.readFileSync('screens/MoreScreen.js','utf8');
+  assert.match(more,/Đang tải thông tin tài khoản/);
+  assert.match(more,/profileSkeletonName/);
+  assert.doesNotMatch(more,/ActivityIndicator/);
+ });
  const time=load('utils/vietnamTime.js');
  const activity=load('services/activityService.js', {
   '../theme/koreanPalette':{colors:{}}, './api':{}, '@react-native-async-storage/async-storage':{}, './offlineCache':{},
@@ -54,6 +99,64 @@ const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;
  const touch=load('utils/touchTarget.js');
  await check('48dp minimum wins over a small inline layout',()=>assert.equal(touch.ensureTouchTarget({width:24,minHeight:20}).at(-1).minHeight,48));
  await check('Pressed styles still receive their original state',()=>assert.equal(touch.ensureTouchTarget(({pressed})=>({opacity:pressed?.5:1}))({pressed:true})[0].opacity,.5));
+ const cacheValues=new Map([['userEmail','staff@example.invalid'],['accessToken','token']]);
+ const cacheStorage={multiGet:async keys=>keys.map(key=>[key,cacheValues.get(key)||null]),getItem:async key=>cacheValues.get(key)||null,setItem:async(key,value)=>cacheValues.set(key,value)};
+ const offlineCache=load('services/offlineCache.js',{'@react-native-async-storage/async-storage':cacheStorage,'./networkState':{getNetworkSnapshot:()=>({online:true}),isNetworkFailure:()=>false}});
+ await check('Concurrent reads of the same account data share one network request',async()=>{
+  const gate=defer();let requests=0;
+  const first=offlineCache.cachedRequest('profile',async()=>{requests++;return gate.promise;});
+  const second=offlineCache.cachedRequest('profile',async()=>{requests++;return gate.promise;});
+  for(let i=0;i<5;i++)await Promise.resolve();
+  assert.equal(requests,1);
+  gate.resolve({data:{id:'staff'}});
+  const [a,b]=await Promise.all([first,second]);
+  assert.deepEqual(a.data,b.data);
+ });
+ await check('Completed reads stay fresh and a refreshed token starts a separate request',async()=>{
+  let requests=0;
+  const read=()=>offlineCache.cachedRequest('profile-freshness',async()=>({data:{request:++requests}}));
+  assert.equal((await read()).data.request,1);
+  assert.equal((await read()).data.request,2);
+  cacheValues.set('accessToken','refreshed-token');
+  assert.equal((await read()).data.request,3);
+  cacheValues.set('accessToken','token');
+ });
+ const notificationGate=defer();let notificationRequests=0;
+ const notifications=load('services/notificationService.js',{
+  './api':{get:async()=>{notificationRequests++;return notificationGate.promise;}},
+  'react-native':{Platform:{OS:'web'}},'@react-native-async-storage/async-storage':cacheStorage,
+  './offlineCache':{cachedRequest:async()=>{}},'./networkState':{getNetworkSnapshot:()=>({online:true}),isNetworkFailure:()=>false},
+ });
+ await check('Unread notification refreshes share one request during app startup',async()=>{
+  const first=notifications.getUnreadNotificationCount();
+  const second=notifications.getUnreadNotificationCount();
+  for(let i=0;i<5;i++)await Promise.resolve();
+  assert.equal(notificationRequests,1);
+  notificationGate.resolve({data:{unreadCount:4}});
+  const [a,b]=await Promise.all([first,second]);
+  assert.equal(a.data.unreadCount,4);assert.equal(b.data.unreadCount,4);
+ });
+ const messagingGate=defer();let messagingRequests=0;
+ const messagingRefresh=load('services/messagingService.js',{'./api':{get:async()=>{messagingRequests++;return messagingGate.promise;}},'./offlineCache':{}});
+ await check('Unread message refreshes share one request during app startup',async()=>{
+  const first=messagingRefresh.refreshMessagingUnreadCount();
+  const second=messagingRefresh.refreshMessagingUnreadCount();
+  for(let i=0;i<5;i++)await Promise.resolve();
+  assert.equal(messagingRequests,1);
+  messagingGate.resolve({data:{unreadCount:2}});
+  const [a,b]=await Promise.all([first,second]);
+  assert.equal(a.data.unreadCount,2);assert.equal(b.data.unreadCount,2);
+ });
+ await check('Profile reads preserve the expected session when shared by the notification stream',async()=>{
+  let requestConfig;
+  const profileService=load('services/profileService.js',{
+   './api':{get:async(_path,config)=>{requestConfig=config;return {data:{id:'staff'}};}},
+   './offlineCache':{cachedRequest:async(_name,request)=>request()},'../utils/displayText':{readableProfile:value=>value},
+  });
+  await profileService.getMyProfile({expectedSessionEmail:'staff@example.invalid',timeout:5000});
+  assert.equal(requestConfig.expectedSessionEmail,'staff@example.invalid');assert.equal(requestConfig.timeout,5000);
+  assert.match(fs.readFileSync('services/notificationStream.js','utf8'),/getMyProfile\(\{ expectedSessionEmail: before\.email, timeout: 5000 \}\)/);
+ });
  const {createResumeCoordinator}=load('services/resumeCoordinator.js');
  function fixture(extra={}){let owner={email:'a@example.invalid',token:'token'},online=true,active=true;const calls=[];const c=createResumeCoordinator({readSession:async()=>owner,validate:async()=>calls.push('validate'),syncShifts:async()=>calls.push('shifts'),isOnline:()=>online,isActive:()=>active,publish:()=>calls.push('publish'),onError:()=>calls.push('error'),...extra});return {c,calls,owner:v=>owner=v,online:v=>online=v,active:v=>active=v};}
  await check('Resume validates token before syncing and publishing',async()=>{const f=fixture();await f.c.request();assert.deepEqual(f.calls,['validate','shifts','publish']);});

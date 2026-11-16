@@ -21,10 +21,12 @@ import {
   Check,
   Box,
   ArrowUpRight,
+  Shield,
 } from "lucide-react";
 import { useTheme } from './themeContext.js';
 import NotificationBell from "./NotificationBell";
 import {notificationRoute} from "../../utils/notificationNavigation.js";
+import { SPATIAL_WORKSPACE_PATH } from '../../utils/spatialRoute.js';
 import "./navbar.css";
 import "./navbar-layout.css";
 
@@ -65,6 +67,7 @@ export default function Navbar({
   const manager = ["ADMIN", "MANAGER"].includes(
     user.systemRole || String(user.role).toUpperCase(),
   );
+  const systemWorkspace = user.systemRole === "ADMIN" && user.workspace === "SYSTEM";
   const {
     pendingLeave = 0,
     openShifts = 0,
@@ -72,7 +75,7 @@ export default function Navbar({
     pendingAdj = 0,
     notifications = 0,
   } = counts;
-  const groups = [
+  const operationGroups = [
     {
       key: "dash",
       label: "Tổng quan",
@@ -114,7 +117,7 @@ export default function Navbar({
         {
           label: "Không gian 3D",
           desc: "Xem cửa hàng, vị trí và nhân sự",
-          to: "/schedule?view=3d",
+          to: SPATIAL_WORKSPACE_PATH,
         },
         {
           label: "Mẫu ca",
@@ -207,35 +210,52 @@ export default function Navbar({
           },
         ]
       : []),
-    {
-      key: "settings",
-      label: "Cài đặt",
-      icon: Settings,
-      base: "/settings",
-      items: [
-        {
-          label: "Cấu hình cửa hàng",
-          desc: "Thông tin điểm bán và vận hành",
-          to: "/settings",
-        },
-        {
-          label: "Giao diện & Chủ đề",
-          desc: "Màu sắc và chế độ sáng tối",
-          to: "/settings?tab=appearance",
-        },
-        {
-          label: "Quy tắc lên lịch",
-          desc: "Giờ làm và khoảng nghỉ giữa ca",
-          to: "/settings?tab=schedule",
-        },
-        {
-          label: "Phân quyền",
-          desc: "Quyền truy cập theo vai trò",
-          to: "/settings?tab=permissions",
-        },
-      ],
-    },
+    ...(manager
+      ? [{
+          key: "settings",
+          label: "Cài đặt cửa hàng",
+          icon: Settings,
+          base: "/settings/store",
+          items: [
+            { label: "Cấu hình cửa hàng", desc: "Thông tin điểm bán và vận hành", to: "/settings/store" },
+            { label: "Quy tắc lên lịch", desc: "Giờ làm và khoảng nghỉ giữa ca", to: "/settings/store?tab=schedule" },
+            { label: "Thông báo & giao diện", desc: "Thiết lập thông báo và chủ đề cá nhân", to: "/settings/personal" },
+          ],
+        }]
+      : [{
+          key: "settings",
+          label: "Cá nhân",
+          icon: Settings,
+          base: "/settings/personal",
+          items: [
+            { label: "Thông báo & giao diện", desc: "Thiết lập thông báo và chủ đề cá nhân", to: "/settings/personal" },
+          ],
+        }]),
   ];
+  const groups = systemWorkspace
+    ? [
+        {
+          key: "admin",
+          label: "Quản trị hệ thống",
+          icon: Shield,
+          base: "/admin",
+          items: [
+            { label: "Tổng quan quản trị", desc: "Chi nhánh, tài khoản và phân công quản lý", to: "/admin" },
+            { label: "Cấu hình hệ thống", desc: "Phân quyền và ngày lễ toàn hệ thống", to: "/settings/system" },
+            { label: "Vận hành chi nhánh", desc: "Mở không gian vận hành của cửa hàng đang chọn", to: "/dashboard" },
+          ],
+        },
+        {
+          key: "personal-settings",
+          label: "Cá nhân",
+          icon: Settings,
+          base: "/settings/personal",
+          items: [
+            { label: "Thông báo & giao diện", desc: "Thiết lập thông báo và chủ đề cá nhân", to: "/settings/personal" },
+          ],
+        },
+      ]
+    : operationGroups;
   const activeGroup = groups.find(
     (g) =>
       location.pathname.startsWith(g.base) ||
@@ -670,9 +690,9 @@ export default function Navbar({
             })}
           </nav>
           <Link
-            to="/schedule?view=3d"
+            to={SPATIAL_WORKSPACE_PATH}
             className="ssn-store-link"
-            aria-current={isCurrent("/schedule?view=3d") ? "page" : undefined}
+            aria-current={isCurrent(SPATIAL_WORKSPACE_PATH) ? "page" : undefined}
             onClick={() => close(false)}
           >
             <Box aria-hidden="true" />

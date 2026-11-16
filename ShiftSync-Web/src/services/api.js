@@ -1,9 +1,15 @@
 import axios from 'axios';
+import { clearSession, getAccessToken, setSession } from './authSession';
 
 // Same-origin in the browser; Vite proxies development requests to Docker.
 // Production can supply VITE_API_URL or reverse-proxy /api and /ws.
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const api = axios.create({ baseURL: API_BASE_URL, timeout: 15000 });
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  withCredentials: true,
+  headers: { 'X-ShiftSync-Client': 'web' },
+});
 
 export const isRequestCanceled = (error) =>
   error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError';
@@ -16,7 +22,7 @@ export const getApiErrorMessage = (error, fallback = 'Không thể kết nối t
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
@@ -57,19 +63,6 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        // No refresh token available, clean up and redirect once
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userEmail');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-
       if (isRefreshing) {
         originalRequest._retry = true;
         // Another request is already refreshing the token, wait for it
@@ -87,14 +80,13 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
+          withCredentials: true,
+          headers: { 'X-ShiftSync-Client': 'web' },
+        });
         if (res.data && res.data.accessToken) {
           const newAccessToken = res.data.accessToken;
-          localStorage.setItem('accessToken', newAccessToken);
-          localStorage.setItem('token', newAccessToken);
-          if (res.data.refreshToken) {
-            localStorage.setItem('refreshToken', res.data.refreshToken);
-          }
+          setSession(res.data);
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           processQueue(null, newAccessToken);
           return api(originalRequest);
@@ -104,11 +96,7 @@ api.interceptors.response.use(
       } catch (refreshErr) {
         processQueue(refreshErr, null);
         console.warn('Token refresh failed:', refreshErr.message);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userEmail');
+        clearSession();
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }

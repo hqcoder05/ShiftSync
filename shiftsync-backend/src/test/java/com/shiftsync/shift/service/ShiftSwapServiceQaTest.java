@@ -42,14 +42,14 @@ class ShiftSwapServiceQaTest {
         UUID managerId = UUID.randomUUID();
 
         Store store = Store.builder().id(UUID.randomUUID()).build();
-        
+
         Shift pastShift = Shift.builder()
                 .store(store)
                 .shiftDate(LocalDate.now().minusDays(1)) // In the past!
                 .startTime(LocalTime.of(8, 0))
                 .status(ShiftStatus.PUBLISHED)
                 .build();
-                
+
         Shift futureShift = Shift.builder()
                 .store(store)
                 .shiftDate(LocalDate.now().plusDays(2))
@@ -97,6 +97,28 @@ class ShiftSwapServiceQaTest {
 
         assertEquals(1, result.size());
         assertEquals(SwapStatus.EXPIRED, result.getFirst().getStatus());
-        verify(shiftSwapRequestRepository).save(request);
+        verify(shiftSwapRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void expireStalePendingSwaps_PersistsExpiredStatusForPastShifts() {
+        Shift pastShift = Shift.builder()
+                .store(Store.builder().id(UUID.randomUUID()).build())
+                .shiftDate(LocalDate.now().minusDays(1))
+                .startTime(LocalTime.of(8, 0))
+                .status(ShiftStatus.PUBLISHED)
+                .build();
+        ShiftSwapRequest stale = ShiftSwapRequest.builder()
+                .id(UUID.randomUUID())
+                .status(SwapStatus.PENDING)
+                .fromShift(pastShift)
+                .build();
+
+        when(shiftSwapRequestRepository.findByStatus(SwapStatus.PENDING)).thenReturn(java.util.List.of(stale));
+
+        shiftSwapService.expireStalePendingSwaps();
+
+        assertEquals(SwapStatus.EXPIRED, stale.getStatus());
+        verify(shiftSwapRequestRepository).save(stale);
     }
 }

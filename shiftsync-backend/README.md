@@ -34,4 +34,8 @@ UUID trong ví dụ phải được thay bằng hợp đồng thực tế thuộ
 
 # Khóa ký đăng nhập
 
-Đặt `JWT_SECRET` thành một giá trị ngẫu nhiên riêng, tối thiểu 32 byte, trong biến môi trường hoặc tệp `shiftsync-backend/.env` trước khi chạy backend. Khi dùng Docker Compose, đặt biến này trong môi trường hoặc tệp `.env` ở thư mục gốc dự án. Không đưa khóa thật lên Git.
+Đặt `JWT_SECRET` thành một giá trị ngẫu nhiên riêng, tối thiểu 32 byte. Khi chạy
+Backend trực tiếp bằng Maven, có thể đặt biến trong môi trường hoặc
+`shiftsync-backend/.env`. Khi dùng Docker Compose, chỉ dùng tệp `.env` ở thư mục
+gốc dự án; `shiftsync-backend/docker-compose.yml` nạp lại cấu hình gốc để tránh
+hai nguồn mật khẩu khác nhau. Không đưa khóa thật lên Git.

@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import UserAvatar from '../components/UserAvatar';
 import { validatePersonalInfo } from '../utils/profileValidation';
 import { savePersonalDraft } from '../services/profileDrafts';
@@ -48,6 +49,8 @@ const INITIAL_PROFILE = {
   gender: '',
   email: '',
 };
+
+const canUseNativeAnimationDriver = Platform.OS !== 'web';
 
 function EditableRow({ label, value, onChangeText, placeholder, keyboardType, last, secureTextEntry, editable = true }) {
   return (
@@ -108,7 +111,7 @@ export default function ProfileScreen({ navigation }) {
     hasEntered.current = true;
     if (reduceMotion) { entrance.setValue(1); return; }
     entrance.setValue(0);
-    Animated.timing(entrance, { toValue: 1, duration: 380, useNativeDriver: true }).start();
+    Animated.timing(entrance, { toValue: 1, duration: 380, useNativeDriver: canUseNativeAnimationDriver }).start();
   }, [loading, motionPreferenceReady, reduceMotion, entrance]);
   const [editForm, setEditForm] = useState({
     birthDate: '',
@@ -327,15 +330,15 @@ export default function ProfileScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={uiColors.primaryStrong} />
-        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: bottomNavbarPadding }} showsVerticalScrollIndicator={false}>
+          <ContentSkeleton variant="profile" />
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavbarPadding }]} showsVerticalScrollIndicator={false}>
           <Animated.View style={{ opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }}>
           <View style={styles.identityCard}>
             <View style={styles.portraitBanner}>
-              <View pointerEvents="box-none" style={styles.bannerTopline}>
+              <View style={[styles.bannerTopline, { pointerEvents: 'box-none' }]}>
                 <Text style={styles.bannerCaption}>Ảnh đại diện</Text>
                 <Pressable
                   accessibilityRole="button"

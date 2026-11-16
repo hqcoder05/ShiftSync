@@ -128,7 +128,7 @@ public class PayrollCalculationService {
         payrollPeriodRepository.save(payrollPeriod);
 
         long endTime = System.currentTimeMillis(); // Profiling end
-        log.info("Tính lương hoàn tất sau {} mili giây cho {} nhân viên.", (endTime - startTime), payrolls.size());
+        log.info("Tinh luong hoan tat sau {} mili giay cho {} nhan vien.", (endTime - startTime), payrolls.size());
 
         // Hook FR-19: PAYROLL_COMPLETED
         for (Payroll p : payrolls) {

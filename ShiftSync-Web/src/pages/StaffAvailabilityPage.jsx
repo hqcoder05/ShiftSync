@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { useNavigate } from 'react-router-dom';
 import { useConfirmation } from '../context/ConfirmationContext';
 import { getAllStores } from '../services/storeService';
@@ -6,8 +8,7 @@ import { getStoreConfiguration } from '../services/storeConfigService';
 import { getStaffByStore } from '../services/employmentService';
 import { getSkillsByStore } from '../services/skillService';
 import {
-  getStoreStaffAvailability,
-  getStaffAvailability,
+  getStoreWeeklyAvailability,
   getMyAvailability,
   createAvailability,
   deleteAvailability,
@@ -91,6 +92,8 @@ const calcSlotHours = (startTime, endTime) => {
   return (diff < 0 ? diff + 24 * 60 : diff) / 60;
 };
 
+const fmtHours = (hours) => Number(hours || 0).toFixed(2);
+
 const slotTimeLabel = (slot) => `${fmtTime(slot.startTime)} – ${fmtTime(slot.endTime)}${fmtTime(slot.endTime) < fmtTime(slot.startTime) ? ' (+1 ngày)' : ''}`;
 
 export default function StaffAvailabilityPage() {
@@ -117,8 +120,8 @@ export default function StaffAvailabilityPage() {
   const [selectedSkillFilter, setSelectedSkillFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL'); // 'ALL' | 'SUBMITTED' | 'MISSING'
 
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const userRole = getSessionRole();
+  const isManager = canManageStore(userRole);
   const isStaff = !isManager;
 
   /* -- Registration Modal state for Staff -- */
@@ -295,31 +298,23 @@ export default function StaffAvailabilityPage() {
       setAssignedShifts(shifts);
 
       // 3. Load Availability
-      let bulkAvail = [];
       try {
-        const availRes = await getStoreStaffAvailability(storeId);
-        bulkAvail = Array.isArray(availRes.data) ? availRes.data : [];
-      } catch {
-        // Fallback: per-employee fetch
-        const results = await Promise.allSettled(
-          staff.map((emp) => getStaffAvailability(emp.id).then((r) => r.data || []))
-        );
-        results.forEach((r) => {
-          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-            bulkAvail.push(...r.value);
-          }
-        });
-      }
+        const weekStart = toISODate(weekDatesFull[0]);
+        const availRes = await getStoreWeeklyAvailability(storeId, weekStart);
+        const bulkAvail = Array.isArray(availRes.data) ? availRes.data : [];
 
-      // Group availability by staffId
-      const map = {};
-      bulkAvail.forEach((slot) => {
-        const staffKey = slot.staffId || slot.userId;
-        if (!staffKey) return;
-        if (!map[staffKey]) map[staffKey] = [];
-        map[staffKey].push(slot);
-      });
-      setAvailabilityMap(map);
+        // Group this week's submitted slots by staff.
+        const map = {};
+        bulkAvail.forEach((slot) => {
+          const staffKey = slot.staffId;
+          if (!staffKey) return;
+          if (!map[staffKey]) map[staffKey] = [];
+          map[staffKey].push(slot);
+        });
+        setAvailabilityMap(map);
+      } catch {
+        setAvailabilityMap({});
+      }
     } catch (err) {
       console.error('Error loading staff availability:', err);
     } finally {
@@ -637,7 +632,7 @@ export default function StaffAvailabilityPage() {
             </div>
           </div>
           <div className="avail-kpi-number">
-            {weeklyAnalytics.declaredHours} <span className="avail-kpi-unit">giờ</span>
+            {fmtHours(weeklyAnalytics.declaredHours)} <span className="avail-kpi-unit">giờ</span>
           </div>
           <div className="avail-kpi-progress-bar">
             <div
@@ -646,7 +641,7 @@ export default function StaffAvailabilityPage() {
             />
           </div>
           <div className="avail-kpi-subtext">
-            <strong>Đã xếp: {weeklyAnalytics.assignedHours}h</strong> • <span>Còn rảnh: {weeklyAnalytics.remainingFreeHours}h</span>
+            <strong>Đã xếp: {fmtHours(weeklyAnalytics.assignedHours)}h</strong> • <span>Còn rảnh: {fmtHours(weeklyAnalytics.remainingFreeHours)}h</span>
           </div>
         </div>
 
@@ -911,7 +906,7 @@ export default function StaffAvailabilityPage() {
                                 {hasSubmitted ? (
                                   <div className="avail-emp-stats-line">
                                     <span className="avail-hours-text">
-                                      Đăng ký: <strong>{empSlots.length} ca</strong> ({empStats.declaredHours}h)
+                                      Đăng ký: <strong>{empSlots.length} ca</strong> ({fmtHours(empStats.declaredHours)}h)
                                     </span>
                                     {empStats.isFullyOccupied ? (
                                       <span className="avail-emp-tag occupied">Đã kín lịch</span>
@@ -989,7 +984,7 @@ export default function StaffAvailabilityPage() {
                                             <Clock size={12} className="avail-slot-clock" />
                                           )}
                                           <span className="avail-slot-time-text">{timeStr}</span>
-                                          <span className="avail-slot-duration">({hours}h)</span>
+                                          <span className="avail-slot-duration">({fmtHours(hours)}h)</span>
                                         </div>
 
                                         {isAssigned ? (

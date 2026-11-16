@@ -1,20 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
+import { getSessionRole } from '../services/authSession';
+import { getDefaultRoute } from '../utils/roleAccess';
 import { validateLoginForm } from '../utils/validators';
 import LoginMascot3DWeb from '../components/LoginMascot3DWeb';
 import './LoginPage.css';
-
-const DEMO_ACCOUNTS = [
-  { label: 'Quan tri vien demo', email: 'admin.demo@shiftsync.local', role: 'ADMIN' },
-  { label: 'Quan ly demo', email: 'manager.demo@shiftsync.local', role: 'MANAGER' },
-  { label: 'Nguyen Minh Anh', email: 'anh.demo@shiftsync.local', role: 'STAFF' },
-  { label: 'Tran Quoc Bao', email: 'bao.demo@shiftsync.local', role: 'STAFF' },
-  { label: 'Le Thu Ha', email: 'ha.demo@shiftsync.local', role: 'STAFF' },
-  { label: 'Pham Gia Huy', email: 'huy.demo@shiftsync.local', role: 'STAFF' },
-  { label: 'Vo Ngoc Lan', email: 'lan.demo@shiftsync.local', role: 'STAFF' },
-  { label: 'Do Duc Minh', email: 'minh.demo@shiftsync.local', role: 'STAFF' },
-];
 
 const LogoIcon = ({ size = 36, color = '#16A34A' }) => (
   <svg width={size} height={size} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -65,19 +56,13 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [mascotStatus, setMascotStatus] = useState('idle');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleEmailFocus = () => {
     setMascotStatus('email');
   };
 
   const handleBlur = () => {
-    setMascotStatus('idle');
-  };
-
-  const handleQuickFill = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setError('');
     setMascotStatus('idle');
   };
 
@@ -96,18 +81,16 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const res = await login(cleanEmail, password);
-      const token = res.accessToken;
-      localStorage.setItem('token', token);
-      localStorage.setItem('accessToken', token);
-      if (res.refreshToken) localStorage.setItem('refreshToken', res.refreshToken);
-      if (res.role) localStorage.setItem('userRole', res.role);
-      if (res.email) localStorage.setItem('userEmail', res.email);
+      await login(cleanEmail, password);
       localStorage.removeItem('selectedStoreId');
 
       setMascotStatus('success');
       setTimeout(() => {
-        navigate('/');
+        const requestedPath = location.state?.from;
+        const destination = typeof requestedPath === 'string' && requestedPath.startsWith('/')
+          ? requestedPath
+          : getDefaultRoute(getSessionRole());
+        navigate(destination, { replace: true });
       }, 1000);
     } catch (err) {
       setError(err.response?.data?.message || 'Sai email hoặc mật khẩu. Vui lòng thử lại!');
@@ -144,7 +127,7 @@ export default function LoginPage() {
         <div className="login-card">
           <div className="login-card-header">
             <h2 className="login-form-title">Đăng nhập tài khoản</h2>
-            <p className="login-form-subtitle">Nhập thông tin xác thực để truy cập hệ thống</p>
+            <p className="login-form-subtitle">Nhập thông tin xác thực do quản trị viên hoặc quản lý cửa hàng cấp</p>
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
@@ -237,28 +220,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <section className="login-quick-roles" aria-label="Tai khoan demo dang hoat dong" style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px dashed #e2e8f0' }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', margin: '0 0 8px', textAlign: 'center' }}>
-              Tai khoan demo dang hoat dong
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px' }}>
-              {DEMO_ACCOUNTS.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => handleQuickFill(account.email)}
-                  style={{ fontSize: '11.5px', padding: '7px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', textAlign: 'left' }}
-                >
-                  <strong>{account.label}</strong><br />
-                  <span style={{ color: '#64748b' }}>{account.role} · {account.email}</span>
-                </button>
-              ))}
-            </div>
-            <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', margin: '7px 0 0' }}>
-              Mat khau demo: <strong style={{ color: '#475569' }}>password123</strong>
-            </p>
-          </section>
 
           <div className="login-card-footer">
             <span className="login-security-badge">

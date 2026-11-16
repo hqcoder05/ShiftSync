@@ -205,7 +205,7 @@ export default function AttendanceBadge3DWeb({
     }
 
     // ── Animation Loop ──
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let animId = null;
     let flipProgress = 0;
     let flipDir = 0;
@@ -214,7 +214,8 @@ export default function AttendanceBadge3DWeb({
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const currentStatus = statusRef.current;
 
       if (currentStatus !== lastStatus) {

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CalendarDays, Search, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useConfirmation } from '../context/ConfirmationContext';
+import { getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { getAllStores } from '../services/storeService';
 import {
   getMarketplaceShifts,
@@ -14,6 +16,8 @@ import { getStaffByStore } from '../services/employmentService';
 import { getRequests, updateRequestStatus } from '../services/requestService';
 import {
   getStoreSwapRequests,
+  getMySwapRequests,
+  respondToSwapRequest,
   approveSwapRequest,
   rejectSwapRequest,
   cancelSwapRequest,
@@ -44,6 +48,55 @@ const formatVietnamDeadline = (timestamp) => Number.isFinite(timestamp)
 
 // Shift dates/times are business values in Việt Nam, not browser-local values.
 // This is a defensive client guard while the API persists expired requests.
+const parseTimeMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  const parts = String(timeStr).split(':');
+  if (parts.length < 2) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+const calcExactShiftHours = (startTime, endTime) => {
+  const startMin = parseTimeMinutes(startTime);
+  const endMin = parseTimeMinutes(endTime);
+  if (startMin === null || endMin === null) return null;
+  const diffMin = endMin <= startMin ? (endMin + 24 * 60 - startMin) : (endMin - startMin);
+  return Math.round((diffMin / 60) * 100) / 100;
+};
+
+const formatHourNumber = (hours) => {
+  if (hours === null || hours === undefined) return '';
+  return `${Number(hours.toFixed(2))}h`;
+};
+
+const getSwapDurationComparison = (fromStart, fromEnd, toStart, toEnd) => {
+  const fromHours = calcExactShiftHours(fromStart, fromEnd);
+  const toHours = calcExactShiftHours(toStart, toEnd);
+  if (fromHours === null || toHours === null) return null;
+  const diff = Math.round((toHours - fromHours) * 100) / 100;
+  const diffText = diff > 0
+    ? `+${formatHourNumber(diff)}`
+    : diff < 0
+      ? `-${formatHourNumber(Math.abs(diff))}`
+      : 'bằng nhau';
+  return {
+    fromHours,
+    toHours,
+    diff,
+    label: `${formatHourNumber(fromHours)} ↔ ${formatHourNumber(toHours)} (${diffText})`,
+  };
+};
+
+const formatPayDeltaVND = (amount) => {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return null;
+  const num = Math.round(Number(amount));
+  if (num === 0) return '0đ';
+  const sign = num > 0 ? '+' : '-';
+  return `${sign}${Math.abs(num).toLocaleString('vi-VN')}đ`;
+};
+
 const hasSwapShiftStarted = (date, time, clock = Date.now()) => {
   if (!date || !time) return false;
   const hhmmss = String(time).length === 5 ? `${time}:00` : String(time);
@@ -158,7 +211,7 @@ export default function MarketplacePage() {
   const [clock,setClock]=useState(()=>Date.now());
   useEffect(()=>{
     const update=()=>setClock(Date.now());
-    const timer=setInterval(update,1000);
+    const timer=setInterval(update,30000);
     window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);
     return()=>{clearInterval(timer);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};
   },[]);
@@ -184,6 +237,8 @@ export default function MarketplacePage() {
   const [swapMyShiftId, setSwapMyShiftId] = useState('');
   const [swapTargetStaffId, setSwapTargetStaffId] = useState('');
   const [swapTargetShiftId, setSwapTargetShiftId] = useState('');
+  const [swapMode, setSwapMode] = useState('swap');
+  const [swapGiveawayStaffIds, setSwapGiveawayStaffIds] = useState([]);
   const [swapReason, setSwapReason] = useState('');
   const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [toast, setToast] = useState('');
@@ -269,9 +324,9 @@ export default function MarketplacePage() {
     setTimeout(() => setToast(''), 3500);
   };
 
-  const userRole = (localStorage.getItem('userRole') || 'MANAGER').toUpperCase();
+  const userRole = getSessionRole();
   const myProfile = { id: localStorage.getItem('userId') };
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isManager = canManageStore(userRole);
 
   // 1. Fetch Stores
   useEffect(() => {
@@ -319,7 +374,7 @@ export default function MarketplacePage() {
       getStaffByStore(storeId, 0, 100).catch(() => ({ data: [] })),
       getRequests().catch(() => []),
       isManager ? getPositions(storeId).catch(() => []) : Promise.resolve([]),
-      isManager ? getStoreSwapRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      isManager ? getStoreSwapRequests(storeId).catch(() => ({ data: [] })) : getMySwapRequests().catch(() => ({ data: [] })),
       isManager ? getStoreAdjustmentRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       isManager ? getIncomingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       isManager ? getOutgoingWorkforceRequests(storeId).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
@@ -566,14 +621,28 @@ export default function MarketplacePage() {
       typeCategory: 'swap',
       fromShiftDate: s.fromShiftDate,
       fromShiftStartTime: s.fromShiftStartTime,
+      fromShiftEndTime: s.fromShiftEndTime,
       toShiftDate: s.toShiftDate,
       toShiftStartTime: s.toShiftStartTime,
+      toShiftEndTime: s.toShiftEndTime,
+      fromShiftRoleName: s.fromShiftRoleName || null,
+      toShiftRoleName: s.toShiftRoleName || null,
+      myEstimatedPayDelta: s.myEstimatedPayDelta ?? null,
+      storeLaborCostDelta: s.storeLaborCostDelta ?? null,
+      durationComparison: s.toShiftId
+        ? getSwapDurationComparison(s.fromShiftStartTime, s.fromShiftEndTime, s.toShiftStartTime, s.toShiftEndTime)
+        : (() => {
+            const h = calcExactShiftHours(s.fromShiftStartTime, s.fromShiftEndTime);
+            return h !== null ? { fromHours: h, toHours: 0, diff: 0, label: `Nhường ca ${formatHourNumber(h)}`, isGiveaway: true } : null;
+          })(),
       status: (s.status || 'PENDING') === 'PENDING' && (
         hasSwapShiftStarted(s.fromShiftDate, s.fromShiftStartTime, clock) ||
-        hasSwapShiftStarted(s.toShiftDate, s.toShiftStartTime, clock)
+        (s.toShiftDate && hasSwapShiftStarted(s.toShiftDate, s.toShiftStartTime, clock))
       ) ? 'EXPIRED' : (s.status || 'PENDING'),
       requestDate: s.fromShiftDate ? fmtDateVN(s.fromShiftDate) : 'Hôm nay',
-      shiftInfo: `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ⇄ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`,
+      shiftInfo: s.toShiftId
+        ? `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) ↔ ${s.toStaffName ? s.toStaffName + ' (' + (s.toShiftDate || '') + ' ' + (s.toShiftStartTime || '').slice(0, 5) + '-' + (s.toShiftEndTime || '').slice(0, 5) + ')' : 'Mở hoán đổi'}`
+        : `${s.fromShiftDate || ''} (${(s.fromShiftStartTime || '').slice(0, 5)} - ${(s.fromShiftEndTime || '').slice(0, 5)}) → Nhường cho ${s.toStaffName || 'Đồng nghiệp'}`,
       content: `Đề xuất đổi ca với ${s.toStaffName || 'đồng nghiệp'}. Trạng thái xác nhận từ đối tác: ${s.employeeAccepted ? 'Đã đồng ý' : 'Chờ phản hồi'}.`,
     }));
 
@@ -841,27 +910,47 @@ export default function MarketplacePage() {
   // 15. Real Swap Actions (Approve & Reject)
   const handleCreateSwapSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    if (!swapMyShiftId || !swapTargetStaffId || !swapTargetShiftId) {
-      showToast('Vui lòng chọn ca của bạn, đồng nghiệp, và ca của đồng nghiệp.', 'Thiếu thông tin', 'warning');
+    if (!swapMyShiftId) {
+      showToast('Vui lòng chọn ca của bạn.', 'Thiếu thông tin', 'warning');
+      return;
+    }
+    if (swapMode === 'giveaway') {
+      if (swapGiveawayStaffIds.length === 0 || swapGiveawayStaffIds.length > 3) {
+        showToast('Vui lòng chọn từ 1 đến 3 đồng nghiệp chưa có ca hôm đó.', 'Thiếu thông tin', 'warning');
+        return;
+      }
+    } else if (!swapTargetStaffId) {
+      showToast('Vui lòng chọn đồng nghiệp để đổi ca.', 'Thiếu thông tin', 'warning');
       return;
     }
     setSwapSubmitting(true);
     try {
-      const targetColleague = employees.find(
-        (emp) => String(emp.id || emp.staffId) === String(swapTargetStaffId)
-      );
-      await createSwapRequest({
-        fromShiftId: swapMyShiftId,
-        toStaffId: swapTargetStaffId,
-        toShiftId: swapTargetShiftId,
-        reason: swapReason || `Đề xuất đổi ca làm việc với ${targetColleague?.fullName || 'đồng nghiệp'}`,
-      });
+      if (swapMode === 'giveaway') {
+        await createSwapRequest({
+          fromShiftId: swapMyShiftId,
+          toStaffIds: swapGiveawayStaffIds,
+          toShiftId: null,
+          reason: swapReason || `Nhường ca 1 chiều cho ${swapGiveawayStaffIds.length} đồng nghiệp`,
+        });
+        showToast(`Đã gửi đề nghị nhường ca 1 chiều tới ${swapGiveawayStaffIds.length} đồng nghiệp!`, 'Gửi yêu cầu thành công', 'success');
+      } else {
+        const targetColleague = employees.find(
+          (emp) => String(emp.id || emp.staffId) === String(swapTargetStaffId)
+        );
+        await createSwapRequest({
+          fromShiftId: swapMyShiftId,
+          toStaffId: swapTargetStaffId,
+          toShiftId: swapTargetShiftId || null,
+          reason: swapReason || `Đề xuất đổi ca làm việc với ${targetColleague?.fullName || 'đồng nghiệp'}`,
+        });
+        showToast(`Đã gửi yêu cầu đổi ca tới bạn ${targetColleague?.fullName || 'đồng nghiệp'}!`, 'Gửi yêu cầu thành công', 'success');
+      }
 
-      showToast(`Đã gửi yêu cầu đổi ca tới bạn ${targetColleague?.fullName || 'đồng nghiệp'}!`, 'Gửi yêu cầu thành công', 'success');
       setShowCreateSwapModal(false);
       setSwapMyShiftId('');
       setSwapTargetStaffId('');
       setSwapTargetShiftId('');
+      setSwapGiveawayStaffIds([]);
       setSwapReason('');
       await loadData();
       window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
@@ -914,7 +1003,7 @@ export default function MarketplacePage() {
           prev.map((r) => (r.id === req.id ? { ...r, status: 'REJECTED' } : r))
         );
       }
-      showToast(`Lỗi: Đã từ chối yêu cầu đổi ca của ${cleanText(req.requesterName)}.`);
+      showToast(`Đã từ chối yêu cầu đổi ca của ${cleanText(req.requesterName)}.`);
       loadData();
       window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
     } catch (err) {
@@ -941,6 +1030,21 @@ export default function MarketplacePage() {
       window.dispatchEvent(new CustomEvent('store_shifts_updated', { detail: { storeId } }));
     } catch (err) {
       showToast(`Lỗi: Lỗi: ${err.response?.data?.message || err.message || 'Không thể hủy hoán đổi.'}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRespondSwap = async (req, accept) => {
+    if (!req?.id) return;
+    setActionLoadingId(req.id);
+    try {
+      await respondToSwapRequest(req.id, { accept });
+      showToast(accept ? 'Đã đồng ý đổi ca. Đang chờ Quản lý phê duyệt.' : 'Đã từ chối yêu cầu đổi ca.');
+      loadData();
+      window.dispatchEvent(new CustomEvent('store_requests_updated', { detail: { storeId } }));
+    } catch (err) {
+      showToast(`Lỗi: ${err.response?.data?.message || err.message || 'Không thể phản hồi yêu cầu đổi ca.'}`);
     } finally {
       setActionLoadingId(null);
     }
@@ -1825,6 +1929,67 @@ export default function MarketplacePage() {
                             <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>
                               {req.shiftInfo || getRequestShiftTitle(req)}
                             </div>
+                            {(req.durationComparison || req.fromShiftRoleName || req.toShiftRoleName || (isManager ? req.storeLaborCostDelta != null : req.myEstimatedPayDelta != null)) && (
+                              <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {req.durationComparison && (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      fontSize: 11.5,
+                                      fontWeight: 600,
+                                      padding: '2px 8px',
+                                      borderRadius: 999,
+                                      background: req.durationComparison.diff === 0 ? '#ecfdf5' : '#fffbeb',
+                                      color: req.durationComparison.diff === 0 ? '#047857' : '#b45309',
+                                      border: `1px solid ${req.durationComparison.diff === 0 ? '#a7f3d0' : '#fde68a'}`,
+                                    }}
+                                    title="So sánh thời lượng ca (Người đề xuất nhường ↔ nhận)"
+                                  >
+                                    Thời lượng: {req.durationComparison.label}
+                                  </span>
+                                )}
+                                {(req.fromShiftRoleName || req.toShiftRoleName) && (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      fontSize: 11.5,
+                                      fontWeight: 600,
+                                      padding: '2px 8px',
+                                      borderRadius: 999,
+                                      background: '#f1f5f9',
+                                      color: '#334155',
+                                      border: '1px solid #cbd5e1',
+                                    }}
+                                    title="Vị trí / Role của 2 ca"
+                                  >
+                                    Vị trí: {req.toShiftId ? `${req.fromShiftRoleName || 'Ca gốc'} ↔ ${req.toShiftRoleName || 'Ca đổi'}` : (req.fromShiftRoleName || 'Ca nhường')}
+                                  </span>
+                                )}
+                                {(() => {
+                                  const rawDelta = isManager ? req.storeLaborCostDelta : req.myEstimatedPayDelta;
+                                  const formatted = formatPayDeltaVND(rawDelta);
+                                  if (!formatted) return null;
+                                  const num = Number(rawDelta);
+                                  const label = isManager ? 'Chi phí ca' : 'Lương dự kiến';
+                                  return (
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        fontSize: 11.5,
+                                        fontWeight: 600,
+                                        padding: '2px 8px',
+                                        borderRadius: 999,
+                                        background: num === 0 ? '#ecfdf5' : num > 0 ? '#eff6ff' : '#fef2f2',
+                                        color: num === 0 ? '#047857' : num > 0 ? '#1d4ed8' : '#b91c1c',
+                                        border: `1px solid ${num === 0 ? '#a7f3d0' : num > 0 ? '#bfdbfe' : '#fecaca'}`,
+                                      }}
+                                    >
+                                      {label}: {formatted}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            )}
                             {req.content && (
                               <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {cleanText(req.content)}
@@ -1838,63 +2003,111 @@ export default function MarketplacePage() {
                           <td>
                             <div className="mp-table-actions">
                               {isPending ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="mp-btn-action-cancel"
-                                    style={{
-                                      padding: '6px 11px',
-                                      borderRadius: '6px',
-                                      border: '1px solid #cbd5e1',
-                                      background: '#ffffff',
-                                      color: '#64748b',
-                                      fontSize: '12px',
-                                      fontWeight: 600,
-                                      cursor: 'pointer'
-                                    }}
-                                    disabled={actionLoadingId === req.id}
-                                    onClick={() => handleCancelSwap(req)}
-                                    title="Hủy yêu cầu đổi ca"
-                                  >
-                                    Hủy
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="mp-btn-action-reject"
-                                    disabled={actionLoadingId === req.id}
-                                    onClick={() => handleRejectSwap(req)}
-                                    title="Từ chối yêu cầu đổi ca"
-                                  >
-                                    {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
-                                  </button>
-                                  {req.isShiftSwap && !req.employeeAccepted ? (
+                                isManager ? (
+                                  <>
                                     <button
                                       type="button"
-                                      className="mp-btn-action-approve"
-                                      disabled
+                                      className="mp-btn-action-cancel"
                                       style={{
-                                        opacity: 0.6,
-                                        cursor: 'not-allowed',
-                                        background: '#94a3b8',
-                                        borderColor: '#94a3b8',
-                                        color: '#ffffff'
+                                        padding: '6px 11px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #cbd5e1',
+                                        background: '#ffffff',
+                                        color: '#64748b',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
                                       }}
-                                      title="Cần nhân viên đối tác chấp thuận trước khi quản lý phê duyệt"
+                                      disabled={actionLoadingId === req.id}
+                                      onClick={() => handleCancelSwap(req)}
+                                      title="Hủy yêu cầu đổi ca"
                                     >
-                                      Chờ đối tác đồng ý
+                                      Hủy
                                     </button>
-                                  ) : (
                                     <button
                                       type="button"
-                                      className="mp-btn-action-approve"
+                                      className="mp-btn-action-reject"
                                       disabled={actionLoadingId === req.id}
-                                      onClick={() => handleApproveSwap(req)}
-                                      title="Phê duyệt hoán đổi ca"
+                                      onClick={() => handleRejectSwap(req)}
+                                      title="Từ chối yêu cầu đổi ca"
                                     >
-                                      {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                      {actionLoadingId === req.id ? 'Đang xử lý...' : 'Từ chối'}
                                     </button>
-                                  )}
-                                </>
+                                    {req.isShiftSwap && !req.employeeAccepted ? (
+                                      <button
+                                        type="button"
+                                        className="mp-btn-action-approve"
+                                        disabled
+                                        style={{
+                                          opacity: 0.6,
+                                          cursor: 'not-allowed',
+                                          background: '#94a3b8',
+                                          borderColor: '#94a3b8',
+                                          color: '#ffffff'
+                                        }}
+                                        title="Cần nhân viên đối tác chấp thuận trước khi quản lý phê duyệt"
+                                      >
+                                        Chờ đối tác đồng ý
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="mp-btn-action-approve"
+                                        disabled={actionLoadingId === req.id}
+                                        onClick={() => handleApproveSwap(req)}
+                                        title="Phê duyệt hoán đổi ca"
+                                      >
+                                        {actionLoadingId === req.id ? 'Đang duyệt...' : 'Phê duyệt'}
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {req.isShiftSwap && !req.employeeAccepted && String(req.toStaffId) === String(myProfile?.id || myProfile?.staffId) && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="mp-btn-action-reject"
+                                          disabled={actionLoadingId === req.id}
+                                          onClick={() => handleRespondSwap(req, false)}
+                                          title="Từ chối đổi ca"
+                                        >
+                                          Từ chối
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="mp-btn-action-approve"
+                                          disabled={actionLoadingId === req.id}
+                                          onClick={() => handleRespondSwap(req, true)}
+                                          title="Đồng ý đổi ca"
+                                        >
+                                          Đồng ý
+                                        </button>
+                                      </>
+                                    )}
+                                    {String(req.fromStaffId) === String(myProfile?.id || myProfile?.staffId) && (
+                                      <button
+                                        type="button"
+                                        className="mp-btn-action-cancel"
+                                        style={{
+                                          padding: '6px 11px',
+                                          borderRadius: '6px',
+                                          border: '1px solid #cbd5e1',
+                                          background: '#ffffff',
+                                          color: '#64748b',
+                                          fontSize: '12px',
+                                          fontWeight: 600,
+                                          cursor: 'pointer'
+                                        }}
+                                        disabled={actionLoadingId === req.id}
+                                        onClick={() => handleCancelSwap(req)}
+                                        title="Hủy yêu cầu đổi ca"
+                                      >
+                                        Hủy
+                                      </button>
+                                    )}
+                                  </>
+                                )
                               ) : (
                                 <button
                                   type="button"
@@ -1931,7 +2144,14 @@ export default function MarketplacePage() {
                     {swapHistoryRequests.map((req) => (
                       <tr key={req.id}>
                         <td><div className="mp-user-name">{cleanText(req.requesterName || req.fromStaffName || 'Nhân sự')}</div></td>
-                        <td><div style={{ fontSize: 13, color: '#475569' }}>{req.shiftInfo || getRequestShiftTitle(req)}</div></td>
+                        <td>
+                          <div style={{ fontSize: 13, color: '#475569' }}>{req.shiftInfo || getRequestShiftTitle(req)}</div>
+                          {req.durationComparison && (
+                            <div style={{ fontSize: 11.5, color: req.durationComparison.diff === 0 ? '#047857' : '#b45309', fontWeight: 600, marginTop: 2 }}>
+                              Thời lượng: {req.durationComparison.label}
+                            </div>
+                          )}
+                        </td>
                         <td>{renderStatusBadge(req.status, req)}</td>
                         <td><div className="mp-table-actions"><button type="button" className="mp-btn-action-detail" onClick={() => { setSelectedDetailRecord({ ...req, recordDomain: 'SWAP', domainTitle: 'Yêu cầu hoán đổi ca làm việc' }); setShowRecordDetailModal(true); }}>Xem chi tiết</button></div></td>
                       </tr>
@@ -2705,35 +2925,144 @@ export default function MarketplacePage() {
                 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>1. Chọn ca làm việc của bạn cần đổi <span style={{ color: '#ef4444' }}>*</span></label>
-                  <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapMyShiftId} onChange={(e) => setSwapMyShiftId(e.target.value)} required>
+                  <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapMyShiftId} onChange={(e) => { setSwapMyShiftId(e.target.value); setSwapGiveawayStaffIds([]); }} required>
                     <option value="">-- Chọn ca làm việc của bạn --</option>
-                    {storeShifts.filter(s => s.shiftAssignments?.some(a => String(a.staffId) === String(myProfile?.id || myProfile?.staffId))).map((s) => (
+                    {storeShifts.filter(s => s.status === 'PUBLISHED' && !hasSwapShiftStarted(s.shiftDate, s.startTime, clock) && s.shiftAssignments?.some(a => String(a.staffId) === String(myProfile?.id || myProfile?.staffId))).map((s) => (
                       <option key={s.id} value={s.id}>{s.shiftDate} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}) - {s.primarySkill}</option>
                     ))}
                   </select>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2. Chọn đồng nghiệp đề xuất đổi ca <span style={{ color: '#ef4444' }}>*</span></label>
-                  <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetStaffId} onChange={(e) => setSwapTargetStaffId(e.target.value)} required>
-                    <option value="">-- Chọn đồng nghiệp --</option>
-                    {employees.filter(e => !myProfile || String(e.staffId || e.id) !== String(myProfile.id || myProfile.staffId)).map((e) => (
-                      <option key={e.id} value={e.staffId}>{e.staffFullName || e.fullName}</option>
-                    ))}
-                  </select>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSwapMode('swap')}
+                    style={{
+                      flex: 1, padding: '9px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                      border: swapMode === 'swap' ? '1.5px solid #4f46e5' : '1px solid #cbd5e1',
+                      background: swapMode === 'swap' ? '#eef2ff' : '#fff',
+                      color: swapMode === 'swap' ? '#3730a3' : '#475569',
+                    }}
+                  >
+                    Đổi ca 2 chiều
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSwapMode('giveaway')}
+                    style={{
+                      flex: 1, padding: '9px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                      border: swapMode === 'giveaway' ? '1.5px solid #10b981' : '1px solid #cbd5e1',
+                      background: swapMode === 'giveaway' ? '#ecfdf5' : '#fff',
+                      color: swapMode === 'giveaway' ? '#065f46' : '#475569',
+                    }}
+                  >
+                    Nhường ca 1 chiều (tối đa 3)
+                  </button>
                 </div>
 
-                {swapTargetStaffId && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2.5 Chọn ca của đồng nghiệp để đổi <span style={{ color: '#ef4444' }}>*</span></label>
-                    <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetShiftId} onChange={(e) => setSwapTargetShiftId(e.target.value)} required>
-                      <option value="">-- Chọn ca của đồng nghiệp --</option>
-                      {storeShifts.filter(s => s.shiftAssignments?.some(a => String(a.staffId) === String(swapTargetStaffId))).map((s) => (
-                        <option key={s.id} value={s.id}>{s.shiftDate} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}) - {s.primarySkill}</option>
-                      ))}
-                    </select>
-                  </div>
+                {swapMode === 'giveaway' ? (() => {
+                  const myShiftObj = storeShifts.find((s) => String(s.id) === String(swapMyShiftId));
+                  const busyIds = new Set();
+                  if (myShiftObj?.shiftDate) {
+                    storeShifts.forEach((s) => {
+                      if (s.shiftDate === myShiftObj.shiftDate && s.status !== 'CANCELLED') {
+                        (s.shiftAssignments || []).forEach((a) => { if (a.staffId) busyIds.add(String(a.staffId)); });
+                      }
+                    });
+                  }
+                  const eligibleFreeStaff = employees.filter((e) => {
+                    const id = String(e.staffId || e.id);
+                    if (myProfile && id === String(myProfile.id || myProfile.staffId)) return false;
+                    return !busyIds.has(id);
+                  });
+                  return (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+                        2. Chọn đồng nghiệp chưa có ca ngày {myShiftObj?.shiftDate || '...'} ({swapGiveawayStaffIds.length}/3) <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                        Cho phép nhận ca kể cả khi chưa đăng ký rảnh hoặc vượt giới hạn giờ tuần.
+                      </div>
+                      <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px' }}>
+                        {eligibleFreeStaff.length === 0 ? (
+                          <div style={{ fontSize: '12.5px', color: '#64748b', fontStyle: 'italic', padding: '8px', textAlign: 'center' }}>
+                            {swapMyShiftId ? 'Không có đồng nghiệp nào trống ca vào ngày này.' : 'Vui lòng chọn ca của bạn trước.'}
+                          </div>
+                        ) : eligibleFreeStaff.map((e) => {
+                          const id = String(e.staffId || e.id);
+                          const checked = swapGiveawayStaffIds.includes(id);
+                          return (
+                            <label key={id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '8px', background: checked ? '#ecfdf5' : '#f8fafc', cursor: 'pointer', fontSize: '13px', fontWeight: checked ? 600 : 500 }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSwapGiveawayStaffIds((prev) => {
+                                    if (prev.includes(id)) return prev.filter((x) => x !== id);
+                                    if (prev.length >= 3) {
+                                      showToast('Tối đa chỉ được chọn 3 đồng nghiệp.', 'Giới hạn', 'warning');
+                                      return prev;
+                                    }
+                                    return [...prev, id];
+                                  });
+                                }}
+                              />
+                              <span>{e.staffFullName || e.fullName}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2. Chọn đồng nghiệp đề xuất đổi ca <span style={{ color: '#ef4444' }}>*</span></label>
+                      <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetStaffId} onChange={(e) => setSwapTargetStaffId(e.target.value)} required>
+                        <option value="">-- Chọn đồng nghiệp --</option>
+                        {employees.filter(e => !myProfile || String(e.staffId || e.id) !== String(myProfile.id || myProfile.staffId)).map((e) => (
+                          <option key={e.id || e.staffId} value={e.staffId || e.id}>{e.staffFullName || e.fullName}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {swapTargetStaffId && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>2.5 Chọn ca của đồng nghiệp để đổi</label>
+                        <select className="mp-select" style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13.5px' }} value={swapTargetShiftId} onChange={(e) => setSwapTargetShiftId(e.target.value)}>
+                          <option value="">-- Nhường ca (không cần ca đổi lại) --</option>
+                          {storeShifts.filter(s => s.status === 'PUBLISHED' && !hasSwapShiftStarted(s.shiftDate, s.startTime, clock) && s.shiftAssignments?.some(a => String(a.staffId) === String(swapTargetStaffId))).map((s) => (
+                            <option key={s.id} value={s.id}>{s.shiftDate} ({s.startTime?.slice(0, 5)} - {s.endTime?.slice(0, 5)}) - {s.primarySkill}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </>
                 )}
+
+                {(() => {
+                  const myShiftObj = storeShifts.find((s) => String(s.id) === String(swapMyShiftId));
+                  const targetShiftObj = storeShifts.find((s) => String(s.id) === String(swapTargetShiftId));
+                  const cmp = myShiftObj && targetShiftObj
+                    ? getSwapDurationComparison(myShiftObj.startTime, myShiftObj.endTime, targetShiftObj.startTime, targetShiftObj.endTime)
+                    : null;
+                  if (!cmp) return null;
+                  return (
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: cmp.diff === 0 ? '#ecfdf5' : '#fffbeb',
+                        border: `1px solid ${cmp.diff === 0 ? '#a7f3d0' : '#fde68a'}`,
+                        fontSize: '12.5px',
+                        color: cmp.diff === 0 ? '#065f46' : '#92400e',
+                        fontWeight: 600,
+                      }}
+                    >
+                      So sánh thời lượng ca: {cmp.label}
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>3. Lý do đổi ca (Tùy chọn)</label>
@@ -2743,7 +3072,7 @@ export default function MarketplacePage() {
               </div>
               <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 24px', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '10px', borderBottomLeftRadius: '18px', borderBottomRightRadius: '18px' }}>
                 <button type="button" className="mp-btn-action-reject" style={{ padding: '9px 18px', borderRadius: '8px' }} onClick={() => setShowCreateSwapModal(false)} disabled={swapSubmitting}>Hủy bỏ</button>
-                <button type="submit" className="mp-btn-action-approve" style={{ padding: '9px 18px', borderRadius: '8px', background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 600 }} disabled={swapSubmitting || !swapMyShiftId || !swapTargetStaffId || !swapTargetShiftId}>{swapSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu đổi ca'}</button>
+                <button type="submit" className="mp-btn-action-approve" style={{ padding: '9px 18px', borderRadius: '8px', background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 600 }} disabled={swapSubmitting || !swapMyShiftId || (swapMode === 'giveaway' ? swapGiveawayStaffIds.length === 0 : !swapTargetStaffId)}>{swapSubmitting ? 'Đang gửi...' : (swapMode === 'giveaway' ? `Gửi nhường ca (${swapGiveawayStaffIds.length}/3)` : 'Gửi yêu cầu đổi ca')}</button>
               </div>
             </form>
           </div>

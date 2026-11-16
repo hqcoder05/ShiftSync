@@ -8,7 +8,36 @@ ShiftSync là một hệ thống Full-stack bao gồm 3 phần chính. Bạn c�
 - **Java 21** & **Maven**
 - **Node.js 20+** & **npm**
 - **PostgreSQL 16+** & **Redis 7+**
-- (Tuỳ chọn) **Docker** nếu muốn chạy Database qua container.
+- **Docker Desktop** nếu muốn chạy toàn bộ hệ thống bằng container.
+
+## Chạy toàn bộ hệ thống bằng Docker
+
+Tệp Compose chuẩn của dự án là `docker-compose.yml` tại thư mục gốc. Tệp
+`shiftsync-backend/docker-compose.yml` chỉ là lối vào tương thích và luôn nạp
+chính tệp gốc cùng `.env` ở thư mục gốc; không còn một Compose Backend độc lập.
+
+1. Sao chép `.env.example` thành `.env` tại thư mục gốc và thay các giá trị mẫu,
+   đặc biệt là `DB_PASSWORD` và `JWT_SECRET`.
+2. Với điện thoại thật, thay `EXPO_HOST_IP` và `MOBILE_PUBLIC_API_URL` bằng LAN IP
+   của máy chạy Docker.
+3. Từ thư mục gốc dự án, chạy:
+
+   ```powershell
+   docker compose up -d --build
+   ```
+
+4. Kiểm tra Backend đã sẵn sàng:
+
+   ```powershell
+   Invoke-WebRequest http://localhost:8080/actuator/health/readiness
+   ```
+
+Các dịch vụ mặc định: Web `http://localhost:3000`, Mobile Expo
+`http://localhost:8081`, Backend `http://localhost:8080`.
+
+Nếu đang đứng trong `shiftsync-backend`, lệnh `docker compose up -d --build`
+vẫn hợp lệ và sẽ dùng đúng cấu hình gốc. Không tạo hoặc chỉnh tệp `.env` thứ hai
+để chạy Docker.
 
 ---
 

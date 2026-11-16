@@ -25,6 +25,7 @@ import { clearShiftReminders, requestReminderPermission } from '../services/loca
 import { getMyShifts } from '../services/shiftService';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import {
   getMyNotifications,
   getUnreadNotificationCount,
@@ -339,10 +340,7 @@ export default function NotificationScreen({ navigation }) {
 
       {/* Notification List */}
       {loading ? (
-        <View style={[styles.centerBox, { paddingBottom: bottomNavbarPadding }]}>
-          <ActivityIndicator size="large" color={uiColors.primaryStrong} />
-          <Text style={styles.loadingText}>Đang tải thông báo...</Text>
-        </View>
+        <View style={{ flex: 1, paddingBottom: bottomNavbarPadding }}><ContentSkeleton /></View>
       ) : (
         <ScrollView
           style={styles.list}
@@ -429,6 +427,8 @@ export default function NotificationScreen({ navigation }) {
           )}
         </ScrollView>
       )}
+
+      <BottomNavbar navigation={navigation} activeRoute="Notification" />
 
       <NotificationSettingsModal
         visible={settingsVisible}

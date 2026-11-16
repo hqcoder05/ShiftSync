@@ -28,6 +28,7 @@ import { getMyProposals, respondProposal } from '../services/workforceService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { getMyShifts } from '../services/shiftService';
 import BottomNavbar, { useBottomNavbarPadding } from '../components/BottomNavbar';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { showAlert } from '../utils/alert';
 import useActionGuard from '../utils/useActionGuard';
 
@@ -618,11 +619,8 @@ export default function MarketplaceScreen({ navigation }) {
           {!loading && !loadError && <Text style={styles.filterResultCount}>Hiển thị {filteredOpenShifts.length}/{openShifts.length} ca mở</Text>}
         </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={uiColors.ink} />
-            <Text style={styles.loadingText}>Đang tải danh sách ca mở...</Text>
-          </View>
+        {loading && openShifts.length === 0 ? (
+          <ContentSkeleton variant="marketplace" />
         ) : loadError ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>Không tải được ca mở</Text>

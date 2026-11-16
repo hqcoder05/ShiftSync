@@ -19,6 +19,9 @@ export const createEmployee = (data) => {
     email: data.email,
     password: data.password,
     phone: data.phone,
+    gender: data.gender,
+    contractTypeId: data.contractTypeId || undefined,
+    joinedDate: data.joinedDate || undefined,
     systemRole: data.systemRole || data.role, // đúng tên field backend yêu cầu (SystemRole enum: ADMIN/MANAGER/STAFF)
   };
   if (data.storeId) {

@@ -27,21 +27,38 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
     private final AuthenticationManager authenticationManager;
+    private final LoginAttemptProtector loginAttemptProtector;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuthService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenProvider jwtTokenProvider,
+            RedisTemplate<String, Object> redisTemplate,
+            AuthenticationManager authenticationManager,
+            LoginAttemptProtector loginAttemptProtector) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.redisTemplate = redisTemplate;
+        this.authenticationManager = authenticationManager;
+        this.loginAttemptProtector = loginAttemptProtector;
+    }
+
+    // Keeps focused unit tests independent from Redis throttling while production
+    // receives the Spring-managed protector through the constructor above.
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             RedisTemplate<String, Object> redisTemplate,
             AuthenticationManager authenticationManager) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtTokenProvider = jwtTokenProvider;
-        this.redisTemplate = redisTemplate;
-        this.authenticationManager = authenticationManager;
+        this(userRepository, passwordEncoder, jwtTokenProvider, redisTemplate, authenticationManager,
+                LoginAttemptProtector.disabled());
     }
 
     public AuthResponse login(LoginRequest request) {
+        loginAttemptProtector.ensureAllowed(request.getEmail());
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
@@ -60,6 +77,8 @@ public class AuthService {
             redisTemplate.opsForSet().add("user_refresh_tokens:" + user.getId(), refreshToken);
             redisTemplate.expire("user_refresh_tokens:" + user.getId(), java.time.Duration.ofDays(7));
 
+            loginAttemptProtector.clearFailures(request.getEmail());
+
             return AuthResponse.builder()
                     .accessToken(accessToken)
                     .refreshToken(refreshToken)
@@ -67,6 +86,7 @@ public class AuthService {
                     .role(user.getSystemRole().name())
                     .build();
         } catch (AuthenticationException e) {
+            loginAttemptProtector.recordFailure(request.getEmail());
             throw new BusinessException("Email hoac mat khau khong dung", HttpStatus.UNAUTHORIZED);
         }
     }

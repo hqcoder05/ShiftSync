@@ -15,7 +15,7 @@ export default function CompanionPeekCard({ kind = 'fox', title, body, children,
       {!!body && <Text numberOfLines={compact ? 2 : undefined} style={[styles.body, compact && styles.bodyCompact]}>{body}</Text>}
       {!!children && <View style={styles.actions}>{children}</View>}
     </View>
-    <View pointerEvents="box-none" style={[styles.character, compact && styles.characterCompact]}>
+    <View style={[styles.character, compact && styles.characterCompact, { pointerEvents: 'box-none' }]}>
       <ThreeIllustration kind={`peek-${species}`} size={artSize} animated={animated} interactive={animated} />
     </View>
   </View>;

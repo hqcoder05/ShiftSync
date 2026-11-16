@@ -170,12 +170,21 @@ export const getMyRequests = async (storeId, currentUserId) => {
           toShiftDate: s.toShiftDate,
           toShiftStartTime: s.toShiftStartTime,
           toShiftEndTime: s.toShiftEndTime,
+          fromShiftRoleName: s.fromShiftRoleName || null,
+          toShiftRoleName: s.toShiftRoleName || null,
+          myEstimatedPayDelta: s.myEstimatedPayDelta ?? null,
           date: s.fromShiftDate ? `${s.fromShiftDate} (${fromTime})` : '',
           requesterName: s.fromStaffName || 'Nhân viên',
           targetStaffName: s.toStaffName || '',
-          shiftInfo: `Ca: ${s.fromShiftDate} (${fromTime}) ⇄ ${s.toShiftDate} (${toTime})`,
-          content: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
-          description: `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`,
+          shiftInfo: s.toShiftId
+            ? `Ca: ${s.fromShiftDate} (${fromTime}) ↔ ${s.toShiftDate} (${toTime})`
+            : `Nhường ca: ${s.fromShiftDate} (${fromTime}) → ${s.toStaffName}`,
+          content: s.toShiftId
+            ? `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`
+            : `${s.fromStaffName} muốn nhường ca (${s.fromShiftDate} ${fromTime}) cho ${s.toStaffName}`,
+          description: s.toShiftId
+            ? `${s.fromStaffName} muốn đổi ca (${s.fromShiftDate} ${fromTime}) với ca (${s.toShiftDate} ${toTime}) của ${s.toStaffName}`
+            : `${s.fromStaffName} muốn nhường ca (${s.fromShiftDate} ${fromTime}) cho ${s.toStaffName}`,
           reason: 'Hoán đổi ca làm việc giữa 2 nhân sự',
           createdAt: s.createdAt || null,
           employeeRespondedAt: s.employeeRespondedAt,
@@ -221,17 +230,17 @@ export const createStaffRequest = async (requestData, storeId) => {
     return res.data;
   }
 
-  // 2. Real Swap Request via /api/users/me/swaps
-  if ((requestData.type === 'SWAP' || requestData.typeCategory === 'swap') && requestData.fromShiftId && requestData.toStaffId && requestData.toShiftId) {
-    const res = await api.post('/users/me/swaps', {
-      fromShiftId: requestData.fromShiftId,
-      toStaffId: requestData.toStaffId,
-      toShiftId: requestData.toShiftId,
-    });
-    return res.data;
-  }
+  // 2. Real Swap / 1-Way Giveaway Request via /api/users/me/swaps
   if (requestData.type === 'SWAP' || requestData.typeCategory === 'swap') {
-    throw new Error('Vui lòng chọn ca của bạn và ca được phân công cho đồng nghiệp để đổi ca.');
+    const hasRecipients = Array.isArray(requestData.toStaffIds) && requestData.toStaffIds.length > 0;
+    if (!requestData.fromShiftId || (!hasRecipients && !requestData.toStaffId)) {
+      throw new Error('Vui lòng chọn ca của bạn và ít nhất một đồng nghiệp.');
+    }
+    const payload = hasRecipients
+      ? { fromShiftId: requestData.fromShiftId, toStaffIds: requestData.toStaffIds.slice(0, 3), toShiftId: null }
+      : { fromShiftId: requestData.fromShiftId, toStaffId: requestData.toStaffId, toShiftId: requestData.toShiftId || null };
+    const res = await api.post('/users/me/swaps', payload);
+    return res.data;
   }
 
   // 2. Generic staff requests (SWAP, ABSENT, SUPPORT, etc.) -> POST /api/requests

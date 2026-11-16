@@ -701,8 +701,8 @@ public class ShiftService {
                     notificationService.sendNotification(
                             sa.getStaff().getId(),
                             com.shiftsync.notification.entity.NotificationType.SHIFT_REMINDER,
-                            "Ca lam viec bi huy",
-                            "Ca lam viec cua ban vao ngay " + shift.getShiftDate() + " da bi quan ly huy.",
+                            "Ca làm việc bị hủy",
+                            "Ca làm việc của bạn vào ngày " + shift.getShiftDate() + " đã bị quản lý hủy.",
                             java.util.Map.of("shiftId", shift.getId().toString())
                     );
                 } catch (Exception ignored) {}

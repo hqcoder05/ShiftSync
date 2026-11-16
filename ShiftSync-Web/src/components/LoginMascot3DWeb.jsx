@@ -445,11 +445,12 @@ export default function LoginMascot3DWeb({
     // 6. ANIMATION LOOP ĐIỀU KHIỂN THEO TRẠNG THÁI FORM (STATUS)
     // ═════════════════════════════════════════════════════════════════════
     let animId = null;
-    let clock = new THREE.Clock();
+    let clock = new THREE.Timer();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const currentStatus = statusRef.current;
       const currentEmailLen = emailLenRef.current;
 

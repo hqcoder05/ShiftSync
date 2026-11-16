@@ -5,6 +5,7 @@ import ReadyPlayerMeCreatorModal from '../components/ReadyPlayerMeCreatorModal';
 import { useToast } from '../context/toastContextValue.js';
 import { updateMyAvatar, getMyProfile } from '../services/employeeService';
 import { useEffect } from 'react';
+import { isAllowedPersistedAvatarSource, isApprovedAvatarUrl } from '../utils/avatarSecurity';
 
 /**
  * AvatarStudioPage
@@ -17,7 +18,8 @@ export default function AvatarStudioPage() {
   const { showToast } = useToast?.() || { showToast: alert };
 
   // Local storage key for custom user 3D avatar GLB
-  const savedGlbUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('user_profile_avatar_glb') : null;
+  const rawSavedGlbUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('user_profile_avatar_glb') : null;
+  const savedGlbUrl = isAllowedPersistedAvatarSource(rawSavedGlbUrl) ? rawSavedGlbUrl : null;
   const [currentModelUrl, setCurrentModelUrl] = useState(savedGlbUrl || '/models/ShiftSync_Barista.glb');
   const [cameraPreset, setCameraPreset] = useState('full'); // 'full' | 'upper' | 'face'
   const [autoRotate, setAutoRotate] = useState(true);
@@ -26,24 +28,27 @@ export default function AvatarStudioPage() {
 
   useEffect(() => {
     if (!savedGlbUrl) {
+      if (rawSavedGlbUrl) localStorage.removeItem('user_profile_avatar_glb');
       getMyProfile()
         .then((res) => {
-          if (res.data?.avatarId) {
+          if (isAllowedPersistedAvatarSource(res.data?.avatarId)) {
             setCurrentModelUrl(res.data.avatarId);
             localStorage.setItem('user_profile_avatar_glb', res.data.avatarId);
           }
         })
         .catch(() => {});
     }
-  }, [savedGlbUrl]);
+  }, [savedGlbUrl, rawSavedGlbUrl]);
 
   // Sync to localStorage
   const handleSetAsMyAvatar = async () => {
     try {
+      if (!isAllowedPersistedAvatarSource(currentModelUrl)) {
+        showToast?.('Tệp tải lên chỉ dùng để xem trước trong phiên này. Hãy dùng mô hình có nguồn được phê duyệt để lưu hồ sơ.', 'warning');
+        return;
+      }
       localStorage.setItem('user_profile_avatar_glb', currentModelUrl);
-      await updateMyAvatar(currentModelUrl).catch((err) => {
-        console.warn('Backend updateMyAvatar failed, kept local avatar', err);
-      });
+      await updateMyAvatar(currentModelUrl);
       if (showToast) {
         showToast('Đã lưu Avatar 3D thành công lên hồ sơ máy chủ! Thực thể 3D này sẽ xuất hiện trong không gian làm việc.', 'success');
       }
@@ -55,10 +60,12 @@ export default function AvatarStudioPage() {
   const handleAvatarReady = async (url) => {
     setCurrentModelUrl(url);
     try {
+      if (!isApprovedAvatarUrl(url)) {
+        showToast?.('Đã nạp mô hình để xem trước. Tệp tải lên sẽ không được lưu vào hồ sơ.', 'info');
+        return;
+      }
       localStorage.setItem('user_profile_avatar_glb', url);
-      await updateMyAvatar(url).catch((err) => {
-        console.warn('Backend updateMyAvatar failed, kept local model', err);
-      });
+      await updateMyAvatar(url);
       if (showToast) {
         showToast('Đã nạp và lưu thành công mô hình Avatar 3D vào hồ sơ máy chủ!', 'success');
       }

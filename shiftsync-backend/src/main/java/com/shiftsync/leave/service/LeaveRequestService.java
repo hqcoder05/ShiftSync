@@ -325,8 +325,8 @@ public class LeaveRequestService {
         notificationService.sendNotification(
             leaveRequest.getStaff().getId(),
             com.shiftsync.notification.entity.NotificationType.LEAVE_REQUEST_UPDATED,
-            "Leave Request Approved",
-            "Your leave request has been approved.",
+            "Yêu cầu nghỉ phép đã được duyệt",
+            "Yêu cầu nghỉ phép của bạn đã được quản lý phê duyệt.",
             null
         );
 

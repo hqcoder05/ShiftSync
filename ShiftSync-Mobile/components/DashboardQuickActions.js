@@ -12,6 +12,8 @@ const actions = [
   { label: 'Yêu cầu', icon: 'document-text-outline', screen: 'Request', color: uiColors.sky },
 ];
 
+const canUseNativeAnimationDriver = Platform.OS !== 'web';
+
 function QuickAction({ item, onOpen }) {
   const scale = useRef(new Animated.Value(1)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -24,7 +26,7 @@ function QuickAction({ item, onOpen }) {
   const animate = (value) => {
     scale.stopAnimation();
     if (reduceMotion) scale.setValue(1);
-    else Animated.spring(scale, { toValue: value, useNativeDriver: true, speed: 32, bounciness: 0 }).start();
+    else Animated.spring(scale, { toValue: value, useNativeDriver: canUseNativeAnimationDriver, speed: 32, bounciness: 0 }).start();
   };
   return <Animated.View style={[styles.action, { transform: [{ scale }] }]}>
     <Pressable accessibilityRole="button" accessibilityLabel={item.label} style={ensureTouchTarget(styles.button)}

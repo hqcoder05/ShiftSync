@@ -1,7 +1,7 @@
 import { ensureTouchTarget } from '../utils/touchTarget';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { subscribeMessagingUnread, getMessagingUnreadSnapshot } from '../services/messagingService';
-import { AccessibilityInfo, Animated, View, Pressable, Text, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Animated, Platform, View, Pressable, Text, StyleSheet } from 'react-native';
 import NavigationIcon from './NavigationIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '../i18n';
@@ -14,6 +14,10 @@ const navItems = [
   { screen: 'Messaging' },
   { screen: 'More' },
 ];
+
+// React Native Web does not implement the native animation driver. Keep it on
+// device for responsive transforms while avoiding a no-op driver warning on web.
+const canUseNativeAnimationDriver = Platform.OS !== 'web';
 
 function NavigationTab({ screen, label, active, unread, onPress, reduceMotion }) {
   const contact = useRef(new Animated.Value(1)).current;
@@ -28,7 +32,11 @@ function NavigationTab({ screen, label, active, unread, onPress, reduceMotion })
   const animateContact = (value) => {
     contact.stopAnimation();
     if (reduceMotion) { contact.setValue(1); return; }
-    Animated.timing(contact, { toValue: value, duration: 110, useNativeDriver: true }).start();
+    Animated.timing(contact, {
+      toValue: value,
+      duration: 110,
+      useNativeDriver: canUseNativeAnimationDriver,
+    }).start();
   };
 
   return <Pressable
@@ -42,7 +50,7 @@ function NavigationTab({ screen, label, active, unread, onPress, reduceMotion })
     onHoverOut={() => animateContact(1)}
     style={ensureTouchTarget(({ pressed, focused }) => [styles.navButton, focused && styles.navButtonFocused, pressed && styles.navButtonPressed])}
   >
-    <View pointerEvents="none" style={styles.iconFrame}>
+    <View style={[styles.iconFrame, { pointerEvents: 'none' }]}>
       <Animated.View style={{ transform: [{ scale: contact }] }}>
         <NavigationIcon screen={screen} active={active} size={25} />
       </Animated.View>

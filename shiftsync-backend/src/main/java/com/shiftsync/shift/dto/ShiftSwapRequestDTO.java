@@ -26,5 +26,10 @@ public class ShiftSwapRequestDTO {
     private SwapStatus status;
     private UUID approvedById;
     private boolean employeeAccepted;
+    private java.time.OffsetDateTime createdAt;
+    private String fromShiftRoleName;
+    private String toShiftRoleName;
+    private java.math.BigDecimal myEstimatedPayDelta;
+    private java.math.BigDecimal storeLaborCostDelta;
 }
 

@@ -165,12 +165,13 @@ export default function PaperPlane3D({
     dom.addEventListener('mouseleave', handleMouseLeave);
     dom.addEventListener('click', handleClick);
 
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let animId = null;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
 
       // Đung đưa bồng bềnh 3D êm ái
       const targetRotY = mouseRef.current.x * 0.4;
@@ -311,12 +312,13 @@ export default function PaperPlane3D({
     const endX = -halfW * 0.55;
     const endY = -halfH * 0.45;
 
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let animId = null;
     const DURATION = 2.4; // 2.4 giây bay ngoạn mục
 
     const animateFlight = () => {
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const progress = Math.min(elapsed / DURATION, 1.0);
 
       if (progress >= 1.0) {

@@ -366,7 +366,7 @@ export default function Payroll3DCharacter({
     }
 
     // 5. Animation Loop
-    let clock = new THREE.Clock();
+    let clock = new THREE.Timer();
     let animId;
     let waveTimer = 0;
     let blinkTimer = 0;
@@ -374,8 +374,9 @@ export default function Payroll3DCharacter({
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      clock.update();
       const delta = clock.getDelta();
-      const time = clock.getElapsedTime();
+      const time = clock.getElapsed();
 
       // Bobbing
       const bobFreq = isHovered ? 4.5 : 2.5;

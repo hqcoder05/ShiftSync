@@ -48,7 +48,7 @@ export const ALL_APIS = [
     queryParams: [],
     defaultPayload: {
   "fullName": "Trần Thị B Cập nhật",
-  "email": "staff@shiftsync.com",
+  "email": "nhan-vien@example.invalid",
   "phone": "0912345678"
 }
   },
@@ -82,8 +82,8 @@ export const ALL_APIS = [
     queryParams: [],
     defaultPayload: {
   "fullName": "Trần Thị B",
-  "email": "staff@shiftsync.com",
-  "password": "password123",
+  "email": "nhan-vien@example.invalid",
+  "password": "MatKhauThu123!",
   "phone": "0912345678",
   "systemRole": "STAFF"
 }
@@ -1203,8 +1203,8 @@ export const ALL_APIS = [
     pathParams: [],
     queryParams: [],
     defaultPayload: {
-  "email": "admin@shiftsync.com",
-  "password": "password123"
+  "email": "tai-khoan-cua-ban@example.invalid",
+  "password": "MatKhauThu123!"
 }
   },
   {

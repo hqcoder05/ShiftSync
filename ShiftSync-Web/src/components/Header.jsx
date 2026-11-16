@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import './Header.css';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../services/authService';
+import { getAccessToken, getSessionEmail, getSessionRole } from '../services/authSession';
+import { canManageStore } from '../utils/roleAccess';
 import { getAllStores } from '../services/storeService';
 import { getStoreLeaveRequests, getMyLeaveRequests } from '../services/leaveService';
 import { getStoreSwapRequests, getMySwapRequests } from '../services/swapService';
@@ -332,12 +334,12 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [notifTab, setNotifTab] = useState('ALL'); // 'ALL' | 'UNREAD' | 'REQUESTS'
 
-  const userRole = (localStorage.getItem('userRole') || 'STAFF').toUpperCase();
+  const userRole = getSessionRole();
   const isAdmin = userRole === 'ADMIN';
-  const isManager = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isManager = useMemo(() => canManageStore(userRole), [userRole]);
 
   const fetchNotifications = useCallback(async () => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const token = getAccessToken();
     if (!token) return;
     try {
       const [notifsRes, unreadRes] = await Promise.allSettled([
@@ -360,7 +362,7 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
   }, []);
 
   const fetchHeaderCounts = useCallback(async () => {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const token = getAccessToken();
     if (!token || !selectedStoreId) return;
     try {
       if (isManager) {
@@ -600,7 +602,7 @@ export default function Header({ navMode = 'top', onToggleNavMode }) {
   }, []);
 
   // Current logged in user info
-  const userEmail = localStorage.getItem('userEmail') || 'user@shiftsync.com';
+  const userEmail = getSessionEmail() || 'user@shiftsync.com';
   const userId = localStorage.getItem('userId') || userEmail;
   const userName = userEmail.split('@')[0];
   const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem(`user_profile_avatar_${userId}`) || localStorage.getItem('userAvatarId') || 'dilan');

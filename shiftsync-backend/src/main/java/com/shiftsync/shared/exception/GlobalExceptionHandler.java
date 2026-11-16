@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,6 +54,19 @@ public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * Console environments on some Windows deployments still decode UTF-8 log
+     * output inconsistently. API responses retain their Vietnamese accents;
+     * operational logs are made ASCII so an incident message stays readable.
+     */
+    private static String consoleText(String value) {
+        if (value == null) return "";
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd')
+                .replace('Đ', 'D');
+    }
+
     private Map<String, Object> buildResponse(String code, String message, Object details) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", code);
@@ -66,7 +80,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException ex) {
-        logger.warn("Loi nghiep vu: trang thai={}, thong bao={}", ex.getStatus(), ex.getMessage());
+        logger.warn("Loi nghiep vu: trang thai={}, thong bao={}", ex.getStatus(), consoleText(ex.getMessage()));
         return new ResponseEntity<>(
             buildResponse(ex.getStatus().name(), ex.getMessage(), null),
             ex.getStatus()
@@ -149,7 +163,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
-        logger.warn("Dữ liệu vi phạm ràng buộc hoặc bị xung đột: {}", ex.getClass().getSimpleName());
+        logger.warn("Du lieu vi pham rang buoc hoac bi xung dot: {}", ex.getClass().getSimpleName());
         return new ResponseEntity<>(
             buildResponse("DATA_INTEGRITY_VIOLATION", "Dữ liệu bị xung đột hoặc vi phạm ràng buộc", null),
             HttpStatus.CONFLICT
@@ -158,7 +172,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.dao.ConcurrencyFailureException.class)
     public ResponseEntity<Map<String, Object>> handleConcurrentScheduleChange(org.springframework.dao.ConcurrencyFailureException ex) {
-        logger.warn("Giao dịch đồng thời bị từ chối: {}", ex.getClass().getSimpleName());
+        logger.warn("Giao dich dong thoi bi tu choi: {}", ex.getClass().getSimpleName());
         return new ResponseEntity<>(buildResponse("CONCURRENT_MODIFICATION",
                 "Dữ liệu vừa thay đổi trong một thao tác khác. Vui lòng tải lại lịch và thử lại.", null), HttpStatus.CONFLICT);
     }
@@ -168,7 +182,7 @@ public class GlobalExceptionHandler {
         jakarta.persistence.OptimisticLockException.class
     })
     public ResponseEntity<Map<String, Object>> handleOptimisticLocking(Exception ex) {
-        logger.warn("Xung đột khi cập nhật đồng thời: {}", ex.getMessage());
+        logger.warn("Xung dot khi cap nhat dong thoi: {}", consoleText(ex.getMessage()));
         return new ResponseEntity<>(
             buildResponse("OPTIMISTIC_LOCK_CONFLICT", "Dữ liệu đã được thay đổi bởi thao tác khác. Vui lòng tải lại và thử lại.", null),
             HttpStatus.CONFLICT
@@ -177,7 +191,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
-        logger.warn("Tệp tải lên vượt quá kích thước cho phép: {}", ex.getMessage());
+        logger.warn("Tep tai len vuot qua kich thuoc cho phep: {}", consoleText(ex.getMessage()));
         return new ResponseEntity<>(
             buildResponse("PAYLOAD_TOO_LARGE", "Tệp tải lên vượt quá kích thước cho phép", null),
             HttpStatus.PAYLOAD_TOO_LARGE
@@ -186,7 +200,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
-        logger.error("Lỗi chưa được xử lý: ", ex);
+        logger.error("Loi chua duoc xu ly: ", ex);
         return new ResponseEntity<>(
             buildResponse("INTERNAL_SERVER_ERROR", "Đã xảy ra lỗi không mong muốn", null),
             HttpStatus.INTERNAL_SERVER_ERROR

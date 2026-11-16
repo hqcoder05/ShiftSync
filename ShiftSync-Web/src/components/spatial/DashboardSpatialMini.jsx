@@ -92,7 +92,7 @@ export default function DashboardSpatialMini({
 
         <button
           type="button"
-          onClick={() => navigate('/schedule?view=3d')}
+          onClick={() => navigate('/store-3d')}
           style={{
             display: 'flex',
             alignItems: 'center',

@@ -1,6 +1,7 @@
 import { colors as uiColors } from '../theme/koreanPalette';
 import { createAppStyles } from '../theme/appTheme';
 import ThreeIllustration from '../components/ThreeIllustration';
+import ContentSkeleton from '../components/ContentSkeleton';
 import { ensureTouchTarget } from '../utils/touchTarget';
 import { vietnamCalendarDate, calendarDate } from '../utils/vietnamTime';
 import BackIcon from '../components/BackIcon';
@@ -23,6 +24,7 @@ import {
 } from 'react-native';
 import { getMyRequests, createStaffRequest, toIsoDate, cancelSwapRequest, getRequestTimeline } from '../services/requestService';
 import { getLeaveTypes, getMyLeaveBalance } from '../services/leaveService';
+import api from '../services/api';
 import { getMyShifts, getShiftsForStore } from '../services/shiftService';
 import { getMyProfile, getMyStores } from '../services/profileService';
 import { respondToSwapRequest } from '../services/swapService';
@@ -66,6 +68,23 @@ export const getStaffAvatarSource = (staffName, avatarId) => {
   return avatarDilan;
 };
 
+async function getStoreStaffDirectory(storeId) {
+  const pageSize = 100;
+  const firstResponse = await api.get(`/stores/${storeId}/staff`, { params: { page: 0, size: pageSize } });
+  const firstPage = firstResponse?.data;
+  if (Array.isArray(firstPage)) return firstPage;
+
+  const firstContent = Array.isArray(firstPage?.content) ? firstPage.content : [];
+  const totalPages = Math.max(1, Number(firstPage?.totalPages) || 1);
+  if (totalPages === 1) return firstContent;
+
+  const remainingPages = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) =>
+    api.get(`/stores/${storeId}/staff`, { params: { page: index + 1, size: pageSize } })
+      .then((response) => Array.isArray(response?.data?.content) ? response.data.content : [])
+  ));
+  return firstContent.concat(...remainingPages);
+}
+
 const EMPTY_SHIFT = {
   id: 'no-shift',
   dayLabel: 'Chưa có ca',
@@ -103,6 +122,55 @@ const RequestTimeline = ({ request }) => (
   </View>
 );
 
+const parseTimeMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  const parts = String(timeStr).split(':');
+  if (parts.length < 2) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+const calcShiftDurationHours = (startTime, endTime) => {
+  const startMin = parseTimeMinutes(startTime);
+  const endMin = parseTimeMinutes(endTime);
+  if (startMin === null || endMin === null) return null;
+  const diffMin = endMin <= startMin ? (endMin + 24 * 60 - startMin) : (endMin - startMin);
+  return Math.round((diffMin / 60) * 100) / 100;
+};
+
+const formatHourNumber = (hours) => {
+  if (hours === null || hours === undefined) return '';
+  return `${Number(hours.toFixed(2))}h`;
+};
+
+const getSwapDurationComparison = (giveStart, giveEnd, takeStart, takeEnd) => {
+  const giveHours = calcShiftDurationHours(giveStart, giveEnd);
+  const takeHours = calcShiftDurationHours(takeStart, takeEnd);
+  if (giveHours === null || takeHours === null) return null;
+  const diff = Math.round((takeHours - giveHours) * 100) / 100;
+  const diffText = diff > 0
+    ? `+${formatHourNumber(diff)}`
+    : diff < 0
+      ? `-${formatHourNumber(Math.abs(diff))}`
+      : 'bằng nhau';
+  return {
+    giveHours,
+    takeHours,
+    diff,
+    label: `${formatHourNumber(giveHours)} ↔ ${formatHourNumber(takeHours)} (${diffText})`,
+  };
+};
+
+const formatPayDeltaVND = (amount) => {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return null;
+  const num = Math.round(Number(amount));
+  if (num === 0) return '0đ';
+  const sign = num > 0 ? '+' : '-';
+  return `${sign}${Math.abs(num).toLocaleString('vi-VN')}đ`;
+};
+
 export default function RequestScreen({ navigation, route }) {
   const { runAction, busy } = useActionGuard();
   const loadInFlight = useRef(false);
@@ -113,6 +181,9 @@ export default function RequestScreen({ navigation, route }) {
   const [currentUserName, setCurrentUserName] = useState('');
   const [currentUserAvatarId, setCurrentUserAvatarId] = useState(null);
   const [storeColleagues, setStoreColleagues] = useState([]);
+  const [storeShiftsRaw, setStoreShiftsRaw] = useState([]);
+  const [swapMode, setSwapMode] = useState('swap'); // 'swap' | 'giveaway'
+  const [selectedGiveawayStaffs, setSelectedGiveawayStaffs] = useState([]);
   const [respondingSwapId, setRespondingSwapId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [requestMenuVisible, setRequestMenuVisible] = useState(false);
@@ -173,6 +244,29 @@ export default function RequestScreen({ navigation, route }) {
   const [selectedAbsentShift, setSelectedAbsentShift] = useState(EMPTY_SHIFT);
   const [showAbsentShiftPicker, setShowAbsentShiftPicker] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
+  const hasSelectedSwapShift = selectedSwapShift?.id && selectedSwapShift.id !== 'no-shift';
+  const hasSelectedAbsentShift = selectedAbsentShift?.id && selectedAbsentShift.id !== 'no-shift';
+  const staffWithShiftOnSwapDate = new Set();
+  if (selectedSwapShift?.shiftDate && Array.isArray(storeShiftsRaw)) {
+    storeShiftsRaw.forEach((s) => {
+      if (s.shiftDate === selectedSwapShift.shiftDate && s.status !== 'CANCELLED') {
+        if (Array.isArray(s.shiftAssignments)) {
+          s.shiftAssignments.forEach((a) => { if (a.staffId) staffWithShiftOnSwapDate.add(String(a.staffId)); });
+        }
+        if (s.staffId) staffWithShiftOnSwapDate.add(String(s.staffId));
+        if (s.assignedStaffId) staffWithShiftOnSwapDate.add(String(s.assignedStaffId));
+      }
+    });
+  }
+  const eligibleSwapColleagues = swapMode === 'giveaway'
+    ? storeColleagues.filter((staff) => !staffWithShiftOnSwapDate.has(String(staff.staffId)))
+    : storeColleagues.filter((staff) => Boolean(staff.shiftId));
+  const canSubmitSwap = hasSelectedSwapShift
+    && (swapMode === 'giveaway'
+      ? selectedGiveawayStaffs.length >= 1 && selectedGiveawayStaffs.length <= 3
+      : Boolean(selectedSwapStaff && typeof selectedSwapStaff === 'object' ? selectedSwapStaff.shiftId : selectedSwapStaff))
+    && !loading && !busy.submit;
+  const canSubmitAbsent = hasSelectedAbsentShift && Boolean(absentReason.trim()) && !loading && !busy.submit;
 
   useEffect(() => {
     loadData();
@@ -342,12 +436,16 @@ export default function RequestScreen({ navigation, route }) {
         setSelectedAbsentShift(EMPTY_SHIFT);
       }
 
-      // Fetch colleagues from store
+      // Fetch colleagues from store (shifts + full store staff for 1-way giveaway)
       if (storeId) {
         try {
-          const storeShiftsRes = await getShiftsForStore(storeId).catch(() => null);
+          const [storeShiftsRes, storeStaffRes] = await Promise.all([
+            getShiftsForStore(storeId).catch(() => null),
+            getStoreStaffDirectory(storeId).catch(() => null),
+          ]);
+          const colleaguesMap = new Map();
+          setStoreShiftsRaw(Array.isArray(storeShiftsRes?.data) ? storeShiftsRes.data : []);
           if (storeShiftsRes?.data && Array.isArray(storeShiftsRes.data)) {
-            const colleaguesMap = new Map();
             storeShiftsRes.data.forEach((s) => {
               if (s.status !== 'PUBLISHED' || new Date(`${s.shiftDate}T${s.startTime}+07:00`).getTime() <= Date.now()) return;
               const assignments = Array.isArray(s.shiftAssignments) && s.shiftAssignments.length > 0
@@ -364,8 +462,8 @@ export default function RequestScreen({ navigation, route }) {
                 const staffName = assign.staffName || '';
                 const role = assign.skillName || s.skillName || s.requirements?.[0]?.skillName || 'Nhân viên';
                 if (staffName && staffId && String(staffId) !== String(activeUserId) && staffName !== 'Chưa phân công') {
-                  if (!colleaguesMap.has(staffId)) {
-                    colleaguesMap.set(staffId, {
+                  if (!colleaguesMap.has(String(staffId))) {
+                    colleaguesMap.set(String(staffId), {
                       id: staffId,
                       staffId: staffId,
                       name: staffName,
@@ -379,15 +477,35 @@ export default function RequestScreen({ navigation, route }) {
                 }
               });
             });
-            const colleaguesList = Array.from(colleaguesMap.values());
-            setStoreColleagues(colleaguesList);
-            if (colleaguesList.length > 0) {
-              setSelectedSwapStaff((prev) => {
-                return colleaguesList.find((item) => String(item.staffId) === String(prev?.staffId || prev)) || colleaguesList[0];
-              });
-            } else {
-              setSelectedSwapStaff('');
-            }
+          }
+
+          if (Array.isArray(storeStaffRes)) {
+            storeStaffRes.forEach((member) => {
+              const staffId = member.staffId || member.id;
+              const staffName = member.staffFullName || member.fullName || member.name || '';
+              if (staffName && staffId && String(staffId) !== String(activeUserId) && !colleaguesMap.has(String(staffId))) {
+                colleaguesMap.set(String(staffId), {
+                  id: staffId,
+                  staffId: staffId,
+                  name: staffName,
+                  role: member.positionName || member.roleName || member.systemRole || 'Nhân viên',
+                  avatarId: member.avatarId,
+                  shiftId: null,
+                  shiftDate: null,
+                  timeRange: null,
+                });
+              }
+            });
+          }
+
+          const colleaguesList = Array.from(colleaguesMap.values());
+          setStoreColleagues(colleaguesList);
+          if (colleaguesList.length > 0) {
+            setSelectedSwapStaff((prev) => {
+              return colleaguesList.find((item) => String(item.staffId) === String(prev?.staffId || prev)) || colleaguesList[0];
+            });
+          } else {
+            setSelectedSwapStaff('');
           }
         } catch (e) {
           // ignore store fetch errors
@@ -488,6 +606,66 @@ export default function RequestScreen({ navigation, route }) {
       showToast('Lưu ý', msg, 'warning');
       return;
     }
+    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
+    const isOneWayGiveaway = swapMode === 'giveaway';
+    if (!availableShifts.some((shift) => shift.id === fromShiftId && String(shift.staffId) === String(currentUserId))) {
+      setSwapError('Vui lòng chọn ca sắp tới của bạn trong cửa hàng.');
+      return;
+    }
+
+    if (isOneWayGiveaway) {
+      if (selectedGiveawayStaffs.length === 0) {
+        const msg = 'Vui lòng chọn ít nhất 1 đồng nghiệp chưa có ca hôm đó để nhường ca';
+        setSwapError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
+      if (selectedGiveawayStaffs.length > 3) {
+        const msg = 'Tối đa chỉ được gửi yêu cầu nhường ca cho 3 đồng nghiệp';
+        setSwapError(msg);
+        showToast('Lưu ý', msg, 'warning');
+        return;
+      }
+      const recipientIds = selectedGiveawayStaffs.map((s) => s.staffId || s.id);
+      const recipientNames = selectedGiveawayStaffs.map((s) => s.name).join(', ');
+      showAlert(
+        'Xác nhận nhường ca 1 chiều',
+        `Bạn có chắc chắn muốn nhường ca ${selectedSwapShift.dayLabel} (${selectedSwapShift.timeRange}) cho ${recipientNames} (không cần đổi lại ca, không giới hạn giờ/lịch rảnh)?\n\nTối đa 3 người nhận; người nào xác nhận và được Quản lý duyệt trước sẽ nhận ca.`,
+        [
+          { text: 'Kiểm tra lại', style: 'cancel' },
+          {
+            text: 'Xác nhận gửi ngay',
+            style: 'default',
+            onPress: async () => {
+              const submitted = await runAction('submit', async () => {
+                try {
+                  setLoading(true);
+                  const checked = await submitCheckedSwap({ userId: currentUserId, storeId: activeStoreId, fromShiftId, toStaffIds: recipientIds, toShiftId: null });
+                  if (checked.conflicts.length) {
+                    setScheduleConflict(checked);
+                    return false;
+                  }
+                  setSwapError(null);
+                  setSelectedGiveawayStaffs([]);
+                  showToast('Gửi thành công', `Đã gửi đề nghị nhường ca ${selectedSwapShift.dayLabel} cho ${recipientNames}`);
+                  await loadRequests();
+                  return true;
+                } catch (err) {
+                  const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Không thể gửi yêu cầu nhường ca';
+                  setSwapError(errMsg);
+                  showToast('Thất bại', errMsg, 'error');
+                } finally {
+                  setLoading(false);
+                }
+              });
+              if (submitted) setSwapModalVisible(false);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (!selectedSwapStaff) {
       const msg = 'Vui lòng chọn nhân viên đồng nghiệp để đổi ca';
       setSwapError(msg);
@@ -499,11 +677,10 @@ export default function RequestScreen({ navigation, route }) {
     const targetColleague = storeColleagues.find((colleague) => String(colleague.staffId) === String(selectedStaffId));
 
     const colleagueName = targetColleague?.name || (typeof selectedSwapStaff === 'string' ? selectedSwapStaff : 'Đồng nghiệp');
-    const fromShiftId = selectedSwapShift?.shiftId || selectedSwapShift?.id;
     const toStaffId = targetColleague?.staffId || targetColleague?.id;
     const toShiftId = targetColleague?.shiftId;
-    if (!availableShifts.some((shift) => shift.id === fromShiftId && String(shift.staffId) === String(currentUserId)) || !toStaffId || !toShiftId) {
-      setSwapError('Chỉ được đổi ca sắp tới của bạn với ca được phân công cho đồng nghiệp trong cửa hàng.');
+    if (!toStaffId || !toShiftId) {
+      setSwapError('Vui lòng chọn đồng nghiệp có ca sắp tới để đổi ca 2 chiều.');
       return;
     }
 
@@ -609,10 +786,33 @@ export default function RequestScreen({ navigation, route }) {
 
   const handleRespondSwap = async (swapItem, accept) => {
     if (!currentUserId || String(swapItem.toStaffId) !== String(currentUserId) || swapItem.status !== 'PENDING' || swapItem.employeeAccepted) return;
+    const isGiveaway = !swapItem.toShiftId;
+    const durationCmp = isGiveaway
+      ? null
+      : getSwapDurationComparison(
+          swapItem.toShiftStartTime,
+          swapItem.toShiftEndTime,
+          swapItem.fromShiftStartTime,
+          swapItem.fromShiftEndTime
+        );
+    const receiveHours = calcShiftDurationHours(swapItem.fromShiftStartTime, swapItem.fromShiftEndTime);
+    const payText = formatPayDeltaVND(swapItem.myEstimatedPayDelta);
+    const roleLine = isGiveaway
+      ? (swapItem.fromShiftRoleName ? `\nVị trí: ${swapItem.fromShiftRoleName}` : '')
+      : ((swapItem.toShiftRoleName || swapItem.fromShiftRoleName)
+          ? `\nVị trí: ${swapItem.toShiftRoleName || 'Ca của bạn'} ↔ ${swapItem.fromShiftRoleName || 'Ca nhận'}`
+          : '');
+    const payLine = payText ? `\nChênh lệch lương dự kiến: ${payText}` : '';
+    const timeLine = isGiveaway
+      ? (receiveHours !== null ? `\nThời lượng nhận thêm: ${formatHourNumber(receiveHours)}` : '')
+      : (durationCmp ? `\nThời lượng: ${durationCmp.label}` : '');
+    const durationLine = timeLine + roleLine + payLine;
     showAlert(
-      accept ? 'Xác nhận đồng ý nhận ca đổi' : 'Từ chối yêu cầu đổi ca',
+      accept ? (isGiveaway ? 'Xác nhận đồng ý nhận ca' : 'Xác nhận đồng ý nhận ca đổi') : 'Từ chối yêu cầu đổi ca',
       accept
-        ? `Bạn có chắc chắn đồng ý nhận ca (${swapItem.fromShiftDate} ${swapItem.fromShiftStartTime?.slice(0, 5)} - ${swapItem.fromShiftEndTime?.slice(0, 5)}) và nhượng ca của bạn cho ${swapItem.fromStaffName}?\n\nYêu cầu sẽ được gửi tới Quản lý để phê duyệt chính thức.`
+        ? (isGiveaway
+            ? `Bạn có chắc chắn đồng ý nhận ca (${swapItem.fromShiftDate} ${swapItem.fromShiftStartTime?.slice(0, 5)} - ${swapItem.fromShiftEndTime?.slice(0, 5)}) từ ${swapItem.fromStaffName}?${durationLine}\n\nYêu cầu sẽ được gửi tới Quản lý để phê duyệt chính thức.`
+            : `Bạn có chắc chắn đồng ý nhận ca (${swapItem.fromShiftDate} ${swapItem.fromShiftStartTime?.slice(0, 5)} - ${swapItem.fromShiftEndTime?.slice(0, 5)}) và nhượng ca của bạn cho ${swapItem.fromStaffName}?${durationLine}\n\nYêu cầu sẽ được gửi tới Quản lý để phê duyệt chính thức.`)
         : `Bạn có chắc chắn muốn từ chối yêu cầu đổi ca từ ${swapItem.fromStaffName}?`,
       [
         { text: 'Hủy bỏ', style: 'cancel' },
@@ -761,29 +961,80 @@ export default function RequestScreen({ navigation, route }) {
 
                   {/* Chi tiết ca hoán đổi */}
                   <View style={styles.swapComparisonBox}>
-                    <View style={styles.swapShiftRow}>
-                      <View style={[styles.swapShiftDot, { backgroundColor: "#B38D49" }]} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.swapShiftLabel}>Ca của bạn (sẽ nhượng lại):</Text>
-                        <Text style={styles.swapShiftValue}>
-                          {swap.toShiftDate} • {toTime}
-                        </Text>
-                      </View>
-                    </View>
+                    {swap.toShiftId ? (
+                      <>
+                        <View style={styles.swapShiftRow}>
+                          <View style={[styles.swapShiftDot, { backgroundColor: "#B38D49" }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.swapShiftLabel}>Ca của bạn (sẽ nhượng lại):</Text>
+                            <Text style={styles.swapShiftValue}>
+                              {swap.toShiftDate} • {toTime}{swap.toShiftRoleName ? ` • ${swap.toShiftRoleName}` : ''}
+                            </Text>
+                          </View>
+                        </View>
 
-                    <View style={styles.swapArrowWrap}>
-                      <Text style={styles.swapArrowText}>⇅</Text>
-                    </View>
+                        <View style={styles.swapArrowWrap}>
+                          <Text style={styles.swapArrowText}>⇅</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={{ marginBottom: 6 }}>
+                        <Text style={styles.swapShiftLabel}>Hình thức: Nhường ca cho bạn (không cần ca đổi lại)</Text>
+                      </View>
+                    )}
 
                     <View style={styles.swapShiftRow}>
                       <View style={[styles.swapShiftDot, { backgroundColor: uiColors.success }]} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.swapShiftLabel}>Ca bạn sẽ nhận thay:</Text>
+                        <Text style={styles.swapShiftLabel}>{swap.toShiftId ? 'Ca bạn sẽ nhận thay:' : 'Ca bạn sẽ nhận:'}</Text>
                         <Text style={[styles.swapShiftValue, { color: uiColors.successStrong, fontWeight: '700' }]}>
-                          {swap.fromShiftDate} • {fromTime}
+                          {swap.fromShiftDate} • {fromTime}{swap.fromShiftRoleName ? ` • ${swap.fromShiftRoleName}` : ''}
                         </Text>
                       </View>
                     </View>
+
+                    {(() => {
+                      const cmp = swap.toShiftId
+                        ? getSwapDurationComparison(swap.toShiftStartTime, swap.toShiftEndTime, swap.fromShiftStartTime, swap.fromShiftEndTime)
+                        : null;
+                      const receiveHours = !swap.toShiftId
+                        ? calcShiftDurationHours(swap.fromShiftStartTime, swap.fromShiftEndTime)
+                        : null;
+                      const payText = formatPayDeltaVND(swap.myEstimatedPayDelta);
+                      if (!cmp && receiveHours === null && !payText) return null;
+                      const num = Number(swap.myEstimatedPayDelta);
+                      return (
+                        <View style={{
+                          marginTop: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          backgroundColor: cmp ? (cmp.diff === 0 ? '#ECFDF5' : '#FFFBEB') : '#EFF6FF',
+                          borderWidth: 1,
+                          borderColor: cmp ? (cmp.diff === 0 ? '#A7F3D0' : '#FDE68A') : '#BFDBFE',
+                        }}>
+                          {cmp ? (
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: cmp.diff === 0 ? '#047857' : '#B45309' }}>
+                              Chênh lệch giờ: {cmp.label}
+                            </Text>
+                          ) : receiveHours !== null ? (
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#1D4ED8' }}>
+                              Thời lượng nhận thêm: +{formatHourNumber(receiveHours)}
+                            </Text>
+                          ) : null}
+                          {payText ? (
+                            <Text style={{
+                              fontSize: 12,
+                              fontWeight: '700',
+                              marginTop: 3,
+                              color: num === 0 ? '#047857' : num > 0 ? '#1D4ED8' : '#B91C1C',
+                            }}>
+                              Chênh lệch lương dự kiến: {payText}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })()}
                   </View>
 
                   {/* Nút hành động Đồng ý / Từ chối */}
@@ -823,10 +1074,7 @@ export default function RequestScreen({ navigation, route }) {
         <Text style={styles.timeOffListCaption}>YÊU CẦU CỦA BẠN</Text>
 
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={uiColors.primaryStrong} />
-            <Text style={styles.loadingText}>Đang tải...</Text>
-          </View>
+          <ContentSkeleton variant="requests" />
         ) : (
           <View style={styles.requestList}>
             {filteredRequests.length === 0 ? (
@@ -1113,43 +1361,106 @@ export default function RequestScreen({ navigation, route }) {
               <View style={styles.shiftCardMini}>
                 <View style={[styles.miniBar, { backgroundColor: selectedSwapShift.color }]} />
                 <View style={styles.miniInfo}>
-                  <Text style={styles.miniTime}>
-                    {selectedSwapShift.dayLabel} - {selectedSwapShift.timeRange}
-                  </Text>
-                  <Text style={styles.miniLocation}>{selectedSwapShift.location}</Text>
-                  <View style={styles.miniRoleRow}>
+                  <Text style={styles.miniTime}>{hasSelectedSwapShift ? `${selectedSwapShift.dayLabel} - ${selectedSwapShift.timeRange}` : 'Chưa chọn ca làm việc'}</Text>
+                  <Text style={styles.miniLocation}>{hasSelectedSwapShift ? selectedSwapShift.location : 'Chọn một ca sắp tới để đổi.'}</Text>
+                  {hasSelectedSwapShift ? <View style={styles.miniRoleRow}>
                     <View style={[styles.miniRoleDot, { backgroundColor: selectedSwapShift.color }]} />
                     <Text style={styles.miniRoleText}>{selectedSwapShift.role}</Text>
-                  </View>
+                  </View> : null}
                 </View>
               </View>
             </View>
 
-            <Text style={styles.suggestTitle}>Gợi ý đồng nghiệp</Text>
+            <Text style={styles.suggestTitle}>Hình thức chuyển ca</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: swapMode === 'swap' }}
+                onPress={() => setSwapMode('swap')}
+                style={ensureTouchTarget([
+                  { flex: 1, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                  swapMode === 'swap'
+                    ? { backgroundColor: '#EEF2FF', borderColor: '#6366F1' }
+                    : { backgroundColor: uiColors.surfaceAlt, borderColor: uiColors.border },
+                ])}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: swapMode === 'swap' ? '#4338CA' : uiColors.inkMuted }}>
+                  Đổi ca 2 chiều
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: swapMode === 'giveaway' }}
+                onPress={() => setSwapMode('giveaway')}
+                style={ensureTouchTarget([
+                  { flex: 1, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+                  swapMode === 'giveaway'
+                    ? { backgroundColor: '#ECFDF5', borderColor: '#10B981' }
+                    : { backgroundColor: uiColors.surfaceAlt, borderColor: uiColors.border },
+                ])}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: swapMode === 'giveaway' ? '#047857' : uiColors.inkMuted }}>
+                  Nhường ca 1 chiều
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.suggestTitle}>
+              {swapMode === 'giveaway'
+                ? `Đồng nghiệp chưa có ca hôm đó (${selectedGiveawayStaffs.length}/3)`
+                : 'Gợi ý đồng nghiệp'}
+            </Text>
+            {swapMode === 'giveaway' ? (
+              <Text style={{ fontSize: 12, color: uiColors.inkMuted, marginBottom: 10 }}>
+                Chọn tối đa 3 người. Cho phép nhận ca kể cả khi chưa đăng ký rảnh hoặc vượt giới hạn giờ tuần.
+              </Text>
+            ) : null}
 
             <View style={styles.suggestList}>
-              {storeColleagues.length === 0 ? (
+              {eligibleSwapColleagues.length === 0 ? (
                 <View style={{ paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic' }}>Chưa có thông tin đồng nghiệp trong chi nhánh</Text>
+                  <Text style={{ fontSize: 13, color: uiColors.muted, fontStyle: 'italic', textAlign: 'center' }}>
+                    {swapMode === 'giveaway'
+                      ? 'Không có đồng nghiệp nào trống ca vào ngày này'
+                      : 'Chưa có đồng nghiệp có ca đã công bố sắp tới để đổi. Nhân viên mới cần được phân ca và công bố trước.'}
+                  </Text>
                 </View>
               ) : (
-                storeColleagues.map((staff, idx) => {
-                  const isSelected = (selectedSwapStaff && typeof selectedSwapStaff === 'object' && selectedSwapStaff.staffId === staff.staffId) || selectedSwapStaff === staff.name;
+                eligibleSwapColleagues.map((staff, idx) => {
+                  const isSelected = swapMode === 'giveaway'
+                    ? selectedGiveawayStaffs.some((item) => String(item.staffId) === String(staff.staffId))
+                    : ((selectedSwapStaff && typeof selectedSwapStaff === 'object' && String(selectedSwapStaff.staffId) === String(staff.staffId)) || selectedSwapStaff === staff.name);
 
                   return (
                     <TouchableOpacity accessibilityLabel={`Chọn đồng nghiệp ${staff.name}, ${staff.role}`} accessibilityState={{ selected: isSelected }} aria-selected={isSelected} accessibilityRole="button"
-                      key={idx}
+                      key={staff.staffId || idx}
                       style={ensureTouchTarget([styles.suggestItem, isSelected && styles.suggestItemSelected])}
                       onPress={() => {
-                        setSelectedSwapStaff(staff);
-                        showToast('Đã chọn đồng nghiệp', `${staff.name} • ${staff.role}`, 'info');
+                        if (swapMode === 'giveaway') {
+                          setSelectedGiveawayStaffs((prev) => {
+                            const exists = prev.some((item) => String(item.staffId) === String(staff.staffId));
+                            if (exists) return prev.filter((item) => String(item.staffId) !== String(staff.staffId));
+                            if (prev.length >= 3) {
+                              showToast('Giới hạn tối đa', 'Tối đa chỉ được chọn 3 đồng nghiệp cho nhường ca 1 chiều', 'warning');
+                              return prev;
+                            }
+                            return [...prev, staff];
+                          });
+                        } else {
+                          setSelectedSwapStaff(staff);
+                          showToast('Đã chọn đồng nghiệp', `${staff.name} • ${staff.role}`, 'info');
+                        }
                       }}
                       activeOpacity={0.7}
                     >
                       <Image source={getStaffAvatarSource(staff.name, staff.avatarId)} style={styles.suggestAvatar} />
                       <View style={styles.suggestInfo}>
                         <Text style={styles.suggestName}>{staff.name}</Text>
-                        <Text style={styles.suggestRole}>{staff.role}{staff.timeRange ? ` • ${staff.timeRange}` : ''}</Text>
+                        <Text style={styles.suggestRole}>
+                          {swapMode === 'giveaway'
+                            ? `${staff.role} • Không có ca ngày ${selectedSwapShift?.shiftDate || ''}`
+                            : `${staff.role}${staff.timeRange ? ` • ${staff.timeRange}` : ''}`}
+                        </Text>
                       </View>
                       {isSelected && (
                         <View style={styles.suggestCheckBadge}>
@@ -1162,42 +1473,48 @@ export default function RequestScreen({ navigation, route }) {
               )}
             </View>
 
-            {selectedSwapStaff ? (
+            {(swapMode === 'giveaway' ? selectedGiveawayStaffs.length > 0 : Boolean(selectedSwapStaff)) ? (() => {
+              const isOneWayPreview = swapMode === 'giveaway';
+              const colleagueLabel = isOneWayPreview
+                ? selectedGiveawayStaffs.map((s) => s.name).join(', ')
+                : (typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff);
+              return (
               <View style={styles.selectedColleagueCard}>
                 <View style={styles.sccHeader}>
                   <View style={styles.sccBadge}>
-                    <Text style={styles.sccBadgeText}>✓ ĐÃ CHỌN ĐỒNG NGHIỆP ĐỔI CA</Text>
+                    <Text style={styles.sccBadgeText}>
+                      {isOneWayPreview ? `NHƯỜNG CA 1 CHIỀU (${selectedGiveawayStaffs.length}/3)` : 'ĐỔI CA 2 CHIỀU'}
+                    </Text>
                   </View>
-                  <Text style={styles.sccName}>
-                    {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff}
-                  </Text>
+                  <Text style={styles.sccName} numberOfLines={1}>{colleagueLabel}</Text>
                 </View>
                 <View style={styles.sccExchangeRow}>
                   <View style={styles.sccBox}>
-                    <Text style={styles.sccBoxLabel}>Ca của bạn (nhượng lại)</Text>
+                    <Text style={styles.sccBoxLabel}>Ca của bạn (nhường lại)</Text>
                     <Text style={styles.sccBoxTime}>{selectedSwapShift.dayLabel}</Text>
                     <Text style={styles.sccBoxSub}>{selectedSwapShift.timeRange}</Text>
                   </View>
                   <View style={styles.sccArrowWrap}>
-                    <Text style={styles.sccArrowText}>⇄</Text>
+                    <Text style={styles.sccArrowText}>{isOneWayPreview ? '→' : '⇄'}</Text>
                   </View>
                   <View style={styles.sccBox}>
-                    <Text style={styles.sccBoxLabel}>Ca đồng nghiệp (bạn nhận)</Text>
-                    <Text style={styles.sccBoxTime}>
-                      {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff}
-                    </Text>
+                    <Text style={styles.sccBoxLabel}>{isOneWayPreview ? 'Người nhận ca' : 'Ca đồng nghiệp (bạn nhận)'}</Text>
+                    <Text style={styles.sccBoxTime}>{colleagueLabel}</Text>
                     <Text style={[styles.sccBoxSub, { color: uiColors.successStrong, fontWeight: '600' }]}>
-                      {typeof selectedSwapStaff === 'object' && selectedSwapStaff.timeRange
-                        ? `${selectedSwapStaff.shiftDate ? selectedSwapStaff.shiftDate + ' • ' : ''}${selectedSwapStaff.timeRange}`
-                        : 'Cần đồng nghiệp duyệt'}
+                      {isOneWayPreview
+                        ? 'Nhường 1 chiều (rảnh/bận hoặc vượt giờ vẫn nhận được)'
+                        : `${selectedSwapStaff.shiftDate ? selectedSwapStaff.shiftDate + ' • ' : ''}${selectedSwapStaff.timeRange}`}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.sccNoticeText}>
-                  ℹ️ Trạng thái: Sau khi gửi, yêu cầu sẽ là "Chờ đồng nghiệp đồng ý". Sau khi {typeof selectedSwapStaff === 'object' ? selectedSwapStaff.name : selectedSwapStaff} chấp thuận, Quản lý mới duyệt chính thức.
+                  {isOneWayPreview
+                    ? `Đã chọn ${selectedGiveawayStaffs.length}/3 người. Người nhận xác nhận và được Quản lý duyệt đầu tiên sẽ nhận ca; các yêu cầu còn lại tự động hủy.`
+                    : `Sau khi gửi, yêu cầu sẽ là "Chờ đồng nghiệp đồng ý". Sau khi ${colleagueLabel} chấp thuận, Quản lý mới duyệt chính thức.`}
                 </Text>
               </View>
-            ) : null}
+              );
+            })() : null}
 
             {swapError && (
               <View style={styles.modalErrorBox}>
@@ -1207,9 +1524,9 @@ export default function RequestScreen({ navigation, route }) {
             )}
 
             <TouchableOpacity accessibilityRole="button"
-              style={ensureTouchTarget([styles.submitBtn, (loading || busy.submit) && styles.submitBtnDisabled])}
+              style={ensureTouchTarget([styles.submitBtn, !canSubmitSwap && styles.submitBtnDisabled])}
               onPress={handleSubmitSwap}
-              disabled={loading || busy.submit}
+              disabled={!canSubmitSwap}
               activeOpacity={0.8}
             >
               {(loading || busy.submit) ? (
@@ -1301,14 +1618,12 @@ export default function RequestScreen({ navigation, route }) {
               <View style={styles.shiftCardMini}>
                 <View style={[styles.miniBar, { backgroundColor: selectedAbsentShift.color }]} />
                 <View style={styles.miniInfo}>
-                  <Text style={styles.miniTime}>
-                    {selectedAbsentShift.dayLabel} - {selectedAbsentShift.timeRange}
-                  </Text>
-                  <Text style={styles.miniLocation}>{selectedAbsentShift.location}</Text>
-                  <View style={styles.miniRoleRow}>
+                  <Text style={styles.miniTime}>{hasSelectedAbsentShift ? `${selectedAbsentShift.dayLabel} - ${selectedAbsentShift.timeRange}` : 'Chưa chọn ca cần xin vắng'}</Text>
+                  <Text style={styles.miniLocation}>{hasSelectedAbsentShift ? selectedAbsentShift.location : 'Chọn một ca sắp tới để gửi yêu cầu.'}</Text>
+                  {hasSelectedAbsentShift ? <View style={styles.miniRoleRow}>
                     <View style={[styles.miniRoleDot, { backgroundColor: selectedAbsentShift.color }]} />
                     <Text style={styles.miniRoleText}>{selectedAbsentShift.role}</Text>
-                  </View>
+                  </View> : null}
                 </View>
               </View>
             </View>
@@ -1341,9 +1656,9 @@ export default function RequestScreen({ navigation, route }) {
             )}
 
             <TouchableOpacity accessibilityRole="button"
-              style={ensureTouchTarget([styles.submitBtn, (loading || busy.submit) && styles.submitBtnDisabled])}
+              style={ensureTouchTarget([styles.submitBtn, !canSubmitAbsent && styles.submitBtnDisabled])}
               onPress={handleSubmitAbsent}
-              disabled={loading || busy.submit}
+              disabled={!canSubmitAbsent}
               activeOpacity={0.8}
             >
               {(loading || busy.submit) ? (
@@ -1409,6 +1724,36 @@ export default function RequestScreen({ navigation, route }) {
                 ? `${selectedRequest.toShiftDate || ''} (${String(selectedRequest.toShiftStartTime || '').slice(0, 5)} - ${String(selectedRequest.toShiftEndTime || '').slice(0, 5)})`
                 : selectedRequest?.endDate || selectedRequest?.date}</Text>
             </View>
+
+            {selectedRequest?.isRealSwap ? (() => {
+              const cmp = getSwapDurationComparison(
+                selectedRequest.fromShiftStartTime,
+                selectedRequest.fromShiftEndTime,
+                selectedRequest.toShiftStartTime,
+                selectedRequest.toShiftEndTime
+              );
+              if (!cmp) return null;
+              const payText = formatPayDeltaVND(selectedRequest.myEstimatedPayDelta);
+              const payNum = Number(selectedRequest.myEstimatedPayDelta);
+              return (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Chênh lệch giờ:</Text>
+                    <Text style={[styles.detailValue, { color: cmp.diff === 0 ? '#047857' : '#B45309', fontWeight: '700' }]}>
+                      {cmp.label}
+                    </Text>
+                  </View>
+                  {payText ? (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Chênh lệch lương:</Text>
+                      <Text style={[styles.detailValue, { color: payNum === 0 ? '#047857' : payNum > 0 ? '#1D4ED8' : '#B91C1C', fontWeight: '700' }]}>
+                        {payText}
+                      </Text>
+                    </View>
+                  ) : null}
+                </>
+              );
+            })() : null}
 
             <Text style={styles.detailSectionHeading}>Lý do:</Text>
             <View style={styles.detailReasonBox}>

@@ -158,11 +158,12 @@ function OctoCanvas({ width, height, status, emailLength }) {
     }
 
     let animId = null;
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const st = statusRef.current;
       const eLen = emailRef.current;
       const gazeX = THREE.MathUtils.clamp((eLen - 10) * 0.005, -0.06, 0.06);
@@ -357,11 +358,12 @@ function DuckCanvas({ width, height, status, emailLength }) {
     }
 
     let animId = null;
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const st = statusRef.current;
       const eLen = emailRef.current;
       const gazeX = THREE.MathUtils.clamp((eLen - 10) * 0.005, -0.06, 0.06);

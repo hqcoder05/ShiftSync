@@ -1852,11 +1852,10 @@ class SchedulingPostgresIntegrationTest {
         assertEquals("CANCELLED",jdbc.queryForObject("select status::text from shift where id=?",String.class,shift));
     }
 
-    /** Characterizes swap approval bypassing the required skill of each destination assignment. */
+    /** Rejects swap requests when either employee lacks the destination assignment skill. */
     @Test void swapRejectsEmployeesWithoutDestinationSkills() {
-        UUID store=store(),first=person(),second=person(),manager=person(),roleA=skill(store),roleB=skill(store);
+        UUID store=store(),first=person(),second=person(),roleA=skill(store),roleB=skill(store);
         employ(store,first,roleA,"EXPERT");employ(store,second,roleB,"EXPERT");
-        jdbc.update("update staff set system_role='ADMIN' where id=?",manager);
         UUID source=shift(store,roleA),target=UUID.randomUUID();
         jdbc.update("insert into shift(id,store_id,shift_date,start_time,end_time,status,is_open,availability_deadline) values (?,?,?,'09:00','17:00','PUBLISHED',false,?)",
                 target,store,date.plusDays(1),date.atStartOfDay().atOffset(ZoneOffset.UTC));
@@ -1866,9 +1865,7 @@ class SchedulingPostgresIntegrationTest {
         jdbc.update("insert into availability(id,staff_id,day_of_week,start_time,end_time) values (?,?,1,'06:00','23:00')",UUID.randomUUID(),first);
         jdbc.update("insert into shift_assignment(id,shift_id,staff_id,required_skill_id,source) values (?,?,?,?,'MANUAL'),(?,?,?,?,'MANUAL')",
                 UUID.randomUUID(),source,first,roleA,UUID.randomUUID(),target,second,roleB);
-        var request=swaps.createSwapRequest(first,source,second,target);
-        swaps.respondToSwapRequest(request.getId(),second,true);
-        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->swaps.managerApproveSwapRequest(request.getId(),manager));
+        assertThrows(com.shiftsync.shared.exception.BusinessException.class,()->swaps.createSwapRequest(first,source,second,target));
         assertEquals(0,jdbc.queryForObject("select count(*) from shift_assignment a where a.shift_id in (?,?) and a.deleted=false and not exists (select 1 from staff_skill sk where sk.staff_id=a.staff_id and sk.skill_id=a.required_skill_id)",Integer.class,source,target));
     }
 

@@ -213,12 +213,13 @@ export default function PaperPlane3DWeb({
     }
 
     // ── Animation ──
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     overlayClockRef.current = clock;
     const DURATION = 2.4; // seconds to fly across
 
     const animate = () => {
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
       const progress = Math.min(elapsed / DURATION, 1.0);
 
       if (progress >= 1.0) {
@@ -382,12 +383,13 @@ export default function PaperPlane3DWeb({
     planeGroup.scale.set(1.1, 1.1, 1.1);
 
     // Idle animation
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let animId = null;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
 
       planeGroup.position.y = Math.sin(elapsed * 2.2) * 0.08;
       planeGroup.position.x = Math.sin(elapsed * 1.1) * 0.04;

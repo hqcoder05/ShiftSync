@@ -255,12 +255,13 @@ function OctoMascotCanvas({ width, height, interactive }) {
     }
 
     let animId = null;
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let timer = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
 
       if (!isDragging.current) {
         root.rotation.y += rotVelocity.current.y;
@@ -522,12 +523,13 @@ function DuckMascotCanvas({ width, height, interactive }) {
     }
 
     let animId = null;
-    const clock = new THREE.Clock();
+    const clock = new THREE.Timer();
     let timer = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      clock.update();
+      const elapsed = clock.getElapsed();
 
       if (!isDragging.current) {
         root.rotation.y += rotVelocity.current.y;

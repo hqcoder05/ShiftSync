@@ -2,6 +2,11 @@ import api from './api';
 
 export const getMyAvailability = () => api.get('/availability');
 
+export const getMyWeeklyAvailability = (weekStart) => api.get(`/availability/weeks/${weekStart}`);
+
+export const getStoreWeeklyAvailability = (storeId, weekStart) =>
+  api.get(`/availability/weeks/stores/${storeId}/${weekStart}`);
+
 export const getStaffAvailability = (userId) => api.get(`/availability/users/${userId}`);
 
 export const getStoreStaffAvailability = (storeId) => api.get(`/availability/stores/${storeId}`);

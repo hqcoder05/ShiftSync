@@ -9,6 +9,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +31,7 @@ public class WeeklyAvailabilityController {
     }
 
     public record Slot(UUID id, short dayOfWeek, LocalTime startTime, LocalTime endTime) {}
+    public record StoreSlot(UUID staffId, UUID id, short dayOfWeek, LocalTime startTime, LocalTime endTime) {}
     public record Snapshot(LocalDate weekStart, long revision, String source, boolean editable, List<Slot> slots) {}
     public record SaveRequest(@NotNull Long revision, @NotNull List<@NotNull @Valid AvailabilityRequest> slots) {}
 
@@ -63,6 +65,24 @@ public class WeeklyAvailabilityController {
         List<Slot> slots = rows.stream().filter(r -> r[1] != null)
                 .map(r -> new Slot((UUID) r[1], ((Number) r[2]).shortValue(), asLocalTime(r[3]), asLocalTime(r[4]))).toList();
         return new Snapshot(week, ((Number) rows.getFirst()[0]).longValue(), "REGISTERED", editable(week), slots);
+    }
+
+    @GetMapping("/stores/{storeId}/{week}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('MANAGER') and @storeAccessService.canAccessStore(authentication, #storeId))")
+    @Transactional(readOnly = true)
+    public List<StoreSlot> getStoreWeek(@PathVariable UUID storeId, @PathVariable LocalDate week) {
+        checkWeek(week);
+        @SuppressWarnings("unchecked") List<Object[]> rows = db.createNativeQuery("""
+                SELECT s.staff_id, s.id, s.day_of_week, s.start_time, s.end_time
+                FROM weekly_availability_slot s
+                JOIN employment e ON e.staff_id = s.staff_id
+                WHERE e.store_id = :store AND e.status = 'ACTIVE' AND s.week_start = :week
+                ORDER BY s.staff_id, s.day_of_week, s.start_time, s.id
+                """)
+                .setParameter("store", storeId).setParameter("week", week).getResultList();
+        return rows.stream()
+                .map(r -> new StoreSlot((UUID) r[0], (UUID) r[1], ((Number) r[2]).shortValue(), asLocalTime(r[3]), asLocalTime(r[4])))
+                .toList();
     }
 
     private static LocalTime asLocalTime(Object value) {
